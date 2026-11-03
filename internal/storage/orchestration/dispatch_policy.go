@@ -122,6 +122,16 @@ func (r *Repository) DeferDispatchPolicy(ctx context.Context, id, expected, stat
 	_, err := r.db.ExecContext(ctx, `UPDATE execution_dispatch_policies SET state=`+r.bind(1)+`,reason=`+r.bind(2)+`,next_attempt_at=`+r.bind(3)+` WHERE policy_id=`+r.bind(4)+` AND state=`+r.bind(5), state, reason, r.timestamp(next), id, expected)
 	return err
 }
+
+// WakeDispatchPolicies makes pending policies of one Execution due now.
+func (r *Repository) WakeDispatchPolicies(ctx context.Context, executionID string, now time.Time) (int64, error) {
+	result, err := r.db.ExecContext(ctx, `UPDATE execution_dispatch_policies SET next_attempt_at=`+r.bind(1)+` WHERE execution_id=`+r.bind(2)+` AND state='pending' AND next_attempt_at>`+r.bind(3), r.timestamp(now), executionID, r.timestamp(now))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (r *Repository) ActivateDispatchPolicy(ctx context.Context, c ActivateDispatchPolicyCommand) (*protocol.ExecutionSnapshot, error) {
 	command := c.Assignment
 	if err := normalizeAssignment(&command.Assignment, r.currentTime()); err != nil {

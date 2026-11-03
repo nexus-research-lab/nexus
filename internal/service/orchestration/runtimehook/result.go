@@ -4,21 +4,19 @@
 package runtimehook
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"log/slog"
 	"strings"
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	"github.com/nexus-research-lab/nexus/internal/infra/strictjson"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
-const resultMarker = "<!-- nexus-workgraph-result\n"
+const resultMarker = protocol.ExecutionResultMarker + "\n"
 
 type ResultProvider interface {
 	AcceptRuntimeResult(context.Context, orchestration.ActorContext, protocol.ExecutionResultDeclaration) (orchestration.RuntimeResultOutcome, error)
@@ -80,10 +78,10 @@ func ResultCallback(provider ResultProvider, actor orchestration.ActorContext, l
 }
 
 func parseResultDeclaration(text string) (*protocol.ExecutionResultDeclaration, error) {
-	if !strings.Contains(text, "<!-- nexus-workgraph-result") {
+	if !strings.Contains(text, protocol.ExecutionResultMarker) {
 		return nil, nil
 	}
-	if strings.Count(text, "<!-- nexus-workgraph-result") != 1 {
+	if strings.Count(text, protocol.ExecutionResultMarker) != 1 {
 		return nil, errors.New("exactly one result declaration is required")
 	}
 	prefix, suffix, ok := strings.Cut(text, resultMarker)
@@ -98,7 +96,7 @@ func parseResultDeclaration(text string) (*protocol.ExecutionResultDeclaration, 
 	if len(payload) == 0 || len(payload) > 64*1024 {
 		return nil, errors.New("result declaration size is invalid")
 	}
-	if err := rejectDuplicateJSONKeys([]byte(payload)); err != nil {
+	if err := strictjson.ValidateKeys([]byte(payload), 16, func(name string) bool { return name == strings.ToLower(name) }); err != nil {
 		return nil, err
 	}
 	decoder := json.NewDecoder(strings.NewReader(payload))
@@ -161,58 +159,4 @@ func normalizedResultStrings(values []string) []string {
 		}
 	}
 	return result
-}
-
-func rejectDuplicateJSONKeys(payload []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.UseNumber()
-	var walk func(int) error
-	walk = func(depth int) error {
-		if depth > 16 {
-			return errors.New("result nesting limit exceeded")
-		}
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		delimiter, compound := token.(json.Delim)
-		if !compound {
-			return nil
-		}
-		switch delimiter {
-		case '{':
-			keys := map[string]bool{}
-			for decoder.More() {
-				key, err := decoder.Token()
-				if err != nil {
-					return err
-				}
-				name, ok := key.(string)
-				if !ok || name != strings.ToLower(name) || keys[name] {
-					return errors.New("duplicate or invalid result field")
-				}
-				keys[name] = true
-				if err := walk(depth + 1); err != nil {
-					return err
-				}
-			}
-		case '[':
-			for decoder.More() {
-				if err := walk(depth + 1); err != nil {
-					return err
-				}
-			}
-		default:
-			return fmt.Errorf("invalid result delimiter")
-		}
-		_, err = decoder.Token()
-		return err
-	}
-	if err := walk(0); err != nil {
-		return err
-	}
-	if _, err := decoder.Token(); err != io.EOF {
-		return errors.New("trailing result data")
-	}
-	return nil
 }

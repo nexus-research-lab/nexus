@@ -47,6 +47,10 @@ type ScheduledWorkConsumer interface {
 	QueueScheduledWork(context.Context, protocol.Execution, protocol.ExecutionWorkBinding, string, string) error
 }
 
+// ErrScheduledTargetUnavailable marks a permanent admission failure (target left
+// the scope or scope changed); the policy is cancelled instead of retried.
+var ErrScheduledTargetUnavailable = errors.New("scheduled dispatch target is unavailable")
+
 func (s *Service) SetScheduledWorkConsumer(c ScheduledWorkConsumer) { s.scheduledWork = c }
 
 func (s *Service) ConfigureDispatch(ctx context.Context, actor ActorContext, input ConfigureDispatchInput) (returned MutationResult, returnedErr error) {
@@ -149,6 +153,22 @@ func (s *Service) authorizedPolicyChain(ctx context.Context, actor ActorContext,
 	return a, d, attempt, nil
 }
 
+const dispatchPolicyAcceptanceBackoff = 5 * time.Minute
+
+// wakeDispatchPolicies makes an Execution's waiting policies due after an
+// acceptance may have readied downstream work. Best effort: the backoff remains.
+func (s *Service) wakeDispatchPolicies(ctx context.Context, executionID string) {
+	waker, ok := s.repository.(interface {
+		WakeDispatchPolicies(context.Context, string, time.Time) (int64, error)
+	})
+	if !ok {
+		return
+	}
+	if woken, err := waker.WakeDispatchPolicies(ctx, executionID, s.now().UTC()); err == nil && woken > 0 {
+		s.WakeOrchestrationRecovery()
+	}
+}
+
 func (s *Service) ReconcileDispatchPolicies(ctx context.Context, limit int) (int, error) {
 	repository, ok := s.repository.(dispatchPolicyRepository)
 	if !ok {
@@ -171,7 +191,12 @@ func (s *Service) ReconcileDispatchPolicies(ctx context.Context, limit int) (int
 }
 func (s *Service) reconcileDispatchPolicy(ctx context.Context, repository dispatchPolicyRepository, p protocol.ExecutionDispatchPolicy) error {
 	deferPolicy := func(state, reason string) error {
-		return repository.DeferDispatchPolicy(ctx, p.ID, p.State, state, reason, s.now().UTC().Add(15*time.Second))
+		delay := 15 * time.Second
+		if reason == "waiting_for_acceptance" {
+			// Acceptance wakes these explicitly; the long deadline is only a safety net.
+			delay = dispatchPolicyAcceptanceBackoff
+		}
+		return repository.DeferDispatchPolicy(ctx, p.ID, p.State, state, reason, s.now().UTC().Add(delay))
 	}
 	snapshot, err := s.repository.GetSnapshot(ctx, p.ExecutionID)
 	if err != nil {
@@ -191,6 +216,9 @@ func (s *Service) reconcileDispatchPolicy(ctx context.Context, repository dispat
 	allowed := continuation
 	if !continuation {
 		allowed, err = s.scheduledWork.AutomaticDispatchAllowed(ctx, snapshot.Execution, p.TargetAgentID)
+	}
+	if errors.Is(err, ErrScheduledTargetUnavailable) {
+		return deferPolicy("cancelled", "target_unavailable")
 	}
 	if err != nil {
 		return errors.Join(err, deferPolicy(p.State, "admission_unavailable"))

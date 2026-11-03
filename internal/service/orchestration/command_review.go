@@ -187,6 +187,9 @@ func (s *Service) ReviewWork(
 		return s.storageMutationResult(snapshot, reviewErr, nextActions(snapshot, actor))
 	}
 	changed := []string{"acceptance:" + acceptanceID}
+	if input.Decision == protocol.WorkAcceptanceAccepted {
+		s.wakeDispatchPolicies(ctx, updated.Execution.ID)
+	}
 	if input.Decision == protocol.WorkAcceptanceAccepted &&
 		len(updated.CompletionBlockers) == 0 {
 		result, completeErr := s.completeAfterReview(

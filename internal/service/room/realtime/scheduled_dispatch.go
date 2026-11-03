@@ -6,8 +6,10 @@ package realtime
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
 func (s *Service) AutomaticDispatchAllowed(ctx context.Context, e protocol.Execution, target string) (bool, error) {
@@ -15,8 +17,8 @@ func (s *Service) AutomaticDispatchAllowed(ctx context.Context, e protocol.Execu
 	if err != nil {
 		return false, err
 	}
-	if value.Room.OwnerUserID != e.OwnerUserID || value.Room.ID != e.RoomID {
-		return false, errors.New("dispatch scope changed")
+	if value == nil || value.Room.OwnerUserID != e.OwnerUserID || value.Room.ID != e.RoomID {
+		return false, fmt.Errorf("%w: dispatch scope changed", orchestration.ErrScheduledTargetUnavailable)
 	}
 	locations, err := s.roomInputQueueLocationsByAgent(ctx, value)
 	if err != nil {
@@ -24,7 +26,7 @@ func (s *Service) AutomaticDispatchAllowed(ctx context.Context, e protocol.Execu
 	}
 	location, ok := locations[target]
 	if !ok {
-		return false, errors.New("dispatch target left Room")
+		return false, fmt.Errorf("%w: dispatch target left Room", orchestration.ErrScheduledTargetUnavailable)
 	}
 	paused, err := s.InputQueue.DispatchPaused(location.Location)
 	return !paused, err

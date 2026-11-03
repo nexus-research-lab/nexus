@@ -15,13 +15,14 @@ var ErrRuntimeResultConflict = errors.New("runtime result conflicts with its imm
 type RuntimeResultReceipt struct {
 	ID, ExecutionID, OwnerUserID, Kind, TargetID string
 	ActorJSON, ResultJSON, State, Reason         string
+	CreatedAt                                    time.Time
 }
 
-const runtimeResultSelect = `SELECT receipt_id, execution_id, owner_user_id, kind, target_id, actor_json, result_json, state, reason FROM execution_result_receipts `
+const runtimeResultSelect = `SELECT receipt_id, execution_id, owner_user_id, kind, target_id, actor_json, result_json, state, reason, created_at FROM execution_result_receipts `
 
 func scanRuntimeResult(row interface{ Scan(...any) error }) (*RuntimeResultReceipt, error) {
 	var value RuntimeResultReceipt
-	err := row.Scan(&value.ID, &value.ExecutionID, &value.OwnerUserID, &value.Kind, &value.TargetID, &value.ActorJSON, &value.ResultJSON, &value.State, &value.Reason)
+	err := row.Scan(&value.ID, &value.ExecutionID, &value.OwnerUserID, &value.Kind, &value.TargetID, &value.ActorJSON, &value.ResultJSON, &value.State, &value.Reason, &value.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

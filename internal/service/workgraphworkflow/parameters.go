@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/strictjson"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -209,51 +210,11 @@ func parameterInvocation(workflow protocol.WorkGraphWorkflow, arguments string) 
 
 // JSON itself permits duplicate keys; invocation intent must be unambiguous.
 func validateInvocationJSON(input string) error {
-	d := json.NewDecoder(bytes.NewBufferString(input))
-	var read func(int) error
-	read = func(depth int) error {
-		if depth > 8 {
-			return fmt.Errorf("%w: invocation too deeply nested", ErrInvalidInput)
-		}
-		token, err := d.Token()
-		if err != nil {
-			return err
-		}
-		delimiter, ok := token.(json.Delim)
-		if !ok {
-			return nil
-		}
-		switch delimiter {
-		case '{':
-			seen := map[string]bool{}
-			for d.More() {
-				key, err := d.Token()
-				if err != nil {
-					return err
-				}
-				name, ok := key.(string)
-				if !ok || seen[name] {
-					return fmt.Errorf("%w: duplicate invocation field", ErrInvalidInput)
-				}
-				seen[name] = true
-				if err = read(depth + 1); err != nil {
-					return err
-				}
-			}
-		case '[':
-			for d.More() {
-				if err = read(depth + 1); err != nil {
-					return err
-				}
-			}
-		default:
-			return fmt.Errorf("%w: invalid invocation", ErrInvalidInput)
-		}
-		_, err = d.Token()
-		return err
-	}
 	if len(input) == 0 || input[0] != '{' {
 		return fmt.Errorf("%w: invocation must be a JSON object", ErrInvalidInput)
 	}
-	return read(0)
+	if err := strictjson.ValidateKeys([]byte(input), 8, nil); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+	return nil
 }

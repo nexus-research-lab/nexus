@@ -74,8 +74,8 @@ func (h *Host) ExecuteAgentRound(ctx context.Context, round AgentRound) (exec.Ro
 	if provider, ok := h.ExecutionContext.(orchestrationruntimehook.ResultProvider); ok && runtimectx.SupportsWorkResultHooks(round.Client) {
 		if contract := orchestrationruntimehook.ResultContract(actor); contract != "" {
 			executionInputs = append(executionInputs, runtimectx.NewContextualInputBlock("workgraph_result", contract, 90, nil))
-			h.Runtime.SetWorkResultHook(round.RuntimeSessionKey, round.HookRoundID, orchestrationruntimehook.ResultCallback(provider, actor, round.Logger))
-			defer h.Runtime.ClearWorkResultHook(round.RuntimeSessionKey, round.HookRoundID)
+			h.Runtime.SetWorkResultHook(round.RuntimeSessionKey, actor.AgentRoundID, orchestrationruntimehook.ResultCallback(provider, actor, round.Logger))
+			defer h.Runtime.ClearWorkResultHook(round.RuntimeSessionKey, actor.AgentRoundID)
 		}
 	}
 	observer := h.ExecutionObserver()

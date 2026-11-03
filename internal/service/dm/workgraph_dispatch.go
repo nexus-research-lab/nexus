@@ -15,7 +15,7 @@ import (
 
 func (s *Service) AutomaticDispatchAllowed(ctx context.Context, e protocol.Execution, target string) (bool, error) {
 	if e.ScopeKind != protocol.ExecutionScopeDM || e.CoordinatorAgentID != target {
-		return false, errors.New("scheduled DM target differs from coordinator")
+		return false, fmt.Errorf("%w: scheduled DM target differs from coordinator", orchestration.ErrScheduledTargetUnavailable)
 	}
 	ctx = runtimehost.ContextWithExactOwner(ctx, e.OwnerUserID)
 	_, location, err := s.resolveInputQueueLocation(ctx, e.SessionKey, target)

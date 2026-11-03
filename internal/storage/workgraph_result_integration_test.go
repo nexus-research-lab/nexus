@@ -193,6 +193,33 @@ func TestWorkGraphRuntimeResultIntegration(t *testing.T) {
 					}
 				}
 			})
+			t.Run("ended_attempt_is_not_resubmitted", func(t *testing.T) {
+				actor, declaration := runtimeResultFixture(t, repository, "ended-attempt")
+				service := svc.NewService(&resultFaultRepository{Repository: repository, failFinish: true})
+				intake, err := service.AcceptRuntimeResult(t.Context(), actor, declaration)
+				if err != nil || intake.State != "pending" {
+					t.Fatalf("intake=%+v %v", intake, err)
+				}
+				snapshot, _ := repository.GetSnapshot(t.Context(), actor.ExecutionID)
+				attempt := snapshot.Attempts[0]
+				attempt.Status = protocol.WorkAttemptStatusFailed
+				if _, err = repository.FinishAttempt(t.Context(), repo.FinishAttemptCommand{ExpectedExecutionVersion: snapshot.Execution.Version, ExpectedAttemptVersion: attempt.Version, Attempt: attempt, Meta: integrationCommandMeta("fail-ended-result")}); err != nil {
+					t.Fatal(err)
+				}
+				attemptsBefore := len(snapshot.Attempts)
+				service = svc.NewService(repository)
+				if _, err := service.ReconcileRuntimeResults(t.Context(), 64); err != nil {
+					t.Fatal(err)
+				}
+				receipt, err := repository.GetRuntimeResultReceipt(t.Context(), intake.ReceiptID)
+				if err != nil || receipt.State != "rejected" {
+					t.Fatalf("ended Attempt intake=%+v %v", receipt, err)
+				}
+				snapshot, _ = repository.GetSnapshot(t.Context(), actor.ExecutionID)
+				if len(snapshot.Submissions) != 0 || len(snapshot.Attempts) != attemptsBefore {
+					t.Fatalf("ended Attempt opened a successor or delivered: attempts=%d submissions=%d", len(snapshot.Attempts), len(snapshot.Submissions))
+				}
+			})
 			for _, conflict := range []bool{false, true} {
 				name := "review_tool_and_hook"
 				if conflict {

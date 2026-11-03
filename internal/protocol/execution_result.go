@@ -21,3 +21,7 @@ type ExecutionReviewResult struct {
 	CriteriaResults []WorkAcceptanceCriterionResult `json:"criteria_results,omitempty"`
 	Feedback        string                          `json:"feedback,omitempty"`
 }
+
+// ExecutionResultMarker opens the single HTML-comment declaration a bound round
+// appends to its final reply; the JSON payload follows on the next line.
+const ExecutionResultMarker = "<!-- nexus-workgraph-result"

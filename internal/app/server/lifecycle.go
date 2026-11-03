@@ -1,5 +1,5 @@
 // INPUT: Server services, runtime managers, root lifecycle context、WorkGraph 历史回填账本与 durable orchestration state。
-// OUTPUT: 可取消的一次性历史回填，随后启动并监管 event/deadline 驱动的业务 coordinator。
+// OUTPUT: 与业务 coordinator 并行、可取消并在停止时等待的一次性历史回填，以及 event/deadline 驱动的 coordinator 监管。
 // POS: 迁移与后台 coordinator 的应用生命周期边界；历史恢复留在 migration，业务 claim 和 retry 留在 service。
 package server
 
@@ -104,16 +104,29 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	return httpServer.Serve(listener)
 }
 
-func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
-	if s.services != nil && s.services.DB != nil && s.services.Core != nil {
-		if err := migration.RunWorkGraphHistoryBackfill(ctx, s.config, s.services.DB, s.services.Core.Session, s.api.BaseLogger()); err != nil {
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			s.api.BaseLogger().Warn("WorkGraph historical backfill incomplete; retry on next startup", "err", err)
-		}
+// startWorkGraphHistoryBackfill runs the one-shot historical backfill beside the
+// coordinators: its writes are insert-only and views report history_pending, so
+// startup never waits on transcript parsing. Stop cancels and waits for it.
+func (s *Server) startWorkGraphHistoryBackfill(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.DB == nil || s.services.Core == nil {
+		return nil, nil
 	}
+	runCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	logger := s.api.BaseLogger()
+	go func() {
+		defer close(done)
+		if err := migration.RunWorkGraphHistoryBackfill(runCtx, s.config, s.services.DB, s.services.Core.Session, logger); err != nil && runCtx.Err() == nil {
+			logger.Warn("WorkGraph historical backfill incomplete; retry on next startup", "err", err)
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}, nil
+}
 
+func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	var stops []func()
 	stopAll := func() {
 		for i := len(stops) - 1; i >= 0; i-- {
@@ -121,6 +134,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		}
 	}
 	starters := []func(context.Context) (func(), error){
+		s.startWorkGraphHistoryBackfill,
 		s.startControlIdentityInvalidations,
 		s.startConfigurationRecovery,
 		s.startSessionDeletionRecovery,

@@ -6,7 +6,7 @@ import { act, renderHook } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import type { ExecutionGraphNodeView, ExecutionRecoveryReceipt } from "@/types/conversation/execution";
-import { useExecutionRecovery } from "./use-execution-recovery";
+import { RECOVERY_REQUEUE_MS, useExecutionRecovery } from "./use-execution-recovery";
 
 const api = vi.hoisted(() => ({ request: vi.fn(), read: vi.fn() }));
 vi.mock("@/lib/api/conversation/execution-api", () => ({ requestExecutionRecoveryApi: api.request, getExecutionRecoveryReceiptApi: api.read }));
@@ -46,4 +46,24 @@ it("rejects stale scope completions and never requests an unauthorized node", as
   await act(async () => resolve({ execution_id: "execution", work_item_id: "work", attempt_id: "attempt", request_id: requestId, queued: true }));
   expect(result.current.states).toEqual({});
   expect(refresh).not.toHaveBeenCalled();
+});
+
+it("releases a queued fence after the cooldown so the same Attempt can be retried", async () => {
+  vi.useFakeTimers();
+  try {
+    api.request.mockReset();
+    api.request.mockImplementation(async (_s, execution, work, attempt, requestId) => ({ execution_id: execution, work_item_id: work, attempt_id: attempt, request_id: requestId, queued: true }));
+    const { result } = renderHook(() => useExecutionRecovery("session", "execution", vi.fn()));
+    await act(async () => result.current.run(node));
+    expect(result.current.states.attempt.status).toBe("queued");
+    await act(async () => result.current.run(node));
+    expect(api.request).toHaveBeenCalledOnce();
+    await act(async () => { vi.advanceTimersByTime(RECOVERY_REQUEUE_MS); });
+    expect(result.current.states.attempt).toBeUndefined();
+    await act(async () => result.current.run(node));
+    expect(api.request).toHaveBeenCalledTimes(2);
+    expect(api.request.mock.calls[1][4]).not.toBe(api.request.mock.calls[0][4]);
+  } finally {
+    vi.useRealTimers();
+  }
 });

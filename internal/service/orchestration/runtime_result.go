@@ -189,6 +189,11 @@ func authorizePendingRuntimeResult(actor ActorContext, snapshot *protocol.Execut
 		if latest == nil || latest.ID != b.AttemptID {
 			return workBindingMismatch("result cannot move to a newer root Attempt")
 		}
+		// SubmitWork would otherwise open a successor Attempt for an ended root,
+		// recording the delivery under an identity this receipt can never prove.
+		if latest.Status != protocol.WorkAttemptStatusPending && latest.Status != protocol.WorkAttemptStatusRunning {
+			return workBindingMismatch("result's root Attempt already ended")
+		}
 	}
 	return nil
 }
@@ -289,24 +294,37 @@ func (s *Service) applyRuntimeResult(ctx context.Context, receipt store.RuntimeR
 		} else if conflict {
 			return settle("rejected", "result_conflict")
 		}
-		if mutation.Outcome == MutationSuperseded || (mutation.Outcome == MutationRejected && mutation.ReasonCode != ErrorCodeStaleExecution) {
-			// Re-read once after a rejection before classifying a concurrent winner.
-			latest, readErr := s.repository.GetSnapshot(ctx, receipt.ExecutionID)
-			if readErr != nil {
-				return result, readErr
-			}
-			if matched, conflict := runtimeResultProof(latest, actor, declaration); matched {
-				return settle("applied", "")
-			} else if conflict {
-				return settle("rejected", "result_conflict")
-			}
-			if latest != nil && snapshot.Execution.Version == latest.Execution.Version {
-				return settle("rejected", string(mutation.ReasonCode))
-			}
+		if mutation.Outcome == MutationRejected && mutation.ReasonCode == ErrorCodeStaleExecution {
+			continue
 		}
+		// Any other outcome without proof (rejected, superseded or no_op) cannot
+		// improve by replaying the same command; only a concurrent change can.
+		latest, readErr := s.repository.GetSnapshot(ctx, receipt.ExecutionID)
+		if readErr != nil {
+			return result, readErr
+		}
+		if matched, conflict := runtimeResultProof(latest, actor, declaration); matched {
+			return settle("applied", "")
+		} else if conflict {
+			return settle("rejected", "result_conflict")
+		}
+		if latest != nil && snapshot.Execution.Version == latest.Execution.Version {
+			reason := string(mutation.ReasonCode)
+			if reason == "" {
+				reason = "not_applied"
+			}
+			return settle("rejected", reason)
+		}
+	}
+	// Bounded: a receipt that keeps losing races cannot defer its root's
+	// terminal settlement forever.
+	if !receipt.CreatedAt.IsZero() && s.currentTime().Sub(receipt.CreatedAt) > runtimeResultReconcileWindow {
+		return settle("rejected", "reconcile_expired")
 	}
 	return settle("pending", "reconcile_required")
 }
+
+const runtimeResultReconcileWindow = 30 * time.Minute
 
 // A round may have ended while intake was pending. A rejected declaration must
 // not leave its root running forever after terminal settlement was deferred.
