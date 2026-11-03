@@ -158,6 +158,49 @@ func TestProcessorRedactsTransientComputerObservationFromDurableMessage(t *testi
 	}
 }
 
+func TestProcessorRedactsPostActionObservationAndImageBlocks(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:cua-action-redaction",
+		AgentID:    "nexus", RoundID: "round-cua-action-redaction",
+	}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{Content: []sdkprotocol.ContentBlock{
+				sdkprotocol.ToolUseBlock{ID: "tool-action", Name: "mcp__nexus__command",
+					Input: json.RawMessage(`{"domain":"computer","operation":"perform_action"}`)},
+			}},
+		},
+	})
+	content := json.RawMessage(`[{"type":"text","text":"{\"outcome\":\"applied\",\"dispatched\":true,\"observation\":{\"observation_id\":\"obs-next\",\"elements\":[{\"name\":\"PRIVATE AX TEXT\"}]}}"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"PRIVATE SCREENSHOT"}}]`)
+	original := string(content)
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeUser,
+		User: &sdkprotocol.UserMessage{
+			Message: sdkprotocol.ConversationEnvelope{Content: []sdkprotocol.ContentBlock{
+				sdkprotocol.ToolResultBlock{ToolUseID: "tool-action", Content: content},
+			}},
+		},
+	})
+	encoded, err := json.Marshal(output.DurableMessages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"PRIVATE AX TEXT", "PRIVATE SCREENSHOT"} {
+		if strings.Contains(string(encoded), secret) {
+			t.Fatal("post-action transient content entered durable history")
+		}
+	}
+	for _, evidence := range []string{"applied", "dispatched", "obs-next", "elements_count", "cua_transient_content_redacted"} {
+		if !strings.Contains(string(encoded), evidence) {
+			t.Fatalf("durable history lost %s", evidence)
+		}
+	}
+	if string(content) != original {
+		t.Fatal("durable redaction changed the original provider content")
+	}
+}
+
 func TestProcessorPreservesParentAcrossToolResultSnapshot(t *testing.T) {
 	parentToolUseID := "agent-parent-tool"
 	processor := NewProcessor(MessageContext{

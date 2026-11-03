@@ -607,12 +607,20 @@ func decodeInput(input map[string]any, target any) error {
 }
 
 func structured(data map[string]any) command.Result {
-	if data == nil {
-		data = map[string]any{}
-	}
+	data = cloneMap(data)
+	imageData, _ := data["image_data"].(string)
+	imageMIME, _ := data["image_mime"].(string)
+	delete(data, "image_data")
+	delete(data, "image_mime")
 	payload, _ := json.Marshal(data)
+	content := []map[string]any{{"type": "text", "text": string(payload)}}
+	if imageData != "" && imageMIME != "" {
+		content = append(content, map[string]any{
+			"type": "image", "data": imageData, "mimeType": imageMIME,
+		})
+	}
 	return command.Result{
-		Content:           []map[string]any{{"type": "text", "text": string(payload)}},
+		Content:           content,
 		StructuredContent: data,
 	}
 }

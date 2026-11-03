@@ -26,11 +26,16 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
    ```
 
 2. 使用 `list_applications`，再用 `select_target` 以返回的精确应用名称或稳定 application id 选择目标，明确请求所需 allowed_actions、allow_foreground_input 和 ttl_seconds，由宿主确认后生效。参数上限读取 get_computer.action_limits/action_schema。
+
+   调用格式为 `{"domain":"computer","action":"invoke","operation":"list_applications","input":{}}`。
+   `operation` 只放顶层，`input` 只包含该操作 contract 声明的参数，不再嵌套 operation。
+
 3. 多窗口应用先调用 `list_windows`，再把返回的 `window_ref` 或精确标题传给 `observe`；单窗口应用可直接 `observe`。
 4. 每次动作必须使用最新观察；首次调用 `observe`，后续可使用动作返回的新 `observation`。截图或无障碍树过期后重新观察。需要同应用菜单与弹窗时，在能力支持下使用 `application_scene=true`。
    点击、移动、拖拽和滚动目标点均使用截图左上角为原点的 `0..1000` 归一化坐标；不要传图片像素。滚动必须给出目标 x、y，正向 delta_y 向下滚动。快捷键优先使用 `mod`（macOS Command，Windows Control）。
 5. 动作使用 `perform_action`，把业务输入放在 contract 允许的 closed object 中；顶层生成新的 `request_id`。如果结果未知，复用同一个 request_id 重试以完成对账，不能换 ID 重放。
 6. 动作返回 `observation` 时直接读取它；未返回时重新 `observe`。`observation_error` 只代表后续读取失败，不能据此重做动作。缓存结果标记 `fresh_observation_required` 时重新观察。需要确认业务状态时调用 `verify_state`。
+   普通 `observe` 的 `observation_id` 和 `elements` 在结果顶层；`perform_action` 的新观察在 `observation` 内。截图是单独的图片内容，不要把它当作文本分页读取。
 7. 任务结束调用 `close_target`，丢弃本轮的 session、observation、element 和 pending mutation 状态。
 
 ## 安全边界

@@ -36,6 +36,11 @@ settings computer-use
 返回新的观察；新的 guard 替换已消耗的旧 guard。场景观察仅包含锚点显示器上的同一应用。
 Runtime 有界稳定等待不证明业务完成，必要时仍执行 `verify_state`。
 
+`observe` 与 `perform_action` 的截图通过原生 MCP image content block 交付，
+不把 Base64 图像放进 JSON 文本或 StructuredContent，避免触发大文本分页。
+持久化消息投影从两种操作的结果中移除图片内容和 AX 元素树，仅保留动作证据、
+opaque refs、元素数量等摘要；此清理不改变提供给模型的即时结果。
+
 后续观察或截图读取失败时，动作的 dispatched/effect evidence 必须保留，错误另列在
 `observation_error`，不能自动重做动作。已完成请求的本地缓存仅保留动作结果，不保留
 截图或 AX 树；重复 request_id 不派发动作，返回 `fresh_observation_required` 时另行观察。

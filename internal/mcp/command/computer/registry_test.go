@@ -2,12 +2,51 @@ package computer
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	nexuscua "github.com/nexus-research-lab/nexus-cua/sdk/go"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 )
+
+func TestComputerImagesUseNativeMCPBlocks(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		result func(map[string]any) command.Result
+	}{
+		{"observe", structured},
+		{"perform_action", applied},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pixels := strings.Repeat("screenshot-bytes", 4096)
+			input := map[string]any{
+				"observation_id": "obs-current", "image_data": pixels, "image_mime": "image/png",
+			}
+			result := tc.result(input)
+			if len(result.Content) != 2 || result.Content[1]["type"] != "image" ||
+				result.Content[1]["data"] != pixels || result.Content[1]["mimeType"] != "image/png" {
+				t.Fatal("screenshot was not delivered as a native MCP image block")
+			}
+			metadata, err := json.Marshal(result.StructuredContent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, value := range []string{string(metadata), result.Content[0]["text"].(string)} {
+				if strings.Contains(value, "screenshot-bytes") || strings.Contains(value, "image_data") || strings.Contains(value, "image_mime") {
+					t.Fatal("screenshot bytes inflated the text or structured result")
+				}
+				if !strings.Contains(value, "obs-current") {
+					t.Fatal("image extraction lost the observation metadata")
+				}
+			}
+			if input["image_data"] != pixels || input["image_mime"] != "image/png" {
+				t.Fatal("image extraction changed the caller's result")
+			}
+		})
+	}
+}
 
 type permissionStub struct {
 	decision sdkpermission.Decision

@@ -86,9 +86,9 @@ func (p *Processor) enrichToolResultBlock(
 	structuredOutput map[string]any,
 ) map[string]any {
 	enriched := cloneMap(block)
-	p.redactTransientComputerUseResult(enriched)
 	p.attachTaskToolStructuredOutput(enriched, structuredOutput)
 	attachMutationResultMetadata(enriched, structuredOutput)
+	p.redactTransientComputerUseResult(enriched)
 	return enriched
 }
 
@@ -99,7 +99,7 @@ func (p *Processor) enrichToolResultBlock(
 func (p *Processor) redactTransientComputerUseResult(block map[string]any) {
 	toolUseID := textutil.AnyString(block["tool_use_id"])
 	toolUse := p.segment.FindToolUse(toolUseID)
-	if !isComputerObserveToolUse(toolUse) {
+	if !isComputerObservationToolUse(toolUse) {
 		return
 	}
 	for _, key := range []string{"content", "structured_output"} {
@@ -117,7 +117,7 @@ func (p *Processor) redactTransientComputerUseResult(block map[string]any) {
 	block["metadata"] = metadata
 }
 
-func isComputerObserveToolUse(toolUse map[string]any) bool {
+func isComputerObservationToolUse(toolUse map[string]any) bool {
 	if toolUse == nil {
 		return false
 	}
@@ -127,8 +127,11 @@ func isComputerObserveToolUse(toolUse map[string]any) bool {
 		return false
 	}
 	input := mapValue(toolUse["input"])
-	return textutil.AnyString(input["domain"]) == "computer" &&
-		textutil.AnyString(input["operation"]) == "observe"
+	if textutil.AnyString(input["domain"]) != "computer" {
+		return false
+	}
+	operation := textutil.AnyString(input["operation"])
+	return operation == "observe" || operation == "perform_action"
 }
 
 func redactTransientObservationValue(value any) (any, bool) {
@@ -148,6 +151,11 @@ func redactTransientObservationValue(value any) (any, bool) {
 		}
 		return string(encoded), true
 	case map[string]any:
+		if typed["type"] == "image" {
+			return map[string]any{
+				"type": "text", "text": "[Computer Use screenshot omitted from durable history]",
+			}, true
+		}
 		result := cloneMap(typed)
 		changed := false
 		for _, key := range []string{"image_data", "image_mime"} {
@@ -178,6 +186,15 @@ func redactTransientObservationValue(value any) (any, bool) {
 		for index, child := range typed {
 			redacted, childChanged := redactTransientObservationValue(child)
 			result[index] = redacted
+			changed = changed || childChanged
+		}
+		return result, changed
+	case []map[string]any:
+		result := make([]map[string]any, len(typed))
+		changed := false
+		for index, child := range typed {
+			redacted, childChanged := redactTransientObservationValue(child)
+			result[index] = redacted.(map[string]any)
 			changed = changed || childChanged
 		}
 		return result, changed
