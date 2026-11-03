@@ -96,8 +96,13 @@ type EnsureInput struct {
 
 // Service 编排模型语义操作，并把机器状态转换交给 Repository。
 type Service struct {
-	repository             Repository
-	rootRecoveryConsumer   ExecutionRecoveryConsumer
+	repository           Repository
+	rootRecoveryConsumer ExecutionRecoveryConsumer
+	// startupRecovery* hold startup root recovery that failed and is retried by
+	// the background recovery coordinator, bounded by the startup cutoff.
+	startupRecoveryMu      sync.Mutex
+	startupRecoveryCutoff  time.Time
+	startupRecoveryPending map[string]struct{}
 	planProposals          PlanProposalRepository
 	goalConfirmations      GoalConfirmationRepository
 	completionAudits       CompletionAuditRepository

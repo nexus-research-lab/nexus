@@ -322,17 +322,20 @@ func (s *Service) RunRecoveryCoordinator(
 		runCtx context.Context,
 		now time.Time,
 	) (duework.Result, error) {
-		if err := s.reconcileRootRecoveryInputs(runCtx, &rootRecoveryCursor, batchSize); err != nil {
-			if observer.OnError != nil {
-				observer.OnError("root_recovery", err)
-			}
-			return duework.Result{}, err
+		// Root recovery failures are reported but never starve completion
+		// audits, Goal confirmations and Plan proposal recovery in this pass.
+		rootErr := errors.Join(
+			s.retryStartupRootRecovery(runCtx),
+			s.reconcileRootRecoveryInputs(runCtx, &rootRecoveryCursor, batchSize),
+		)
+		if rootErr != nil && observer.OnError != nil {
+			observer.OnError("root_recovery", rootErr)
 		}
 		result, err := s.reconcileRecoveries(runCtx, now, batchSize, observer)
 		if err != nil && observer.OnError != nil {
 			observer.OnError("orchestration_recovery", err)
 		}
-		return result, err
+		return result, errors.Join(rootErr, err)
 	})
 }
 

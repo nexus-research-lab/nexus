@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -26,7 +27,7 @@ func TestRootRecoveryCASExhaustionIsNotSuccess(t *testing.T) {
 		calls++
 		return nil, store.ErrVersionConflict
 	}})
-	_, err := service.finishRootAttempts(context.Background(), coordinatorActor(), snapshot, "", protocol.WorkAttemptStatusInterrupted, "host_restart")
+	_, err := service.finishRootAttempts(context.Background(), coordinatorActor(), snapshot, "", protocol.WorkAttemptStatusInterrupted, "host_restart", time.Time{})
 	if !errors.Is(err, store.ErrVersionConflict) || calls != 3 {
 		t.Fatalf("calls=%d err=%v", calls, err)
 	}
@@ -47,7 +48,7 @@ func TestRootRecoveryLeavesPendingOutboxAndAcceptedWork(t *testing.T) {
 		settled = append(settled, c.Attempt.ID)
 		return snapshot, nil
 	}})
-	if _, err := service.finishRootAttempts(context.Background(), coordinatorActor(), snapshot, "", protocol.WorkAttemptStatusInterrupted, "host_restart"); err != nil {
+	if _, err := service.finishRootAttempts(context.Background(), coordinatorActor(), snapshot, "", protocol.WorkAttemptStatusInterrupted, "host_restart", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(settled) != 2 || settled[0] != "running" || settled[1] != "delivered" {
@@ -359,5 +360,63 @@ func TestStartupRootRecoveryWakesOnlyHostInterruptedWork(t *testing.T) {
 	want := []string{"execution-shutdown", "execution-marked-failure", "execution-orphan"}
 	if !slices.Equal(queued, want) {
 		t.Fatalf("queued = %v, want %v", queued, want)
+	}
+}
+
+func (r *multiRecoveryRepository) Get(_ context.Context, id string) (*protocol.Execution, error) {
+	snapshot := r.snapshots[id]
+	if snapshot == nil {
+		return nil, nil
+	}
+	execution := snapshot.Execution
+	return &execution, nil
+}
+
+// A transient startup failure is retried by the background coordinator, and the
+// retry never settles a root that a live round created after this start.
+func TestStartupRootRecoveryRetriesTransientFailureWithinCutoff(t *testing.T) {
+	startedAt := time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)
+	repository := &multiRecoveryRepository{fakeRepository: &fakeRepository{}, snapshots: map[string]*protocol.ExecutionSnapshot{}, failing: map[string]error{}}
+	snapshot := hostInterruptedSnapshot("execution-transient", hostShutdownAttemptReason)
+	snapshot.Assignments = append(snapshot.Assignments, protocol.WorkAssignment{ID: "assignment-live", OwnerAgentID: "member-2", Status: protocol.WorkAssignmentStatusActive})
+	snapshot.Attempts = append(snapshot.Attempts, protocol.WorkAttempt{
+		ID: "root-live", AssignmentID: "assignment-live", Status: protocol.WorkAttemptStatusRunning,
+		CreatedAt: startedAt.Add(time.Minute),
+	})
+	repository.executions = []protocol.Execution{snapshot.Execution}
+	repository.snapshots[snapshot.Execution.ID] = snapshot
+	repository.failing[snapshot.Execution.ID] = errors.New("database is locked")
+	var settled []string
+	repository.finishAttempt = func(_ context.Context, command store.FinishAttemptCommand) (*protocol.ExecutionSnapshot, error) {
+		settled = append(settled, command.Attempt.ID)
+		return snapshot, nil
+	}
+	service := NewService(repository)
+	service.now = func() time.Time { return startedAt }
+	var queued []string
+	service.SetExecutionRecoveryConsumer(recoveryConsumerFunc(func(_ context.Context, e protocol.Execution, _ string) error {
+		queued = append(queued, e.ID)
+		return nil
+	}))
+
+	if err := service.RecoverRootAttempts(context.Background()); err == nil {
+		t.Fatal("transient startup failure was not reported")
+	}
+	if len(queued) != 0 {
+		t.Fatalf("queued = %v before the retry", queued)
+	}
+
+	delete(repository.failing, snapshot.Execution.ID)
+	if err := service.retryStartupRootRecovery(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(queued, []string{"execution-transient"}) {
+		t.Fatalf("queued = %v, want the retried Execution recovered", queued)
+	}
+	if len(settled) != 0 {
+		t.Fatalf("settled = %v, want the live root created after startup left alone", settled)
+	}
+	if err := service.retryStartupRootRecovery(context.Background()); err != nil || len(queued) != 1 {
+		t.Fatalf("retry after success queued again: %v %v", queued, err)
 	}
 }

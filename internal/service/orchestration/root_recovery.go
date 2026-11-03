@@ -10,6 +10,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
+	"slices"
+	"time"
 )
 
 type rootRecoveryRepository interface {
@@ -47,6 +49,10 @@ func (s *Service) RecoverRootAttempts(ctx context.Context) error {
 	if !ok {
 		return errors.New("root recovery repository unavailable")
 	}
+	cutoff := s.currentTime()
+	s.startupRecoveryMu.Lock()
+	s.startupRecoveryCutoff = cutoff
+	s.startupRecoveryMu.Unlock()
 	var failures []error
 	after := ""
 	for {
@@ -58,7 +64,8 @@ func (s *Service) RecoverRootAttempts(ctx context.Context) error {
 			if err := ctx.Err(); err != nil {
 				return errors.Join(append(failures, err)...)
 			}
-			if err := s.recoverRootExecution(ctx, execution); err != nil {
+			if err := s.recoverRootExecution(ctx, execution, cutoff); err != nil {
+				s.markStartupRecoveryPending(execution.ID)
 				failures = append(failures, fmt.Errorf("recover Execution %s: %w", execution.ID, err))
 			}
 			after = execution.ID
@@ -69,14 +76,55 @@ func (s *Service) RecoverRootAttempts(ctx context.Context) error {
 	}
 }
 
-func (s *Service) recoverRootExecution(ctx context.Context, execution protocol.Execution) error {
+func (s *Service) markStartupRecoveryPending(executionID string) {
+	s.startupRecoveryMu.Lock()
+	defer s.startupRecoveryMu.Unlock()
+	if s.startupRecoveryPending == nil {
+		s.startupRecoveryPending = map[string]struct{}{}
+	}
+	s.startupRecoveryPending[executionID] = struct{}{}
+}
+
+// retryStartupRootRecovery re-runs startup recovery for Executions that failed
+// it, e.g. on a transient database error, until they succeed or stop being
+// active. The startup cutoff keeps live rounds created since then untouched.
+func (s *Service) retryStartupRootRecovery(ctx context.Context) error {
+	s.startupRecoveryMu.Lock()
+	cutoff := s.startupRecoveryCutoff
+	pending := make([]string, 0, len(s.startupRecoveryPending))
+	for id := range s.startupRecoveryPending {
+		pending = append(pending, id)
+	}
+	s.startupRecoveryMu.Unlock()
+	slices.Sort(pending)
+	var failures []error
+	for _, id := range pending {
+		if err := ctx.Err(); err != nil {
+			return errors.Join(append(failures, err)...)
+		}
+		execution, err := s.repository.Get(ctx, id)
+		if err == nil && execution != nil && execution.Status == protocol.ExecutionStatusActive {
+			err = s.recoverRootExecution(ctx, *execution, cutoff)
+		}
+		if err != nil {
+			failures = append(failures, fmt.Errorf("retry startup recovery for Execution %s: %w", id, err))
+			continue
+		}
+		s.startupRecoveryMu.Lock()
+		delete(s.startupRecoveryPending, id)
+		s.startupRecoveryMu.Unlock()
+	}
+	return errors.Join(failures...)
+}
+
+func (s *Service) recoverRootExecution(ctx context.Context, execution protocol.Execution, cutoff time.Time) error {
 	snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
 	if err != nil || snapshot == nil {
 		return err
 	}
 	actor := ActorContext{OwnerUserID: execution.OwnerUserID, SessionKey: execution.SessionKey, AgentID: execution.CoordinatorAgentID, ExecutionID: execution.ID, ScopeKind: execution.ScopeKind, RoomID: execution.RoomID, ConversationID: execution.ConversationID}
 	versionBefore := snapshot.Execution.Version
-	snapshot, err = s.finishRootAttempts(ctx, actor, snapshot, "", hostRestartAttemptStatus, hostRestartAttemptReason)
+	snapshot, err = s.finishRootAttempts(ctx, actor, snapshot, "", hostRestartAttemptStatus, hostRestartAttemptReason, cutoff)
 	if err != nil {
 		return err
 	}
@@ -144,17 +192,24 @@ func (s *Service) FinishDMRoundAttempts(ctx context.Context, actor ActorContext,
 	if err := authorizeSnapshot(actor, snapshot); err != nil {
 		return err
 	}
-	_, err = s.finishRootAttempts(ctx, actor, snapshot, actor.RuntimeRoundID, status, reason)
+	_, err = s.finishRootAttempts(ctx, actor, snapshot, actor.RuntimeRoundID, status, reason, time.Time{})
 	return err
 }
 
-func (s *Service) finishRootAttempts(ctx context.Context, actor ActorContext, snapshot *protocol.ExecutionSnapshot, roundID string, status protocol.WorkAttemptStatus, reason string) (*protocol.ExecutionSnapshot, error) {
+// finishRootAttempts settles root attempts of one physical round, or with an
+// empty roundID the orphans left by a previous process. A non-zero
+// createdBefore keeps a delayed startup retry away from roots that live rounds
+// created after this process started.
+func (s *Service) finishRootAttempts(ctx context.Context, actor ActorContext, snapshot *protocol.ExecutionSnapshot, roundID string, status protocol.WorkAttemptStatus, reason string, createdBefore time.Time) (*protocol.ExecutionSnapshot, error) {
 	if snapshot == nil {
 		return nil, nil
 	}
 	candidates := append([]protocol.WorkAttempt(nil), snapshot.Attempts...)
 	for _, candidate := range candidates {
 		if candidate.ParentAttemptID != "" || !recoverableRootAttempt(snapshot, candidate, roundID == "") {
+			continue
+		}
+		if !createdBefore.IsZero() && candidate.CreatedAt.After(createdBefore) {
 			continue
 		}
 		if roundID != "" && candidate.RuntimeRoundID != roundID && candidate.AgentRoundID != actor.AgentRoundID {
