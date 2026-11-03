@@ -792,3 +792,12 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 		t.Fatalf("清理运行中 round 失败: %v", err)
 	}
 }
+
+func TestQueueItemVisibleToUserHidesHostRecovery(t *testing.T) {
+	if queueItemVisibleToUser(protocol.InputQueueItem{Source: protocol.InputQueueSourceHostRecovery}) {
+		t.Fatal("host recovery instruction would be broadcast as a visible user message")
+	}
+	if !queueItemVisibleToUser(protocol.InputQueueItem{Source: protocol.InputQueueSourceUser}) {
+		t.Fatal("queued user input must stay visible")
+	}
+}

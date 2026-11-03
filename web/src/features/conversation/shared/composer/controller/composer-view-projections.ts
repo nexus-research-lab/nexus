@@ -78,7 +78,9 @@ export function projectComposerRuntime({
   const isCompacting = runtimePhase === "compacting";
   const isRuntimeActive = isLoading
     || (runtimePhase !== null && runtimePhase !== "idle");
-  const isDispatching = isLoading || runtimePhase === "sending";
+  // isLoading is derived from phase !== "idle", so it cannot mark dispatch:
+  // only the sending phase withholds stop, every other live phase offers it.
+  const isDispatching = runtimePhase === "sending";
   return {
     activity: isCompacting
       ? "compacting"

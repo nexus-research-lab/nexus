@@ -339,7 +339,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		UserMessageID:                     item.SourceMessageID,
 		AgentRoundID:                      item.AgentRoundID,
 		DeliveryPolicy:                    protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
-		BroadcastUserMessage:              true,
+		BroadcastUserMessage:              queueItemVisibleToUser(*item),
 		ExecutionOrigin:                   "queue",
 		trustedQueuedConfigurationContext: trustedQueue,
 	}, chatExecutionInline)
@@ -409,6 +409,12 @@ func (s *Service) restoreFailedInputQueueDispatch(
 		message = clientMessage
 	}
 	s.broadcastEventWithTimeout(ctx, normalizedSessionKey, protocol.NewErrorEvent(normalizedSessionKey, message))
+}
+
+// queueItemVisibleToUser keeps host recovery instructions hidden: they are
+// persisted as hidden input and must not be broadcast as a live user bubble.
+func queueItemVisibleToUser(item protocol.InputQueueItem) bool {
+	return item.Source != protocol.InputQueueSourceHostRecovery
 }
 
 func inputQueueItemRoundID(item protocol.InputQueueItem) string {
