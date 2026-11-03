@@ -1,5 +1,5 @@
 // INPUT: Nexus round identity and the pinned typed nexus-cua client.
-// OUTPUT: owner-scoped Computer Use sessions, opaque target selection, bounded observations, and one-shot mutation reconciliation.
+// OUTPUT: owner-scoped Computer Use sessions, distinct target/observation readiness, bounded observations, and one-shot mutation reconciliation.
 // POS: Nexus' only Computer Use service boundary; transport credentials and sidecar process details stay below this package.
 package computeruse
 
@@ -878,11 +878,11 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 		r.mu.Unlock()
 		return ActionResult{}, errors.New("Computer Use session 已过期，请重新 select_target")
 	}
-	if r.sessionID == "" || r.window == nil {
+	if r.sessionID == "" || r.application == nil {
 		r.mu.Unlock()
 		return ActionResult{}, ErrNoTarget
 	}
-	if r.observationID == "" {
+	if r.window == nil || r.observationID == "" {
 		r.mu.Unlock()
 		return ActionResult{}, ErrNoObservation
 	}

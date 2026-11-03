@@ -28,10 +28,16 @@ settings computer-use
 
 新增 `restore_window`、`set_window_bounds`、`set_range_value`、`press_point` 和单独审批的 `terminate_application`。恢复最小化窗口前可 `observe` 且 `include_screenshot=false`，恢复后再截图。可启动应用通过 `list_launchable_applications` 发现，`launch_application` 仅启动并对未知结果按原 ID 对账，随后仍需 `select_target` 授权。
 
+`session_active` 只表示已选应用的授权会话存在。尚未成功观察时，动作返回缺少 observation，
+不误报未选目标。macOS 后台/台前调度窗口返回 `target_unavailable` 并指示 `focus_window` 时，
+先对同一窗口取得 `include_screenshot=false, accessibility="disabled"` 的元数据观察，
+再在已有权限范围内执行一次明确的 `focus_window`，然后正常观察。一次恢复仍失败就停止并报告；
+不能通过反复选择应用或重新授权来代替窗口恢复，此流程也不解除用户接管状态。
+
 
 ## 动作后观察与接管
 
-固定的 `v0.2.0-rc.1` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
+固定的 `v0.2.0-rc.2` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
 每次动作沿用最近 `observe` 的截图、AX 和 `application_scene` 选项，让一次动作请求
 返回新的观察；新的 guard 替换已消耗的旧 guard。场景观察仅包含锚点显示器上的同一应用。
 Runtime 有界稳定等待不证明业务完成，必要时仍执行 `verify_state`。

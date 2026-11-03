@@ -4,6 +4,8 @@
 //
 // Package computeruse supervises one host-local nexus-cua sidecar epoch and
 // keeps application/session/observation state bound to a physical Nexus round.
+// A selected target without a successful observation remains session-active;
+// actions report missing observation without asking for a new target grant.
 // Closing a round revokes its runtime session before waiting for active mutations;
 // a session opened concurrently with close is immediately revoked on return.
 // Supported runtimes return a post-action observation using the previous read

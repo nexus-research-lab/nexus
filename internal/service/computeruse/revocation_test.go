@@ -34,8 +34,9 @@ func TestCloseRevokesWhileActionOwnsMutationLock(t *testing.T) {
 	client := &revocationClient{started: make(chan struct{}), revoked: make(chan struct{})}
 	round := &Round{
 		client: client, sessionID: "session", observationID: "observation",
-		window:   &nexuscua.WindowSummary{WindowRef: "window"},
-		deadline: time.Now().Add(time.Minute),
+		application: &nexuscua.DiscoveredApplication{DiscoveryRef: "application"},
+		window:      &nexuscua.WindowSummary{WindowRef: "window"},
+		deadline:    time.Now().Add(time.Minute),
 	}
 	finished := make(chan error, 1)
 	go func() {

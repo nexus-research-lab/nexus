@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Distinguish missing Computer Use observations from missing target authority, and guide bounded recovery of macOS Stage Manager windows without repeated target grants.
 - Deliver Computer Use screenshots as native MCP image blocks instead of oversized JSON text, and remove post-action screenshots and AX trees from durable message projections.
 - Scope macOS packaging smoke checks to the target bundle, including previews without a registered URL scheme.
-- Integrate the pinned CUA v0.2.0-rc.1 SDK: return fresh post-action observations and images, expose same-application scene capture, preserve mutation evidence on read failure, and latch user takeover until a new target grant. Completed-action caches retain no screenshots or AX trees.
+- Integrate the pinned CUA v0.2.0-rc.2 SDK: return fresh post-action observations and images, expose same-application scene capture, preserve mutation evidence on read failure, and latch user takeover until a new target grant. Completed-action caches retain no screenshots or AX trees.
 - Guide macOS Input Control setup through Input Monitoring as well as Accessibility.
 - Allow isolated macOS preview bundles to retain their own default state root and exact CUA payload, include runtime license/provenance files, and scope lifecycle notifications by bundle identity.
 

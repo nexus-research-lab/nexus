@@ -3,6 +3,7 @@ package computeruse
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,7 @@ type fakeClient struct {
 	closeCalls     int
 	closeErr       error
 	listWindowsErr error
+	observeErr     error
 	indeterminate  bool
 	observation    nexuscua.WindowObservation
 }
@@ -119,6 +121,9 @@ func (c *fakeClient) ListWindows(context.Context, nexuscua.SessionID, *nexuscua.
 }
 
 func (c *fakeClient) ObserveWindow(context.Context, nexuscua.ObserveWindowInput, time.Duration) (nexuscua.WindowObservation, error) {
+	if c.observeErr != nil {
+		return nexuscua.WindowObservation{}, c.observeErr
+	}
 	if c.observation.ObservationID != "" {
 		return c.observation, nil
 	}
@@ -323,6 +328,48 @@ func TestObserveAcceptsWindowRefReturnedByListWindows(t *testing.T) {
 	}
 	if _, err := round.Observe(context.Background(), ObserveInput{WindowSelector: "window-1"}); err != nil {
 		t.Fatalf("Observe by listed window_ref = %v", err)
+	}
+}
+
+func TestSelectedTargetWithoutObservationDoesNotRequireReauthorization(t *testing.T) {
+	for _, failedRead := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failed_read_%t", failedRead), func(t *testing.T) {
+			service, client, _ := newFakeService(t)
+			round, err := service.Round(context.Background(), "owner-a", "round-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{}, func(TargetGrant) error { return nil }); err != nil {
+				t.Fatal(err)
+			}
+			if failedRead {
+				client.observeErr = &nexuscua.CUAError{Code: nexuscua.ErrorTargetUnavailable, Message: "matching accessibility window is unavailable"}
+				if _, err := round.Observe(context.Background(), ObserveInput{}); !errors.Is(err, client.observeErr) {
+					t.Fatalf("Observe error = %v", err)
+				}
+			}
+			if !round.HasSession() {
+				t.Fatal("selected target session was lost without a successful observation")
+			}
+			approvals := 0
+			_, err = round.PerformActionWithApproval(context.Background(), "no-observation", ActionInput{Kind: "focus_window"}, func() error {
+				approvals++
+				return nil
+			})
+			if !errors.Is(err, ErrNoObservation) || approvals != 0 || client.performCalls != 0 {
+				t.Fatalf("error/approval/dispatch = %v/%d/%d, want ErrNoObservation/0/0", err, approvals, client.performCalls)
+			}
+			client.observeErr = nil
+			if _, err := round.Observe(context.Background(), ObserveInput{Accessibility: "disabled"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := round.PerformAction(context.Background(), "recovered-observation", ActionInput{Kind: "focus_window"}); err != nil {
+				t.Fatal(err)
+			}
+			if client.openCalls != 1 || client.performCalls != 1 {
+				t.Fatalf("session/dispatch = %d/%d, want one of each", client.openCalls, client.performCalls)
+			}
+		})
 	}
 }
 

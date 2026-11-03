@@ -43,7 +43,9 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
 - 只使用宿主返回的 opaque refs；不能提交 PID、窗口句柄、AX/UIA 对象、路径、socket、token 或任意 native handle。
 - 输入、文本和截图遵守 contract 返回的长度与数量上限。不要把敏感文本写入普通回复或日志。
 - 常规动作使用 select_target 已批准的会话范围；退出应用及宿主标记的敏感操作仍需单独审批。被拒绝或权限不足时停止并说明原因。审批后 stale 必须重新观察，不自动重放。
-- 最小化窗口先用 include_screenshot=false 观察，再执行 restore_window，恢复后截图。
+- 最小化窗口先用 `include_screenshot=false, accessibility="disabled"` 观察，再执行 `restore_window`，恢复后截图。
+- `session_active=true` 仅表示应用授权仍在，不保证已有可用于动作的 observation。观察失败或尚未观察时，先修复观察，不要反复 `select_target`。
+- macOS 后台窗口（包括台前调度缩略窗口）若返回 `target_unavailable` 且 `recovery_action="focus_window"`，对同一 `window_ref` 先做一次 `include_screenshot=false, accessibility="disabled"` 的元数据观察，再在已批准的范围内执行一次 `focus_window`，然后重新截图和读取无障碍树。禁止用未成功的观察直接执行动作；一次恢复仍失败就报告具体错误，不能反复聚焦或重新授权。此流程不解除 `user_active`。
 - 应用未运行时先 list_launchable_applications，再 launch_application；启动许可不包含后续输入权限。
 - `user_active` 表示用户接管：停止自动动作并说明，不因等待或重新观察而恢复，不自动换 session。用户明确要求继续后再走新的 select_target 授权。
 - session 过期重新 select_target；回合授权上限到达后开始新回合，不静默续期。
