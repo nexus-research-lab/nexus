@@ -19,6 +19,8 @@ MAIN_NAVIGATION_FINISHED_PATTERN="event=webview\\.navigation_finished.*surface=m
 LAUNCHER_ROUTE_PATTERN="/launcher($|[[:space:]])"
 
 APP_PID=""
+APP_BUNDLE_IDENTIFIER=""
+APP_URL_SCHEME=""
 SMOKE_STATE_ROOT="${NEXUS_DESKTOP_STATE_ROOT:-}"
 SMOKE_PREFERENCES_SUITE="${NEXUS_DESKTOP_PREFERENCES_SUITE:-}"
 
@@ -139,23 +141,24 @@ wait_for_log() {
 }
 
 register_bundle_url_scheme() {
+  [[ -n "${APP_URL_SCHEME}" ]] || return 0
   local register_tool="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
   if [[ -x "${register_tool}" ]]; then
     "${register_tool}" -f "${APP_BUNDLE}" >/dev/null 2>&1 || true
   fi
 }
 
-post_launcher_notification() {
-  swift -e 'import Foundation; DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.leemysw.nexus.showLauncher"), object: nil, userInfo: nil, deliverImmediately: true); RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))' >/dev/null 2>&1
-}
-
-post_main_window_notification() {
-  swift -e 'import Foundation; DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.leemysw.nexus.showMainWindow"), object: nil, userInfo: nil, deliverImmediately: true); RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))' >/dev/null 2>&1
+post_app_notification() {
+  swift -e 'import Foundation; DistributedNotificationCenter.default().postNotificationName(Notification.Name(CommandLine.arguments[1]), object: nil, userInfo: nil, deliverImmediately: true); RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))' "${APP_BUNDLE_IDENTIFIER}.$1" >/dev/null 2>&1
 }
 
 if [[ ! -x "${APP_EXECUTABLE}" ]]; then
   "${ROOT_DIR}/scripts/desktop/build-macos-app.sh"
 fi
+
+APP_BUNDLE_IDENTIFIER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${APP_BUNDLE}/Contents/Info.plist")"
+[[ -n "${APP_BUNDLE_IDENTIFIER}" ]] || fail "app bundle identifier is missing"
+APP_URL_SCHEME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "${APP_BUNDLE}/Contents/Info.plist" 2>/dev/null || true)"
 
 NEXUSCTL_EXECUTABLE="${APP_BUNDLE}/Contents/Resources/bin/nexusctl"
 if [[ ! -x "${NEXUSCTL_EXECUTABLE}" ]]; then
@@ -213,11 +216,11 @@ wait_for_log "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 
 main_ready_count="$(log_match_count "${MAIN_READY_ROUTE_PATTERN}")"
 main_navigation_count="$(log_match_count "${MAIN_NAVIGATION_FINISHED_PATTERN}")"
-if open "nexus://open" >/dev/null 2>&1 &&
+if [[ -n "${APP_URL_SCHEME}" ]] && open -a "${APP_BUNDLE}" "${APP_URL_SCHEME}://open" >/dev/null 2>&1 &&
   wait_for_log_match "event=app\\.url_route.*host=open .*route_path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_URL_TIMEOUT_SECONDS}"; then
   wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 else
-  post_main_window_notification || fail "failed to request launcher route through nexus://open"
+  post_app_notification showMainWindow || fail "failed to request the target app's main window"
   wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 fi
 if ! wait_for_new_log_match "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${main_navigation_count}" "${MAIN_TIMEOUT_SECONDS}"; then
@@ -229,11 +232,11 @@ fi
 
 main_ready_count="$(log_match_count "${MAIN_READY_ROUTE_PATTERN}")"
 main_navigation_count="$(log_match_count "${MAIN_NAVIGATION_FINISHED_PATTERN}")"
-if open "nexus://launcher" >/dev/null 2>&1 &&
+if [[ -n "${APP_URL_SCHEME}" ]] && open -a "${APP_BUNDLE}" "${APP_URL_SCHEME}://launcher" >/dev/null 2>&1 &&
   wait_for_log_match "event=app\\.url_route.*host=launcher .*route_path=${LAUNCHER_ROUTE_PATTERN}" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
   wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 else
-  post_launcher_notification || fail "failed to request launcher route"
+  post_app_notification showLauncher || fail "failed to request the target app's launcher route"
   wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 fi
 if ! wait_for_new_log_match "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${main_navigation_count}" "${MAIN_TIMEOUT_SECONDS}"; then
