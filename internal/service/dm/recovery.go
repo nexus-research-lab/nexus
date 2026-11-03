@@ -1,12 +1,15 @@
 // INPUT: Authoritative Execution recovery receipts or exact DM terminal outcomes.
-// OUTPUT: Durable hidden recovery input and root Attempt settlement.
+// OUTPUT: Durable hidden recovery input and root Attempt settlement; a deleted coordinator Agent reports an unavailable target.
 // POS: DM lifecycle adapter; pause gates and dispatch admission remain authoritative.
 package dm
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -15,6 +18,9 @@ import (
 func (s *Service) QueueExecutionRecovery(ctx context.Context, e protocol.Execution, key string) error {
 	ctx = runtimehost.ContextWithExactOwner(ctx, e.OwnerUserID)
 	sessionKey, location, err := s.resolveInputQueueLocation(ctx, e.SessionKey, e.CoordinatorAgentID)
+	if errors.Is(err, agentsvc.ErrAgentNotFound) {
+		return fmt.Errorf("%w: coordinator Agent %s no longer exists", orchestrationsvc.ErrExecutionRecoveryTargetUnavailable, e.CoordinatorAgentID)
+	}
 	if err != nil {
 		return err
 	}

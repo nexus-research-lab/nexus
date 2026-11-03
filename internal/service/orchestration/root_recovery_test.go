@@ -3,6 +3,7 @@ package orchestration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	store "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	"testing"
@@ -210,5 +211,90 @@ func TestRecoveredTerminalWorkClaimCannotBlockCoordinatorQueue(t *testing.T) {
 		if current != (status == protocol.WorkAttemptStatusPending || status == protocol.WorkAttemptStatusRunning) {
 			t.Fatalf("status=%s current=%v", status, current)
 		}
+	}
+}
+
+// multiRecoveryRepository serves several Executions so startup recovery can be
+// checked for per-Execution isolation.
+type multiRecoveryRepository struct {
+	*fakeRepository
+	executions []protocol.Execution
+	snapshots  map[string]*protocol.ExecutionSnapshot
+	failing    map[string]error
+}
+
+func (r *multiRecoveryRepository) ListRecoveryExecutions(_ context.Context, after string, _ int) ([]protocol.Execution, error) {
+	if after != "" {
+		return nil, nil
+	}
+	return r.executions, nil
+}
+
+func (r *multiRecoveryRepository) GetSnapshot(_ context.Context, id string) (*protocol.ExecutionSnapshot, error) {
+	if err := r.failing[id]; err != nil {
+		return nil, err
+	}
+	return r.snapshots[id], nil
+}
+
+func TestStartupRootRecoveryIsolatesEachExecution(t *testing.T) {
+	repository := &multiRecoveryRepository{fakeRepository: &fakeRepository{}, snapshots: map[string]*protocol.ExecutionSnapshot{}, failing: map[string]error{}}
+	for _, id := range []string{"execution-unreadable", "execution-deleted-room", "execution-healthy"} {
+		snapshot := executionSnapshot()
+		snapshot.Execution.ID = id
+		snapshot.Execution.Status = protocol.ExecutionStatusActive
+		repository.executions = append(repository.executions, snapshot.Execution)
+		repository.snapshots[id] = snapshot
+	}
+	unreadable := errors.New("snapshot read failed")
+	repository.failing["execution-unreadable"] = unreadable
+	service := NewService(repository)
+	var queued []string
+	service.SetExecutionRecoveryConsumer(recoveryConsumerFunc(func(_ context.Context, e protocol.Execution, _ string) error {
+		if e.ID == "execution-deleted-room" {
+			return fmt.Errorf("%w: Room conversation is gone", ErrExecutionRecoveryTargetUnavailable)
+		}
+		queued = append(queued, e.ID)
+		return nil
+	}))
+
+	err := service.RecoverRootAttempts(context.Background())
+
+	if len(queued) != 1 || queued[0] != "execution-healthy" {
+		t.Fatalf("queued = %v, want the healthy Execution recovered despite earlier failures", queued)
+	}
+	if !errors.Is(err, unreadable) {
+		t.Fatalf("err = %v, want the unreadable Execution reported", err)
+	}
+	if errors.Is(err, ErrExecutionRecoveryTargetUnavailable) {
+		t.Fatalf("err = %v, want an unavailable recovery target skipped rather than reported", err)
+	}
+}
+
+func TestRootRecoveryAuditAdvancesPastFailingExecution(t *testing.T) {
+	repository := &multiRecoveryRepository{fakeRepository: &fakeRepository{}, snapshots: map[string]*protocol.ExecutionSnapshot{}, failing: map[string]error{}}
+	for _, id := range []string{"execution-unreadable", "execution-failed-member"} {
+		snapshot := executionSnapshot()
+		snapshot.Execution.ID = id
+		snapshot.Execution.Status = protocol.ExecutionStatusActive
+		snapshot.Assignments = []protocol.WorkAssignment{{ID: "assignment", OwnerAgentID: "member", Status: protocol.WorkAssignmentStatusActive}}
+		snapshot.Attempts = []protocol.WorkAttempt{{ID: "root-" + id, AssignmentID: "assignment", Status: protocol.WorkAttemptStatusFailed, Metadata: map[string]any{"host_recovery_required": true}}}
+		repository.executions = append(repository.executions, snapshot.Execution)
+		repository.snapshots[id] = snapshot
+	}
+	repository.failing["execution-unreadable"] = errors.New("snapshot read failed")
+	service := NewService(repository)
+	var queued []string
+	service.SetExecutionRecoveryConsumer(recoveryConsumerFunc(func(_ context.Context, e protocol.Execution, _ string) error {
+		queued = append(queued, e.ID)
+		return nil
+	}))
+	cursor := ""
+
+	if err := service.reconcileRootRecoveryInputs(context.Background(), &cursor, 64); err == nil {
+		t.Fatal("unreadable Execution was not reported")
+	}
+	if len(queued) != 1 || queued[0] != "execution-failed-member" {
+		t.Fatalf("queued = %v, want the audit to reach Executions after a failing one", queued)
 	}
 }

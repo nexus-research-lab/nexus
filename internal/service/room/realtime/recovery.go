@@ -1,18 +1,25 @@
 // INPUT: Authoritative Room Execution and durable recovery identity.
-// OUTPUT: Coordinator recovery queue entry without user impersonation.
+// OUTPUT: Coordinator recovery queue entry without user impersonation; a deleted conversation or departed coordinator reports an unavailable target.
 // POS: Room WorkGraph recovery routing through ordinary member dispatch gates.
 package realtime
 
 import (
 	"context"
 	"errors"
+	"fmt"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) QueueExecutionRecovery(ctx context.Context, e protocol.Execution, key string) error {
 	ctx, value, err := s.internalConversationContext(ctx, e.ConversationID, true)
+	if errors.Is(err, roomsvc.ErrRoomNotFound) || errors.Is(err, roomsvc.ErrConversationNotFound) || err == nil && value == nil {
+		return fmt.Errorf("%w: Room conversation %s no longer exists", orchestrationsvc.ErrExecutionRecoveryTargetUnavailable, e.ConversationID)
+	}
 	if err != nil {
 		return err
 	}
@@ -25,7 +32,7 @@ func (s *Service) QueueExecutionRecovery(ctx context.Context, e protocol.Executi
 	}
 	target, ok := locations[e.CoordinatorAgentID]
 	if !ok {
-		return errors.New("recovery coordinator is no longer a member")
+		return fmt.Errorf("%w: coordinator %s is no longer a Room member", orchestrationsvc.ErrExecutionRecoveryTargetUnavailable, e.CoordinatorAgentID)
 	}
 	_, err = s.InputQueue.EnqueueIdempotent(target.Location, protocol.InputQueueItem{
 		SessionKey: target.Location.SessionKey, Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: e.ID,

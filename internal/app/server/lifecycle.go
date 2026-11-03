@@ -649,18 +649,30 @@ func (s *Server) startIMReplyRecovery(ctx context.Context) (func(), error) {
 	return func() {}, nil
 }
 
+// startRootAttemptRecovery is best effort: a graph that cannot be reconciled
+// is logged and left for the periodic audit or the next start, never allowed to
+// keep the host from serving.
 func (s *Server) startRootAttemptRecovery(ctx context.Context) (func(), error) {
 	if s.services == nil || s.services.Orchestration == nil {
 		return nil, nil
 	}
-	return nil, s.services.Orchestration.RecoverRootAttempts(runtimehost.DeferRecoveryDispatch(ctx))
+	if err := s.services.Orchestration.RecoverRootAttempts(runtimehost.DeferRecoveryDispatch(ctx)); err != nil {
+		s.api.BaseLogger().Warn("启动时 WorkGraph 根 Attempt 恢复未完全完成，已跳过失败项", "err", err)
+	}
+	return nil, nil
 }
+
+// startInputQueueRecovery is best effort: an unreadable workspace or journal
+// is logged and skipped; its queue still resumes when a client binds the session.
 func (s *Server) startInputQueueRecovery(ctx context.Context) (func(), error) {
 	if s.services == nil {
 		return nil, nil
 	}
 	if err := s.services.DM.RecoverInputQueues(ctx); err != nil {
-		return nil, err
+		s.api.BaseLogger().Warn("启动时 DM 待发送队列恢复未完全完成，已跳过失败项", "err", err)
 	}
-	return nil, s.services.RoomRealtime.RecoverInputQueues(ctx)
+	if err := s.services.RoomRealtime.RecoverInputQueues(ctx); err != nil {
+		s.api.BaseLogger().Warn("启动时 Room 待发送队列恢复未完全完成，已跳过失败项", "err", err)
+	}
+	return nil, nil
 }

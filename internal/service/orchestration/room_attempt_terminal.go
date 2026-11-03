@@ -158,7 +158,7 @@ func (s *Service) FinishRoomAttempt(
 			s.WakeOrchestrationRecovery()
 			s.invalidateSnapshot(ctx, updated)
 			if (input.Status == protocol.WorkAttemptStatusFailed || input.RecoverInterrupted && input.Status == protocol.WorkAttemptStatusInterrupted) && actor.AgentID != updated.Execution.CoordinatorAgentID {
-				return s.queueRootRecovery(ctx, updated, "failed:"+binding.AttemptID)
+				return skipUnavailableRecoveryTarget(s.queueRootRecovery(ctx, updated, "failed:"+binding.AttemptID))
 			}
 		}
 		return finishErr

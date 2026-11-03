@@ -33,44 +33,63 @@ func (s *Service) queueRootRecovery(ctx context.Context, snapshot *protocol.Exec
 	return s.rootRecoveryConsumer.QueueExecutionRecovery(ctx, snapshot.Execution, key)
 }
 
+// ErrExecutionRecoveryTargetUnavailable reports that the recovery coordinator's
+// conversation, Room membership or Agent no longer exists. Recovery skips such
+// an Execution instead of treating it as a host failure.
+var ErrExecutionRecoveryTargetUnavailable = errors.New("execution recovery target is unavailable")
+
 // RecoverRootAttempts runs before runtime admissions at process startup. Pending
 // attempts still belong to their outbox; only previously running roots are orphaned.
+// Each Execution is isolated: one unreadable or unrecoverable graph is reported in
+// the joined error but never stops the scan or the remaining executions.
 func (s *Service) RecoverRootAttempts(ctx context.Context) error {
 	repository, ok := s.repository.(rootRecoveryRepository)
 	if !ok {
 		return errors.New("root recovery repository unavailable")
 	}
+	var failures []error
 	after := ""
 	for {
 		executions, err := repository.ListRecoveryExecutions(ctx, after, 64)
 		if err != nil {
-			return err
+			return errors.Join(append(failures, err)...)
 		}
 		for _, execution := range executions {
-			snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
-			if err != nil {
-				return err
+			if err := ctx.Err(); err != nil {
+				return errors.Join(append(failures, err)...)
 			}
-			if snapshot == nil {
-				after = execution.ID
-				continue
-			}
-			actor := ActorContext{OwnerUserID: execution.OwnerUserID, SessionKey: execution.SessionKey, AgentID: execution.CoordinatorAgentID, ExecutionID: execution.ID, ScopeKind: execution.ScopeKind, RoomID: execution.RoomID, ConversationID: execution.ConversationID}
-			snapshot, err = s.finishRootAttempts(ctx, actor, snapshot, "", protocol.WorkAttemptStatusInterrupted, "host_restart: reconcile unknown side effects before takeover")
-			if err != nil {
-				return err
-			}
-			if !rootRecoveryStoppedByUser(snapshot) {
-				if err := s.queueRootRecovery(ctx, snapshot, fmt.Sprintf("startup:%s:%d", execution.ID, snapshot.Execution.Version)); err != nil {
-					return err
-				}
+			if err := s.recoverRootExecution(ctx, execution); err != nil {
+				failures = append(failures, fmt.Errorf("recover Execution %s: %w", execution.ID, err))
 			}
 			after = execution.ID
 		}
 		if len(executions) < 64 {
-			return nil
+			return errors.Join(failures...)
 		}
 	}
+}
+
+func (s *Service) recoverRootExecution(ctx context.Context, execution protocol.Execution) error {
+	snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
+	if err != nil || snapshot == nil {
+		return err
+	}
+	actor := ActorContext{OwnerUserID: execution.OwnerUserID, SessionKey: execution.SessionKey, AgentID: execution.CoordinatorAgentID, ExecutionID: execution.ID, ScopeKind: execution.ScopeKind, RoomID: execution.RoomID, ConversationID: execution.ConversationID}
+	snapshot, err = s.finishRootAttempts(ctx, actor, snapshot, "", protocol.WorkAttemptStatusInterrupted, "host_restart: reconcile unknown side effects before takeover")
+	if err != nil {
+		return err
+	}
+	if rootRecoveryStoppedByUser(snapshot) {
+		return nil
+	}
+	return skipUnavailableRecoveryTarget(s.queueRootRecovery(ctx, snapshot, fmt.Sprintf("startup:%s:%d", execution.ID, snapshot.Execution.Version)))
+}
+
+func skipUnavailableRecoveryTarget(err error) error {
+	if errors.Is(err, ErrExecutionRecoveryTargetUnavailable) {
+		return nil
+	}
+	return err
 }
 
 // FinishDMRoundAttempts closes only root attempts bound to this physical DM turn.
@@ -164,7 +183,7 @@ func (s *Service) ResumeMemberWork(ctx context.Context, owner, session, member s
 		}
 		for _, attempt := range snapshot.Attempts {
 			if attempt.AssignmentID == assignment.ID && attempt.ParentAttemptID == "" && attempt.Status == protocol.WorkAttemptStatusInterrupted {
-				return s.queueRootRecovery(ctx, snapshot, fmt.Sprintf("member-resume:%s:%s:%d", execution.ID, member, s.currentTime().UnixNano()))
+				return skipUnavailableRecoveryTarget(s.queueRootRecovery(ctx, snapshot, fmt.Sprintf("member-resume:%s:%s:%d", execution.ID, member, s.currentTime().UnixNano())))
 			}
 		}
 	}
@@ -214,32 +233,40 @@ func (s *Service) reconcileRootRecoveryInputs(ctx context.Context, cursor *strin
 	if err != nil {
 		return err
 	}
+	// Advance past a failing Execution so one bad graph cannot pin the audit
+	// cursor and starve every later Execution; the next audit cycle retries it.
+	var failures []error
 	for _, execution := range executions {
-		snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
-		if err != nil {
-			return err
-		}
-		if snapshot != nil && !rootRecoveryStoppedByUser(snapshot) {
-			for _, assignment := range snapshot.Assignments {
-				if !currentAssignment(assignment) || assignment.OwnerAgentID == execution.CoordinatorAgentID {
-					continue
-				}
-				latest := latestRootAttemptForAssignment(snapshot, assignment.ID)
-				if latest == nil {
-					continue
-				}
-				required, _ := latest.Metadata["host_recovery_required"].(bool)
-				if required && (latest.Status == protocol.WorkAttemptStatusFailed || latest.Status == protocol.WorkAttemptStatusInterrupted) {
-					if err := s.queueRootRecovery(ctx, snapshot, "failed:"+latest.ID); err != nil {
-						return err
-					}
-				}
-			}
+		if err := s.reconcileRootRecoveryInput(ctx, execution); err != nil {
+			failures = append(failures, fmt.Errorf("audit Execution %s: %w", execution.ID, err))
 		}
 		*cursor = execution.ID
 	}
 	if len(executions) < limit {
 		*cursor = ""
+	}
+	return errors.Join(failures...)
+}
+
+func (s *Service) reconcileRootRecoveryInput(ctx context.Context, execution protocol.Execution) error {
+	snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
+	if err != nil || snapshot == nil || rootRecoveryStoppedByUser(snapshot) {
+		return err
+	}
+	for _, assignment := range snapshot.Assignments {
+		if !currentAssignment(assignment) || assignment.OwnerAgentID == execution.CoordinatorAgentID {
+			continue
+		}
+		latest := latestRootAttemptForAssignment(snapshot, assignment.ID)
+		if latest == nil {
+			continue
+		}
+		required, _ := latest.Metadata["host_recovery_required"].(bool)
+		if required && (latest.Status == protocol.WorkAttemptStatusFailed || latest.Status == protocol.WorkAttemptStatusInterrupted) {
+			if err := skipUnavailableRecoveryTarget(s.queueRootRecovery(ctx, snapshot, "failed:"+latest.ID)); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

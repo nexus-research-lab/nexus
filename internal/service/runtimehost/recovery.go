@@ -1,5 +1,5 @@
 // INPUT: Authoritative Execution and queue recovery identity.
-// OUTPUT: Reconciliation-only coordinator instructions and stale-work checks.
+// OUTPUT: Reconciliation-only coordinator instructions, stale-work checks and a best-effort queue scan.
 // POS: Shared DM/Room recovery input semantics; no automatic tool replay.
 package runtimehost
 
@@ -44,18 +44,21 @@ func (h *Host) RecoveryInputCurrent(ctx context.Context, item protocol.InputQueu
 
 // VisitInputQueues scans only active owners' canonical workspaces. Services
 // retain authority checks and serial dispatch admission inside the callback.
+// A workspace or journal that cannot be read is skipped and reported in the
+// joined error; every readable queue is still visited.
 func (h *Host) VisitInputQueues(ctx context.Context, scope protocol.InputQueueScope, visit func(context.Context, workspacestore.InputQueueLocation)) error {
 	agents, err := h.Agents.ListAllAgentRecordsForMaintenance(ctx)
 	if err != nil {
 		return err
 	}
+	var failures []error
 	for _, agent := range agents {
 		if err := ctx.Err(); err != nil {
-			return err
+			return errors.Join(append(failures, err)...)
 		}
 		locations, err := h.InputQueue.LocationsForWorkspace(agent.OwnerUserID, agent.WorkspacePath)
 		if err != nil {
-			return err
+			failures = append(failures, fmt.Errorf("scan input queues for Agent %s: %w", agent.AgentID, err))
 		}
 		for _, location := range locations {
 			if location.Scope == scope {
@@ -63,7 +66,7 @@ func (h *Host) VisitInputQueues(ctx context.Context, scope protocol.InputQueueSc
 			}
 		}
 	}
-	return nil
+	return errors.Join(failures...)
 }
 
 type queueRecoveryKey struct{}

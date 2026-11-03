@@ -3,6 +3,7 @@ package workspace
 import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -78,5 +79,37 @@ func TestQueueRecoveryCoalescesPendingCoordinatorWake(t *testing.T) {
 	next, err := store.EnqueueIdempotent(location, item, "startup:execution:2")
 	if err != nil || next.Duplicate || len(next.Items) != 1 {
 		t.Fatalf("new recovery suppressed: %+v %v", next, err)
+	}
+}
+
+func TestQueueDiscoverySkipsUnreadableJournalAndKeepsOthers(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	workspace := filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a")
+	good := InputQueueLocation{OwnerUserID: "owner", Scope: protocol.InputQueueScopeDM, WorkspacePath: workspace, SessionKey: "agent:agent-a:ws:dm:good"}
+	store := NewInputQueueStore("")
+	if _, err := store.Enqueue(good, protocol.InputQueueItem{ID: "x", Content: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	badDir := filepath.Join(workspace, ".agents", "sessions", "bad-session")
+	if err := os.MkdirAll(badDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "elsewhere.jsonl")
+	if err := os.WriteFile(outside, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(badDir, "input_queue.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+
+	locations, err := store.LocationsForWorkspace("owner", workspace)
+
+	if err == nil {
+		t.Fatal("unreadable journal was not reported")
+	}
+	if len(locations) != 1 || locations[0].SessionKey != good.SessionKey {
+		t.Fatalf("locations = %+v, want the readable queue still discovered", locations)
 	}
 }

@@ -1,10 +1,11 @@
 // INPUT: Owner-scoped queue identity and explicit user stop/resume decisions.
-// OUTPUT: Durable dispatch gates shared by live dispatch and startup recovery.
+// OUTPUT: Durable dispatch gates shared by live dispatch and startup recovery; queue discovery that skips unreadable journals.
 // POS: Input queue journal control records; reading snapshots never resumes work.
 package workspace
 
 import (
 	"errors"
+	"fmt"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"io/fs"
 	"os"
@@ -50,6 +51,8 @@ func (r *inputQueueReplay) pause(row map[string]any) {
 
 // LocationsForWorkspace discovers queues even before a session meta was created.
 // The journal's identity must match the canonical physical directory and owner.
+// An unreadable session journal (for example a symlink) is skipped and reported
+// in the joined error, so one bad session never hides the remaining queues.
 func (s *InputQueueStore) LocationsForWorkspace(owner, workspace string) ([]InputQueueLocation, error) {
 	root, err := s.files.ForOwner(owner).openWorkspaceRoot(workspace, false)
 	if errors.Is(err, os.ErrNotExist) {
@@ -72,6 +75,7 @@ func (s *InputQueueStore) LocationsForWorkspace(owner, workspace string) ([]Inpu
 		return nil, err
 	}
 	var locations []InputQueueLocation
+	var failures []error
 	for _, entry := range entries {
 		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
 			continue
@@ -81,7 +85,8 @@ func (s *InputQueueStore) LocationsForWorkspace(owner, workspace string) ([]Inpu
 			continue
 		}
 		if err != nil {
-			return nil, err
+			failures = append(failures, fmt.Errorf("read input queue journal %s: %w", entry.Name(), err))
+			continue
 		}
 		seen := map[protocol.InputQueueScope]bool{}
 		for _, row := range rows {
@@ -97,7 +102,7 @@ func (s *InputQueueStore) LocationsForWorkspace(owner, workspace string) ([]Inpu
 			locations = append(locations, InputQueueLocation{OwnerUserID: owner, WorkspacePath: workspace, SessionKey: item.SessionKey, Scope: scope, RoomID: item.RoomID, ConversationID: item.ConversationID})
 		}
 	}
-	return locations, nil
+	return locations, errors.Join(failures...)
 }
 
 // ClaimDispatch retains the item durably until downstream acceptance is proven.
