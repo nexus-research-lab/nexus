@@ -6,6 +6,7 @@ package orchestration
 import orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 
 var (
+	_ runtimeResultRepository              = (*orchestrationstore.Repository)(nil)
 	_ CompletionAuditRepository            = (*orchestrationstore.Repository)(nil)
 	_ GoalConfirmationRepository           = (*orchestrationstore.Repository)(nil)
 	_ PlanMaterializationReceiptReader     = (*orchestrationstore.Repository)(nil)

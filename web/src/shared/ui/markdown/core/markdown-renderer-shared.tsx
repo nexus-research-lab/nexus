@@ -1,6 +1,6 @@
 /**
  * INPUT: Markdown 内容、受控文件解析与流式状态。
- * OUTPUT: 通用插件、正文配方和保留受保护区域的规范化文本。
+ * OUTPUT: 通用插件、隐藏 HTML 注释、正文配方和保留受保护区域的规范化文本。
  * POS: 共享 Markdown 解析配置；公式源文排除预处理改写，领域链接协议放行由消费侧维护。
  */
 
@@ -18,6 +18,7 @@ import { findOpenMarkdownFenceLanguage, readMarkdownFenceMarker } from "./markdo
 import { stabilizeStreamingMarkdownUrlTail } from "./markdown-link-model";
 import {
   remarkInlineHtmlTags,
+  remarkHtmlComments,
   remarkMarkdownBreaks,
   remarkMixedScript,
 } from "./markdown-text-plugins";
@@ -38,6 +39,7 @@ export const MARKDOWN_PLUGINS = [
   remarkMath,
   remarkLatexMath,
   remarkGfm,
+  remarkHtmlComments,
   remarkMarkdownBreaks,
   remarkInlineHtmlTags,
   remarkMixedScript,

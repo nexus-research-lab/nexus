@@ -21,3 +21,5 @@ Room 的阅读位置仍由会话滚动层维护；Markdown 平滑只改善阅读
 显示公式的独占行分隔（含列表/引用前缀）与代码块一样拥有内部空行；不可在中途冻结为多个 Markdown 块。完成后继续复用相同起点和节点，正文语法与未闭合降级仍由 core 处理。
 
 实现参考 Lobe UI streamdown 的积压完成块合并、长尾降频与前缀缓存思路（`lobehub/lobe-ui@2907fc1e`，`packages/streamdown/src/useSmoothStreamContent.ts` 与 `blockLexer.ts`）；不引入依赖，继续复用本仓 grapheme、Markdown 边界和显式 runtime 终态。
+
+HTML 注释跨内部空行保持同一块，避免拆块后把注释 payload 当正文显示；是否隐藏交给 core 的注释 AST 转换。

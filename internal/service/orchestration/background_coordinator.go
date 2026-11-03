@@ -304,7 +304,7 @@ func (s *Service) reconcileSubagents(
 	return duework.Result{HasMore: hasMore, NextDueAt: nextDueAt}, nil
 }
 
-// RunRecoveryCoordinator drives the three durable orchestration sagas from one
+// RunRecoveryCoordinator drives durable orchestration sagas from one
 // deadline snapshot while preserving their independent state machines.
 func (s *Service) RunRecoveryCoordinator(
 	ctx context.Context,
@@ -323,7 +323,7 @@ func (s *Service) RunRecoveryCoordinator(
 		now time.Time,
 	) (duework.Result, error) {
 		// Root recovery failures are reported but never starve completion
-		// audits, Goal confirmations and Plan proposal recovery in this pass.
+		// audits, Goal confirmations, Plan proposals and runtime results in this pass.
 		rootErr := errors.Join(
 			s.retryStartupRootRecovery(runCtx),
 			s.reconcileRootRecoveryInputs(runCtx, &rootRecoveryCursor, batchSize),
@@ -356,6 +356,14 @@ func (s *Service) reconcileRecoveries(
 	hasMore := false
 	processed := false
 	var runErrors []error
+	if deadlineDue(deadlines.RuntimeResult, now) {
+		processed = true
+		count, runErr := s.ReconcileRuntimeResults(ctx, batchSize)
+		if runErr != nil {
+			runErrors = append(runErrors, fmt.Errorf("runtime results: %w", runErr))
+		}
+		hasMore = hasMore || count >= batchSize
+	}
 	if deadlineDue(deadlines.CompletionAudit, now) {
 		processed = true
 		result, runErr := s.ReconcileCompletionAudits(ctx, batchSize)
@@ -394,6 +402,7 @@ func (s *Service) reconcileRecoveries(
 	}
 	if !processed {
 		return duework.Result{NextDueAt: earliestDeadline(
+			deadlines.RuntimeResult,
 			deadlines.CompletionAudit,
 			deadlines.GoalConfirmation,
 			deadlines.PlanProposal,
@@ -406,6 +415,7 @@ func (s *Service) reconcileRecoveries(
 	return duework.Result{
 		HasMore: hasMore,
 		NextDueAt: earliestDeadline(
+			refreshed.RuntimeResult,
 			refreshed.CompletionAudit,
 			refreshed.GoalConfirmation,
 			refreshed.PlanProposal,

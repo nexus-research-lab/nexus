@@ -89,6 +89,12 @@ func (s *Service) FinishRoomAttempt(
 			return nil
 		}
 
+		if pending, err := s.pendingDeliveryResult(ctx, snapshot.Execution.ID, attempt.ID); err != nil {
+			return err
+		} else if pending {
+			return nil
+		}
+
 		terminal := *attempt
 		terminal.Metadata = maps.Clone(attempt.Metadata)
 		if input.Status == protocol.WorkAttemptStatusFailed || input.RecoverInterrupted {

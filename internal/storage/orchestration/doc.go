@@ -3,6 +3,7 @@
 // 与只读投影见 docs/specs/execution-graph-spec.md。本头部只列存储边界。
 //
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
+//   - runtime_result.go：按 Execution/kind/target 唯一的不可变结果接收、pending deadline 与领域核对状态。
 //   - root_recovery.go：按游标分页扫描 active managed Execution，供启动 root 对账与恢复投递审计。
 //   - repository.go / commands.go / errors.go：事务、command 幂等、CAS 与稳定错误。
 //   - execution*.go / goal_retarget.go / evidence.go：Execution 创建、转换、Goal
@@ -17,7 +18,7 @@
 //     和 Block/Resume/Takeover。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go：work、review 与
 //     physical cancellation outbox。
-//   - background_deadline.go：三类 outbox、Subagent reconciliation 与三类 saga 的
+//   - background_deadline.go：三类 outbox、Subagent reconciliation 与四类 saga 的
 //     最早 durable deadline 聚合读面；只负责 timer 索引，不 claim 或改写业务状态。
 //   - subagent_reconciliation.go：child Attempt 的 parent-exit deadline 与上次进程未落 deadline orphan 对账。
 //   - runtime_graph*.go：Agent/Tool/Subagent/Gate NodeRun、EdgeRun 与 Artifact ref；控制端点一次汇总、恢复索引查找、详情 SQL 窗口、保留目标节点的普通连线分批读取与 insert-only 历史回填事务。

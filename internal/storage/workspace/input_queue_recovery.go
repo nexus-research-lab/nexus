@@ -6,11 +6,12 @@ package workspace
 import (
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const inputQueueActionPause = "dispatch_pause"
@@ -47,6 +48,9 @@ func (r *inputQueueReplay) pause(row map[string]any) {
 		return
 	}
 	r.paused, _ = row["paused"].(bool)
+	if r.paused {
+		clear(r.recoveryAdmissions)
+	}
 }
 
 // LocationsForWorkspace discovers queues even before a session meta was created.

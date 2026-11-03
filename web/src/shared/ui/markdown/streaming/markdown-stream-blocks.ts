@@ -1,5 +1,5 @@
-// INPUT: 持续追加的 Markdown，包括代码和显示公式边界。
-// OUTPUT: 保留列表与公式完整性的稳定起点分块。
+// INPUT: 持续追加的 Markdown，包括代码、HTML 注释和显示公式边界。
+// OUTPUT: 保留列表、注释与公式完整性的稳定起点分块。
 // POS: 流式渲染分块 owner；只识别不可分割边界，语法与公式内容仍归 core。
 
 import { readMarkdownFenceMarker } from "../core/markdown-fence";
@@ -71,6 +71,7 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
   let cursorOffset = 0;
   let openFence: { marker: "`" | "~"; length: number } | null = null;
   let openMath: string | null = null;
+  let openComment = false;
 
   const flushBuffer = () => {
     if (buffer.length === 0) {
@@ -110,8 +111,18 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
       continue;
     }
 
+    if (openComment) {
+      if (line.includes("-->")) openComment = false;
+      continue;
+    }
+
     if (fenceMarker) {
       openFence = fenceMarker;
+      continue;
+    }
+
+    if (/^ {0,3}<!--/.test(line)) {
+      openComment = !line.includes("-->");
       continue;
     }
 

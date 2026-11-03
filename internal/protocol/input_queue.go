@@ -1,4 +1,4 @@
-// INPUT: 输入队列项、host-only Goal collaboration attribution、Execution WorkBinding/ReviewBinding、变更结果与客户端请求关联 ID。
+// INPUT: 输入队列项、exact 节点恢复目标、host-only Goal collaboration attribution、Execution WorkBinding/ReviewBinding、变更结果与客户端请求关联 ID。
 // OUTPUT: 对外提供带非授权 Goal continuation provenance 或 trusted work/review capability 的输入队列协议模型、快照事件与持久接受 ACK。
 // POS: protocol 包的输入队列跨边界真相源。
 package protocol
@@ -34,29 +34,30 @@ const (
 
 // InputQueueItem 表示后端同步的待发送队列项。
 type InputQueueItem struct {
-	DispatchPending     bool               `json:"dispatch_pending,omitempty"`
-	RecoveryExecutionID string             `json:"recovery_execution_id,omitempty"`
-	ID                  string             `json:"id"`
-	DispatchPaused      bool               `json:"dispatch_paused,omitempty"`
-	Scope               InputQueueScope    `json:"scope"`
-	SessionKey          string             `json:"session_key"`
-	RoomID              string             `json:"room_id,omitempty"`
-	ConversationID      string             `json:"conversation_id,omitempty"`
-	AgentID             string             `json:"agent_id,omitempty"`
-	AgentRoundID        string             `json:"agent_round_id,omitempty"`
-	ClientMessageID     string             `json:"client_message_id,omitempty"`
-	SourceAgentID       string             `json:"source_agent_id,omitempty"`
-	SourceMessageID     string             `json:"source_message_id,omitempty"`
-	HandoffID           string             `json:"handoff_id,omitempty"`
-	TargetAgentIDs      []string           `json:"target_agent_ids,omitempty"`
-	Source              InputQueueSource   `json:"source"`
-	Content             string             `json:"content"`
-	Attachments         []ChatAttachment   `json:"attachments,omitempty"`
-	DeliveryPolicy      ChatDeliveryPolicy `json:"delivery_policy"`
-	ReplyRoute          RoomReplyRoute     `json:"reply_route,omitempty"`
-	OwnerUserID         string             `json:"owner_user_id,omitempty"`
-	RootRoundID         string             `json:"root_round_id,omitempty"`
-	HopIndex            int                `json:"hop_index,omitempty"`
+	DispatchPending     bool                     `json:"dispatch_pending,omitempty"`
+	RecoveryExecutionID string                   `json:"recovery_execution_id,omitempty"`
+	RecoveryTarget      *ExecutionRecoveryTarget `json:"recovery_target,omitempty"`
+	ID                  string                   `json:"id"`
+	DispatchPaused      bool                     `json:"dispatch_paused,omitempty"`
+	Scope               InputQueueScope          `json:"scope"`
+	SessionKey          string                   `json:"session_key"`
+	RoomID              string                   `json:"room_id,omitempty"`
+	ConversationID      string                   `json:"conversation_id,omitempty"`
+	AgentID             string                   `json:"agent_id,omitempty"`
+	AgentRoundID        string                   `json:"agent_round_id,omitempty"`
+	ClientMessageID     string                   `json:"client_message_id,omitempty"`
+	SourceAgentID       string                   `json:"source_agent_id,omitempty"`
+	SourceMessageID     string                   `json:"source_message_id,omitempty"`
+	HandoffID           string                   `json:"handoff_id,omitempty"`
+	TargetAgentIDs      []string                 `json:"target_agent_ids,omitempty"`
+	Source              InputQueueSource         `json:"source"`
+	Content             string                   `json:"content"`
+	Attachments         []ChatAttachment         `json:"attachments,omitempty"`
+	DeliveryPolicy      ChatDeliveryPolicy       `json:"delivery_policy"`
+	ReplyRoute          RoomReplyRoute           `json:"reply_route,omitempty"`
+	OwnerUserID         string                   `json:"owner_user_id,omitempty"`
+	RootRoundID         string                   `json:"root_round_id,omitempty"`
+	HopIndex            int                      `json:"hop_index,omitempty"`
 	// GoalCollaborationBinding is host-only continuation provenance. It lets a
 	// completed Room handoff wake a fresh authorized Goal continuation without
 	// granting this queued Agent round Goal mutation capability.
@@ -72,6 +73,14 @@ type InputQueueItem struct {
 // ValidateInputQueueCapabilityEnvelope 保证普通通信与受管 responsibility
 // 使用互斥 envelope。它不验证数据库状态，只验证跨 workspace queue 的形状。
 func ValidateInputQueueCapabilityEnvelope(item InputQueueItem) error {
+	if target := item.RecoveryTarget; target != nil {
+		if item.Source != InputQueueSourceHostRecovery || target.ExecutionID == "" || target.ExecutionID != item.RecoveryExecutionID || target.WorkItemID == "" || target.AttemptID == "" || item.WorkBinding != nil || item.ReviewBinding != nil || item.GoalCollaborationBinding != nil {
+			return invalidInputQueueCapabilityEnvelope("explicit recovery requires an exact host recovery target without work/review capability")
+		}
+		if item.Scope == InputQueueScopeRoom && (len(item.TargetAgentIDs) != 1 || item.TargetAgentIDs[0] != item.AgentID) {
+			return invalidInputQueueCapabilityEnvelope("explicit recovery targets exactly its queue's coordinator")
+		}
+	}
 	if item.GoalCollaborationBinding != nil &&
 		NormalizeGoalCollaborationBinding(item.GoalCollaborationBinding) == nil {
 		return invalidInputQueueCapabilityEnvelope(

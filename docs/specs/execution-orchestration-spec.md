@@ -788,6 +788,16 @@ root_round_id
   can never recreate `assign_work` segment authority or any other semantic
   operation identity.
 
+### 5.8 显式结果钩子
+
+受管 round 在开始时已携带完整且互斥的 `WorkBinding` / `ReviewBinding`，且 nxs 已协商 `hook_response_ack` 与消息执行策略能力时，宿主注入结果声明合同并登记冻结的物理 round 回调。warm client 的 Stop 路由只接受唯一活动主 round；子任务、歧义路由、计划/观察轮不取得结果写入能力。当轮后续才获得的责任、无 binding 或缺少能力的 runtime 继续使用显式结果工具。
+
+模型明确决定交付或审核后，可在最后回复的独占行尾部 HTML 注释中声明 `nexus-workgraph-result` JSON。wire 真相是 `protocol.ExecutionResultDeclaration`：版本与 exact AgentRoundID 必须匹配，只能有一个 delivery 或 review，不接受调用者指定其他目标、未知字段、重复键、代码块内示例或尾部其他内容。大小上限 64 KiB、嵌套深度上限 16。普通回复、runtime finished、失败或中断从不自动产生 Submission / Acceptance。声明注释保留在原文审计中，Markdown 正文与流式显示隐藏 HTML 注释；代码示例仍可读。
+
+结果先以 Execution / kind / Attempt 或 Submission 唯一身份写入不可变 `execution_result_receipts`，随后通过原有 `SubmitWork` / `ReviewWork` 领域服务执行授权、当前 Plan/Spec/Assignment、revision 和验收规则。接收状态与应用状态分离：`pending` 只证明持久接收，`applied` 必须由 exact 领域交付/审核内容证明，`rejected` 表示已核对后的冲突或失效。显式工具与钩子同时到达时，只承认相同内容的既有领域结果；`no_op` 本身不能证明写入成功，也不能覆盖不同审核结论。
+
+持久接收后的领域失败由现有后台恢复协调器按 deadline 有界对账，读取当前事实后使用稳定命令 ID 推进内部事务；不重放外部工具。pending 交付保护 exact root，避免 runtime 退出/宿主重启提前把它收口；若旧责任最终失效，回执明确拒绝，并收口仍存活的 exact root，不能转移到后继 Attempt 或恢复暂停任务。未取得持久接收或明确拒绝时，Stop 可要求一次核对/纠错，重复 Stop 不无限阻塞。`runtimehook.Observer` 仍只负责 best-effort 运行观察，正式结果不经过该路径。
+
 ## 6. Execution operations
 
 The Execution directory exposes exactly 13 operations through round-scoped
@@ -1174,7 +1184,7 @@ layer cannot enforce.
 
 ### 宿主重启与 root Attempt 对账
 
-启动时先分页扫描 active managed Execution，再开放恢复队列派发。遗留 running root、以及 outbox 已 delivered 的 pending root 收口为 interrupted；尚未投递的 pending root 仍归 outbox。已成功的 Attempt、Submission 与 Acceptance 不变。DM 的物理轮次结束也收口其精确绑定的 root，不借用后继轮次身份。
+启动时先分页扫描 active managed Execution，再开放恢复队列派发。没有 pending 交付回执的遗留 running root、以及 outbox 已 delivered 的 pending root 收口为 interrupted；尚未投递的 pending root 仍归 outbox。已成功的 Attempt、Submission 与 Acceptance 不变。DM 的物理轮次结束也收口其精确绑定的 root，不借用后继轮次身份。
 
 启动时只为宿主确实留下在途工作的 Execution 安排协调核对：本次启动收口了遗留 root，或某个当前 Assignment 的最新 root 因宿主关闭/重启（`host_shutdown`、`host_restart`）中断或带 `host_recovery_required` 标记。用户停止、宿主控制停止、早已停滞或正在等待输入的图不因重启而被唤醒。
 
@@ -1185,3 +1195,11 @@ layer cannot enforce.
 无 Goal 的 active Execution 通过持久化、幂等的宿主恢复输入唤醒原协调者，先核对已有产物、外部副作用和待审提交，再决定是否 take_over_work。绑定 Goal 的执行仍由原 Goal continuation authority 驱动，普通恢复输入不绕过 Goal 暂停、预算或停止。用户停止不自动唤醒协调者；恢复队列仍遵守持久暂停门禁。成员非用户失败或意外中断可触发协调检查，显式恢复成员参与也可请求检查其 interrupted Assignment。旧 Attempt 不原地复活。
 
 成员终态中的恢复需求与 Attempt 一同持久化；低频审计补偿终态写入和恢复队列受理之间的失败窗口。多个原因指向同一 Execution 时合并尚未消费的恢复输入，并保留各原因的受理回执。旧绑定队列项若已由权威 Attempt 状态确认终态，则消费旧项，避免阻塞协调恢复。
+
+### 用户发起的精确节点恢复
+
+认证 owner 可对同一 session 的 current active Execution 发起 exact Work Item / root Attempt 恢复。目标必须属于当前 Plan/Spec、当前 Assignment 的最新根 Attempt，处于 failed/interrupted/timed_out 且未交付；历史、已接管、运行中、子 Attempt、暂停或已关闭目标拒绝。图上的 `can_recover` 是服务端能力提示，写入口与出队时仍重验权威身份。
+
+请求使用客户端新意图的稳定 request_id，经 DM/Room 原有持久队列唤醒原协调者，要求先核对该目标的产物、待审提交与未知副作用，再决定接管或继续；不会直接将 Attempt 标成 running，也不伪造用户消息。受理回执只证明已入队。相同 ID 重试返回原回执，不同目标不能复用；HTTP 回执丢失后先只读核对，确认未受理后才允许用户再次提交原意图。
+
+显式恢复仅允许新入队的该项通过已有队列暂停；其他被暂停项与 Goal continuation 不会随之恢复。随后发生的用户停止撤销此项准入，重复请求、恢复旧 claim 或重启不能重新授予许可。自动恢复仍遵守暂停门禁，不因这一入口获得新增权限。目标在排队期间被替换、交付或关闭时，出队前丢弃旧请求。

@@ -3,6 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - result_hook.go：能力协商后启用的 Stop 结果路由；warm client 只交给唯一活动 round，子任务和歧义回调不写回。
 //   - sandbox_diagnostic.go：启动与诊断共用的已知 nxs-mxc/mxc-sdk 沙箱错误提示与关闭沙箱的出路说明。
 //   - autodream.go：一次性 AutoDream control 经共享启动事务、后台取消及终态退休；不拥有记忆领域规则。
 //   - client.go：Client 接口、Factory 与 agentClient（宿主管理 Agent runtime 的能力边界），

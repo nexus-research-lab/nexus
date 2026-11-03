@@ -277,11 +277,19 @@ func integrationCommandMeta(suffix string) orchestrationrepo.CommandMeta {
 }
 
 func prepareIntegrationBatch(t testing.TB, repo *orchestrationrepo.Repository, suffix string) orchestrationrepo.AssignBatchCommand {
+	return prepareIntegrationBatchScope(t, repo, suffix, protocol.ExecutionScopeDM)
+}
+
+func prepareIntegrationBatchScope(t testing.TB, repo *orchestrationrepo.Repository, suffix string, scope protocol.ExecutionScopeKind) orchestrationrepo.AssignBatchCommand {
 	t.Helper()
 	execution := protocol.Execution{
 		ID: "execution-" + suffix, OwnerUserID: "workgraph-owner", SessionKey: "session-" + suffix,
-		ScopeKind: protocol.ExecutionScopeDM, CoordinatorAgentID: "lead", Origin: protocol.ExecutionOriginUserRequest,
+		ScopeKind: scope, CoordinatorAgentID: "lead", Origin: protocol.ExecutionOriginUserRequest,
 		Objective: "verify " + suffix, CompletionCriteria: []string{"verified"}, Status: protocol.ExecutionStatusActive,
+	}
+	if scope == protocol.ExecutionScopeRoom {
+		execution.RoomID = "room-" + suffix
+		execution.ConversationID = "conversation-" + suffix
 	}
 	if _, err := repo.Create(t.Context(), orchestrationrepo.CreateCommand{Execution: execution, Meta: integrationCommandMeta("create-" + suffix)}); err != nil {
 		t.Fatal(err)

@@ -459,6 +459,8 @@ func (s *Server) mountGoalRoutes() {
 
 // mountExecutionRoutes 挂载 WorkGraph 历史读取、草图预览与已保存草图目录。
 func (s *Server) mountExecutionRoutes() {
+	s.router.Post(s.prefixPath("/executions/{execution_id}/recover"), s.handlers.execution.HandleRequestWorkRecovery)
+	s.router.Get(s.prefixPath("/executions/{execution_id}/recovery-receipt"), s.handlers.execution.HandleGetWorkRecoveryReceipt)
 	s.router.Get(
 		s.prefixPath("/executions/latest"),
 		s.handlers.execution.HandleGetLatestExecution,

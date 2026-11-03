@@ -1,3 +1,6 @@
+// INPUT: Parsed Markdown text and HTML nodes.
+// OUTPUT: Hidden comments, supported inline tags, line breaks and mixed-script nodes.
+// POS: Stateless Markdown AST transformations; code examples retain their content.
 type MarkdownAstNode = {
   children?: MarkdownAstNode[];
   data?: {
@@ -27,6 +30,14 @@ interface PairedInlineHtmlContent {
 type MarkdownChildRule = (
   context: MarkdownChildContext,
 ) => MarkdownChildReplacement | null;
+
+/** HTML comments are metadata, including an unfinished streaming comment. */
+export function remarkHtmlComments() {
+  return (tree: MarkdownAstNode) => visitChildren(tree, (node) => {
+    if (node.children) node.children = node.children.filter((child) =>
+      child.type !== "html" || !child.value?.startsWith("<!--"));
+  });
+}
 
 const INLINE_HTML_TAGS = [
   "sub",

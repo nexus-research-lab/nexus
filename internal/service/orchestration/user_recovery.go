@@ -1,0 +1,144 @@
+// INPUT: Authenticated owner and exact current Execution/Work Item/root Attempt.
+// OUTPUT: Durable coordinator inspection request and dequeue-time identity validation.
+// POS: User recovery does not mutate an Attempt, replay tools, or resume other queues.
+package orchestration
+
+import (
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+)
+
+type workRecoveryConsumer interface {
+	QueueWorkRecovery(context.Context, protocol.Execution, protocol.ExecutionRecoveryTarget, string) error
+	FindWorkRecovery(context.Context, protocol.Execution, string) (*protocol.ExecutionRecoveryTarget, error)
+}
+
+func workRecoveryKey(executionID, requestID string) string {
+	return fmt.Sprintf("work-recovery:%x", sha256.Sum256([]byte(executionID+"\x00"+requestID)))
+}
+
+// GetWorkRecoveryReceipt reconciles a lost HTTP acknowledgement without enqueuing.
+func (s *Service) GetWorkRecoveryReceipt(ctx context.Context, owner, executionID, session, requestID string) (*protocol.ExecutionRecoveryReceipt, error) {
+	if owner == "" || executionID == "" || session == "" || requestID == "" || len(requestID) > protocol.MaxClientMessageIDBytes {
+		return nil, domainError(ErrorCodeInvalidInput, "recovery receipt identity is required")
+	}
+	execution, err := s.repository.Get(ctx, executionID)
+	if err != nil {
+		return nil, err
+	}
+	if execution == nil || execution.OwnerUserID != owner || execution.SessionKey != session {
+		return nil, domainError(ErrorCodeWrongOwner, "recovery receipt is outside the requested owner/session")
+	}
+	consumer, ok := s.rootRecoveryConsumer.(workRecoveryConsumer)
+	if !ok {
+		return nil, fmt.Errorf("work recovery queue is unavailable")
+	}
+	target, err := consumer.FindWorkRecovery(ctx, *execution, workRecoveryKey(executionID, requestID))
+	if err != nil {
+		return nil, err
+	}
+	receipt := &protocol.ExecutionRecoveryReceipt{RequestID: requestID, ExecutionRecoveryTarget: protocol.ExecutionRecoveryTarget{ExecutionID: executionID}}
+	if target != nil {
+		receipt.ExecutionRecoveryTarget = *target
+		receipt.Queued = true
+	}
+	return receipt, nil
+}
+
+// RequestWorkRecovery accepts an explicit request without impersonating a runtime actor.
+func (s *Service) RequestWorkRecovery(ctx context.Context, owner, executionID string, input protocol.RequestExecutionRecovery) (*protocol.ExecutionRecoveryReceipt, error) {
+	if owner == "" || executionID == "" || input.SessionKey == "" || input.RequestID == "" || len(input.RequestID) > protocol.MaxClientMessageIDBytes || input.WorkItemID == "" || input.AttemptID == "" {
+		return nil, domainError(ErrorCodeInvalidInput, "exact recovery identity and request_id are required")
+	}
+	target := protocol.ExecutionRecoveryTarget{ExecutionID: executionID, WorkItemID: input.WorkItemID, AttemptID: input.AttemptID}
+	if receipt, err := s.GetWorkRecoveryReceipt(ctx, owner, executionID, input.SessionKey, input.RequestID); err != nil {
+		return nil, err
+	} else if receipt.Queued {
+		if receipt.ExecutionRecoveryTarget != target {
+			return nil, domainError(ErrorCodeInvalidInput, "request_id already identifies a different recovery target")
+		}
+		return receipt, nil
+	}
+	snapshot, err := s.userRecoverySnapshot(ctx, owner, input.SessionKey, target)
+	if err != nil {
+		return nil, err
+	}
+	if snapshot == nil || !canRecoverWorkAttempt(snapshot, target.WorkItemID, target.AttemptID) {
+		return nil, domainError(ErrorCodeInvalidInput, "recovery target is no longer a current failed root Attempt; refresh the graph")
+	}
+	consumer, ok := s.rootRecoveryConsumer.(workRecoveryConsumer)
+	if !ok {
+		return nil, fmt.Errorf("work recovery queue is unavailable")
+	}
+	// Separate requests remain separate intents; transport retries reuse this key.
+	key := workRecoveryKey(executionID, input.RequestID)
+	if err := consumer.QueueWorkRecovery(ctx, snapshot.Execution, target, key); err != nil {
+		return nil, err
+	}
+	return &protocol.ExecutionRecoveryReceipt{ExecutionRecoveryTarget: target, RequestID: input.RequestID, Queued: true}, nil
+}
+
+func (s *Service) userRecoverySnapshot(ctx context.Context, owner, session string, target protocol.ExecutionRecoveryTarget) (*protocol.ExecutionSnapshot, error) {
+	execution, err := s.repository.FindCurrent(ctx, owner, session)
+	if err != nil || execution == nil {
+		return nil, err
+	}
+	if execution.ID != target.ExecutionID || execution.OwnerUserID != owner || execution.SessionKey != session {
+		return nil, domainError(ErrorCodeWrongOwner, "recovery target is outside the current owner/session Execution")
+	}
+	snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+	if snapshot.Execution.OwnerUserID != owner || snapshot.Execution.SessionKey != session {
+		return nil, domainError(ErrorCodeWrongOwner, "recovery snapshot is outside the requested owner/session")
+	}
+	return snapshot, nil
+}
+
+// RecoveryTargetCurrent drops queued requests after takeover, replan or completion.
+func (s *Service) RecoveryTargetCurrent(ctx context.Context, owner, session string, target protocol.ExecutionRecoveryTarget) (bool, error) {
+	snapshot, err := s.userRecoverySnapshot(ctx, owner, session, target)
+	var domainErr *DomainError
+	if errors.As(err, &domainErr) && domainErr.Code == ErrorCodeWrongOwner {
+		return false, nil
+	}
+	return snapshot != nil && canRecoverWorkAttempt(snapshot, target.WorkItemID, target.AttemptID), err
+}
+
+func canRecoverWorkAttempt(snapshot *protocol.ExecutionSnapshot, workID, attemptID string) bool {
+	if snapshot == nil || snapshot.Plan == nil || snapshot.Execution.Status != protocol.ExecutionStatusActive {
+		return false
+	}
+	attempt := findAttemptByID(snapshot, attemptID)
+	if attempt == nil || attempt.ParentAttemptID != "" || attempt.WorkItemID != workID || attempt.PlanID != snapshot.Plan.ID {
+		return false
+	}
+	_, spec, err := resolvePlanWork(snapshot, workID, "")
+	if err != nil || spec.ID != attempt.SpecID {
+		return false
+	}
+	switch attempt.Status {
+	case protocol.WorkAttemptStatusFailed, protocol.WorkAttemptStatusInterrupted, protocol.WorkAttemptStatusTimedOut:
+	default:
+		return false
+	}
+	assignment := findAssignmentByID(snapshot, attempt.AssignmentID)
+	if assignment == nil || !currentAssignment(*assignment) {
+		return false
+	}
+	latest := latestRootAttemptForAssignment(snapshot, assignment.ID)
+	if latest == nil || latest.ID != attempt.ID {
+		return false
+	}
+	for _, submission := range snapshot.Submissions {
+		if submission.AttemptID == attempt.ID {
+			return false
+		}
+	}
+	return true
+}

@@ -1,5 +1,5 @@
 // INPUT: ExecutionSnapshot 中当前 active Plan、责任状态与 WorkAttempt 运行身份。
-// OUTPUT: 面向 Web/桌面端的安全 WorkGraph、Agent/Subagent 分层运行图、NodeRun 历史与 Artifact 引用；不暴露 command、lease 或 runtime capability identity。
+// OUTPUT: 面向 Web/桌面端的安全 WorkGraph、Agent/Subagent 分层运行图、NodeRun 历史、Artifact 引用与可发起恢复标记；不暴露 command、lease 或 runtime capability identity。
 // POS: Execution Orchestration 状态机与 DM/Room Execution Graph UI 之间的跨边界展示协议。
 package protocol
 
@@ -138,6 +138,7 @@ type ExecutionGraphNodeRunView struct {
 // ExecutionGraphNodeView 把稳定责任节点与其当前 Node Run 分开表达。
 // Agent 节点 ID 沿用 Work Item ID；Subagent 节点 ID 沿用 child Attempt ID。
 type ExecutionGraphNodeView struct {
+	CanRecover           bool                         `json:"can_recover,omitempty"`
 	ID                   string                       `json:"id"`
 	Kind                 ExecutionGraphNodeKind       `json:"kind"`
 	Visibility           ExecutionGraphNodeVisibility `json:"visibility"`

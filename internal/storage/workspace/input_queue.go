@@ -1,6 +1,6 @@
 // INPUT: DM / Room 待发送项、客户端幂等键、投递策略与预检过的 guidance 语义版本。
 // OUTPUT: append-only 队列快照、持久接受结果、串行派发和忽略排序时间戳的全有或全无 guidance 认领。
-// POS: 会话输入队列的持久化真相源；业务服务不得自行删除已预检项。
+// POS: 会话输入队列及 exact recovery 回执的持久化真相源；业务服务不得自行删除已预检项。
 package workspace
 
 import (
@@ -332,7 +332,8 @@ func (s *InputQueueStore) EnqueueIdempotent(
 	if item.Source == protocol.InputQueueSourceHostRecovery && item.RecoveryExecutionID != "" {
 		pending := replayInputQueueRows(location, rows)
 		for _, existing := range pending {
-			if existing.Source == item.Source && existing.RecoveryExecutionID == item.RecoveryExecutionID {
+			if existing.Source == item.Source && existing.RecoveryExecutionID == item.RecoveryExecutionID &&
+				reflect.DeepEqual(existing.RecoveryTarget, item.RecoveryTarget) && (item.RecoveryTarget == nil || !existing.DispatchPaused) {
 				if err := s.appendActionLocked(location, map[string]any{
 					"action": inputQueueActionAccepted, "item": existing,
 					"client_message_id": clientMessageID, "timestamp": now,
@@ -408,6 +409,7 @@ func MatchesInputQueueEnqueueIntent(existing protocol.InputQueueItem, candidate 
 
 type inputQueueEnqueueIntent struct {
 	RecoveryExecutionID string
+	RecoveryTarget      *protocol.ExecutionRecoveryTarget
 	Content             string
 	Attachments         []protocol.ChatAttachment
 	DeliveryPolicy      protocol.ChatDeliveryPolicy
@@ -424,6 +426,7 @@ func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEn
 	slices.Sort(targetAgentIDs)
 	return inputQueueEnqueueIntent{
 		RecoveryExecutionID: item.RecoveryExecutionID,
+		RecoveryTarget:      item.RecoveryTarget,
 		Content:             strings.TrimSpace(item.Content),
 		Attachments:         protocol.NormalizeChatAttachments(item.Attachments, ""),
 		DeliveryPolicy:      protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),

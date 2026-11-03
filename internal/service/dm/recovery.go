@@ -16,6 +16,27 @@ import (
 )
 
 func (s *Service) QueueExecutionRecovery(ctx context.Context, e protocol.Execution, key string) error {
+	return s.queueExecutionRecovery(ctx, e, key, nil)
+}
+
+func (s *Service) QueueWorkRecovery(ctx context.Context, e protocol.Execution, target protocol.ExecutionRecoveryTarget, key string) error {
+	return s.queueExecutionRecovery(ctx, e, key, &target)
+}
+
+func (s *Service) FindWorkRecovery(ctx context.Context, e protocol.Execution, key string) (*protocol.ExecutionRecoveryTarget, error) {
+	ctx = runtimehost.ContextWithExactOwner(ctx, e.OwnerUserID)
+	_, location, err := s.resolveInputQueueLocation(ctx, e.SessionKey, e.CoordinatorAgentID)
+	if err != nil {
+		return nil, err
+	}
+	item, found, err := s.InputQueue.FindAcceptedEnqueue(location, key)
+	if err != nil || !found {
+		return nil, err
+	}
+	return item.RecoveryTarget, nil
+}
+
+func (s *Service) queueExecutionRecovery(ctx context.Context, e protocol.Execution, key string, target *protocol.ExecutionRecoveryTarget) error {
 	ctx = runtimehost.ContextWithExactOwner(ctx, e.OwnerUserID)
 	sessionKey, location, err := s.resolveInputQueueLocation(ctx, e.SessionKey, e.CoordinatorAgentID)
 	if errors.Is(err, agentsvc.ErrAgentNotFound) {
@@ -24,9 +45,14 @@ func (s *Service) QueueExecutionRecovery(ctx context.Context, e protocol.Executi
 	if err != nil {
 		return err
 	}
+	content := runtimehost.ExecutionRecoveryInstruction(e)
+	if target != nil {
+		content = runtimehost.WorkRecoveryInstruction(e, *target)
+	}
 	_, err = s.InputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{
 		Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: e.ID,
-		OwnerUserID: e.OwnerUserID, AgentID: e.CoordinatorAgentID, Content: runtimehost.ExecutionRecoveryInstruction(e),
+		RecoveryTarget: target,
+		OwnerUserID:    e.OwnerUserID, AgentID: e.CoordinatorAgentID, Content: content,
 		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
 	}, key)
 	if err != nil {

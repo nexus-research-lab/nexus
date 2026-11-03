@@ -21,6 +21,7 @@ type DispatchDeadlines struct {
 // RecoveryDeadlines contains the earliest time each durable orchestration saga
 // can next advance. Immediate Plan proposals use updated_at as their deadline.
 type RecoveryDeadlines struct {
+	RuntimeResult    *time.Time
 	CompletionAudit  *time.Time
 	GoalConfirmation *time.Time
 	PlanProposal     *time.Time
@@ -121,6 +122,7 @@ func (r *Repository) OrchestrationRecoveryDeadlines(
 ) (RecoveryDeadlines, error) {
 	row := r.db.QueryRowContext(ctx, `
 SELECT
+  (SELECT MIN(next_attempt_at) FROM execution_result_receipts WHERE state = 'pending'),
   (
     SELECT MIN(next_attempt_at)
     FROM execution_completion_audits
@@ -149,8 +151,12 @@ SELECT
          )
        )
   )`)
-	var completion, confirmation, proposal any
-	if err := row.Scan(&completion, &confirmation, &proposal); err != nil {
+	var runtimeResult, completion, confirmation, proposal any
+	if err := row.Scan(&runtimeResult, &completion, &confirmation, &proposal); err != nil {
+		return RecoveryDeadlines{}, err
+	}
+	runtimeResultAt, err := storage.NullableTime(runtimeResult)
+	if err != nil {
 		return RecoveryDeadlines{}, err
 	}
 	completionAt, err := storage.NullableTime(completion)
@@ -166,6 +172,7 @@ SELECT
 		return RecoveryDeadlines{}, err
 	}
 	return RecoveryDeadlines{
+		RuntimeResult:    runtimeResultAt,
 		CompletionAudit:  completionAt,
 		GoalConfirmation: confirmationAt,
 		PlanProposal:     proposalAt,

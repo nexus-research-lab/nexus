@@ -190,6 +190,7 @@ func (h *Host) WithAgentRuntimeHooks(
 ) agentclient.Options {
 	options = h.Runtime.WithGuidanceHook(options, sessionKey)
 	options = h.Runtime.WithSubagentAdmissionHooks(options, sessionKey)
+	options = h.Runtime.WithWorkResultHook(options, sessionKey)
 	for _, hook := range extra {
 		options = hook(options)
 	}

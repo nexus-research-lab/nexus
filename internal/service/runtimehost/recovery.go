@@ -16,6 +16,10 @@ func ExecutionRecoveryInstruction(e protocol.Execution) string {
 	return fmt.Sprintf("Host recovery for Execution %s. Inspect its authoritative current state, accepted work and pending submissions. A previous runtime ended or the host restarted; tool outcomes may be unknown. Reconcile files, sent messages and external side effects before any retry. Preserve accepted work. Use take_over_work only after reconciliation when a root Attempt failed or was interrupted. Continue coordinating the existing objective; do not create a replacement Execution or blindly replay tools.", e.ID)
 }
 
+func WorkRecoveryInstruction(e protocol.Execution, target protocol.ExecutionRecoveryTarget) string {
+	return fmt.Sprintf("The user explicitly requested recovery of Work Item %s, root Attempt %s, in Execution %s. Inspect and reconcile this exact target before continuing or taking it over. Do not resume other stopped work or automatically resume Goal continuation. ", target.WorkItemID, target.AttemptID, e.ID) + ExecutionRecoveryInstruction(e)
+}
+
 type recoveryExecutionValidator interface {
 	RecoveryExecutionCurrent(context.Context, string, string, string) (bool, error)
 }
@@ -34,6 +38,15 @@ func (h *Host) RecoveryInputCurrent(ctx context.Context, item protocol.InputQueu
 	}
 	if item.Source != protocol.InputQueueSourceHostRecovery {
 		return true, nil
+	}
+	if item.RecoveryTarget != nil {
+		validator, ok := h.ExecutionContext.(interface {
+			RecoveryTargetCurrent(context.Context, string, string, protocol.ExecutionRecoveryTarget) (bool, error)
+		})
+		if !ok {
+			return false, errors.New("exact work recovery validator unavailable")
+		}
+		return validator.RecoveryTargetCurrent(ctx, item.OwnerUserID, sessionKey, *item.RecoveryTarget)
 	}
 	validator, ok := h.ExecutionContext.(recoveryExecutionValidator)
 	if !ok {

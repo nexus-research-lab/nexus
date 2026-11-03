@@ -1,6 +1,6 @@
 // INPUT: 已启动的 runtime client、本轮输入、消息映射器与宿主的落盘/广播/身份同步回调。
 // OUTPUT: DM 与 Room 共用的单 Agent round 执行骨架。
-// POS: 宿主决定输入内容、消息落点与输出可见性；这里只负责执行编排、子智能体准入、观察与 fork 收口。
+// POS: 宿主决定输入内容、消息落点与输出可见性；这里只负责执行编排、子智能体准入、显式结果钩子接线、观察与 fork 收口。
 package runtimehost
 
 import (
@@ -70,6 +70,13 @@ func (h *Host) ExecuteAgentRound(ctx context.Context, round AgentRound) (exec.Ro
 			}),
 		)
 		defer h.Runtime.ClearSubagentHookCallbacks(round.RuntimeSessionKey, round.HookRoundID)
+	}
+	if provider, ok := h.ExecutionContext.(orchestrationruntimehook.ResultProvider); ok && runtimectx.SupportsWorkResultHooks(round.Client) {
+		if contract := orchestrationruntimehook.ResultContract(actor); contract != "" {
+			executionInputs = append(executionInputs, runtimectx.NewContextualInputBlock("workgraph_result", contract, 90, nil))
+			h.Runtime.SetWorkResultHook(round.RuntimeSessionKey, round.HookRoundID, orchestrationruntimehook.ResultCallback(provider, actor, round.Logger))
+			defer h.Runtime.ClearWorkResultHook(round.RuntimeSessionKey, round.HookRoundID)
+		}
 	}
 	observer := h.ExecutionObserver()
 	observer.Begin(actor)

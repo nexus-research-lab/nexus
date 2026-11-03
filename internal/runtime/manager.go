@@ -1,6 +1,6 @@
 // INPUT: SDK client factory 与 session/round 生命周期状态。
 // OUTPUT: 并发安全的 runtime session 状态管理器。
-// POS: runtime client、round、guidance 与 Goal accounting 的共享状态根。
+// POS: runtime client、round、guidance、结果回调与 Goal accounting 的共享状态根。
 package runtime
 
 import (
@@ -9,10 +9,12 @@ import (
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type sessionState struct {
+	WorkResultHooks          map[string]sdkhook.Callback
 	Client                   Client
 	StartupGeneration        uint64
 	ContextUsageByAgent      map[string]protocol.ContextUsageData
@@ -145,6 +147,7 @@ func (m *Manager) removeClientlessSessionIfIdleLocked(
 		!state.Rounds.empty() ||
 		len(state.GuidedInputs) > 0 ||
 		len(state.SubagentHooks) > 0 ||
+		len(state.WorkResultHooks) > 0 ||
 		len(state.SubagentHookBindings) > 0 ||
 		state.HasSubagentHistory ||
 		state.IdleMessageDrain != nil {

@@ -1,7 +1,7 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
  * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作、统一节点/运行耗时及完整交互的大图弹窗；工具栏和关系图例独立于点阵画布，详情按可视视口避让所选节点/边端点并保持屏幕字号。
- * POS: DM/Room 共用的只读 Execution Graph 主视图；历史 Task 按节点 Attempt 隔离，文件操作使用真实节点工作区身份；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
+ * POS: DM/Room 共用的 Execution Graph 读图与显式恢复入口；恢复只受理请求，不改画布状态；历史 Task 按节点 Attempt 隔离，文件操作使用真实节点工作区身份；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
 
@@ -44,6 +44,9 @@ import type {
   ExecutionWorkItemStatus,
   ExecutionWorkItemView,
 } from "@/types/conversation/execution";
+
+import { UiButton } from "@/shared/ui/button/button";
+import type { ExecutionRecoveryAction } from "./use-execution-recovery";
 
 import { ExecutionGraphInspector } from "./execution-graph-inspector";
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
@@ -157,6 +160,7 @@ interface ExecutionWorkGraphCanvasProps {
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
   onCloseExpanded?: () => void;
+  recovery?: ExecutionRecoveryAction;
   nodePresentation?: ExecutionGraphNodePresentation;
   onOpenWorkspaceFile?: (
     path: string,
@@ -183,6 +187,7 @@ export function ExecutionWorkGraphCanvas({
   directory,
   execution,
   onCloseExpanded,
+  recovery,
   nodePresentation = "icon",
   onOpenWorkspaceFile,
   taskRuns,
@@ -1395,6 +1400,7 @@ export function ExecutionWorkGraphCanvas({
               execution={execution}
               item={selectedItem}
               node={selectedLayoutNode.node}
+              recovery={recovery}
               onClose={() => setSelectedId(null)}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
               style={inspectorStyle}
@@ -1440,6 +1446,7 @@ export function ExecutionWorkGraphCanvas({
           execution={execution}
           nodePresentation={nodePresentation}
           onClose={() => setExpandedOpen(false)}
+          recovery={recovery}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           taskRuns={taskRuns}
         />
@@ -1449,6 +1456,7 @@ export function ExecutionWorkGraphCanvas({
 }
 
 function ExecutionWorkGraphExpandedDialog({
+  recovery,
   currentId,
   directory,
   execution,
@@ -1484,6 +1492,7 @@ function ExecutionWorkGraphExpandedDialog({
               directory={directory}
               execution={execution}
               onCloseExpanded={onClose}
+              recovery={recovery}
               nodePresentation={nodePresentation}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
               taskRuns={taskRuns}
@@ -1496,6 +1505,7 @@ function ExecutionWorkGraphExpandedDialog({
 }
 
 function ExecutionNodeInspector({
+  recovery,
   attempt,
   directory,
   execution,
@@ -1506,6 +1516,7 @@ function ExecutionNodeInspector({
   style,
   taskRun,
 }: {
+  recovery?: ExecutionRecoveryAction;
   attempt: ExecutionAttemptView | null;
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
@@ -1607,6 +1618,21 @@ function ExecutionNodeInspector({
         </>
       }
     >
+      {recovery && node.can_recover && node.attempt_id ? (
+        <div className="space-y-2">
+          <UiButton
+            size="sm"
+            variant="outline"
+            disabled={["pending", "queued"].includes(recovery.states[node.attempt_id]?.status ?? "")}
+            onClick={() => recovery.run(node)}
+          >
+            {t(recovery.states[node.attempt_id]?.status === "unknown" ? "execution.recovery_check" : recovery.states[node.attempt_id]?.status === "pending" ? "execution.recovery_pending" : "execution.recover_node")}
+          </UiButton>
+          <p role="status" className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+            {t(recovery.states[node.attempt_id]?.status === "queued" ? "execution.recovery_queued" : recovery.states[node.attempt_id]?.status === "unknown" ? "execution.recovery_unknown" : recovery.states[node.attempt_id]?.status === "absent" ? "execution.recovery_absent" : "execution.recovery_hint")}
+          </p>
+        </div>
+      ) : null}
       {relatedSubject ? (
         <p className="text-xs font-medium leading-4 text-(--text-default)">
           {relatedSubject}

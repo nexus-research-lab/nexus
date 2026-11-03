@@ -1,5 +1,5 @@
 /**
- * INPUT: internal/protocol/execution_view.go 的 JSON 协议。
+ * INPUT: internal/protocol/execution_view.go 与 execution_recovery.go 的 JSON 协议。
  * OUTPUT: DM/Room 共用的安全 WorkGraph 展示类型。
  * POS: Execution 后端投影在 Web 端的跨会话协议镜像。
  */
@@ -136,6 +136,7 @@ export interface ExecutionGraphNodeRunView {
 }
 
 export interface ExecutionGraphNodeView {
+  can_recover?: boolean;
   id: string;
   kind: ExecutionGraphNodeKind;
   visibility: ExecutionGraphNodeVisibility;
@@ -281,4 +282,12 @@ export interface ExecutionSummary {
   work_item_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface ExecutionRecoveryReceipt {
+  execution_id: string;
+  work_item_id: string;
+  attempt_id: string;
+  request_id: string;
+  queued: boolean;
 }

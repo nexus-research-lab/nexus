@@ -139,3 +139,11 @@ NEXUS_BROWSER_SMOKE=1 NEXUS_SMOKE_NXS_BINARY=/absolute/path/to/nxs \
 后端 CI 在 macOS 与 Windows 执行 confinedfs、desktopinstance、runtime、clientopts 和 auth
 目标包。真实沙箱、进程恢复和原生宿主验收仍使用既有 desktop sandbox 工作流；
 平台包测试通过不能代替原生发布验收。
+
+### WorkGraph 恢复入口与结果钩子
+
+- `go test ./internal/service/orchestration ./internal/storage/workspace ./internal/handler/execution ./internal/runtime ./internal/service/orchestration/runtimehook` 覆盖精确恢复授权、稳定请求 ID、丢失受理回执、旧目标失效、单项越过旧暂停与后续停止、Stop 严格解析与路由能力边界。
+- `NEXUS_TEST_POSTGRES_URL=... go test -race ./internal/storage -run 'TestWorkGraphRuntimeResultIntegration|TestWorkGraphUpgradeIntegration' -count=1 -v` 在临时 SQLite 与独立 PostgreSQL schema 上验证结果先持久接收、领域提交前/后失败、回执落盘失败、重建服务后的对账、交付/审核工具竞态、冲突结论及终态拒绝。PostgreSQL 未配置时明确 skip，不计入双数据库验收；禁止使用安装版数据库。
+- 前端：`pnpm test src/features/conversation/shared/execution src/shared/ui/markdown/core/markdown-comments.test.tsx src/shared/ui/markdown/streaming`，另跑 `pnpm run check`。浏览器检查当前/历史/stale 的入口、普通/放大图共享状态、unknown 只读核对及注释流式隐藏。
+- 可选真实 runtime/provider：显式设置 `NEXUS_TEST_RESULT_RUNTIME_BINARY`（nxs 绝对路径）、`NEXUS_TEST_RESULT_MODEL` 与测试 Provider 的 `ANTHROPIC_BASE_URL` / 凭据环境，再执行 `go test ./internal/storage -run '^TestWorkGraphResultRuntimeAcceptance$' -count=1 -v -timeout 25m`。`NEXUS_TEST_RESULT_SAMPLES` 为 1–5，缺省 1；默认门禁跳过，不读取个人应用配置或自动调用收费模型。每轮关闭 thinking 并使用临时 CWD/config/数据库，显式工具路径复用真实 nexus.command parser 与领域服务，钩子路径复用生产路由/声明解析/领域回执。输出仅含模型、调用数、终态 usage、耗时与结果校验，不输出凭据或完整上下文。
+- 上述 provider 实验是相同小型合成交付/审核的有界对照，不等同真实应用会话、长任务、安装版升级或 macOS/Windows 原生宿主恢复验收。缓存、Provider 排队与模型行为会影响 token/耗时；未经实测不能只凭减少工具数宣称性能收益。

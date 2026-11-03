@@ -1,3 +1,6 @@
+// INPUT: Scoped queue items and persisted journal values.
+// OUTPUT: Queue envelope encoding/decoding including exact recovery identity.
+// POS: Canonical input queue codec; decoding does not grant runtime authority.
 package workspace
 
 import (
@@ -78,6 +81,7 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			ID:                       stringFromAny(typed["id"]),
 			DispatchPending:          boolValueAny(typed["dispatch_pending"]),
 			RecoveryExecutionID:      stringFromAny(typed["recovery_execution_id"]),
+			RecoveryTarget:           executionRecoveryTargetFromAny(typed["recovery_target"]),
 			Scope:                    protocol.InputQueueScope(stringFromAny(typed["scope"])),
 			SessionKey:               stringFromAny(typed["session_key"]),
 			RoomID:                   stringFromAny(typed["room_id"]),
@@ -107,6 +111,23 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 		}, true
 	default:
 		return protocol.InputQueueItem{}, false
+	}
+}
+
+func executionRecoveryTargetFromAny(value any) *protocol.ExecutionRecoveryTarget {
+	switch typed := value.(type) {
+	case *protocol.ExecutionRecoveryTarget:
+		if typed == nil {
+			return nil
+		}
+		copy := *typed
+		return &copy
+	case protocol.ExecutionRecoveryTarget:
+		return &typed
+	case map[string]any:
+		return &protocol.ExecutionRecoveryTarget{ExecutionID: stringFromAny(typed["execution_id"]), WorkItemID: stringFromAny(typed["work_item_id"]), AttemptID: stringFromAny(typed["attempt_id"])}
+	default:
+		return nil
 	}
 }
 

@@ -78,7 +78,7 @@ func (h *Handlers) HandleSelectWorkGraphWorkflowEditorVersion(writer http.Respon
 	h.api.WriteSuccess(writer, session)
 }
 
-// Handlers 封装 Execution WorkGraph 只读接口。
+// Handlers 封装 Execution WorkGraph 读取、恢复与草图管理接口。
 type Handlers struct {
 	api        *handlershared.API
 	executions executionViewer

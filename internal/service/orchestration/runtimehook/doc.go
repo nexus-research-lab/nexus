@@ -3,6 +3,7 @@
 // L2 | 父级: internal/service/orchestration（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - result.go：Stop 显式声明的严格解析、冻结 round binding、持久接收与有界纠错；结果写入不经过 best-effort Observer。
 //   - hook.go：宿主 runtime/Room identity 闭包、PreToolUse 准入、Subagent
 //     lifecycle 转发、结构化拒绝投影与内部持久化错误日志。
 //   - observer.go / observer_test.go：共用运行开始、消息、命令回执、附件和结束观察；

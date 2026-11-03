@@ -1,11 +1,11 @@
 /**
  * INPUT: 会话 session_key 与 exact 完成态 Execution。
- * OUTPUT: managed WorkGraph 读取、仅显式元信息修改的 Draft 编辑恢复、版本选择、命名图目录与确认后的直接保存。
+ * OUTPUT: managed WorkGraph 读取、精确节点恢复与只读回执核对、仅显式元信息修改的 Draft 编辑恢复、版本选择、命名图目录与确认后的直接保存。
  * POS: Execution/WorkGraph HTTP 协议的 Web 客户端；保存响应必须来自草图与命名图事务提交，关闭编辑 UI 不删除 Session。
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
-import type { ExecutionSummary, ExecutionView } from "@/types/conversation/execution";
+import type { ExecutionRecoveryReceipt, ExecutionSummary, ExecutionView } from "@/types/conversation/execution";
 import type {
   WorkGraphWorkflow,
   WorkGraphWorkflowEditorSession,
@@ -15,6 +15,18 @@ import type {
 } from "@/types/conversation/workgraph-workflow";
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
+
+export function requestExecutionRecoveryApi(sessionKey: string, executionId: string, workItemId: string, attemptId: string, requestId: string): Promise<ExecutionRecoveryReceipt> {
+  return requestApi(`${AGENT_API_BASE_URL}/executions/${encodeURIComponent(executionId)}/recover`, {
+    method: "POST",
+    body: { session_key: sessionKey, work_item_id: workItemId, attempt_id: attemptId, request_id: requestId },
+  });
+}
+
+export function getExecutionRecoveryReceiptApi(sessionKey: string, executionId: string, requestId: string): Promise<ExecutionRecoveryReceipt> {
+  const query = new URLSearchParams({ session_key: sessionKey, request_id: requestId });
+  return requestApi(`${AGENT_API_BASE_URL}/executions/${encodeURIComponent(executionId)}/recovery-receipt?${query}`, { method: "GET" });
+}
 
 export async function getLatestExecutionApi(
   sessionKey: string,

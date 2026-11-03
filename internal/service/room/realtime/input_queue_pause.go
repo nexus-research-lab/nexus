@@ -1,6 +1,6 @@
 // INPUT: Authorized conversation and exact member targets from a user action.
 // OUTPUT: Durable queue pause/resume gates under the conversation dispatch lock.
-// POS: Room stop decisions survive reconnect and process restart.
+// POS: Room stop decisions survive reconnect/restart; only a newly admitted exact recovery may pass its own prior stop.
 package realtime
 
 import (
@@ -50,6 +50,10 @@ func (s *Service) pauseRoomRoundQueue(ctx context.Context, round *activeRoomRoun
 // Any stopped target holds the whole input until explicit send resumes it.
 func projectRoomQueuePause(entries []roomInputQueueEntry, pausedAgents map[string]bool) {
 	for index := range entries {
+		item := entries[index].Item
+		if item.RecoveryTarget != nil && !item.DispatchPaused && len(item.TargetAgentIDs) == 1 && item.TargetAgentIDs[0] == item.AgentID {
+			continue
+		}
 		for _, target := range inputQueueTargetAgentIDs(entries[index].Item) {
 			if pausedAgents[target] {
 				entries[index].Item.DispatchPaused = true

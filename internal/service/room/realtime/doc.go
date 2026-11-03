@@ -6,7 +6,7 @@
 // L2 | 父级: internal/service/room（L1 见 AGENTS.md）
 //
 // 文件按业务内聚分组（一个业务一个文件，不按机械行数拆分）：
-//   - recovery.go / input_queue_pause.go：启动队列发现、协调恢复输入、跨目标暂停投影与精确停止门禁。
+//   - recovery.go / input_queue_pause.go：启动队列发现、自动/显式节点协调恢复输入与回执读取、跨目标暂停投影与精确停止门禁。
 //   - wiring.go：RequireWiring 在启动时校验生产必需依赖，业务方法不再为缺失依赖降级。
 //   - Service 嵌入 runtimehost.Host：Provider/admission/队列信任/用量/额度/执行上下文/MCP 工厂等共用依赖、注入方法与共用阶段只在 runtimehost 实现一次。
 //   - sandbox_policy.go：桌面沙箱跨 Full Access 边界时取消精确 slot 与审批，等待旧 runtime 退出，不重放旧任务。

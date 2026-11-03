@@ -49,3 +49,5 @@
 
 - 历史目录由 `use-workgraph-history-resource.ts` 读取摘要；`use-execution-view-resource.ts` 只读取当前选中 exact view，Selection/Session/关闭/卸载均隔离迟到结果。历史迁移未完成单独显示提示，不伪装成完整历史。
 - Canvas 使用每实例单条拓扑几何缓存；运行状态变化仍绑定最新节点、Work Item、边和检查器事实。输入边规范排序后布局，不能依赖 transport 的边数组顺序。
+
+- `use-execution-recovery.ts` 拥有 session/Execution-scoped 恢复请求、同步防重复及 unknown 的只读回执核对；Surface 只向有效当前图注入，同一 action 贯穿普通/放大画布。Canvas 仅呈现服务端 `can_recover` 的节点动作与受理状态，不乐观改变责任状态。

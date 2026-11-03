@@ -209,6 +209,11 @@ func (s *Service) finishRootAttempts(ctx context.Context, actor ActorContext, sn
 		if candidate.ParentAttemptID != "" || !recoverableRootAttempt(snapshot, candidate, roundID == "") {
 			continue
 		}
+		if pending, err := s.pendingDeliveryResult(ctx, snapshot.Execution.ID, candidate.ID); err != nil {
+			return nil, err
+		} else if pending {
+			continue
+		}
 		if !createdBefore.IsZero() && candidate.CreatedAt.After(createdBefore) {
 			continue
 		}

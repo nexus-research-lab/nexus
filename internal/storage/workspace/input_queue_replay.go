@@ -1,5 +1,5 @@
 // INPUT: append-only input queue 行及其单项/批量动作。
-// OUTPUT: 按顺序重放后的当前队列快照。
+// OUTPUT: 按顺序重放的当前队列快照与随后停止可撤销的单项显式恢复准入。
 // POS: InputQueueStore 的持久日志状态机。
 package workspace
 
@@ -35,16 +35,18 @@ func replayInputQueueRows(
 
 // inputQueueReplay 维护日志回放期间的实体索引与展示顺序。
 type inputQueueReplay struct {
-	paused    bool
-	location  InputQueueLocation
-	itemsByID map[string]protocol.InputQueueItem
-	order     []string
+	paused             bool
+	recoveryAdmissions map[string]bool
+	location           InputQueueLocation
+	itemsByID          map[string]protocol.InputQueueItem
+	order              []string
 }
 
 func newInputQueueReplay(location InputQueueLocation) *inputQueueReplay {
 	return &inputQueueReplay{
-		location:  location,
-		itemsByID: make(map[string]protocol.InputQueueItem),
+		location:           location,
+		itemsByID:          make(map[string]protocol.InputQueueItem),
+		recoveryAdmissions: make(map[string]bool),
 	}
 }
 
@@ -68,6 +70,11 @@ func (r *inputQueueReplay) enqueue(row map[string]any) {
 	item = normalizeInputQueueItem(r.location, item, normalizeInputQueueTimestamp(row["timestamp"]))
 	if _, exists := r.itemsByID[item.ID]; !exists {
 		r.order = append(r.order, item.ID)
+		// Only a new explicit user request may pass the existing pause gate.
+		// Restore/update/replayed ACKs cannot renew that permission after a stop.
+		if stringFromAny(row["action"]) == inputQueueActionEnqueue && item.RecoveryTarget != nil && protocol.ValidateInputQueueCapabilityEnvelope(item) == nil {
+			r.recoveryAdmissions[item.ID] = true
+		}
 	}
 	r.itemsByID[item.ID] = item
 }
@@ -125,7 +132,7 @@ func (r *inputQueueReplay) items() []protocol.InputQueueItem {
 		if item.ExpiresAt > 0 && item.ExpiresAt <= now {
 			continue
 		}
-		item.DispatchPaused = r.paused
+		item.DispatchPaused = r.paused && !r.recoveryAdmissions[id]
 		result = append(result, item)
 	}
 	return result

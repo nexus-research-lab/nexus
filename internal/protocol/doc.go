@@ -9,6 +9,7 @@
 // internal/storage，不能在本头部复制第二份业务规范。
 //
 // 成员地图：
+//   - execution_recovery.go / execution_result.go：精确节点恢复请求/受理回执及绑定物理 round 的显式交付/审核声明。
 //   - runtime_sandbox.go：宿主进程策略指纹使用的桌面沙箱环境标识，不授予模型权限。
 //   - interrupt_reason.go：用户停止、宿主控制停止、宿主退出的中断原因及其 Attempt 失败原因的唯一 wire 身份。
 //   - agent.go / agent_private.go / skill.go：Agent 运行时画像、独立业务标签、owner-scoped 创建对账结果、同 owner 联系人、可游标翻页的私域消息投影、受控执行工具策略与 Skill 协议。

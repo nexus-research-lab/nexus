@@ -56,6 +56,54 @@ func TestQueueRecoveryPreservesClaimOrderAndStopAcrossRestart(t *testing.T) {
 	}
 }
 
+func TestExplicitWorkRecoveryPassesOnlyItsOwnStopGate(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{OwnerUserID: "owner", Scope: protocol.InputQueueScopeDM, WorkspacePath: filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a"), SessionKey: "agent:agent-a:ws:dm:explicit-recover"}
+	store := NewInputQueueStore("")
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{ID: "other", Content: "other paused work"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetDispatchPaused(location, true); err != nil {
+		t.Fatal(err)
+	}
+	target := &protocol.ExecutionRecoveryTarget{ExecutionID: "execution", WorkItemID: "work", AttemptID: "attempt"}
+	request := protocol.InputQueueItem{ID: "recover", Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: "execution", RecoveryTarget: target, Content: "inspect exact work", DeliveryPolicy: protocol.ChatDeliveryPolicyQueue}
+	first, err := store.EnqueueIdempotent(location, request, "request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.ID = "ignored"
+	duplicate, err := store.EnqueueIdempotent(location, request, "request-2")
+	if err != nil || !duplicate.Duplicate || duplicate.Item.ID != first.Item.ID {
+		t.Fatalf("coalesce=%+v %v", duplicate, err)
+	}
+	store = NewInputQueueStore("")
+	item, items, err := store.ClaimFirstDispatchable(location)
+	if err != nil || item == nil || item.ID != "recover" || !items[0].DispatchPaused {
+		t.Fatalf("recovery admission=%+v %+v %v", item, items, err)
+	}
+	if paused, err := store.DispatchPaused(location); err != nil || !paused {
+		t.Fatalf("other queue gate resumed: %v %v", paused, err)
+	}
+	if err := store.SetDispatchPaused(location, true); err != nil {
+		t.Fatal(err)
+	}
+	// Replaying the same accepted request cannot undo a later user stop.
+	if _, err := store.EnqueueIdempotent(location, request, "request"); err != nil {
+		t.Fatal(err)
+	}
+	item, _, err = NewInputQueueStore("").ClaimFirstDispatchable(location)
+	if err != nil || item != nil {
+		t.Fatalf("later user stop lost: %+v %v", item, err)
+	}
+	accepted, ok, err := store.FindAcceptedEnqueue(location, "request")
+	if err != nil || !ok || accepted.RecoveryTarget == nil || *accepted.RecoveryTarget != *target {
+		t.Fatalf("lost durable target: %+v %v", accepted, err)
+	}
+}
+
 func TestQueueRecoveryCoalescesPendingCoordinatorWake(t *testing.T) {
 	root := t.TempDir()
 	store := NewInputQueueStore(root)

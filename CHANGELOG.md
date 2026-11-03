@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- WorkGraph 节点详情支持显式恢复：只受理当前失败根节点的协调检查，丢失回执先查询，保留其他暂停任务。
+- 已绑定责任且 runtime 能力匹配的 WorkGraph 轮次可通过 Stop 结构化声明交付或审核；结果先持久接收，再按领域回执对账，支持工具竞态和重启恢复，不把运行结束当作验收。
+
 - WorkGraph 命令增加独立的开始/结束诊断和离线汇总入口，可统计输入失败、重复请求观察及宿主耗时；正文不进入诊断，缺失结果保留未知，不改变业务回执或恢复行为。
 
 - Windows 桌面沙箱：受限 nxs 会话由随包签名的 Rust `nxs-mxc.exe`（固定版本 Microsoft mxc-sdk 的 MXC ProcessContainer）执行，用户无需安装 Rust 或 MXC。需要 Windows 11 24H2（build 26100.9278）或更新版本并以普通用户运行；组件缺失、系统 API 不可用或以管理员权限运行时受限会话直接拒绝，不回退为无沙箱执行。完全访问不下发沙箱设置；受限 Claude 会话在 Windows 上直接拒绝。
@@ -21,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows 原生开发入口支持 `make dev`、`dev-nxs` 和独立服务启动，自动等待 Control 就绪、检查端口并在退出时清理本次启动的进程；`nexus-server check-desktop-runtime` 可在原生 Windows 上验证随包 nxs。
 
 ### Changed
+
+- Markdown 正文与流式显示隐藏 HTML 注释，包括结果钩子声明；代码块中的注释示例继续显示。
 
 - WorkGraph 相邻重试改为短侧连线，回环就近走侧轨并从独立侧口返回；区分流程实线、重试虚线与回连，增加关系图例。工具栏与搜索移出画布内容区，背景改为点阵，详情浮层按可视区域避让并保持正常字号。
 
