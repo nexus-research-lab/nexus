@@ -82,3 +82,7 @@ settings computer-use
 
 C8：SDK 协议支持有限小数归一化坐标，Nexus 模型侧输入仍为整数；构造动作时
 显式转换为浮点值，裁剪/zoom 精度由 Runtime 与 SDK 保留。
+
+## SDK 独立构建（C3）
+
+生产 SDK 由 go.mod/go.sum 固定具体提交；本地 go.work 只用于联调，禁止提交或充当可复现构建依据。`make check-cua-sdk` 显式使用 GOWORK=off，验证 CUA 接入包并构建命令入口。后端 CI 同样禁用 workspace 替换。

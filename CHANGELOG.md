@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- C3: pin the reviewed CUA SDK revision and verify backend builds with GOWORK=off in the dedicated target and CI.
+
 - C9: approve Computer Use target scope once per bounded session, reserve per-action approval for sensitive operations, expose restore/window/range/hold and launch operations, and derive input bounds from runtime capabilities.
 
 - Protect the entire private app tree, including newly created directories; migrate readable Skill projections to skills-public and cover package-manager, agent and browser credentials.

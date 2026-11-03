@@ -36,6 +36,8 @@ jobs:
     name: Backend code checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      GOWORK: "off"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
