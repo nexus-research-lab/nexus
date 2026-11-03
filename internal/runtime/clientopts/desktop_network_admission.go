@@ -216,18 +216,13 @@ func applyDesktopSandboxNetworkAdmission(options agentclient.Options, input Agen
 }
 
 func applyDesktopSandboxNetworkAdmissionForPlatform(options agentclient.Options, input AgentClientOptionsInput, platform string) (agentclient.Options, error) {
-	// Windows Full Access projects no sandbox policy at all, so a host network
-	// grant has no restricted contract to narrow there; every other Windows
-	// mode keeps the shared admission path below.
-	if platform == "windows" && options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+	// 完全访问不安装沙箱网络策略；宿主业务授权由各自领域独立执行。
+	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 		return options, nil
 	}
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") ||
 		(options.Runtime.Kind != agentclient.RuntimeNXS &&
 			(options.Runtime.Kind != agentclient.RuntimeClaude || input.DesktopSandboxNetworkAdmission == nil)) {
-		return options, nil
-	}
-	if options.Runtime.Kind == agentclient.RuntimeClaude && options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 		return options, nil
 	}
 	network, err := input.DesktopSandboxNetworkAdmission.DesktopSandboxNetworkConfig()

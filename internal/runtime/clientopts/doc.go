@@ -1,4 +1,5 @@
 // Package clientopts 组装 SDK runtime client 的启动选项、provider、MCP servers 与环境。
+// macOS nxs 完全访问保留严格 MCP 与宿主模式切换标记，不装配 OS 沙箱或沙箱网络准入。
 //
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //

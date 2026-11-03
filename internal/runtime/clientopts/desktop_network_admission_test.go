@@ -209,7 +209,7 @@ func TestDesktopSandboxNetworkAdmissionAppliesToWindowsMXC(t *testing.T) {
 	}
 }
 
-func TestDesktopSandboxNetworkAdmissionStillAppliesToDarwinFullAccess(t *testing.T) {
+func TestDesktopSandboxNetworkAdmissionDoesNotReinstallDarwinFullAccessSandbox(t *testing.T) {
 	input := AgentClientOptionsInput{
 		AppMode: "desktop", DesktopSandboxEnabled: true,
 		DesktopSandboxNetworkAdmission: &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}},
@@ -222,7 +222,7 @@ func TestDesktopSandboxNetworkAdmissionStillAppliesToDarwinFullAccess(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if options.Sandbox == nil || options.Sandbox.Network == nil || !slices.Equal(options.Sandbox.Network.AllowedDomains, []string{"api.example.com"}) {
-		t.Fatalf("macOS Full Access network admission changed: %#v", options.Sandbox)
+	if options.Sandbox != nil || !options.MCP.StrictConfig {
+		t.Fatalf("macOS Full Access reinstalled a sandbox or lost strict MCP configuration: %#v", options.Sandbox)
 	}
 }

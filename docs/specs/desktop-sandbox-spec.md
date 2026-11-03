@@ -334,7 +334,7 @@ These are internal fixes in the jointly released Nexus/nxs pair, not a new capab
 - No separate OS identity is required solely to isolate Full Access tasks.
 - Leftover capability handshakes or lifecycle receipts must not be treated as isolation evidence.
 - Restricted-mode protection and Full Access lifecycle tests are reported separately.
-- A fresh nxs Full Access (`bypassPermissions`) runtime still installs the nxs capability and lifecycle boundary; it broadens the command/file resource policy via the SDK setting instead of disabling the runtime.
+- A fresh nxs Full Access (`bypassPermissions`) runtime does not install sandbox settings or require sandbox capabilities. macOS keeps strict MCP configuration and the host lifecycle marker, so crossing the Full Access boundary still retires the old runtime before new work; file operations use the ordinary filesystem backend. Host domain authorization and credential handling remain independent of OS sandboxing.
 - Claude Full Access is an explicit exception: it installs neither the contract nor the settings, but keeps host lifecycle, domain authorization and other mandatory policy.
 
 ### Restricted macOS host paths

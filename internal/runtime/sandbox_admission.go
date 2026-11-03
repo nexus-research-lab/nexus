@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -104,6 +105,13 @@ func validateDesktopSandboxOptions(options bridge.Options) error {
 		return nil
 	}
 	settings := options.Sandbox
+	// 完全访问仍保留宿主生命周期标记，但不能要求受限执行能力。
+	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+		if settings != nil || !options.MCP.StrictConfig {
+			return errors.New("desktop nxs full access requires strict MCP configuration without sandbox settings")
+		}
+		return nil
+	}
 	if settings == nil {
 		return errors.New("desktop nxs sandbox settings are missing")
 	}

@@ -6,7 +6,28 @@ import (
 	"testing"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
+
+func TestDesktopSandboxFullAccessKeepsMCPWithoutRestrictedCapabilities(t *testing.T) {
+	options := bridge.Options{Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}
+	options.MCP.StrictConfig = true
+	if err := validateDesktopSandboxOptions(options); err != nil {
+		t.Fatal(err)
+	}
+	if len(requiredSandboxCapabilities(options)) != 0 {
+		t.Fatal("full access requires sandbox capabilities")
+	}
+	options.MCP.StrictConfig = false
+	if err := validateDesktopSandboxOptions(options); err == nil {
+		t.Fatal("full access silently disabled strict MCP")
+	}
+	options.MCP.StrictConfig = true
+	options.Runtime.PermissionMode = sdkpermission.ModeDefault
+	if err := validateDesktopSandboxOptions(options); err == nil {
+		t.Fatal("restricted mode accepted absent sandbox")
+	}
+}
 
 func TestDesktopSandboxOptionsRequireMCPContractOnEveryPlatform(t *testing.T) {
 	yes := true

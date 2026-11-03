@@ -90,6 +90,11 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	}
 	yes := true
 	options.MCP.StrictConfig = true
+	// 完全访问不安装 OS 沙箱；宿主标记继续负责模式切换时退休旧 runtime。
+	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+		options.Sandbox = nil
+		return options, nil
+	}
 	options.Sandbox = &agentclient.SandboxSettings{
 		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: true, RequireMCPHelpers: true, RequireMCPStdio: true, RequireNotebookFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
 		// Explicit escape still passes the independent SDK approval boundary.
@@ -108,12 +113,6 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		options.Sandbox.Resources = resources
 		no := false
 		options.Sandbox.AllowUnsandboxedCommands = &no
-	}
-	// Full Access changes the command/file resource policy, but the nxs
-	// runtime, capability handshake and lifecycle remain installed. Carry the
-	// explicit escape in the SDK setting instead of dropping the environment.
-	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
-		options.Sandbox.Filesystem = &agentclient.SandboxFilesystemConfig{}
 	}
 	return options, nil
 }

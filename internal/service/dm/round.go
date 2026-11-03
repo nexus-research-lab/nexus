@@ -150,14 +150,15 @@ func (r *roundRunner) run(ctx context.Context) {
 	}
 	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.scheduleEchoAfterTerminal(result, finalAssistant)
-	r.broadcastContextUsage()
-	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
 		terminalRoundStatusEvent(r, result),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+	// 指标查询不能阻挡已确认的完成事件；同步保存仍在本轮内完成，避免旧轮次覆盖新快照。
+	r.broadcastContextUsage()
+	r.refreshSessionMetaAfterRoundFinished()
 	if r.service.Runtime.HasSubagentHistory(r.sessionKey) {
 		r.startIdleSubagentNotificationDrain()
 	}
