@@ -61,6 +61,8 @@ func buildAll(service Service, owner, roundID, sessionKey string, permissions Pe
 	return []command.Operation{
 		r.getComputer(),
 		r.listApplications(),
+		r.listLaunchableApplications(),
+		r.launchApplication(),
 		r.selectTarget(),
 		r.listWindows(),
 		r.observe(),
@@ -117,6 +119,9 @@ func (r registry) getComputer() command.Operation {
 			if err != nil {
 				return rejected(err), nil
 			}
+			if limits, ok := value["action_limits"].(nexuscua.ActionLimits); ok {
+				value["action_schema"] = boundedActionSchema(limits)
+			}
 			return structured(value), nil
 		},
 	}
@@ -149,12 +154,16 @@ func (r registry) selectTarget() command.Operation {
 		Description: "Select one discovered application by exact name or stable application id and open a bounded CUA session for this round.",
 		SearchHint:  "computer select target app application session 选择目标 应用 会话",
 		InputSchema: objectSchema(map[string]any{
-			"selector": stringProperty("Exact application name or stable application id returned by list_applications.", 1, 256),
+			"selector":               stringProperty("Exact application name or stable application id returned by list_applications.", 1, 256),
+			"allowed_actions":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Requested subset of get_computer.actions; omitted means all exposed actions shown for approval."},
+			"allow_foreground_input": map[string]any{"type": "boolean", "description": "Explicit foreground-input authority; defaults to false."},
+			"ttl_seconds":            map[string]any{"type": "integer", "minimum": 1, "description": "Upper bound, capped by the round and runtime limits."},
 		}, "selector"),
 		Idempotent: true,
 		ContextHandler: func(ctx context.Context, input map[string]any, _ *command.CallContext) (command.Result, error) {
 			var parsed struct {
 				Selector string `json:"selector"`
+				computeruse.TargetOptions
 			}
 			if err := decodeInput(input, &parsed); err != nil {
 				return rejected(err), nil
@@ -163,7 +172,7 @@ func (r registry) selectTarget() command.Operation {
 			if err != nil {
 				return rejected(err), nil
 			}
-			value, err := round.SelectTarget(ctx, parsed.Selector)
+			value, err := round.SelectTarget(ctx, parsed.Selector, parsed.TargetOptions, func(grant computeruse.TargetGrant) error { return r.requestTargetApproval(ctx, grant) })
 			if err != nil {
 				return rejected(err), nil
 			}
@@ -230,7 +239,10 @@ func (r registry) performAction() command.Operation {
 				return rejected(err), nil
 			}
 			value, err := round.PerformActionWithApproval(ctx, call.RequestID, parsed.action(), func() error {
-				return r.requestActionApproval(ctx, call.RequestID, parsed)
+				if r.requiresActionApproval(parsed) {
+					return r.requestActionApproval(ctx, call.RequestID, parsed)
+				}
+				return nil
 			})
 			if err != nil {
 				return rejected(err), nil
@@ -238,6 +250,40 @@ func (r registry) performAction() command.Operation {
 			return applied(value.Data), nil
 		},
 	}
+}
+
+// ActionPermissionPolicy lets the host mark additional operations as sensitive.
+// Routine operations use the explicit target-session grant.
+type ActionPermissionPolicy interface {
+	RequiresComputerActionApproval(kind string) bool
+}
+
+func (r registry) requiresActionApproval(input actionInput) bool {
+	kind := strings.ToLower(strings.TrimSpace(input.Kind))
+	if kind == "terminate_application" || kind == "clipboard_write" {
+		return true
+	}
+	policy, ok := r.permissions.(ActionPermissionPolicy)
+	return ok && policy.RequiresComputerActionApproval(kind)
+}
+
+func (r registry) requestTargetApproval(ctx context.Context, grant computeruse.TargetGrant) error {
+	if r.permissions == nil || r.sessionKey == "" {
+		return errors.New("Computer Use select_target 缺少宿主授权通道或 session identity")
+	}
+	decision, _, err := r.permissions.RequestPermissionWithID(ctx, r.sessionKey, sdkpermission.Request{
+		ToolName: "nexus_computer_use_session", Title: "授权桌面应用操作", DisplayName: "Nexus Computer Use",
+		Description: "授权当前回合在指定应用中执行所列动作；前台输入和有效期以本次请求为限。",
+		Input: map[string]any{"application": grant.Application, "allowed_actions": grant.Actions,
+			"allow_foreground_input": grant.AllowForegroundInput, "ttl_seconds": grant.TTLSeconds, "expires_at": grant.ExpiresAt},
+	})
+	if err != nil {
+		return err
+	}
+	if decision.Behavior != sdkpermission.BehaviorAllow {
+		return errors.New("用户未批准 Computer Use 应用授权")
+	}
+	return nil
 }
 
 func (r registry) requestActionApproval(ctx context.Context, requestID string, input actionInput) error {
@@ -271,6 +317,12 @@ func computerActionApprovalInput(requestID string, input actionInput) map[string
 	result := map[string]any{
 		"request_id": requestID,
 		"kind":       input.Kind,
+	}
+	if input.Bounds != nil {
+		result["bounds"] = *input.Bounds
+	}
+	if input.RangeValue != nil {
+		result["range_value"] = *input.RangeValue
 	}
 	if input.ElementRef != "" {
 		result["element_ref"] = input.ElementRef
@@ -368,21 +420,23 @@ type observeInput struct {
 }
 
 type actionInput struct {
-	Kind       string   `json:"kind"`
-	ElementRef string   `json:"element_ref,omitempty"`
-	Value      string   `json:"value,omitempty"`
-	Text       string   `json:"text,omitempty"`
-	Expanded   *bool    `json:"expanded,omitempty"`
-	X          *uint32  `json:"x,omitempty"`
-	Y          *uint32  `json:"y,omitempty"`
-	ToX        *uint32  `json:"to_x,omitempty"`
-	ToY        *uint32  `json:"to_y,omitempty"`
-	Button     string   `json:"button,omitempty"`
-	Count      uint8    `json:"count,omitempty"`
-	DurationMS uint32   `json:"duration_ms,omitempty"`
-	DeltaX     *int32   `json:"delta_x,omitempty"`
-	DeltaY     *int32   `json:"delta_y,omitempty"`
-	Keys       []string `json:"keys,omitempty"`
+	Bounds     *nexuscua.ScreenRect `json:"bounds,omitempty"`
+	RangeValue *float64             `json:"range_value,omitempty"`
+	Kind       string               `json:"kind"`
+	ElementRef string               `json:"element_ref,omitempty"`
+	Value      string               `json:"value,omitempty"`
+	Text       string               `json:"text,omitempty"`
+	Expanded   *bool                `json:"expanded,omitempty"`
+	X          *uint32              `json:"x,omitempty"`
+	Y          *uint32              `json:"y,omitempty"`
+	ToX        *uint32              `json:"to_x,omitempty"`
+	ToY        *uint32              `json:"to_y,omitempty"`
+	Button     string               `json:"button,omitempty"`
+	Count      uint8                `json:"count,omitempty"`
+	DurationMS uint32               `json:"duration_ms,omitempty"`
+	DeltaX     *int32               `json:"delta_x,omitempty"`
+	DeltaY     *int32               `json:"delta_y,omitempty"`
+	Keys       []string             `json:"keys,omitempty"`
 }
 
 func (i actionInput) action() computeruse.ActionInput {
@@ -391,7 +445,7 @@ func (i actionInput) action() computeruse.ActionInput {
 		expanded = *i.Expanded
 	}
 	return computeruse.ActionInput{
-		Kind: i.Kind, ElementRef: i.ElementRef, Value: i.Value, Text: i.Text,
+		Bounds: i.Bounds, RangeValue: i.RangeValue, Kind: i.Kind, ElementRef: i.ElementRef, Value: i.Value, Text: i.Text,
 		Expanded: expanded, X: uint32Value(i.X), Y: uint32Value(i.Y), ToX: uint32Value(i.ToX), ToY: uint32Value(i.ToY),
 		Button: i.Button, Count: i.Count, DurationMS: i.DurationMS,
 		DeltaX: int32Value(i.DeltaX), DeltaY: int32Value(i.DeltaY), Keys: i.Keys,
@@ -408,7 +462,7 @@ func (i actionInput) validate() error {
 		if kind == "set_expanded" && i.Expanded == nil {
 			return errors.New("Computer Use set_expanded 需要 expanded")
 		}
-	case "click_point", "move_pointer":
+	case "click_point", "press_point", "move_pointer":
 		if i.X == nil || i.Y == nil {
 			return errors.New("Computer Use point action 需要 x 和 y")
 		}
@@ -473,22 +527,51 @@ func observeSchema() map[string]any {
 
 func actionSchema() map[string]any {
 	return objectSchema(map[string]any{
-		"kind":        enumProperty("Closed action kind.", "focus_window", "focus_element", "invoke_element", "click_point", "set_value", "toggle_element", "select_element", "set_expanded", "move_pointer", "type_text", "press_keys", "scroll", "drag"),
+		"kind":        enumProperty("Closed action kind.", "focus_window", "focus_element", "invoke_element", "click_point", "set_value", "toggle_element", "select_element", "set_expanded", "move_pointer", "type_text", "press_keys", "scroll", "drag", "restore_window", "set_window_bounds", "set_range_value", "press_point", "terminate_application"),
 		"element_ref": stringProperty("Opaque element_ref from the latest observation.", 1, 256),
-		"value":       stringProperty("Value for set_value.", 0, 32768),
-		"text":        stringProperty("Text for type_text.", 0, 32768),
+		"bounds":      objectSchema(map[string]any{"x": map[string]any{"type": "number"}, "y": map[string]any{"type": "number"}, "width": map[string]any{"type": "number", "minimum": 1}, "height": map[string]any{"type": "number", "minimum": 1}}, "x", "y", "width", "height"),
+		"range_value": map[string]any{"type": "number", "description": "Numeric value bounded by get_computer.action_limits."},
+		"value":       map[string]any{"type": "string", "description": "UTF-8 byte limit from get_computer.action_limits.max_text_bytes"},
+		"text":        map[string]any{"type": "string", "description": "UTF-8 byte limit from get_computer.action_limits.max_text_bytes"},
 		"expanded":    map[string]any{"type": "boolean"},
 		"x":           map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "Normalized coordinate in 0..1000."},
 		"y":           map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "Normalized coordinate in 0..1000."},
 		"to_x":        map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "Normalized coordinate in 0..1000."},
 		"to_y":        map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "Normalized coordinate in 0..1000."},
 		"button":      enumProperty("Pointer button.", "left", "middle", "right"),
-		"count":       map[string]any{"type": "integer", "minimum": 1, "maximum": 3},
-		"duration_ms": map[string]any{"type": "integer", "minimum": 0, "maximum": 60000},
-		"delta_x":     map[string]any{"type": "integer", "minimum": -100000, "maximum": 100000},
-		"delta_y":     map[string]any{"type": "integer", "minimum": -100000, "maximum": 100000},
-		"keys":        map[string]any{"type": "array", "maxItems": 32, "items": stringProperty("Key name.", 1, 128)},
+		"count":       map[string]any{"type": "integer", "minimum": 1},
+		"duration_ms": map[string]any{"type": "integer", "minimum": 0, "description": "Maximum from get_computer.action_limits.max_pointer_duration_ms"},
+		"delta_x":     map[string]any{"type": "integer", "description": "Absolute bound from get_computer.action_limits.max_scroll_delta"},
+		"delta_y":     map[string]any{"type": "integer", "description": "Absolute bound from get_computer.action_limits.max_scroll_delta"},
+		"keys":        map[string]any{"type": "array", "items": stringProperty("Key name.", 1, 128)},
 	}, "kind")
+}
+
+// Runtime capability bounds produce the model's detailed action contract. The
+// static registry schema only describes shape, so stale hardcoded maxima cannot
+// reject a runtime-supported action or suggest an unsupported limit.
+func boundedActionSchema(limits nexuscua.ActionLimits) map[string]any {
+	schema := actionSchema()
+	props := schema["properties"].(map[string]any)
+	props["duration_ms"].(map[string]any)["maximum"] = limits.MaxPointerDurationMS
+	props["keys"].(map[string]any)["maxItems"] = limits.MaxKeys
+	props["count"].(map[string]any)["maximum"] = limits.MaxClickCount
+	for _, key := range []string{"delta_x", "delta_y"} {
+		prop := props[key].(map[string]any)
+		prop["minimum"] = -int64(limits.MaxScrollDelta)
+		prop["maximum"] = limits.MaxScrollDelta
+	}
+	props["range_value"].(map[string]any)["minimum"] = -float64(limits.MaxRangeValue)
+	props["range_value"].(map[string]any)["maximum"] = limits.MaxRangeValue
+	bounds := props["bounds"].(map[string]any)["properties"].(map[string]any)
+	for _, key := range []string{"x", "y"} {
+		bounds[key].(map[string]any)["minimum"] = -int64(limits.MaxWindowCoordinate)
+		bounds[key].(map[string]any)["maximum"] = limits.MaxWindowCoordinate
+	}
+	for _, key := range []string{"width", "height"} {
+		bounds[key].(map[string]any)["maximum"] = limits.MaxWindowDimension
+	}
+	return schema
 }
 
 func predicateSchema() map[string]any {

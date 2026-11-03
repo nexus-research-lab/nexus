@@ -616,9 +616,10 @@ second MCP server:
 | --- | --- | --- |
 | `get_computer` | `{"domain":"computer","action":"inspect"}` | Starts the supervised sidecar lazily, then returns capabilities and permission state. Disabled configuration fails closed. |
 | `list_applications` | Computer contract → `invoke` | Returns expiring discovery refs; the Agent cannot supply process handles. |
-| `select_target` | `list_applications` → Computer contract → `invoke` | Opens a bounded session for the current owner and round using an exact application selector. |
+| `select_target` | `list_applications` → Computer contract → `invoke` | Approves exact application identity, action scope, foreground input and duration before opening a round-bounded session. |
+| `list_launchable_applications` / `launch_application` | Computer contract → `invoke` | Discover installed applications; approve one exact launch independently of later input authority. |
 | `observe` | Computer contract → `invoke` | Returns fresh opaque window/element refs and an optional bounded screenshot artifact. |
-| `perform_action` | `observe` → Computer contract → `invoke` | Requires the latest observation and a one-time allow from the current runtime permission context; retries reuse the same `request_id` to reconcile an indeterminate mutation. |
+| `perform_action` | `observe` → Computer contract → `invoke` | Requires a fresh observation and the approved target-session scope. Sensitive operations require separate approval; unknown results reconcile under the original request_id. |
 | `verify_state` | Computer contract → `invoke` | Reads a bounded predicate against the selected window. |
 | `close_target` | Computer contract → `invoke` | Closes the session and discards round-local refs and pending mutation state. |
 

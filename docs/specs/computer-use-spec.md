@@ -1,6 +1,6 @@
 # Computer Use 能力规范
 
-Nexus Computer Use 的宿主侧分发、启用与权限引导合同。模型侧命令面、逐动作审批和失败对账分别在
+Nexus Computer Use 的宿主侧分发、启用与权限引导合同。模型侧命令面、会话及敏感动作审批和失败对账分别在
 `execution-orchestration-spec.md` §5.1 与 `permission-runtime-spec.md` §3.4 中维护，本规范不重复定义。
 
 ## 架构边界
@@ -22,7 +22,12 @@ settings computer-use
 
 ## Round 会话边界
 
-选定目标的 session 最长 30 分钟，round 关闭或能力禁用时立即关闭，返回值明确给出 TTL 和到期时间；不静默续期或延长已授予时长。到期后重新选择目标。授权动作只取当前宿主已暴露动作与 Runtime capabilities 的交集，不因 Runtime 新增退出应用等能力而自动扩大。当前仍保留逐动作审批；目标选择时分级授权及审批等待剔除尚待后续接入。
+首次使用 Computer Use 为本物理回合建立最多 30 分钟的授权上限。选定目标的 session TTL 取请求时长、该回合剩余上限与 Runtime `action_limits.max_session_ttl_seconds` 的最小值；审批等待也扣除，不静默续期。round 结束或禁用时立即关闭；session 过期需重新 `select_target`，回合上限到达则需新回合。
+
+`select_target` 先确认精确应用、动作集合、前台输入开关与时长，默认不允许前台输入。常规操作使用本次授权，敏感操作审批规则见 permission-runtime-spec §3.4。`get_computer` 返回 Runtime `action_limits` 及由其生成的 `action_schema`；Runtime 始终执行最终参数校验。
+
+新增 `restore_window`、`set_window_bounds`、`set_range_value`、`press_point` 和单独审批的 `terminate_application`。恢复最小化窗口前可 `observe` 且 `include_screenshot=false`，恢复后再截图。可启动应用通过 `list_launchable_applications` 发现，`launch_application` 仅启动并对未知结果按原 ID 对账，随后仍需 `select_target` 授权。
+
 
 ## 动作坐标
 

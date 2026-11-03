@@ -4,4 +4,6 @@
 //
 // Package computeruse supervises one host-local nexus-cua sidecar epoch and
 // keeps application/session/observation state bound to a physical Nexus round.
+// authority.go defines approved target scope and deadlines; launch.go owns
+// launch discovery, approval and reconciliation without granting input authority.
 package computeruse

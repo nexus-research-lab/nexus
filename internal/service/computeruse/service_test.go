@@ -53,6 +53,8 @@ func (s *fakeSupervisor) Restart(context.Context) (Client, error) {
 func (s *fakeSupervisor) ArtifactRoot() string { return s.artifact }
 
 type fakeClient struct {
+	openCalls      int
+	manifest       nexuscua.CapabilityManifest
 	performCalls   int
 	reconcileCalls int
 	closeCalls     int
@@ -65,6 +67,7 @@ type fakeClient struct {
 func (c *fakeClient) GetCapabilities(context.Context, time.Duration) (nexuscua.DriverCapabilities, error) {
 	return nexuscua.DriverCapabilities{
 		ProtocolVersion: nexuscua.ProtocolVersion,
+		ActionLimits:    nexuscua.ActionLimits{MaxSessionTTLSeconds: 3600},
 		Platform:        nexuscua.PlatformMacOS,
 		Actions:         []nexuscua.ActionKind{nexuscua.ActionClickPoint, nexuscua.ActionTypeText},
 	}, nil
@@ -87,7 +90,9 @@ func (c *fakeClient) DiscoverApplications(context.Context, time.Duration) (nexus
 	}, nil
 }
 
-func (c *fakeClient) OpenSession(context.Context, nexuscua.OpenSessionInput, time.Duration) (nexuscua.OpenSessionOutput, error) {
+func (c *fakeClient) OpenSession(_ context.Context, input nexuscua.OpenSessionInput, _ time.Duration) (nexuscua.OpenSessionOutput, error) {
+	c.openCalls++
+	c.manifest = input.Manifest
 	return nexuscua.OpenSessionOutput{SessionID: "session-1"}, nil
 }
 
@@ -147,7 +152,7 @@ func prepareRound(t *testing.T, service *Service) *Round {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := round.SelectTarget(context.Background(), "Fixture"); err != nil {
+	if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{AllowForegroundInput: true}, func(TargetGrant) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := round.Observe(context.Background(), ObserveInput{}); err != nil {
@@ -274,7 +279,7 @@ func TestSelectTargetRecoversWhenOldRuntimeSessionAlreadyExpired(t *testing.T) {
 	round := prepareRound(t, service)
 	client.closeErr = &nexuscua.CUAError{Code: nexuscua.ErrorSessionUnavailable, Message: "expired"}
 
-	if _, err := round.SelectTarget(context.Background(), "Fixture"); err != nil {
+	if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{AllowForegroundInput: true}, func(TargetGrant) error { return nil }); err != nil {
 		t.Fatalf("SelectTarget after expired session = %v", err)
 	}
 	if !round.HasSession() {
@@ -300,7 +305,7 @@ func TestObserveAcceptsWindowRefReturnedByListWindows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := round.SelectTarget(context.Background(), "Fixture"); err != nil {
+	if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{AllowForegroundInput: true}, func(TargetGrant) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := round.Observe(context.Background(), ObserveInput{WindowSelector: "window-1"}); err != nil {
@@ -326,33 +331,6 @@ func TestActionViewPreservesEffectEvidenceAndForegroundRestoration(t *testing.T)
 		if got[key] != want {
 			t.Fatalf("%s = %#v, want %#v", key, got[key], want)
 		}
-	}
-}
-
-func TestActionApprovalRequiredOnlyForNewMutation(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round := prepareRound(t, service)
-	required, err := round.ActionApprovalRequired("action-20261013-approval")
-	if err != nil || !required {
-		t.Fatalf("new action approval = %v, %v; want true", required, err)
-	}
-	if _, err := round.PerformAction(context.Background(), "action-20261013-approval", ActionInput{Kind: "click_point", X: 1, Y: 2}); err != nil {
-		t.Fatal(err)
-	}
-	required, err = round.ActionApprovalRequired("action-20261013-approval")
-	if err != nil || required {
-		t.Fatalf("completed action approval = %v, %v; want false", required, err)
-	}
-	if _, err := round.Observe(context.Background(), ObserveInput{}); err != nil {
-		t.Fatal(err)
-	}
-	client.indeterminate = true
-	if _, err := round.PerformAction(context.Background(), "action-20261013-pending", ActionInput{Kind: "click_point", X: 3, Y: 4}); err == nil {
-		t.Fatal("indeterminate action unexpectedly succeeded")
-	}
-	required, err = round.ActionApprovalRequired("action-20261013-pending")
-	if err != nil || required {
-		t.Fatalf("pending action approval = %v, %v; want false", required, err)
 	}
 }
 
@@ -448,7 +426,7 @@ func TestScreenshotArtifactCannotEscapePrivateRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := round.SelectTarget(context.Background(), "Fixture"); err != nil {
+	if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{AllowForegroundInput: true}, func(TargetGrant) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	outside := filepath.Join(t.TempDir(), "outside.png")
@@ -490,7 +468,6 @@ func TestNormalizedActionsPreserveCoordinatesAndBoundScroll(t *testing.T) {
 	for _, input := range []ActionInput{
 		{Kind: "click_point", X: 1001},
 		{Kind: "drag", X: 500, Y: 500, ToX: 1001},
-		{Kind: "scroll", X: 500, Y: 500, DeltaY: 100001},
 	} {
 		if _, err := buildAction(input); err == nil {
 			t.Fatalf("accepted out-of-bounds action: %s", input.Kind)
@@ -499,8 +476,43 @@ func TestNormalizedActionsPreserveCoordinatesAndBoundScroll(t *testing.T) {
 }
 
 func TestRoundAuthorityDoesNotInheritUnexposedCapabilities(t *testing.T) {
-	actions := supportedRoundActions([]nexuscua.ActionKind{nexuscua.ActionClickPoint, nexuscua.ActionTerminateApplication, nexuscua.ActionSetWindowBounds})
+	actions := supportedRoundActions([]nexuscua.ActionKind{nexuscua.ActionClickPoint, nexuscua.ActionKind("future_unknown_action")})
 	if len(actions) != 1 || actions[0] != nexuscua.ActionClickPoint {
 		t.Fatalf("unexpected authority: %v", actions)
+	}
+}
+
+func TestTargetApprovalScopesAuthorityAndRoundDeadline(t *testing.T) {
+	service, client, _ := newFakeService(t)
+	round, err := service.Round(context.Background(), "owner-a", "round-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	round.deadline = time.Now().Add(90 * time.Second)
+	options := TargetOptions{Actions: []nexuscua.ActionKind{nexuscua.ActionClickPoint}, TTLSeconds: 600}
+	if _, err := round.SelectTarget(context.Background(), "Fixture", options, func(TargetGrant) error { return errors.New("deny") }); err == nil || client.openCalls != 0 {
+		t.Fatal("denial created authority")
+	}
+	if _, err := round.SelectTarget(context.Background(), "Fixture", options, nil); err == nil || client.openCalls != 0 {
+		t.Fatal("missing approval created authority")
+	}
+	_, err = round.SelectTarget(context.Background(), "Fixture", options, func(grant TargetGrant) error {
+		if grant.Application.ApplicationID != "com.example.fixture" || grant.AllowForegroundInput || grant.TTLSeconds > 90 || len(grant.Actions) != 1 {
+			t.Fatalf("wrong grant: %#v", grant)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.manifest.AllowForegroundInput || client.manifest.TTLSeconds > 90 || len(client.manifest.AllowedActions) != 1 {
+		t.Fatalf("grant widened: %#v", client.manifest)
+	}
+	round.sessionExpiresAt = time.Now().Add(-time.Second)
+	if _, err := round.PerformAction(context.Background(), "expired", ActionInput{Kind: "click_point"}); err == nil || client.performCalls != 0 {
+		t.Fatal("expired session dispatched")
+	}
+	if client.openCalls != 1 {
+		t.Fatal("session silently renewed")
 	}
 }

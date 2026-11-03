@@ -53,15 +53,11 @@
 
 ### 3.4 Computer Use 桌面变更
 
-- Computer Use 的每个新 `perform_action` mutation 都通过当前 runtime session 的
-  `RequestPermissionWithID` 请求一次性宿主批准；同一 `request_id` 的已完成动作或
-  已被 sidecar 接纳但结果未知的重试只做对账，不重复弹审批。sidecar、macOS driver
-  和 `nexus.command` 都不能自行推断用户同意。
-- 批准载荷只包含动作种类、opaque element ref、坐标和数量等最小摘要；输入
-  文本与 `set_value` 值以脱敏标记进入审批事件，原始内容只沿当前调用送入
-  CUA，不进入普通审批投影或日志。
-- 拒绝、缺少 permission context 或缺少可信 runtime session identity 时，动作
-  在 sidecar dispatch 之前失败。批准只覆盖当前精确动作，不形成持久白名单。
+- `select_target` 通过当前 runtime session 的 `RequestPermissionWithID` 请求应用身份、动作类别、前台输入开关和时长授权；session 仅授予本次确认的范围。缺少通道或被拒绝时不创建 session。
+- 已授权的常规动作不再逐次审批；退出应用、剪贴板写入（如宿主暴露）及宿主策略标记的敏感动作仍单独审批。批准后 observation 已失效则返回 stale，重新观察，不自动重放。
+- 输入文本与 `set_value` 只以脱敏摘要进入敏感动作审批事件。原始内容不进入普通日志。
+- 启动应用有独立的一次授权，只允许已发现的 launch_ref 和确认的前台激活开关，不授予后续输入权限。
+- 同一 request_id 的已完成结果或未知动作只返回缓存/对账，不重复审批或新发动作。授权不形成跨回合白名单。
 - sidecar 进程退出会结束本轮所有 session、observation、element ref 与待对账
   mutation；下一次 Computer Use 调用只能在新的 sidecar epoch 中重新发现、选择
   和观察目标，不能复用旧的 opaque state。

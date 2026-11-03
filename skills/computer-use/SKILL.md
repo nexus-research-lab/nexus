@@ -25,7 +25,7 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
    {"domain":"computer","action":"contract","operation":"<operation>"}
    ```
 
-2. 使用 `list_applications`，再用 `select_target` 以返回的精确应用名称或稳定 application id 选择目标。
+2. 使用 `list_applications`，再用 `select_target` 以返回的精确应用名称或稳定 application id 选择目标，明确请求所需 allowed_actions、allow_foreground_input 和 ttl_seconds，由宿主确认后生效。参数上限读取 get_computer.action_limits/action_schema。
 3. 多窗口应用先调用 `list_windows`，再把返回的 `window_ref` 或精确标题传给 `observe`；单窗口应用可直接 `observe`。
 4. 每次动作前调用 `observe`，只使用该次返回的 window、element 和 observation ref。截图或无障碍树过期后重新观察。
    点击、移动、拖拽和滚动目标点均使用截图左上角为原点的 `0..1000` 归一化坐标；不要传图片像素。滚动必须给出目标 x、y，正向 delta_y 向下滚动。快捷键优先使用 `mod`（macOS Command，Windows Control）。
@@ -37,6 +37,9 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
 
 - 只使用宿主返回的 opaque refs；不能提交 PID、窗口句柄、AX/UIA 对象、路径、socket、token 或任意 native handle。
 - 输入、文本和截图遵守 contract 返回的长度与数量上限。不要把敏感文本写入普通回复或日志。
-- `perform_action` 属于真实桌面变更，等待当前回合的宿主审批；被拒绝或权限不足时停止并说明原因。
+- 常规动作使用 select_target 已批准的会话范围；退出应用及宿主标记的敏感操作仍需单独审批。被拒绝或权限不足时停止并说明原因。审批后 stale 必须重新观察，不自动重放。
+- 最小化窗口先用 include_screenshot=false 观察，再执行 restore_window，恢复后截图。
+- 应用未运行时先 list_launchable_applications，再 launch_application；启动许可不包含后续输入权限。
+- session 过期重新 select_target；回合授权上限到达后开始新回合，不静默续期。
 - 每个 mutation 只对应一个稳定 request_id；目标、动作或输入改变时必须换 ID。
 - 不要自动点击系统权限弹窗。Screen Capture、Accessibility 或 Input Control 未授予时，说明用户需要在系统设置中授权后再试。

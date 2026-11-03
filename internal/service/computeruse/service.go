@@ -32,8 +32,6 @@ const (
 	readinessTimeout      = 10 * time.Second
 	defaultSessionTTL     = 30 * 60
 	maxScreenshotBytes    = 16 << 20
-	maxActionKeys         = 32
-	maxActionTextBytes    = 32 << 10
 	maxPendingActions     = 64
 	maxCompletedActions   = 128
 )
@@ -316,6 +314,7 @@ func (s *Service) Round(ctx context.Context, owner, roundID string) (*Round, err
 	var stale []*Round
 	round := &Round{
 		service: s, owner: owner, id: roundID, client: client,
+		deadline:  time.Now().Add(defaultSessionTTL * time.Second),
 		pending:   make(map[string]*nexuscua.ActionRequest),
 		completed: make(map[string]ActionResult),
 	}
@@ -417,20 +416,24 @@ func (s *Service) closeRoundsAndStop(ctx context.Context, rounds []*Round) error
 // Round is the only object command operations receive. Native refs never leave
 // this object except as opaque values in structured results.
 type Round struct {
-	service       *Service
-	owner         string
-	id            string
-	client        Client
-	mu            sync.Mutex
-	mutationMu    sync.Mutex
-	closed        bool
-	application   *nexuscua.DiscoveredApplication
-	sessionID     nexuscua.SessionID
-	window        *nexuscua.WindowSummary
-	observationID nexuscua.ObservationID
-	pending       map[string]*nexuscua.ActionRequest
-	completed     map[string]ActionResult
-	completedIDs  []string
+	launchables      map[nexuscua.LaunchRef]nexuscua.LaunchableApplication
+	pendingLaunches  map[string]*nexuscua.LaunchRequest
+	service          *Service
+	owner            string
+	id               string
+	client           Client
+	mu               sync.Mutex
+	mutationMu       sync.Mutex
+	closed           bool
+	deadline         time.Time
+	sessionExpiresAt time.Time
+	application      *nexuscua.DiscoveredApplication
+	sessionID        nexuscua.SessionID
+	window           *nexuscua.WindowSummary
+	observationID    nexuscua.ObservationID
+	pending          map[string]*nexuscua.ActionRequest
+	completed        map[string]ActionResult
+	completedIDs     []string
 }
 
 // invalidate is used when the supervised sidecar epoch ends unexpectedly.
@@ -446,6 +449,8 @@ func (r *Round) invalidate() {
 	r.window = nil
 	r.observationID = ""
 	r.pending = make(map[string]*nexuscua.ActionRequest)
+	r.launchables = nil
+	r.pendingLaunches = nil
 	r.completed = make(map[string]ActionResult)
 	r.completedIDs = nil
 	r.mu.Unlock()
@@ -469,14 +474,16 @@ func (r *Round) GetComputer(ctx context.Context) (map[string]any, error) {
 		return nil, err
 	}
 	return map[string]any{
-		"protocol_version":   capabilities.ProtocolVersion,
-		"runtime_version":    capabilities.RuntimeVersion,
-		"platform":           capabilities.Platform,
-		"primary_modifier":   capabilities.PrimaryModifier,
-		"capture_modes":      capabilities.CaptureModes,
-		"accessibility_tree": capabilities.AccessibilityTree,
-		"input_routes":       capabilities.InputRoutes,
-		"actions":            capabilities.Actions,
+		"protocol_version":      capabilities.ProtocolVersion,
+		"runtime_version":       capabilities.RuntimeVersion,
+		"platform":              capabilities.Platform,
+		"primary_modifier":      capabilities.PrimaryModifier,
+		"capture_modes":         capabilities.CaptureModes,
+		"accessibility_tree":    capabilities.AccessibilityTree,
+		"input_routes":          capabilities.InputRoutes,
+		"actions":               supportedRoundActions(capabilities.Actions),
+		"action_limits":         capabilities.ActionLimits,
+		"application_lifecycle": capabilities.ApplicationLifecycle,
 		"permissions": map[string]any{
 			"screen_capture": permissions.ScreenCapture,
 			"accessibility":  permissions.Accessibility,
@@ -518,6 +525,8 @@ func supportedRoundActions(available []nexuscua.ActionKind) []nexuscua.ActionKin
 		nexuscua.ActionSelectElement: true, nexuscua.ActionSetExpanded: true,
 		nexuscua.ActionMovePointer: true, nexuscua.ActionTypeText: true,
 		nexuscua.ActionPressKeys: true, nexuscua.ActionScroll: true, nexuscua.ActionDrag: true,
+		nexuscua.ActionSetWindowMinimized: true, nexuscua.ActionSetWindowBounds: true,
+		nexuscua.ActionSetRangeValue: true, nexuscua.ActionPressPoint: true, nexuscua.ActionTerminateApplication: true,
 	}
 	actions := make([]nexuscua.ActionKind, 0, len(exposed))
 	for _, action := range available {
@@ -528,13 +537,17 @@ func supportedRoundActions(available []nexuscua.ActionKind) []nexuscua.ActionKin
 	return actions
 }
 
-func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]any, error) {
+func (r *Round) SelectTarget(ctx context.Context, selector string, options TargetOptions, approve func(TargetGrant) error) (map[string]any, error) {
 	r.mutationMu.Lock()
 	defer r.mutationMu.Unlock()
 	r.mu.Lock()
 	if err := r.ensureOpenLocked(); err != nil {
 		r.mu.Unlock()
 		return nil, err
+	}
+	if len(r.pending) > 0 || len(r.pendingLaunches) > 0 {
+		r.mu.Unlock()
+		return nil, ErrMutationPending
 	}
 	r.mu.Unlock()
 	apps, err := r.client.DiscoverApplications(ctx, defaultCommandTimeout)
@@ -549,6 +562,27 @@ func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]a
 	if err != nil {
 		return nil, err
 	}
+	grant, err := r.targetGrant(*selected, capabilities, options)
+	if err != nil {
+		return nil, err
+	}
+	if approve == nil {
+		return nil, errors.New("Computer Use select_target 缺少宿主授权通道")
+	}
+	if err := approve(grant); err != nil {
+		return nil, err
+	}
+	// Discovery references may expire while a human decides. Re-resolve the
+	// approved application identity, never widen it to a similarly named app.
+	fresh, err := r.client.DiscoverApplications(ctx, defaultCommandTimeout)
+	if err != nil {
+		return nil, err
+	}
+	refreshed, err := nexuscua.SelectApplication(fresh.Applications, selected.ApplicationID)
+	if err != nil || !reflect.DeepEqual(refreshed.Provenance, selected.Provenance) {
+		return nil, errors.New("Computer Use 应用身份已变化，请重新 select_target")
+	}
+	selected = refreshed
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
@@ -577,9 +611,15 @@ func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]a
 	r.window = nil
 	r.observationID = ""
 	r.mu.Unlock()
+	// Subtract both approval and old-session cleanup time from the grant.
+	remaining := time.Until(grant.ExpiresAt)
+	if remaining < time.Second {
+		return nil, errors.New("Computer Use 授权已过期，请重新 select_target")
+	}
+	ttl := uint32(remaining / time.Second)
 	session, err := r.client.OpenSession(ctx, nexuscua.OpenSessionInput{Manifest: nexuscua.CapabilityManifest{
 		Mode: nexuscua.PermissionBounded, ApplicationRefs: []nexuscua.DiscoveryRef{selected.DiscoveryRef},
-		AllowedActions: supportedRoundActions(capabilities.Actions), AllowForegroundInput: true, TTLSeconds: defaultSessionTTL,
+		AllowedActions: grant.Actions, AllowForegroundInput: grant.AllowForegroundInput, TTLSeconds: ttl,
 	}}, defaultCommandTimeout)
 	if err != nil {
 		return nil, err
@@ -587,13 +627,15 @@ func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]a
 	r.mu.Lock()
 	r.application = selected
 	r.sessionID = session.SessionID
+	r.sessionExpiresAt = grant.ExpiresAt
 	r.window = nil
 	r.observationID = ""
 	r.mu.Unlock()
 	return map[string]any{
 		"name": selected.Name, "application_id": selected.ApplicationID,
 		"foreground": selected.Foreground, "session_active": true,
-		"ttl_seconds": defaultSessionTTL, "expires_at": session.ExpiresAt,
+		"ttl_seconds": ttl, "expires_at": session.ExpiresAt,
+		"allowed_actions": grant.Actions, "allow_foreground_input": grant.AllowForegroundInput,
 	}, nil
 }
 
@@ -710,6 +752,8 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 }
 
 type ActionInput struct {
+	Bounds     *nexuscua.ScreenRect
+	RangeValue *float64
 	Kind       string
 	ElementRef string
 	Value      string
@@ -774,9 +818,13 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 		r.mu.Unlock()
 		return result, nil
 	}
-	if len(r.pending) > 0 {
+	if len(r.pending) > 0 || len(r.pendingLaunches) > 0 {
 		r.mu.Unlock()
 		return ActionResult{}, ErrMutationPending
+	}
+	if !r.sessionExpiresAt.IsZero() && !time.Now().Before(r.sessionExpiresAt) {
+		r.mu.Unlock()
+		return ActionResult{}, errors.New("Computer Use session 已过期，请重新 select_target")
 	}
 	if r.sessionID == "" || r.window == nil {
 		r.mu.Unlock()
@@ -795,6 +843,9 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 	action, err := buildAction(input)
 	if err != nil {
 		return ActionResult{}, err
+	}
+	if strings.EqualFold(strings.TrimSpace(input.Kind), "terminate_application") && approve == nil {
+		return ActionResult{}, errors.New("退出应用需要单独审批")
 	}
 	if approve != nil {
 		if err := approve(); err != nil {
@@ -845,38 +896,6 @@ func cloneActionResult(result ActionResult) ActionResult {
 	return ActionResult{Data: data}
 }
 
-// ActionApprovalRequired reports whether requestID would dispatch a new
-// mutation. Completed actions and indeterminate actions already admitted to
-// the sidecar are reconciled under the original request identity and must not
-// prompt the human a second time.
-func (r *Round) ActionApprovalRequired(requestID string) (bool, error) {
-	requestID = strings.TrimSpace(requestID)
-	if requestID == "" {
-		return false, errors.New("Computer Use perform_action 需要 request_id")
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if err := r.ensureOpenLocked(); err != nil {
-		return false, err
-	}
-	if _, ok := r.completed[requestID]; ok {
-		return false, nil
-	}
-	if _, ok := r.pending[requestID]; ok {
-		return false, nil
-	}
-	if len(r.pending) > 0 {
-		return false, ErrMutationPending
-	}
-	if r.sessionID == "" || r.window == nil {
-		return false, ErrNoTarget
-	}
-	if r.observationID == "" {
-		return false, ErrNoObservation
-	}
-	return true, nil
-}
-
 func (r *Round) VerifyState(ctx context.Context, predicate map[string]any) (map[string]any, error) {
 	r.mu.Lock()
 	if err := r.ensureOpenLocked(); err != nil {
@@ -916,6 +935,8 @@ func (r *Round) Close(ctx context.Context) error {
 	r.window = nil
 	r.observationID = ""
 	r.pending = make(map[string]*nexuscua.ActionRequest)
+	r.launchables = nil
+	r.pendingLaunches = nil
 	r.completed = make(map[string]ActionResult)
 	r.completedIDs = nil
 	r.mu.Unlock()
@@ -932,7 +953,7 @@ func (r *Round) Close(ctx context.Context) error {
 func (r *Round) HasSession() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return !r.closed && r.sessionID != ""
+	return !r.closed && r.sessionID != "" && (r.sessionExpiresAt.IsZero() || time.Now().Before(r.sessionExpiresAt))
 }
 
 func (r *Round) ensureOpenLocked() error {
@@ -1075,21 +1096,26 @@ func buildAction(input ActionInput) (nexuscua.Action, error) {
 	if input.Count == 0 {
 		input.Count = 1
 	}
-	if len(input.Keys) > maxActionKeys {
-		return nil, errors.New("Computer Use keys 超出上限")
-	}
-	if len(input.Value) > maxActionTextBytes || len(input.Text) > maxActionTextBytes {
-		return nil, errors.New("Computer Use 文本动作超出上限")
-	}
-	if kind == "click_point" || kind == "move_pointer" || kind == "scroll" || kind == "drag" {
+	if kind == "click_point" || kind == "press_point" || kind == "move_pointer" || kind == "scroll" || kind == "drag" {
 		if input.X > 1000 || input.Y > 1000 || (kind == "drag" && (input.ToX > 1000 || input.ToY > 1000)) {
 			return nil, errors.New("Computer Use 坐标必须在 0..1000 内")
 		}
 	}
-	if kind == "scroll" && (input.DeltaX < -100000 || input.DeltaX > 100000 || input.DeltaY < -100000 || input.DeltaY > 100000) {
-		return nil, errors.New("Computer Use 滚动量必须在 -100000..100000 内")
-	}
 	switch kind {
+	case "restore_window":
+		return nexuscua.SetWindowMinimized{Minimized: false}, nil
+	case "set_window_bounds":
+		if input.Bounds == nil {
+			return nil, errors.New("set_window_bounds 需要 bounds")
+		}
+		return nexuscua.SetWindowBounds{Bounds: *input.Bounds}, nil
+	case "set_range_value":
+		if input.ElementRef == "" || input.RangeValue == nil {
+			return nil, errors.New("set_range_value 需要 element_ref 和 range_value")
+		}
+		return nexuscua.SetRangeValue{ElementRef: nexuscua.ElementRef(input.ElementRef), Value: *input.RangeValue}, nil
+	case "terminate_application":
+		return nexuscua.TerminateApplication{}, nil
 	case "focus_window":
 		return nexuscua.FocusWindow{}, nil
 	case "focus_element":
@@ -1122,7 +1148,7 @@ func buildAction(input ActionInput) (nexuscua.Action, error) {
 			return nil, errors.New("Computer Use set_expanded 需要 element_ref")
 		}
 		return nexuscua.SetExpanded{ElementRef: nexuscua.ElementRef(input.ElementRef), Expanded: input.Expanded}, nil
-	case "click_point":
+	case "click_point", "press_point":
 		button := nexuscua.PointerLeft
 		switch strings.ToLower(strings.TrimSpace(input.Button)) {
 		case "", "left":
@@ -1132,6 +1158,9 @@ func buildAction(input ActionInput) (nexuscua.Action, error) {
 			button = nexuscua.PointerRight
 		default:
 			return nil, fmt.Errorf("Computer Use click button 无效: %q", input.Button)
+		}
+		if kind == "press_point" {
+			return nexuscua.PressPoint{Point: nexuscua.NormalizedPoint{X: float64(input.X), Y: float64(input.Y)}, Button: button, DurationMS: input.DurationMS}, nil
 		}
 		return nexuscua.ClickPoint{Point: nexuscua.NormalizedPoint{X: float64(input.X), Y: float64(input.Y)}, Button: button, Count: input.Count}, nil
 	case "move_pointer":
