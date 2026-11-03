@@ -13,6 +13,10 @@ const interruptForceCancelDelay = 150 * time.Millisecond
 const clientInterruptReasonSubmit = "interrupt"
 const clientInterruptWithoutMessage = "__nexus_interrupt_without_message__"
 
+// clientInterruptHostControl mirrors message.InterruptHostControlWithoutMessage;
+// like a user stop it must not reach the provider as a submit interrupt.
+const clientInterruptHostControl = "__nexus_interrupt_host_control__"
+
 const exactRoundCancellationUnavailableDetail = "exact runtime round cancellation is unavailable"
 
 // ExactRoundInterruptOutcome 区分 provider 已接受的 interrupt、本地 round
@@ -217,7 +221,7 @@ func interruptClient(ctx context.Context, client Client, reason string) error {
 
 func clientInterruptWireReason(reason string) string {
 	trimmed := strings.TrimSpace(reason)
-	if trimmed == "" || trimmed == clientInterruptWithoutMessage {
+	if trimmed == "" || trimmed == clientInterruptWithoutMessage || trimmed == clientInterruptHostControl {
 		return ""
 	}
 	return clientInterruptReasonSubmit

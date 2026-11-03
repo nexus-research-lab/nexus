@@ -6,6 +6,7 @@ package dm
 import (
 	"context"
 	"errors"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ func (e *dmChatExecution) cancelEchoForUserActivity() {
 		return
 	}
 	for _, roundID := range roundIDs {
-		if err = e.service.interruptExactRound(e.ctx, e.sessionKey, roundID); err != nil &&
+		if err = e.service.interruptExactRound(e.ctx, e.sessionKey, roundID, messagepkg.InterruptHostControlWithoutMessage); err != nil &&
 			!errors.Is(err, ErrTargetDMRoundNotRunning) {
 			e.service.LoggerFor(e.ctx).Warn("中断 Echo round 失败",
 				"session_key", e.sessionKey,

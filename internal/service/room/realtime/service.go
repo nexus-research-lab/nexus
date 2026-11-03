@@ -120,6 +120,10 @@ type InterruptRequest struct {
 	SessionKey   string
 	RoundID      string
 	AgentRoundID string
+	// UserStop marks the user's stop control. Only it writes durable queue pause
+	// gates and counts as a user stop; host control callers (Goal pause, Team
+	// remote cancel) leave it false so queued input and recovery are kept.
+	UserStop bool
 }
 
 // roomContextStore 是 realtime 读取和更新持久化 Room 状态所需的最小能力集。

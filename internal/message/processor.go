@@ -15,13 +15,25 @@ import (
 // InterruptWithoutMessage 表示用户主动停止但不需要把默认停止文案写入结果正文。
 const InterruptWithoutMessage = "__nexus_interrupt_without_message__"
 
+// InterruptHostControlWithoutMessage 表示宿主控制面（Goal 暂停、Automation 取消、
+// Echo 关闭、Team 远端取消）停止了本轮。它同样不写停止文案，但不是用户停止：
+// 不暂停输入队列，也不把 Goal 续跑或 WorkGraph 恢复归因为用户。
+const InterruptHostControlWithoutMessage = "__nexus_interrupt_host_control__"
+
 // NormalizeInterruptDisplayText 把内部中断控制值收口成可安全投影的文案。
 func NormalizeInterruptDisplayText(text string) string {
 	trimmed := strings.TrimSpace(text)
-	if trimmed == InterruptWithoutMessage {
+	if trimmed == InterruptWithoutMessage || trimmed == InterruptHostControlWithoutMessage {
 		return ""
 	}
 	return trimmed
+}
+
+// IsExplicitStopInterrupt 报告本轮是否被用户或宿主控制面显式停止。显式停止要
+// 一并停止本轮派生的子任务；新消息打断与宿主退出不属于此类。
+func IsExplicitStopInterrupt(reason string) bool {
+	trimmed := strings.TrimSpace(reason)
+	return trimmed == InterruptWithoutMessage || trimmed == InterruptHostControlWithoutMessage
 }
 
 // MessageContext 表示单轮消息处理上下文。

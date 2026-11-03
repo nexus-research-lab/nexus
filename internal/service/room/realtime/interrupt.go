@@ -1,11 +1,12 @@
-// INPUT: Room session、root round 或 agent slot 的精确中断目标。
-// OUTPUT: 幂等精确停止、整轮停止，以及可识别的目标已结束结果。
+// INPUT: Room session、root round 或 agent slot 的精确中断目标，以及是否为用户停止。
+// OUTPUT: 幂等精确停止、整轮停止与可识别的目标已结束结果；只有用户停止写入队列暂停门禁，宿主控制停止使用独立原因。
 // POS: Room runtime 取消边界；精确目标不得扩大为整个共享 session 中断。
 package realtime
 
 import (
 	"context"
 	"errors"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"strings"
 	"time"
 
@@ -21,6 +22,10 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 	if err != nil {
 		return err
 	}
+	reason := messagepkg.InterruptHostControlWithoutMessage
+	if request.UserStop {
+		reason = messagepkg.InterruptWithoutMessage
+	}
 	if agentRoundID := strings.TrimSpace(request.AgentRoundID); agentRoundID != "" {
 		roundValue, slot := s.findActiveSlotByAgentRoundID(sessionKey, agentRoundID)
 		if slot == nil {
@@ -28,27 +33,33 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 			// 按幂等成功收口，禁止客户端因迟到错误把已完成执行重新暴露为可停止。
 			return nil
 		}
-		if err := s.pauseRoomRoundQueue(ctx, roundValue, []string{slot.AgentID}, slot.AgentRoundID); err != nil {
-			return err
+		if request.UserStop {
+			if err := s.pauseRoomRoundQueue(ctx, roundValue, []string{slot.AgentID}, slot.AgentRoundID); err != nil {
+				return err
+			}
 		}
-		return s.interruptActiveSlot(ctx, roundValue, slot, "")
+		return s.interruptActiveSlot(ctx, roundValue, slot, reason)
 	}
 	if roundID := strings.TrimSpace(request.RoundID); roundID != "" {
 		roundValue := s.findActiveRoundByRoundID(sessionKey, roundID)
 		if roundValue == nil {
 			return ErrTargetRoomRoundNotRunning
 		}
-		if err := s.pauseRoomRoundQueue(ctx, roundValue, nil); err != nil {
-			return err
+		if request.UserStop {
+			if err := s.pauseRoomRoundQueue(ctx, roundValue, nil); err != nil {
+				return err
+			}
 		}
-		return s.interruptActiveRound(ctx, roundValue, "")
+		return s.interruptActiveRound(ctx, roundValue, reason)
 	}
-	for _, round := range s.activeRoundsForSession(sessionKey) {
-		if err := s.pauseRoomRoundQueue(ctx, round, nil); err != nil {
-			return err
+	if request.UserStop {
+		for _, round := range s.activeRoundsForSession(sessionKey) {
+			if err := s.pauseRoomRoundQueue(ctx, round, nil); err != nil {
+				return err
+			}
 		}
 	}
-	return s.interruptRound(ctx, sessionKey, "", "", false)
+	return s.interruptRound(ctx, sessionKey, "", reason, false)
 }
 
 // InterruptConversation 中断指定 conversation 的全部活跃轮次。

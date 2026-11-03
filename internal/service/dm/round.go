@@ -98,7 +98,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	stopTyping := r.startExternalReplyTyping(ownerCtx)
 	defer stopTyping()
 	result, err := r.executeRound(ctx, logger)
-	if r.userStoppedRound() {
+	if r.explicitlyStoppedRound() {
 		r.stopRoundSubagents()
 	}
 	if err != nil {

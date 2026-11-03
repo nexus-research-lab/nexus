@@ -1,5 +1,5 @@
-// INPUT: Structured DM session identity plus an optional exact runtime round identity.
-// OUTPUT: Exact-round cancellation without successor damage, or explicit whole-session cancellation.
+// INPUT: Structured DM session identity, an optional exact runtime round identity and whether the user pressed stop.
+// OUTPUT: Exact-round or whole-session cancellation; only a user stop writes the queue pause gate, host control stops carry their own reason.
 // POS: DM cancellation boundary; a stale round stop must never broaden into a session stop.
 package dm
 
@@ -26,44 +26,54 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 	if err != nil {
 		return err
 	}
-	// Serialize the durable stop gate with dispatch admission, but release it
-	// before waiting for a running round to drain.
+	reason := messagepkg.InterruptHostControlWithoutMessage
+	if request.UserStop {
+		reason = messagepkg.InterruptWithoutMessage
+		if err := s.pauseInputQueueForUserStop(ctx, sessionKey, request.RoundID); err != nil {
+			return err
+		}
+	}
+	if roundID := strings.TrimSpace(request.RoundID); roundID != "" {
+		return s.interruptExactRound(ctx, sessionKey, roundID, reason)
+	}
+	return s.interruptSession(ctx, sessionKey, reason)
+}
+
+// pauseInputQueueForUserStop serializes the durable stop gate with dispatch
+// admission, but releases it before waiting for a running round to drain.
+func (s *Service) pauseInputQueueForUserStop(ctx context.Context, sessionKey string, roundID string) error {
 	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
 		return err
 	}
-	running := s.Runtime.GetRunningRoundIDs(sessionKey)
-	targetActive := request.RoundID == ""
-	for _, id := range running {
-		if id == request.RoundID {
+	defer s.inputQueueDispatchMu.Unlock()
+	targetActive := roundID == ""
+	for _, id := range s.Runtime.GetRunningRoundIDs(sessionKey) {
+		if id == roundID {
 			targetActive = true
 		}
 	}
-	if targetActive {
-		_, location, resolveErr := s.resolveInputQueueLocation(ctx, sessionKey, "")
-		if resolveErr == nil {
-			resolveErr = s.InputQueue.SetDispatchPaused(location, true)
-		}
-		if resolveErr != nil {
-			s.inputQueueDispatchMu.Unlock()
-			return resolveErr
-		}
-		if items, snapshotErr := s.InputQueue.Snapshot(location); snapshotErr == nil {
-			s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
-		}
+	if !targetActive {
+		return nil
 	}
-	s.inputQueueDispatchMu.Unlock()
-	if roundID := strings.TrimSpace(request.RoundID); roundID != "" {
-		return s.interruptExactRound(ctx, sessionKey, roundID)
+	_, location, err := s.resolveInputQueueLocation(ctx, sessionKey, "")
+	if err == nil {
+		err = s.InputQueue.SetDispatchPaused(location, true)
 	}
-	return s.interruptSession(ctx, sessionKey, messagepkg.InterruptWithoutMessage)
+	if err != nil {
+		return err
+	}
+	if items, snapshotErr := s.InputQueue.Snapshot(location); snapshotErr == nil {
+		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
+	}
+	return nil
 }
 
-func (s *Service) interruptExactRound(ctx context.Context, sessionKey string, roundID string) error {
+func (s *Service) interruptExactRound(ctx context.Context, sessionKey string, roundID string, reason string) error {
 	result, err := s.Runtime.InterruptRound(
 		ctx,
 		sessionKey,
 		roundID,
-		messagepkg.InterruptWithoutMessage,
+		reason,
 	)
 	if err != nil {
 		return err

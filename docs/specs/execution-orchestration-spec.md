@@ -196,9 +196,13 @@ Goal lifecycle status and automatic continuation are separate. An active Goal st
   launch receipt and suppresses immediately, whether the provider acknowledges the
   stop or the host cancels locally. It is neither progress nor an empty recoverable
   turn, applies to ordinary user rounds too, and is classified by the host stop
-  request rather than the result shape. Other host cancellations of a continuation
-  round (interrupt-policy input, member pause) only settle the receipt, so lease
-  recovery never replays a round the host already ended.
+  request rather than the result shape. Only the user's stop control is a user stop.
+  Host control stops (Goal pause, automation cancel or timeout, Echo disable, Team
+  remote cancel) and other host cancellations of a continuation round
+  (interrupt-policy input, member pause) only settle the receipt, so lease recovery
+  never replays a round the host already ended; they do not suspend continuation,
+  pause queues, or mark a root Attempt as stopped by the user. User stops and host
+  control stops both stop the round's spawned child tasks.
 - Suppressed Goals also expose server-derived
   `continuation_suspension_reason=no_progress|runtime_failure|user_stopped`;
   `runtime_failure` takes precedence while `last_error` is set.

@@ -190,6 +190,10 @@ type RewriteRequest struct {
 type InterruptRequest struct {
 	SessionKey string
 	RoundID    string
+	// UserStop marks the user's stop button. Only it writes the durable queue
+	// pause gate and counts as a user stop; host control callers (Goal pause,
+	// automation, Echo) leave it false so queued input and recovery are kept.
+	UserStop bool
 }
 
 // 共用宿主依赖类型统一定义在 runtimehost；以下别名保持本包既有 API 名称。

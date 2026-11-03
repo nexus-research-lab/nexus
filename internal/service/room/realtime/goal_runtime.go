@@ -218,8 +218,15 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	}
 	// A provider that honours the stop still returns a normal terminal result;
 	// the host interrupt request, not the result shape, identifies a user stop.
+	// A host control stop only settles the continuation receipt.
 	if roomSlotUserStopped(slot) {
 		s.recordSlotGoalUserStop(ctx, slot, goalID, runtimeIdentity, objectiveRevision)
+		return
+	}
+	if roomSlotExplicitlyStopped(slot) {
+		if purpose == "goal_continuation" {
+			s.recordSlotGoalMutation(ctx, slot, "结算宿主控制停止的 Room Goal 续跑回执失败", settleContinuationReceipt)
+		}
 		return
 	}
 	if purpose == "goal_continuation" && result.TerminalStatus == "error" {
@@ -318,6 +325,12 @@ func (s *Service) recordGoalSlotInterrupted(
 			currentAuthority.ObjectiveRevision,
 		)
 	})
+}
+
+// roomSlotExplicitlyStopped covers user stops and host control stops; both end
+// the slot's work, so its spawned child tasks stop too.
+func roomSlotExplicitlyStopped(slot *activeRoomSlot) bool {
+	return messageutil.IsExplicitStopInterrupt(roomSlotInterruptReason(slot))
 }
 
 func roomSlotUserStopped(slot *activeRoomSlot) bool {

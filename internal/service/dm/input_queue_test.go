@@ -479,7 +479,7 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 	}
 	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
 	t.Cleanup(func() {
-		if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey, UserStop: true}); err != nil {
 			t.Errorf("清理运行中 round 失败: %v", err)
 			return
 		}

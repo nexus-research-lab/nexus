@@ -440,11 +440,13 @@ func (m *controlMessage) handleInterrupt() {
 			SessionKey:   m.sessionKey,
 			RoundID:      roundID,
 			AgentRoundID: agentRoundID,
+			UserStop:     true,
 		})
 	} else {
 		err = m.handler.dm.HandleInterrupt(m.ctx, dmsvc.InterruptRequest{
 			SessionKey: m.sessionKey,
 			RoundID:    roundID,
+			UserStop:   true,
 		})
 	}
 	// An exact target may finish while its stop request is in flight. Acknowledge

@@ -6,6 +6,7 @@ package realtime
 import (
 	"context"
 	"errors"
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -49,6 +50,11 @@ func (s *Service) finishBoundRoomAttempt(
 		}
 		if reason == "" {
 			reason = "Room slot interrupted"
+		}
+		// Keep the internal sentinel and any user-stop attribution off a host
+		// control stop (Goal pause, Team remote cancel).
+		if reason == messageutil.InterruptHostControlWithoutMessage {
+			reason = "host_control_stop"
 		}
 	default:
 		if reason == "" {

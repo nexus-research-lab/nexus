@@ -256,9 +256,10 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 	}
 	// A provider that honours the stop still returns a normal terminal result.
 	// Classify it by the host interrupt request, not by the result shape, so a
-	// user stop is never counted as progress or an empty recoverable turn.
-	if r.userStoppedRound() {
-		r.recordGoalUserStop()
+	// user stop is never counted as progress or an empty recoverable turn, and a
+	// host control stop only settles its continuation receipt.
+	if r.explicitlyStoppedRound() {
+		r.recordGoalRoundInterrupted(r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID))
 		return
 	}
 	if strings.TrimSpace(r.inputOptions.Purpose) == "goal_continuation" && result.TerminalStatus == "error" {
@@ -325,6 +326,13 @@ func (r *roundRunner) recordGoalRoundInterrupted(interruptReason string) {
 	r.recordGoalMutation("结算已中断 Goal 续跑回执失败", func() error {
 		return runtimehost.SettleGoalContinuationAfterRuntime(context.Background(), r.service.goals, r.IDForUsage, r.roundID, r.currentGoalObjectiveRevision())
 	})
+}
+
+// explicitlyStoppedRound covers user stops and host control stops; both end
+// this round's work, so its spawned child tasks stop too.
+func (r *roundRunner) explicitlyStoppedRound() bool {
+	return r.service.Runtime != nil &&
+		messageutil.IsExplicitStopInterrupt(r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID))
 }
 
 func (r *roundRunner) userStoppedRound() bool {

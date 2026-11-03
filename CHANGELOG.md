@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 暂停 Goal、Automation 取消或超时、关闭 Echo 等内部停止不再被当成“用户停止”：会话的待发送队列不会被冻结，Goal 不会显示“你停止了上一轮”，重启后也能照常恢复对应工作。
 - DM 运行中重新显示“停止生成”按钮（自 9 月 30 日起该按钮在回复、等待权限和压缩期间都不出现）；宿主恢复轮次的内部对账指令不再以用户消息气泡实时显示。
 - 启动恢复不再因为单条坏数据让 App 无法启动：已删除 Room 或已离开协调者的旧 WorkGraph、无法读取的队列日志都会被跳过并记录日志，其余 WorkGraph 与排队消息照常恢复；周期审计也不会再卡在同一个出错的 WorkGraph 上。
 - 修复 DM/Room 断点恢复：派发 claim 保留队列原位、停止门禁跨重启保留、启动扫描无需浏览器绑定；恢复 WorkGraph 根 Attempt 与非 Goal 协调推进，用户停止同步停止本轮子任务，未知副作用先对账。

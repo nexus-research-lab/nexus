@@ -116,7 +116,7 @@ func (s *Service) broadcastAgentRoundStatus(ctx context.Context, roundValue *act
 }
 
 func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
-	if roomSlotUserStopped(e.slot) {
+	if roomSlotExplicitlyStopped(e.slot) {
 		e.service.stopSlotSubagents(e.slot)
 	}
 	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
@@ -364,7 +364,7 @@ func (s *Service) handleSlotCancelled(
 	if shutdown {
 		markRoomSlotInterrupted(slot, runtimectx.InterruptHostShutdown)
 	}
-	if roomSlotUserStopped(slot) {
+	if roomSlotExplicitlyStopped(slot) {
 		s.stopSlotSubagents(slot)
 	}
 	if !s.markSlotCancelled(slot) {

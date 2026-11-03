@@ -18,9 +18,10 @@ import (
 // A user stop on a running Goal continuation must suspend continuation and
 // settle its launch receipt on every stop path: an exact-round stop and a
 // session stop that the provider acknowledges, and a provider that never
-// answers so the host cancels locally.
+// answers so the host cancels locally. A host control stop (Goal pause,
+// automation cancel) only settles the receipt and never pauses the queue.
 func TestServiceUserStopOnGoalContinuationRecordsUserStop(t *testing.T) {
-	for _, mode := range []string{"exact", "session", "silent-provider"} {
+	for _, mode := range []string{"exact", "session", "silent-provider", "host-control"} {
 		t.Run(mode, func(t *testing.T) {
 			cfg := newDMTestConfig(t)
 			migrateDMSQLite(t, cfg.DatabaseURL)
@@ -67,7 +68,7 @@ func TestServiceUserStopOnGoalContinuationRecordsUserStop(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("continuation did not start")
 			}
-			request := InterruptRequest{SessionKey: sessionKey, RoundID: plan.RoundID}
+			request := InterruptRequest{SessionKey: sessionKey, RoundID: plan.RoundID, UserStop: mode != "host-control"}
 			if mode == "session" {
 				request.RoundID = ""
 			}
@@ -82,8 +83,22 @@ func TestServiceUserStopOnGoalContinuationRecordsUserStop(t *testing.T) {
 				revisions := slices.Clone(goalProvider.userStopRevisions)
 				progress := len(goalProvider.progress)
 				failures := len(goalProvider.failures)
+				settled := goalProvider.settledCalls
 				goalProvider.mu.Unlock()
-				if len(stops) > 0 || time.Now().After(deadline) {
+				if mode == "host-control" && (settled > 0 || time.Now().After(deadline)) {
+					if len(stops) != 0 || progress != 0 || failures != 0 || settled == 0 {
+						t.Fatalf("host control stop: stops=%v progress=%d failures=%d settled=%d, want receipt settled only", stops, progress, failures, settled)
+					}
+					_, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, "")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if paused, err := service.InputQueue.DispatchPaused(location); err != nil || paused {
+						t.Fatalf("host control stop paused the queue: paused=%v err=%v", paused, err)
+					}
+					return
+				}
+				if mode != "host-control" && (len(stops) > 0 || time.Now().After(deadline)) {
 					if !slices.Equal(stops, []string{plan.RoundID}) || !slices.Equal(revisions, []int64{1}) {
 						t.Fatalf("user stops = %v revisions = %v, want exactly the stopped round at revision 1", stops, revisions)
 					}

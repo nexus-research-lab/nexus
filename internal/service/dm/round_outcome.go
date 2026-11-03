@@ -158,7 +158,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 		r.finishDeferredFailure(echoDeferredStatusCancelled, errors.New(strings.TrimSpace(resultText)))
 		return
 	}
-	if r.userStoppedRound() {
+	if r.explicitlyStoppedRound() {
 		r.stopRoundSubagents()
 	}
 	r.finishWorkAttempts(protocol.WorkAttemptStatusInterrupted, resultText)
