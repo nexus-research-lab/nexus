@@ -5,7 +5,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员地图：
-//   - root_recovery.go：启动 root 孤儿收口、DM 精确终态、成员恢复和非 Goal 协调恢复；后台审计从 terminal receipt 补偿队列写入失败；逐个 Execution 隔离失败，恢复目标不可用时跳过。
+//   - root_recovery.go：启动 root 孤儿收口、DM 精确终态、成员恢复和非 Goal 协调恢复；后台审计从 terminal receipt 补偿队列写入失败；逐个 Execution 隔离失败，恢复目标不可用时跳过；只唤醒宿主留下在途工作的 Execution。
 //   - service.go / errors.go / work_binding.go / coordination_round.go：装配、actor、
 //     Work/Review/Coordination capability 与 optimistic revision fence；终态历史读取不改本轮协调权限。
 //   - execution*.go / goal_retarget.go / plan_validation.go：Execution 生命周期、

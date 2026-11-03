@@ -1144,6 +1144,8 @@ layer cannot enforce.
 
 启动时先分页扫描 active managed Execution，再开放恢复队列派发。遗留 running root、以及 outbox 已 delivered 的 pending root 收口为 interrupted；尚未投递的 pending root 仍归 outbox。已成功的 Attempt、Submission 与 Acceptance 不变。DM 的物理轮次结束也收口其精确绑定的 root，不借用后继轮次身份。
 
+启动时只为宿主确实留下在途工作的 Execution 安排协调核对：本次启动收口了遗留 root，或某个当前 Assignment 的最新 root 因宿主关闭/重启（`host_shutdown`、`host_restart`）中断或带 `host_recovery_required` 标记。用户停止、宿主控制停止、早已停滞或正在等待输入的图不因重启而被唤醒。
+
 启动恢复与周期审计逐个 Execution 隔离：单个 Execution 读取或收口失败只记录并跳过，扫描与游标继续推进，宿主照常启动服务。协调者的 Room 会话已删除、协调者已不是 Room 成员或 DM 协调 Agent 已删除时，恢复目标不可用（`ErrExecutionRecoveryTargetUnavailable`），该 Execution 被跳过而不是视为宿主故障。
 
 无 Goal 的 active Execution 通过持久化、幂等的宿主恢复输入唤醒原协调者，先核对已有产物、外部副作用和待审提交，再决定是否 take_over_work。绑定 Goal 的执行仍由原 Goal continuation authority 驱动，普通恢复输入不绕过 Goal 暂停、预算或停止。用户停止不自动唤醒协调者；恢复队列仍遵守持久暂停门禁。成员非用户失败或意外中断可触发协调检查，显式恢复成员参与也可请求检查其 interrupted Assignment。旧 Attempt 不原地复活。

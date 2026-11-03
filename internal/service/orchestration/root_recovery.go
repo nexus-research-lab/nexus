@@ -75,14 +75,50 @@ func (s *Service) recoverRootExecution(ctx context.Context, execution protocol.E
 		return err
 	}
 	actor := ActorContext{OwnerUserID: execution.OwnerUserID, SessionKey: execution.SessionKey, AgentID: execution.CoordinatorAgentID, ExecutionID: execution.ID, ScopeKind: execution.ScopeKind, RoomID: execution.RoomID, ConversationID: execution.ConversationID}
-	snapshot, err = s.finishRootAttempts(ctx, actor, snapshot, "", protocol.WorkAttemptStatusInterrupted, "host_restart: reconcile unknown side effects before takeover")
+	versionBefore := snapshot.Execution.Version
+	snapshot, err = s.finishRootAttempts(ctx, actor, snapshot, "", hostRestartAttemptStatus, hostRestartAttemptReason)
 	if err != nil {
 		return err
 	}
 	if rootRecoveryStoppedByUser(snapshot) {
 		return nil
 	}
+	// Only wake the coordinator for work the host actually left in flight: an
+	// orphan settled just now, or a root the host itself interrupted. A graph
+	// idle since long before this start (waiting for input, or abandoned) is
+	// not revived merely by restarting.
+	if snapshot.Execution.Version == versionBefore && !executionHasHostInterruptedRoot(snapshot) {
+		return nil
+	}
 	return skipUnavailableRecoveryTarget(s.queueRootRecovery(ctx, snapshot, fmt.Sprintf("startup:%s:%d", execution.ID, snapshot.Execution.Version)))
+}
+
+const (
+	hostRestartAttemptStatus = protocol.WorkAttemptStatusInterrupted
+	hostRestartAttemptReason = "host_restart: reconcile unknown side effects before takeover"
+	// hostShutdownAttemptReason mirrors runtime.InterruptHostShutdown, which DM
+	// and Room record as the failure reason of roots cancelled by host exit.
+	hostShutdownAttemptReason = "host_shutdown"
+)
+
+// executionHasHostInterruptedRoot reports a current Assignment whose latest root
+// Attempt ended because of the host (shutdown, restart) or was explicitly marked
+// for host recovery. User and host control stops never qualify.
+func executionHasHostInterruptedRoot(snapshot *protocol.ExecutionSnapshot) bool {
+	for _, assignment := range snapshot.Assignments {
+		if !currentAssignment(assignment) {
+			continue
+		}
+		latest := latestRootAttemptForAssignment(snapshot, assignment.ID)
+		if latest == nil || (latest.Status != protocol.WorkAttemptStatusFailed && latest.Status != protocol.WorkAttemptStatusInterrupted) {
+			continue
+		}
+		required, _ := latest.Metadata["host_recovery_required"].(bool)
+		if required || latest.FailureReason == hostShutdownAttemptReason || latest.FailureReason == hostRestartAttemptReason {
+			return true
+		}
+	}
+	return false
 }
 
 func skipUnavailableRecoveryTarget(err error) error {

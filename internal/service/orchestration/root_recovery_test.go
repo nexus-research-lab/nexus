@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	store "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	"testing"
@@ -240,9 +243,7 @@ func (r *multiRecoveryRepository) GetSnapshot(_ context.Context, id string) (*pr
 func TestStartupRootRecoveryIsolatesEachExecution(t *testing.T) {
 	repository := &multiRecoveryRepository{fakeRepository: &fakeRepository{}, snapshots: map[string]*protocol.ExecutionSnapshot{}, failing: map[string]error{}}
 	for _, id := range []string{"execution-unreadable", "execution-deleted-room", "execution-healthy"} {
-		snapshot := executionSnapshot()
-		snapshot.Execution.ID = id
-		snapshot.Execution.Status = protocol.ExecutionStatusActive
+		snapshot := hostInterruptedSnapshot(id, hostShutdownAttemptReason)
 		repository.executions = append(repository.executions, snapshot.Execution)
 		repository.snapshots[id] = snapshot
 	}
@@ -296,5 +297,67 @@ func TestRootRecoveryAuditAdvancesPastFailingExecution(t *testing.T) {
 	}
 	if len(queued) != 1 || queued[0] != "execution-failed-member" {
 		t.Fatalf("queued = %v, want the audit to reach Executions after a failing one", queued)
+	}
+}
+
+func hostInterruptedSnapshot(id string, reason string) *protocol.ExecutionSnapshot {
+	snapshot := executionSnapshot()
+	snapshot.Execution.ID = id
+	snapshot.Execution.Status = protocol.ExecutionStatusActive
+	snapshot.Assignments = []protocol.WorkAssignment{{ID: "assignment-" + id, OwnerAgentID: "member", Status: protocol.WorkAssignmentStatusActive}}
+	snapshot.Attempts = []protocol.WorkAttempt{{ID: "root-" + id, AssignmentID: "assignment-" + id, Status: protocol.WorkAttemptStatusInterrupted, FailureReason: reason}}
+	return snapshot
+}
+
+// Startup wakes coordinators only for work the host left in flight, never for
+// graphs that have been idle or abandoned since long before this start.
+func TestStartupRootRecoveryWakesOnlyHostInterruptedWork(t *testing.T) {
+	repository := &multiRecoveryRepository{fakeRepository: &fakeRepository{}, snapshots: map[string]*protocol.ExecutionSnapshot{}, failing: map[string]error{}}
+	add := func(snapshot *protocol.ExecutionSnapshot) {
+		repository.executions = append(repository.executions, snapshot.Execution)
+		repository.snapshots[snapshot.Execution.ID] = snapshot
+	}
+	add(hostInterruptedSnapshot("execution-shutdown", hostShutdownAttemptReason))
+	add(hostInterruptedSnapshot("execution-user-stopped", message.InterruptWithoutMessage))
+	add(hostInterruptedSnapshot("execution-host-control", "host_control_stop"))
+	stale := hostInterruptedSnapshot("execution-stale-failure", "Room slot failed")
+	stale.Attempts[0].Status = protocol.WorkAttemptStatusFailed
+	add(stale)
+	marked := hostInterruptedSnapshot("execution-marked-failure", "provider error")
+	marked.Attempts[0].Status = protocol.WorkAttemptStatusFailed
+	marked.Attempts[0].Metadata = map[string]any{"host_recovery_required": true}
+	add(marked)
+	idle := executionSnapshot()
+	idle.Execution.ID = "execution-idle"
+	idle.Execution.Status = protocol.ExecutionStatusActive
+	add(idle)
+	orphan := hostInterruptedSnapshot("execution-orphan", "")
+	orphan.Attempts[0].Status = protocol.WorkAttemptStatusRunning
+	add(orphan)
+	repository.finishAttempt = func(_ context.Context, command store.FinishAttemptCommand) (*protocol.ExecutionSnapshot, error) {
+		current := repository.snapshots[command.Attempt.ExecutionID]
+		if current == nil {
+			current = repository.snapshots["execution-orphan"]
+		}
+		next := *current
+		next.Execution.Version++
+		next.Attempts = []protocol.WorkAttempt{command.Attempt}
+		repository.snapshots[next.Execution.ID] = &next
+		return &next, nil
+	}
+	service := NewService(repository)
+	var queued []string
+	service.SetExecutionRecoveryConsumer(recoveryConsumerFunc(func(_ context.Context, e protocol.Execution, _ string) error {
+		queued = append(queued, e.ID)
+		return nil
+	}))
+
+	if err := service.RecoverRootAttempts(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"execution-shutdown", "execution-marked-failure", "execution-orphan"}
+	if !slices.Equal(queued, want) {
+		t.Fatalf("queued = %v, want %v", queued, want)
 	}
 }
