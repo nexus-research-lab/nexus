@@ -218,8 +218,14 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       if !CGPreflightPostEventAccess() {
         _ = CGRequestPostEventAccess()
       }
-      // CUA 的 Input Control 使用 CGEvent 发布事件，授权入口位于辅助功能列表。
-      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+      // Synthesis requires Accessibility; passive user-takeover detection also
+      // requires Input Monitoring. Request it explicitly without writing TCC.
+      if !CGPreflightListenEventAccess() {
+        _ = CGRequestListenEventAccess()
+        pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+      } else {
+        pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+      }
     default:
       throw DesktopBridgeError.invalidComputerUsePermission
     }

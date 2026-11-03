@@ -201,6 +201,7 @@ func (r registry) observe() command.Operation {
 				WindowSelector:    parsed.WindowSelector,
 				IncludeScreenshot: parsed.IncludeScreenshot,
 				Accessibility:     parsed.Accessibility,
+				ApplicationScene:  parsed.ApplicationScene,
 			})
 			if err != nil {
 				return rejected(err), nil
@@ -218,7 +219,7 @@ func (r registry) observe() command.Operation {
 func (r registry) performAction() command.Operation {
 	return command.Operation{
 		Name:        "perform_action",
-		Description: "Perform one bounded action against the latest observation. The host binds request_id to the exact mutation; retry the same request_id to reconcile an indeterminate delivery.",
+		Description: "Perform one bounded action against the latest observation. When supported, returns a fresh observation using the previous observe options. An observation_error does not undo the action. Retry the same request_id only to reconcile; a cached result may require a new observe.",
 		SearchHint:  "computer action click type key scroll drag invoke desktop 操作 点击 输入 键盘 滚动 拖拽",
 		InputSchema: actionSchema(),
 		Idempotent:  true,
@@ -247,7 +248,11 @@ func (r registry) performAction() command.Operation {
 			if err != nil {
 				return rejected(err), nil
 			}
-			return applied(value.Data), nil
+			data := cloneMap(value.Data)
+			if value.ImageData != "" {
+				data["image_data"], data["image_mime"] = value.ImageData, value.ImageMIME
+			}
+			return applied(data), nil
 		},
 	}
 }
@@ -414,6 +419,7 @@ func (r registry) closeTarget() command.Operation {
 }
 
 type observeInput struct {
+	ApplicationScene  bool   `json:"application_scene,omitempty"`
 	WindowSelector    string `json:"window_selector,omitempty"`
 	IncludeScreenshot bool   `json:"include_screenshot,omitempty"`
 	Accessibility     string `json:"accessibility,omitempty"`
@@ -521,6 +527,7 @@ func observeSchema() map[string]any {
 	return objectSchema(map[string]any{
 		"window_selector":    stringProperty("Optional exact window ref or title selector.", 0, 256),
 		"include_screenshot": map[string]any{"type": "boolean"},
+		"application_scene":  map[string]any{"type": "boolean", "description": "Capture this application and its menus on the anchor display when advertised."},
 		"accessibility":      enumProperty("Accessibility payload size mode.", "interactive", "disabled", "full"),
 	})
 }

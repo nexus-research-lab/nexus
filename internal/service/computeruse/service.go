@@ -416,24 +416,27 @@ func (s *Service) closeRoundsAndStop(ctx context.Context, rounds []*Round) error
 // Round is the only object command operations receive. Native refs never leave
 // this object except as opaque values in structured results.
 type Round struct {
-	launchables      map[nexuscua.LaunchRef]nexuscua.LaunchableApplication
-	pendingLaunches  map[string]*nexuscua.LaunchRequest
-	service          *Service
-	owner            string
-	id               string
-	client           Client
-	mu               sync.Mutex
-	mutationMu       sync.Mutex
-	closed           bool
-	deadline         time.Time
-	sessionExpiresAt time.Time
-	application      *nexuscua.DiscoveredApplication
-	sessionID        nexuscua.SessionID
-	window           *nexuscua.WindowSummary
-	observationID    nexuscua.ObservationID
-	pending          map[string]*nexuscua.ActionRequest
-	completed        map[string]ActionResult
-	completedIDs     []string
+	launchables           map[nexuscua.LaunchRef]nexuscua.LaunchableApplication
+	pendingLaunches       map[string]*nexuscua.LaunchRequest
+	service               *Service
+	owner                 string
+	id                    string
+	client                Client
+	mu                    sync.Mutex
+	mutationMu            sync.Mutex
+	closed                bool
+	deadline              time.Time
+	sessionExpiresAt      time.Time
+	application           *nexuscua.DiscoveredApplication
+	sessionID             nexuscua.SessionID
+	window                *nexuscua.WindowSummary
+	observationID         nexuscua.ObservationID
+	userActive            bool
+	observeAfterSupported bool
+	observationOptions    *nexuscua.ObserveAfterOptions
+	pending               map[string]*nexuscua.ActionRequest
+	completed             map[string]ActionResult
+	completedIDs          []string
 }
 
 // invalidate is used when the supervised sidecar epoch ends unexpectedly.
@@ -458,6 +461,12 @@ func (r *Round) invalidate() {
 
 func (r *Round) ID() string { return r.id }
 
+func (r *Round) UserActive() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.userActive
+}
+
 func (r *Round) GetComputer(ctx context.Context) (map[string]any, error) {
 	r.mu.Lock()
 	if err := r.ensureOpenLocked(); err != nil {
@@ -480,6 +489,7 @@ func (r *Round) GetComputer(ctx context.Context) (map[string]any, error) {
 		"primary_modifier":      capabilities.PrimaryModifier,
 		"capture_modes":         capabilities.CaptureModes,
 		"accessibility_tree":    capabilities.AccessibilityTree,
+		"observe_after":         capabilities.ObserveAfter,
 		"input_routes":          capabilities.InputRoutes,
 		"actions":               supportedRoundActions(capabilities.Actions),
 		"action_limits":         capabilities.ActionLimits,
@@ -490,6 +500,7 @@ func (r *Round) GetComputer(ctx context.Context) (map[string]any, error) {
 			"input_control":  permissions.InputControl,
 		},
 		"session_active": r.HasSession(),
+		"user_active":    r.UserActive(),
 	}, nil
 }
 
@@ -634,6 +645,9 @@ func (r *Round) SelectTarget(ctx context.Context, selector string, options Targe
 		return nil, errors.Join(ErrRoundClosed, closeErr)
 	}
 	r.application = selected
+	r.userActive = false
+	r.observeAfterSupported = capabilities.ObserveAfter
+	r.observationOptions = nil
 	r.sessionID = session.SessionID
 	r.sessionExpiresAt = grant.ExpiresAt
 	r.window = nil
@@ -681,6 +695,7 @@ func (r *Round) ListWindows(ctx context.Context) (map[string]any, error) {
 }
 
 type ObserveInput struct {
+	ApplicationScene  bool
 	WindowSelector    string
 	IncludeScreenshot bool
 	Accessibility     string
@@ -693,6 +708,8 @@ type Observation struct {
 }
 
 func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, error) {
+	r.mutationMu.Lock()
+	defer r.mutationMu.Unlock()
 	r.mu.Lock()
 	if err := r.ensureOpenLocked(); err != nil {
 		r.mu.Unlock()
@@ -723,7 +740,17 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 	if err != nil {
 		return Observation{}, err
 	}
-	value, err := r.client.ObserveWindow(ctx, nexuscua.ObserveWindowInput{
+	observe := r.client.ObserveWindow
+	if input.ApplicationScene {
+		scene, ok := r.client.(interface {
+			ObserveApplicationScene(context.Context, nexuscua.ObserveWindowInput, time.Duration) (nexuscua.WindowObservation, error)
+		})
+		if !ok {
+			return Observation{}, errors.New("Computer Use runtime 不支持应用场景观察")
+		}
+		observe = scene.ObserveApplicationScene
+	}
+	value, err := observe(ctx, nexuscua.ObserveWindowInput{
 		SessionID: sessionID, WindowRef: window.WindowRef,
 		IncludeScreenshot: input.IncludeScreenshot, Accessibility: accessibility,
 	}, defaultCommandTimeout)
@@ -731,30 +758,38 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 		r.handleSessionError(err)
 		return Observation{}, err
 	}
+	result, err := r.projectObservation(value)
+	if err != nil {
+		return Observation{}, err
+	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed || r.sessionID != sessionID {
+		return Observation{}, ErrRoundClosed
+	}
 	r.window = window
 	r.observationID = value.ObservationID
-	r.mu.Unlock()
-	data := observationView(value)
-	result := Observation{Data: data}
-	if value.Screenshot != nil && input.IncludeScreenshot {
+	r.observationOptions = &nexuscua.ObserveAfterOptions{
+		IncludeScreenshot: input.IncludeScreenshot, Accessibility: accessibility,
+		ApplicationScene: input.ApplicationScene,
+	}
+	return result, nil
+}
+
+// projectObservation consumes no authority and never exposes the private artifact path.
+func (r *Round) projectObservation(value nexuscua.WindowObservation) (Observation, error) {
+	result := Observation{Data: observationView(value)}
+	if value.Screenshot != nil {
+		encoded, mime, err := r.readArtifact(value.Screenshot.Path)
+		if err != nil {
+			return Observation{}, err
+		}
 		result.Data["screenshot"] = map[string]any{
-			"artifact_ref": value.Screenshot.ArtifactRef,
-			"mime_type":    value.Screenshot.MIMEType,
-			"byte_length":  value.Screenshot.ByteLength,
-			"sha256":       value.Screenshot.SHA256,
-			"mapping":      value.Screenshot.Mapping,
+			"artifact_ref": value.Screenshot.ArtifactRef, "mime_type": value.Screenshot.MIMEType,
+			"byte_length": value.Screenshot.ByteLength, "sha256": value.Screenshot.SHA256,
+			"mapping": value.Screenshot.Mapping,
 		}
-		if encoded, mime, readErr := r.readArtifact(value.Screenshot.Path); readErr != nil {
-			r.mu.Lock()
-			if r.observationID == value.ObservationID {
-				r.observationID = ""
-			}
-			r.mu.Unlock()
-			return Observation{}, readErr
-		} else {
-			result.ImageData, result.ImageMIME = encoded, mime
-		}
+		result.ImageData, result.ImageMIME = encoded, mime
 	}
 	return result, nil
 }
@@ -780,7 +815,9 @@ type ActionInput struct {
 }
 
 type ActionResult struct {
-	Data map[string]any
+	Data      map[string]any
+	ImageData string
+	ImageMIME string
 }
 
 func (r *Round) PerformAction(ctx context.Context, requestID string, input ActionInput) (ActionResult, error) {
@@ -818,13 +855,20 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 			r.handleSessionError(err)
 			return ActionResult{}, err
 		}
-		result := actionView(output)
+		result := r.acceptActionOutput(output)
 		r.mu.Lock()
 		delete(r.pending, requestID)
-		r.observationID = ""
 		r.rememberActionResultLocked(requestID, result)
 		r.mu.Unlock()
 		return result, nil
+	}
+	if r.userActive {
+		r.mu.Unlock()
+		recovery := "request_host_authority"
+		return ActionResult{}, &nexuscua.CUAError{
+			Code: nexuscua.ErrorUserActive, Message: "用户已接管，新的明确授权之前停止自动操作",
+			MutationStatus: nexuscua.MutationNotDispatched, RecoveryAction: &recovery,
+		}
 	}
 	if len(r.pending) > 0 || len(r.pendingLaunches) > 0 {
 		r.mu.Unlock()
@@ -847,6 +891,11 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 		return ActionResult{}, errors.New("Computer Use pending mutation 超出上限，请先对账或关闭 target")
 	}
 	sessionID, windowRef, observationID := r.sessionID, r.window.WindowRef, r.observationID
+	var after *nexuscua.ObserveAfterOptions
+	if r.observeAfterSupported && r.observationOptions != nil {
+		options := *r.observationOptions
+		after = &options
+	}
 	r.mu.Unlock()
 	action, err := buildAction(input)
 	if err != nil {
@@ -861,7 +910,7 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 		}
 	}
 	output, actionRequest, err := r.client.PerformAction(ctx, nexuscua.PerformActionInput{
-		SessionID: sessionID, WindowRef: windowRef, ObservationID: observationID, Action: action,
+		SessionID: sessionID, WindowRef: windowRef, ObservationID: observationID, Action: action, ObserveAfter: after,
 	}, defaultCommandTimeout)
 	if err != nil {
 		var indeterminate *nexuscua.MutationIndeterminateError
@@ -873,12 +922,43 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 		r.handleSessionError(err)
 		return ActionResult{}, err
 	}
-	result := actionView(output)
+	result := r.acceptActionOutput(output)
 	r.mu.Lock()
-	r.observationID = ""
 	r.rememberActionResultLocked(requestID, result)
 	r.mu.Unlock()
 	return result, nil
+}
+
+// acceptActionOutput preserves successful mutation evidence even when its follow-up read fails.
+func (r *Round) acceptActionOutput(output nexuscua.ActionOutput) ActionResult {
+	result := actionView(output)
+	r.mu.Lock()
+	r.observationID = ""
+	open := !r.closed
+	window := r.window
+	r.mu.Unlock()
+	if output.ObservationError != nil {
+		result.Data["observation_error"] = output.ObservationError
+	}
+	if !open || output.Observation == nil || window == nil || output.Observation.WindowRef != window.WindowRef {
+		return result
+	}
+	observed, err := r.projectObservation(*output.Observation)
+	if err != nil {
+		result.Data["observation_error"] = map[string]any{
+			"code": "driver_failure", "message": "动作已执行，后续截图读取失败，请重新 observe",
+			"mutation_status": "not_applicable", "recovery_action": "observe_window",
+		}
+		return result
+	}
+	r.mu.Lock()
+	if !r.closed {
+		r.observationID = output.Observation.ObservationID
+	}
+	r.mu.Unlock()
+	result.Data["observation"] = observed.Data
+	result.ImageData, result.ImageMIME = observed.ImageData, observed.ImageMIME
+	return result
 }
 
 func (r *Round) rememberActionResultLocked(requestID string, result ActionResult) {
@@ -888,7 +968,14 @@ func (r *Round) rememberActionResultLocked(requestID string, result ActionResult
 	if _, exists := r.completed[requestID]; !exists {
 		r.completedIDs = append(r.completedIDs, requestID)
 	}
-	r.completed[requestID] = cloneActionResult(result)
+	cached := cloneActionResult(result)
+	// Keep mutation evidence only. Do not retain screenshots or AX trees for 128 actions.
+	if _, hasObservation := cached.Data["observation"]; hasObservation {
+		delete(cached.Data, "observation")
+		cached.Data["fresh_observation_required"] = true
+	}
+	cached.ImageData, cached.ImageMIME = "", ""
+	r.completed[requestID] = cached
 	for len(r.completedIDs) > maxCompletedActions {
 		oldest := r.completedIDs[0]
 		r.completedIDs = r.completedIDs[1:]
@@ -901,7 +988,7 @@ func cloneActionResult(result ActionResult) ActionResult {
 	for key, value := range result.Data {
 		data[key] = value
 	}
-	return ActionResult{Data: data}
+	return ActionResult{Data: data, ImageData: result.ImageData, ImageMIME: result.ImageMIME}
 }
 
 func (r *Round) VerifyState(ctx context.Context, predicate map[string]any) (map[string]any, error) {
@@ -996,6 +1083,13 @@ func (r *Round) invalidateSession() {
 }
 
 func (r *Round) handleSessionError(err error) {
+	var cuaErr *nexuscua.CUAError
+	if errors.As(err, &cuaErr) && cuaErr.Code == nexuscua.ErrorUserActive {
+		r.mu.Lock()
+		r.userActive = true
+		r.observationID = ""
+		r.mu.Unlock()
+	}
 	if isSessionUnavailable(err) {
 		r.invalidateSession()
 	}

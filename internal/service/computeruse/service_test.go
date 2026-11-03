@@ -53,6 +53,11 @@ func (s *fakeSupervisor) Restart(context.Context) (Client, error) {
 func (s *fakeSupervisor) ArtifactRoot() string { return s.artifact }
 
 type fakeClient struct {
+	observeAfter   bool
+	actionOutput   *nexuscua.ActionOutput
+	actionError    error
+	lastInput      nexuscua.PerformActionInput
+	sceneCalls     int
 	openCalls      int
 	manifest       nexuscua.CapabilityManifest
 	performCalls   int
@@ -67,6 +72,7 @@ type fakeClient struct {
 func (c *fakeClient) GetCapabilities(context.Context, time.Duration) (nexuscua.DriverCapabilities, error) {
 	return nexuscua.DriverCapabilities{
 		ProtocolVersion: nexuscua.ProtocolVersion,
+		ObserveAfter:    c.observeAfter,
 		ActionLimits:    nexuscua.ActionLimits{MaxSessionTTLSeconds: 3600},
 		Platform:        nexuscua.PlatformMacOS,
 		Actions:         []nexuscua.ActionKind{nexuscua.ActionClickPoint, nexuscua.ActionTypeText},
@@ -123,8 +129,15 @@ func (c *fakeClient) VerifyState(context.Context, nexuscua.VerifyStateInput, tim
 	return nexuscua.VerificationOutput{Matched: true, Evidence: "fixture"}, nil
 }
 
-func (c *fakeClient) PerformAction(context.Context, nexuscua.PerformActionInput, time.Duration) (nexuscua.ActionOutput, *nexuscua.ActionRequest, error) {
+func (c *fakeClient) PerformAction(_ context.Context, input nexuscua.PerformActionInput, _ time.Duration) (nexuscua.ActionOutput, *nexuscua.ActionRequest, error) {
 	c.performCalls++
+	c.lastInput = input
+	if c.actionError != nil {
+		return nexuscua.ActionOutput{}, nil, c.actionError
+	}
+	if c.actionOutput != nil {
+		return *c.actionOutput, nil, nil
+	}
 	if c.indeterminate {
 		return nexuscua.ActionOutput{}, &nexuscua.ActionRequest{}, &nexuscua.MutationIndeterminateError{
 			Request: &nexuscua.ActionRequest{}, Cause: errors.New("transport timeout"),
@@ -514,5 +527,86 @@ func TestTargetApprovalScopesAuthorityAndRoundDeadline(t *testing.T) {
 	}
 	if client.openCalls != 1 {
 		t.Fatal("session silently renewed")
+	}
+}
+
+func (c *fakeClient) ObserveApplicationScene(ctx context.Context, input nexuscua.ObserveWindowInput, timeout time.Duration) (nexuscua.WindowObservation, error) {
+	c.sceneCalls++
+	return c.ObserveWindow(ctx, input, timeout)
+}
+
+func TestPostActionObservationAdvancesGuardAndDoesNotCachePixels(t *testing.T) {
+	service, client, supervisor := newFakeService(t)
+	client.observeAfter = true
+	round := prepareRound(t, service)
+	if _, err := round.Observe(context.Background(), ObserveInput{ApplicationScene: true}); err != nil {
+		t.Fatal(err)
+	}
+	image := filepath.Join(supervisor.artifact, "after.png")
+	if err := os.WriteFile(image, []byte("\x89PNG\r\n\x1a\nfixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	client.actionOutput = &nexuscua.ActionOutput{Dispatched: true, ObservationInvalidated: true,
+		Observation: &nexuscua.WindowObservation{ObservationID: "after", WindowRef: "window-1",
+			Screenshot: &nexuscua.ScreenshotArtifact{Path: image, MIMEType: "image/png"}},
+	}
+	result, err := round.PerformAction(context.Background(), "post-action", ActionInput{Kind: "click_point"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ImageData == "" || result.Data["observation"] == nil || round.observationID != "after" {
+		t.Fatal("fresh observation was not delivered")
+	}
+	if client.lastInput.ObserveAfter == nil || !client.lastInput.ObserveAfter.ApplicationScene || client.sceneCalls != 1 {
+		t.Fatal("observation options were not preserved")
+	}
+	cached, err := round.PerformAction(context.Background(), "post-action", ActionInput{Kind: "click_point"})
+	if err != nil || client.performCalls != 1 || cached.ImageData != "" || cached.Data["observation"] != nil || cached.Data["fresh_observation_required"] != true {
+		t.Fatal("replay retained pixels or redispatched mutation")
+	}
+	if _, err := round.PerformAction(context.Background(), "next-action", ActionInput{Kind: "click_point"}); err != nil {
+		t.Fatal(err)
+	}
+	if client.lastInput.ObservationID != "after" {
+		t.Fatal("next action did not use returned guard")
+	}
+}
+
+func TestPostActionScreenshotFailurePreservesDispatchAndRequiresFreshRead(t *testing.T) {
+	service, client, _ := newFakeService(t)
+	round := prepareRound(t, service)
+	client.actionOutput = &nexuscua.ActionOutput{Dispatched: true, ObservationInvalidated: true,
+		Observation: &nexuscua.WindowObservation{ObservationID: "after", WindowRef: "window-1", Screenshot: &nexuscua.ScreenshotArtifact{Path: "/missing/private.png"}},
+	}
+	result, err := round.PerformAction(context.Background(), "read-failed", ActionInput{Kind: "click_point"})
+	if err != nil || result.Data["dispatched"] != true || result.Data["observation_error"] == nil || round.observationID != "" {
+		t.Fatal("post-read failure lost action result or retained guard")
+	}
+	if _, err := round.PerformAction(context.Background(), "read-failed", ActionInput{Kind: "click_point"}); err != nil || client.performCalls != 1 {
+		t.Fatal("post-read failure replayed action")
+	}
+}
+
+func TestUserTakeoverLatchesUntilNewApprovedTarget(t *testing.T) {
+	service, client, _ := newFakeService(t)
+	round := prepareRound(t, service)
+	client.actionError = &nexuscua.CUAError{Code: nexuscua.ErrorUserActive, MutationStatus: nexuscua.MutationNotDispatched}
+	_, _ = round.PerformAction(context.Background(), "interrupted", ActionInput{Kind: "click_point"})
+	if !round.UserActive() {
+		t.Fatal("user takeover not latched")
+	}
+	client.actionError = nil
+	if _, err := round.Observe(context.Background(), ObserveInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := round.PerformAction(context.Background(), "later", ActionInput{Kind: "click_point"}); err == nil || client.performCalls != 1 {
+		t.Fatal("observation resumed authority after takeover")
+	}
+	approvals := 0
+	if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{}, func(TargetGrant) error { approvals++; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if round.UserActive() || approvals != 1 {
+		t.Fatal("fresh host grant did not reset takeover")
 	}
 }

@@ -29,6 +29,21 @@ settings computer-use
 新增 `restore_window`、`set_window_bounds`、`set_range_value`、`press_point` 和单独审批的 `terminate_application`。恢复最小化窗口前可 `observe` 且 `include_screenshot=false`，恢复后再截图。可启动应用通过 `list_launchable_applications` 发现，`launch_application` 仅启动并对未知结果按原 ID 对账，随后仍需 `select_target` 授权。
 
 
+## 动作后观察与接管
+
+固定的 `v0.2.0-rc.1` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
+每次动作沿用最近 `observe` 的截图、AX 和 `application_scene` 选项，让一次动作请求
+返回新的观察；新的 guard 替换已消耗的旧 guard。场景观察仅包含锚点显示器上的同一应用。
+Runtime 有界稳定等待不证明业务完成，必要时仍执行 `verify_state`。
+
+后续观察或截图读取失败时，动作的 dispatched/effect evidence 必须保留，错误另列在
+`observation_error`，不能自动重做动作。已完成请求的本地缓存仅保留动作结果，不保留
+截图或 AX 树；重复 request_id 不派发动作，返回 `fresh_observation_required` 时另行观察。
+
+收到 `user_active` 后，本回合保留用户接管状态并拒绝后续新动作；fresh observe 不解除
+此状态。只有新的 `select_target` 宿主授权可以恢复；未知结果仍按原 ID 对账。
+Input Control 同时需要事件派发和 Input Monitoring，桌面引导补充输入监控请求及面板。
+
 ## 动作坐标
 
 点击、移动、拖拽和滚动点统一使用 `0..1000` 归一化坐标，映射由 Runtime 完成。滚动必须显式传目标点，delta 为逻辑像素意图且受 ±100000 限制。Windows 滚轮以系统行/字符设置换算，应用实际滚动距离仍需观察确认。
@@ -46,6 +61,13 @@ settings computer-use
   状态根为 SQLite 数据库同目录下的 `computer-use/`（0700）；安装、启用与二进制路径记录在
   同目录 `state.json`。安装本身不启用能力。
 - 安装器只接受 macOS 归档，按当前 CPU 架构优先选择 arm64/x86_64、其次 universal。
+
+本地 CUA 预览构建可设置独立 `NEXUS_DESKTOP_BUNDLE_IDENTIFIER` 和
+`NEXUS_DESKTOP_DEFAULT_STATE_ROOT`，把预览默认数据根写入 App，避免从 Finder
+再次启动时回落到正式版数据。预览可用 `NEXUS_DESKTOP_REGISTER_URL_SCHEME=0`
+避免接管正式版深链；此类构建不验收 OAuth 回跳。跨进程显示/退出通知按 bundle ID
+隔离。`NEXUS_DESKTOP_PRESERVE_CUA_SIGNATURE=1` 验证并保留已测试 Runtime 字节，
+随包带入它的 manifest、SBOM 和许可证；默认正式构建仍执行宿主签名流程。
 
 ## 启用生命周期
 

@@ -230,6 +230,18 @@ if is_enabled "${BUNDLE_CUA_RUNTIME}"; then
   fi
   echo "==> Using cached bundled CUA runtime"
   cp "${CUA_RUNTIME_PATH}" "${cua_output_path}"
+  # Carry the pinned runtime's distribution notices and provenance into the app.
+  cua_package_dir="$(dirname "${CUA_RUNTIME_PATH}")"
+  cua_notice_dir="${RESOURCES_DIR}/licenses/nexus-cua"
+  mkdir -p "${cua_notice_dir}"
+  for notice in LICENSE THIRD_PARTY_NOTICES.md sbom.spdx.json manifest.json; do
+    if [[ -f "${cua_package_dir}/${notice}" ]]; then
+      cp "${cua_package_dir}/${notice}" "${cua_notice_dir}/${notice}"
+    fi
+  done
+  if [[ -d "${cua_package_dir}/licenses" ]]; then
+    rsync -a "${cua_package_dir}/licenses/" "${cua_notice_dir}/dependencies/"
+  fi
 fi
 
 require_macho_architecture "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
@@ -282,6 +294,17 @@ sed \
   -e "s/__BUILD_NUMBER__/${BUILD_NUMBER}/g" \
   "${MACOS_DIR}/Resources/Info.plist" > "${CONTENTS_DIR}/Info.plist"
 
+if [[ -n "${NEXUS_DESKTOP_DEFAULT_STATE_ROOT:-}" ]]; then
+  if [[ "${BUNDLE_IDENTIFIER}" == "com.leemysw.nexus" ]]; then
+    echo "a bundled preview state root requires a separate bundle identifier" >&2
+    exit 1
+  fi
+  /usr/libexec/PlistBuddy -c "Add :NexusDefaultStateRoot string ${NEXUS_DESKTOP_DEFAULT_STATE_ROOT}" "${CONTENTS_DIR}/Info.plist"
+fi
+if [[ "${NEXUS_DESKTOP_REGISTER_URL_SCHEME:-1}" == "0" ]]; then
+  /usr/libexec/PlistBuddy -c 'Delete :CFBundleURLTypes' "${CONTENTS_DIR}/Info.plist"
+fi
+
 printf 'APPL????' > "${CONTENTS_DIR}/PkgInfo"
 
 if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev/null 2>&1; then
@@ -300,7 +323,12 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
     codesign_target "${RESOURCES_DIR}/bin/rg"
   fi
   if [[ -x "${RESOURCES_DIR}/bin/nexuscua" ]]; then
-    codesign_target "${RESOURCES_DIR}/bin/nexuscua"
+    if is_enabled "${NEXUS_DESKTOP_PRESERVE_CUA_SIGNATURE:-0}"; then
+      # Explicit preview builds can retain the exact already-tested release bytes.
+      codesign --verify --strict "${RESOURCES_DIR}/bin/nexuscua"
+    else
+      codesign_target "${RESOURCES_DIR}/bin/nexuscua"
+    fi
   fi
   codesign_target "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
   codesign_target "${APP_BUNDLE}"

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Integrate the pinned CUA v0.2.0-rc.1 SDK: return fresh post-action observations and images, expose same-application scene capture, preserve mutation evidence on read failure, and latch user takeover until a new target grant. Completed-action caches retain no screenshots or AX trees.
+- Guide macOS Input Control setup through Input Monitoring as well as Accessibility.
+- Allow isolated macOS preview bundles to retain their own default state root and exact CUA payload, include runtime license/provenance files, and scope lifecycle notifications by bundle identity.
+
 - Revoke active Computer Use sessions before waiting for in-flight actions during round close, and close sessions returned after concurrent shutdown.
 
 - C3: pin the reviewed CUA SDK revision and verify backend builds with GOWORK=off in the dedicated target and CI.

@@ -27,10 +27,10 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
 
 2. 使用 `list_applications`，再用 `select_target` 以返回的精确应用名称或稳定 application id 选择目标，明确请求所需 allowed_actions、allow_foreground_input 和 ttl_seconds，由宿主确认后生效。参数上限读取 get_computer.action_limits/action_schema。
 3. 多窗口应用先调用 `list_windows`，再把返回的 `window_ref` 或精确标题传给 `observe`；单窗口应用可直接 `observe`。
-4. 每次动作前调用 `observe`，只使用该次返回的 window、element 和 observation ref。截图或无障碍树过期后重新观察。
+4. 每次动作必须使用最新观察；首次调用 `observe`，后续可使用动作返回的新 `observation`。截图或无障碍树过期后重新观察。需要同应用菜单与弹窗时，在能力支持下使用 `application_scene=true`。
    点击、移动、拖拽和滚动目标点均使用截图左上角为原点的 `0..1000` 归一化坐标；不要传图片像素。滚动必须给出目标 x、y，正向 delta_y 向下滚动。快捷键优先使用 `mod`（macOS Command，Windows Control）。
 5. 动作使用 `perform_action`，把业务输入放在 contract 允许的 closed object 中；顶层生成新的 `request_id`。如果结果未知，复用同一个 request_id 重试以完成对账，不能换 ID 重放。
-6. 动作后重新 `observe`，需要确认状态时调用 `verify_state`。不要凭动作返回文本声称状态已改变。
+6. 动作返回 `observation` 时直接读取它；未返回时重新 `observe`。`observation_error` 只代表后续读取失败，不能据此重做动作。缓存结果标记 `fresh_observation_required` 时重新观察。需要确认业务状态时调用 `verify_state`。
 7. 任务结束调用 `close_target`，丢弃本轮的 session、observation、element 和 pending mutation 状态。
 
 ## 安全边界
@@ -40,6 +40,7 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
 - 常规动作使用 select_target 已批准的会话范围；退出应用及宿主标记的敏感操作仍需单独审批。被拒绝或权限不足时停止并说明原因。审批后 stale 必须重新观察，不自动重放。
 - 最小化窗口先用 include_screenshot=false 观察，再执行 restore_window，恢复后截图。
 - 应用未运行时先 list_launchable_applications，再 launch_application；启动许可不包含后续输入权限。
+- `user_active` 表示用户接管：停止自动动作并说明，不因等待或重新观察而恢复，不自动换 session。用户明确要求继续后再走新的 select_target 授权。
 - session 过期重新 select_target；回合授权上限到达后开始新回合，不静默续期。
 - 每个 mutation 只对应一个稳定 request_id；目标、动作或输入改变时必须换 ID。
 - 不要自动点击系统权限弹窗。Screen Capture、Accessibility 或 Input Control 未授予时，说明用户需要在系统设置中授权后再试。
