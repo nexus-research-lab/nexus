@@ -677,7 +677,7 @@ func (s *Service) roomQueuedRoundPersisted(ctx context.Context, contextValue *pr
 	}
 	roundID := "queue_" + item.ID
 	for _, message := range messages {
-		if anyString(message["round_id"]) == roundID {
+		if protocol.MessageRoundID(message) == roundID {
 			return true
 		}
 	}
