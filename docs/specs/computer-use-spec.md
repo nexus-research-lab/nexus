@@ -54,6 +54,7 @@ settings computer-use
   且仅在存在可用二进制（已安装或 `NEXUS_COMPUTER_USE_BINARY`）时生效。
 - `NEXUS_COMPUTER_USE_BINARY` 显式指定的绝对路径优先于已安装版本，用于打包内置与开发覆盖。
 - 关闭开关会结束当前所有 CUA round、关闭 session 并停止 sidecar；重新启用从新 epoch 开始。
+- round 关闭先禁止后续准入并向 Runtime 撤销现有 session，再等待动作互斥锁清理；不能等长按结束才发送撤销。关闭期间返回的新 session 必须立即关闭。撤销不能撤回已派发事件，原生停止能力以 Runtime 版本为准。
 - 安装新版本会停止当前 sidecar 并切换后续 epoch 使用的二进制，旧 round 的 opaque ref 全部作废。
 
 ## 宿主 HTTP API

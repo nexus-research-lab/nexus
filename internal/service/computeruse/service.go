@@ -625,6 +625,14 @@ func (r *Round) SelectTarget(ctx context.Context, selector string, options Targe
 		return nil, err
 	}
 	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		closeErr := r.client.CloseSession(context.WithoutCancel(ctx), session.SessionID, defaultCommandTimeout)
+		if isSessionUnavailable(closeErr) {
+			closeErr = nil
+		}
+		return nil, errors.Join(ErrRoundClosed, closeErr)
+	}
 	r.application = selected
 	r.sessionID = session.SessionID
 	r.sessionExpiresAt = grant.ExpiresAt
@@ -921,8 +929,6 @@ func (r *Round) VerifyState(ctx context.Context, predicate map[string]any) (map[
 }
 
 func (r *Round) Close(ctx context.Context) error {
-	r.mutationMu.Lock()
-	defer r.mutationMu.Unlock()
 	r.mu.Lock()
 	if r.closed {
 		r.mu.Unlock()
@@ -930,6 +936,19 @@ func (r *Round) Close(ctx context.Context) error {
 	}
 	r.closed = true
 	sessionID := r.sessionID
+	r.mu.Unlock()
+	// Revocation must reach the runtime while an input action still owns
+	// mutationMu. Waiting for that lock first lets a held input run to completion.
+	var closeErr error
+	if sessionID != "" {
+		closeErr = r.client.CloseSession(ctx, sessionID, defaultCommandTimeout)
+		if isSessionUnavailable(closeErr) {
+			closeErr = nil
+		}
+	}
+	r.mutationMu.Lock()
+	defer r.mutationMu.Unlock()
+	r.mu.Lock()
 	r.sessionID = ""
 	r.application = nil
 	r.window = nil
@@ -940,14 +959,7 @@ func (r *Round) Close(ctx context.Context) error {
 	r.completed = make(map[string]ActionResult)
 	r.completedIDs = nil
 	r.mu.Unlock()
-	if sessionID == "" {
-		return nil
-	}
-	err := r.client.CloseSession(ctx, sessionID, defaultCommandTimeout)
-	if isSessionUnavailable(err) {
-		return nil
-	}
-	return err
+	return closeErr
 }
 
 func (r *Round) HasSession() bool {
