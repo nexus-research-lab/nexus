@@ -1,5 +1,5 @@
 // INPUT: WorkGraph 视口命令、搜索状态与共享本地化。
-// OUTPUT: 证明画布控制条复用标准动作/浮层/排版，并保留搜索键盘与禁用行为。
+// OUTPUT: 证明独立控制行复用标准动作/排版，并保留搜索键盘与禁用行为。
 // POS: WorkGraph 控制条 DOM 行为测试；缩放和搜索算法由 interaction model 测试负责。
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -41,7 +41,7 @@ function renderControls(overrides: Partial<Parameters<typeof ExecutionWorkGraphC
 }
 
 describe("ExecutionWorkGraphControls", () => {
-  it("uses shared compact action and popover geometry", () => {
+  it("invokes zoom commands from compact controls", () => {
     const { onResetZoom, onZoomOut } = renderControls();
     const zoomOut = screen.getByRole("button", { name: /zoom out|缩小/i });
     const zoomReset = screen.getByRole("button", { name: /reset to 100%|重置为 100%/i });
@@ -50,6 +50,14 @@ describe("ExecutionWorkGraphControls", () => {
     fireEvent.click(zoomReset);
     expect(onZoomOut).toHaveBeenCalledOnce();
     expect(onResetZoom).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the expanded view close action alongside its navigation controls", () => {
+    const onCloseExpanded = vi.fn();
+    renderControls({ onOpenExpanded: undefined, onCloseExpanded });
+    expect(screen.queryByRole("button", { name: /open full workgraph|打开完整工作图/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^(close|关闭)$/i }));
+    expect(onCloseExpanded).toHaveBeenCalledOnce();
   });
 
   it("focuses search, preserves keyboard navigation, and disables empty result actions", () => {

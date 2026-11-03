@@ -1,5 +1,5 @@
 // INPUT: Exact selected graph identity, domain heading/content, canvas placement and close command.
-// OUTPUT: One screen-sized inspector shell using shared popover, typography and close control recipes.
+// OUTPUT: One viewport-bounded, internally scrollable inspector shell using shared popover, typography and close control recipes.
 // POS: Execution-only node/edge detail pattern; the canvas owns selection, panning and inverse zoom geometry.
 
 import type { CSSProperties, ReactNode } from "react";
@@ -26,7 +26,7 @@ export function ExecutionGraphInspector({
   return (
     <aside
       aria-label={label}
-      className="surface-popover soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] cursor-auto overflow-auto"
+      className="surface-popover soft-scrollbar absolute z-30 cursor-auto overflow-auto"
       data-execution-selected-node-detail={detailKind === "node" ? detailId : undefined}
       data-execution-selected-node-detail-mode={detailKind === "node" ? "popover" : undefined}
       data-execution-selected-edge-detail={detailKind === "edge" ? detailId : undefined}

@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- WorkGraph 相邻重试改为短侧连线，回环就近走侧轨并从独立侧口返回；区分流程实线、重试虚线与回连，增加关系图例。工具栏与搜索移出画布内容区，背景改为点阵，详情浮层按可视区域避让并保持正常字号。
+
 - WorkGraph 复用本轮已提供的上下文与操作 schema，Room 审核派发也内联准确协议；多项已就绪责任可通过 `assign_work_batch` 一次原子派发，任一项失败整批回滚，重复请求不会重复派发。
 
 - macOS 桌面沙箱对齐 Codex 的无状态模型：每条命令独立套用 Seatbelt 策略，删除宿主 scratch 租约、监督启动记录、策略回执、启动崩溃恢复与随包 `nexus-runtime-bootstrap` helper，“设置 › 沙箱”不再有残留资源回收入口。App 启动不再依赖沙箱恢复。升级后自动删除旧版留下的沙箱记录表、`app/processes` 与带租约标记的 scratch 目录；清理失败只记日志、下次启动重试，不阻止 App 启动。

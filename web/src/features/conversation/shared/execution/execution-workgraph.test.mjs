@@ -1134,28 +1134,25 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     "a return leaves downward from the child like a normal process edge",
   );
   assert.ok(
-    Math.abs(loopBackPoints.at(-1).x - agentLayout.x) < 0.5
-      && Math.abs(
-        loopBackPoints.at(-1).y
-          - (agentLayout.y + agentLayout.size / 2 + 6),
-      ) < 0.5,
-    "the outer U-shaped return keeps clearance before the parent's process anchor",
+    Math.abs(Math.abs(loopBackPoints.at(-1).x - agentLayout.x) - (agentLayout.width / 2 + 6)) < 0.5
+      && loopBackPoints.at(-1).y === agentLayout.y,
+    "a return enters the parent's side with arrow clearance",
   );
   assert.equal(
     orthogonalPathsShareSegment(loopBackLayout.path, forwardLayout.path),
-    true,
-    "an exact forward/return pair aligns on the target's center flow segment",
+    false,
+    "opposing directions do not share the parent's process anchor",
   );
   assert.doesNotMatch(loopBackLayout.path, /[CQ]/);
   assert.match(loopBackLayout.path, / L .* L .* L /);
   assert.ok(
     retryLayout.path.startsWith(
-      `M ${failedToolLayout.x} ${failedToolLayout.y + failedToolLayout.size / 2}`,
+      `M ${failedToolLayout.x + failedToolLayout.width / 2} ${failedToolLayout.y}`,
     ),
-    "a same-level retry uses a compact rail below its sibling nodes",
+    "an adjacent retry leaves directly from the source side",
   );
   assert.doesNotMatch(retryLayout.path, /[CQ]/);
-  assert.match(retryLayout.path, / L .* L .* L /);
+  assert.equal(orthogonalPathPoints(retryLayout.path).length, 2);
 
   const downwardRetry = structuredClone(retriedExecution);
   downwardRetry.graph.edges.push({
@@ -1182,14 +1179,14 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     Math.abs(downwardRetryPoints[0].x - downwardAgentLayout.x) < 0.5
       && Math.abs(
         downwardRetryPoints[0].y
-          - (downwardAgentLayout.y - downwardAgentLayout.size / 2),
+          - (downwardAgentLayout.y + downwardAgentLayout.size / 2),
       ) < 0.5
       && Math.abs(downwardRetryPoints.at(-1).x - downwardToolLayout.x) < 0.5
       && Math.abs(
         downwardRetryPoints.at(-1).y
           - (downwardToolLayout.y - downwardToolLayout.size / 2 - 6),
       ) < 0.5,
-    "a downward retry leaves above its source layer and keeps target clearance",
+    "a forward retry leaves below its source and keeps target clearance",
   );
   assert.equal(
     orthogonalPathsShareSegment(
@@ -1250,17 +1247,14 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     "a wide return first follows the normal downward flow out of its source",
   );
   assert.ok(
-    Math.abs(wideReturnPoints.at(-1).x - wideTargetLayout.x) < 0.5
-      && Math.abs(
-        wideReturnPoints.at(-1).y
-          - (wideTargetLayout.y + wideTargetLayout.size / 2 + 6),
-      ) < 0.5,
-    "a wide return keeps clearance before the target process anchor",
+    Math.abs(Math.abs(wideReturnPoints.at(-1).x - wideTargetLayout.x) - (wideTargetLayout.width / 2 + 6)) < 0.5
+      && wideReturnPoints.at(-1).y === wideTargetLayout.y,
+    "a wide return keeps clearance before the target side anchor",
   );
   assert.equal(
     orthogonalPathsShareSegment(wideReturnEdge.path, wideForwardEdge.path),
-    true,
-    "a dense ownership fan still aligns the return with its target flow axis",
+    false,
+    "a dense ownership fan keeps return arrows off the forward flow axis",
   );
   assert.doesNotMatch(wideReturnEdge.path, /[CQ]/);
 
@@ -1321,8 +1315,8 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     ));
     assert.equal(
       orthogonalPathsShareSegment(returnEdge.path, matchingForward.path),
-      true,
-      `return ${returnEdge.id} aligns with its exact forward branch at the target anchor`,
+      false,
+      `return ${returnEdge.id} uses a separate target side port`,
     );
     for (const node of crowdedReturnLayout.nodes) {
       if (node.node.id === returnEdge.sourceId
@@ -1390,6 +1384,12 @@ test("Lead review gate is a visible node and changes-requested is a back edge", 
     layout.nodes.find((node) => node.node.kind === "gate").y
       > layout.nodes.find((node) => node.node.kind === "agent").y,
   );
+  const agent = layout.nodes.find((node) => node.node.kind === "agent");
+  const returnEdge = layout.edges.find((edge) => edge.kind === "loop_back");
+  const returnEnd = orthogonalPathPoints(returnEdge.path).at(-1);
+  assert.equal(returnEnd.y, agent.y);
+  assert.equal(Math.abs(returnEnd.x - agent.x), agent.width / 2 + 6);
+  assert.equal(orthogonalPathsShareSegment(returnEdge.path, layout.edges.find((edge) => edge.kind === "review").path), false);
 });
 
 test("WorkGraph review rounds keep stable depth when loop edges arrive first", async () => {
@@ -1771,4 +1771,92 @@ test("edge permutations preserve geometry and seeded graph routes avoid unrelate
       }
     }
   }
+});
+
+
+test("retry shortcuts and local return corridors avoid intervening runs in both densities", async () => {
+  const { buildExecutionGraphLayout } = await import("./execution-workgraph-layout.ts");
+  const nodes = [
+    { id: "owner", kind: "agent", visibility: "primary" },
+    { id: "a", kind: "tool", parent_node_id: "owner" },
+    { id: "b", kind: "subagent", parent_node_id: "owner" },
+    { id: "c", kind: "tool", parent_node_id: "owner" },
+    { id: "d", kind: "tool", parent_node_id: "b" },
+    { id: "e", kind: "tool", parent_node_id: "b" },
+  ].map((node, position) => ({ visibility: "nested", work_item_id: "", position, ...node }));
+  const edges = nodes.filter((node) => node.parent_node_id).map((node) => ({
+    id: `own:${node.id}`, source_node_id: node.parent_node_id, target_node_id: node.id,
+    kind: node.kind === "subagent" ? "spawn" : "invoke",
+  }));
+  for (const [id, kind, from, to] of [
+    ["skip", "retry", "a", "c"],
+    ["adjacent", "retry", "d", "e"],
+    ["return", "loop_back", "b", "owner"],
+    ["nested-return", "loop_back", "d", "b"],
+    ["self-return", "loop_back", "c", "c"],
+  ]) edges.push({ id, kind, source_node_id: from, target_node_id: to });
+  const view = { ...execution, work_items: [], graph: { nodes, edges } };
+  for (const presentation of ["icon", "summary"]) {
+    const layout = buildExecutionGraphLayout(view, 380, new Set(), presentation);
+    const byId = Object.fromEntries(layout.nodes.map((node) => [node.node.id, node]));
+    const group = layout.groups[0];
+    for (const edge of layout.edges.filter((edge) => ["retry", "loop_back"].includes(edge.kind))) {
+      const points = orthogonalPathPoints(edge.path);
+      assert.doesNotMatch(edge.path, /[CQ]/);
+      for (let i = 1; i < points.length; i++) {
+        assert.ok(points[i].x === points[i - 1].x || points[i].y === points[i - 1].y);
+      }
+      for (const node of layout.nodes) {
+        if (![edge.sourceId, edge.targetId].includes(node.node.id)) {
+          assert.equal(orthogonalPathCrossesNode(edge.path, node), false, `${presentation}: ${edge.id} crosses ${node.node.id}`);
+        }
+      }
+      for (const point of points) {
+        assert.ok(point.x >= group.x + 16 && point.x <= group.x + group.width - 16);
+        assert.ok(point.y >= group.y + 16 && point.y <= group.y + group.height - 16);
+      }
+      if (edge.id === "adjacent") assert.equal(points.length, 2);
+      if (edge.id === "skip") assert.ok(points.length > 2, "a skipped sibling requires an under-row corridor");
+      if (edge.id === "return") {
+        assert.ok(Math.max(...points.map((point) => point.y)) < byId.d.y - byId.d.height / 2,
+          "a return from a subagent leaves before its deeper children, without touring the group bottom");
+      }
+    }
+    assert.deepEqual(buildExecutionGraphLayout({ ...view, graph: { nodes, edges: [...edges].reverse() } }, 380, new Set(), presentation), layout);
+  }
+});
+
+test("inspector placement stays in the viewport and leaves its selected anchor visible", async () => {
+  const { resolveExecutionGraphInspectorPlacement } = await import("./execution-workgraph-interaction-model.ts");
+  for (const viewportWidth of [280, 380, 720, 1100]) {
+    for (const viewportHeight of [240, 600]) {
+      for (const anchorX of [24, viewportWidth / 2, viewportWidth - 24]) {
+        for (const anchorY of [24, viewportHeight / 2, viewportHeight - 24]) {
+          const placement = resolveExecutionGraphInspectorPlacement({ anchorX, anchorY,
+            anchorWidth: 38, anchorHeight: 38, viewportWidth, viewportHeight });
+          assert.ok(placement.left >= 8 && placement.top >= 8);
+          assert.ok(placement.left + placement.width <= viewportWidth - 8);
+          assert.ok(placement.top + placement.maxHeight <= viewportHeight - 8);
+          assert.ok(placement.maxHeight > 0);
+          assert.ok(placement.left >= anchorX + 19 || placement.left + placement.width <= anchorX - 19
+            || placement.top >= anchorY + 19 || placement.top + placement.maxHeight <= anchorY - 19,
+          "details must not cover the selected node");
+        }
+      }
+    }
+  }
+});
+
+
+test("a viewport-spanning edge still leaves a bounded, scrollable inspector", async () => {
+  const { resolveExecutionGraphInspectorPlacement } = await import("./execution-workgraph-interaction-model.ts");
+  const placement = resolveExecutionGraphInspectorPlacement({
+    anchorX: 180, anchorY: 240, anchorWidth: 1200, anchorHeight: 1800,
+    viewportWidth: 360, viewportHeight: 480,
+  });
+  assert.equal(placement.width, 304);
+  assert.equal(placement.maxHeight, 336);
+  assert.ok(placement.left >= 8 && placement.top >= 8);
+  assert.ok(placement.left + placement.width <= 352);
+  assert.ok(placement.top + placement.maxHeight <= 472);
 });

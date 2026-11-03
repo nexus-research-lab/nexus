@@ -1,6 +1,6 @@
 // INPUT: Real Execution canvas and isolated local graph fixtures.
 // OUTPUT: Exact node/edge selection and independent file action regression evidence.
-// POS: DOM integration tests; browser tests separately verify inverse zoom and opaque inspector geometry.
+// POS: DOM integration tests; pure geometry tests cover placement, with browser rendering checked separately.
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
@@ -71,4 +71,32 @@ it("cancels native modified scrolling while preserving ordinary viewport scroll"
   const ordinary = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 30 });
   fireEvent(viewport, ordinary);
   expect(ordinary.defaultPrevented).toBe(false);
+});
+
+
+it("keeps retry selection exact from the line and keyboard target, and closes it with Escape", () => {
+  const view: ExecutionView = { ...execution, work_items: [], graph: {
+    runtime_node_total: 3, runtime_edge_total: 2, runtime_nodes_truncated: false, runtime_edges_truncated: false,
+    nodes: ["first", "second", "third"].map((id, position) => ({
+      id, kind: "tool", visibility: "primary", work_item_id: "", name: `${id} run`, position,
+    })),
+    edges: ["second", "third"].map((id, position) => ({
+      id: `retry:${id}`, kind: "retry", source_node_id: position === 0 ? "first" : "second", target_node_id: id,
+    })),
+  } };
+  const { container } = renderCanvas(view);
+  fireEvent.click(container.querySelector('[data-execution-edge-line-hit="retry:second"]')!);
+  let details = screen.getByRole("complementary");
+  expect(details.getAttribute("data-execution-selected-edge-detail")).toBe("retry:second");
+  expect(details.textContent).toContain("first run");
+  expect(details.textContent).toContain("second run");
+  expect(details.textContent).not.toContain("third run");
+  const target = container.querySelector('[data-execution-edge-hit-target="retry:third"]')!;
+  fireEvent.keyDown(target, { key: "Enter" });
+  details = screen.getByRole("complementary");
+  expect(details.getAttribute("data-execution-selected-edge-detail")).toBe("retry:third");
+  expect(details.textContent).not.toContain("first run");
+  expect(details.textContent).toContain("third run");
+  fireEvent.keyDown(container.querySelector('[data-execution-board-grid]')!, { key: "Escape" });
+  expect(screen.queryByRole("complementary")).toBeNull();
 });

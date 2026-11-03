@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作、统一节点/运行耗时及完整交互的大图弹窗。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作、统一节点/运行耗时及完整交互的大图弹窗；工具栏和关系图例独立于点阵画布，详情按可视视口避让所选节点/边端点并保持屏幕字号。
  * POS: DM/Room 共用的只读 Execution Graph 主视图；历史 Task 按节点 Attempt 隔离，文件操作使用真实节点工作区身份；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
@@ -32,7 +32,6 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 import {
   UiDialogBackdrop,
   UiDialogBody,
-  UiDialogCloseButton,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
@@ -75,6 +74,7 @@ import {
   resolveExecutionGraphFitZoom,
   resolveExecutionGraphGroupTrace,
   resolveExecutionGraphInitialScroll,
+  resolveExecutionGraphInspectorPlacement,
   resolveExecutionGraphNodeAncestors,
   resolveExecutionGraphPanPadding,
   resolveExecutionGraphTrace,
@@ -106,9 +106,8 @@ const EDGE_KIND_DETAIL_KEY: Record<ExecutionGraphEdgeKind, TranslationKey> = {
   spawn: "execution.edge_spawn_detail",
 };
 
-const NODE_INSPECTOR_WIDTH = 304;
-const NODE_INSPECTOR_GAP = 12;
-const NODE_INSPECTOR_EDGE_PADDING = 8;
+const CONTROL_EDGE_COLOR = "color-mix(in srgb, var(--warning) 62%, var(--icon-muted))";
+
 const EXECUTION_GRAPH_PAN_THRESHOLD = 4;
 const EXECUTION_GRAPH_INTERACTIVE_TARGET_SELECTOR = [
   "button",
@@ -157,7 +156,7 @@ interface ExecutionWorkGraphCanvasProps {
   currentId: string | null;
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
-  expandedMode?: boolean;
+  onCloseExpanded?: () => void;
   nodePresentation?: ExecutionGraphNodePresentation;
   onOpenWorkspaceFile?: (
     path: string,
@@ -183,7 +182,7 @@ export function ExecutionWorkGraphCanvas({
   currentId,
   directory,
   execution,
-  expandedMode = false,
+  onCloseExpanded,
   nodePresentation = "icon",
   onOpenWorkspaceFile,
   taskRuns,
@@ -191,7 +190,7 @@ export function ExecutionWorkGraphCanvas({
   const { t } = useI18n();
   const markerId = `execution-arrow-${useId().replace(/:/g, "")}`;
   const loopMarkerId = `${markerId}-loop`;
-  const retryMarkerId = `${markerId}-retry`;
+  const focusedMarkerId = `${markerId}-focused`;
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const panGestureRef = useRef<ExecutionGraphPanGesture | null>(null);
   const panPaddingRef = useRef<{ x: number; y: number } | null>(null);
@@ -204,6 +203,7 @@ export function ExecutionWorkGraphCanvas({
     height: 0,
     width: 0,
   });
+  const [viewportScroll, setViewportScroll] = useState({ left: 0, top: 0 });
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -292,24 +292,46 @@ export function ExecutionWorkGraphCanvas({
   const selectedTaskRun = selectedItem && selectedLayoutNode?.node.kind === "agent"
     ? resolveExecutionNodeTaskRun(selectedItem, taskRuns, selectedLayoutNode.node.attempt_id)
     : null;
-  const selectedInspectorStyle = selectedLayoutNode
-    ? resolveNodeInspectorStyle(
-        layout.width,
-        selectedLayoutNode.x,
-        selectedLayoutNode.y,
-        selectedLayoutNode.width,
-        zoom,
-      )
-    : undefined;
-  const selectedEdgeInspectorStyle = selectedLayoutEdge
-    ? resolveNodeInspectorStyle(
-        layout.width,
-        selectedLayoutEdge.x,
-        selectedLayoutEdge.y,
-        0,
-        zoom,
-      )
-    : undefined;
+  const edgeEndpoints = selectedLayoutEdge
+    ? layout.nodes.filter((node) => node.node.id === selectedLayoutEdge.sourceId
+      || node.node.id === selectedLayoutEdge.targetId)
+    : [];
+  const edgeBounds = edgeEndpoints.length > 0 ? {
+    left: Math.min(...edgeEndpoints.map((node) => node.x - node.width / 2)),
+    right: Math.max(...edgeEndpoints.map((node) => node.x + node.width / 2)),
+    top: Math.min(...edgeEndpoints.map((node) => node.y - node.height / 2)),
+    bottom: Math.max(...edgeEndpoints.map((node) => node.y + node.height / 2)),
+  } : null;
+  const inspectorAnchor = selectedLayoutNode ?? (edgeBounds ? {
+    x: (edgeBounds.left + edgeBounds.right) / 2,
+    y: (edgeBounds.top + edgeBounds.bottom) / 2,
+    width: edgeBounds.right - edgeBounds.left,
+    height: edgeBounds.bottom - edgeBounds.top,
+  } : null);
+  const inspectorStyle: CSSProperties | undefined = inspectorAnchor ? (() => {
+    const placement = resolveExecutionGraphInspectorPlacement({
+      anchorX: panPaddingX + inspectorAnchor.x * zoom - viewportScroll.left,
+      anchorY: panPaddingY + inspectorAnchor.y * zoom - viewportScroll.top,
+      anchorWidth: inspectorAnchor.width * zoom,
+      anchorHeight: inspectorAnchor.height * zoom,
+      viewportWidth: viewportSize.width || layout.width,
+      viewportHeight: viewportSize.height || 448,
+    });
+    return {
+      ...placement,
+      left: (placement.left + viewportScroll.left - panPaddingX) / zoom,
+      top: (placement.top + viewportScroll.top - panPaddingY) / zoom,
+      transform: `scale(${1 / zoom})`,
+      transformOrigin: "top left",
+    };
+  })() : undefined;
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewport && (selectedId || selectedEdgeId)) {
+      setViewportScroll({ left: viewport.scrollLeft, top: viewport.scrollTop });
+    }
+  }, [selectedId, selectedEdgeId]);
 
   useEffect(() => {
     if (
@@ -451,6 +473,7 @@ export function ExecutionWorkGraphCanvas({
       viewport.scrollTop = initialScroll.top;
     }
     panPaddingRef.current = { x: panPaddingX, y: panPaddingY };
+    setViewportScroll({ left: viewport.scrollLeft, top: viewport.scrollTop });
   }, [
     layout.height,
     layout.width,
@@ -838,7 +861,7 @@ export function ExecutionWorkGraphCanvas({
   return (
     <Fragment>
       <div
-        className="relative flex min-h-0 flex-1 overflow-hidden"
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
         data-execution-node-map
       >
       <ExecutionWorkGraphControls
@@ -850,7 +873,8 @@ export function ExecutionWorkGraphCanvas({
         onFit={fitGraph}
         onLocateCurrent={() => revealNode(currentId)}
         onNextResult={() => navigateSearch(1)}
-        onOpenExpanded={expandedMode ? undefined : () => setExpandedOpen(true)}
+        onOpenExpanded={onCloseExpanded ? undefined : () => setExpandedOpen(true)}
+        onCloseExpanded={onCloseExpanded}
         onPreviousResult={() => navigateSearch(-1)}
         onQueryChange={setQuery}
         onResetZoom={() => requestZoomAtViewportCenter(1)}
@@ -913,6 +937,12 @@ export function ExecutionWorkGraphCanvas({
         onPointerUp={finishPan}
         onKeyDown={handleGraphKeyDown}
         onKeyUp={handleGraphKeyUp}
+        onScroll={(event) => {
+          if (selectedId || selectedEdgeId) {
+            const viewport = event.currentTarget;
+            setViewportScroll({ left: viewport.scrollLeft, top: viewport.scrollTop });
+          }
+        }}
         onTouchCancel={finishPinch}
         onTouchEnd={finishPinch}
         onTouchMove={handlePinchMove}
@@ -940,8 +970,8 @@ export function ExecutionWorkGraphCanvas({
         }}
         role="application"
         style={{
-          backgroundImage: "linear-gradient(to right, color-mix(in srgb, var(--divider-subtle-color) 58%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--divider-subtle-color) 58%, transparent) 1px, transparent 1px)",
-          backgroundPosition: "-1px -1px",
+          backgroundImage: "radial-gradient(circle, var(--divider-subtle-color) 0.8px, transparent 0.8px)",
+          backgroundPosition: "12px 12px",
           backgroundSize: "24px 24px",
           touchAction: "pan-x pan-y",
         }}
@@ -1032,11 +1062,11 @@ export function ExecutionWorkGraphCanvas({
               >
                 <path
                   d="M 0 0 L 5 2.5 L 0 5 z"
-                  fill="color-mix(in srgb, var(--warning) 62%, var(--icon-muted))"
+                  fill={CONTROL_EDGE_COLOR}
                 />
               </marker>
               <marker
-                id={retryMarkerId}
+                id={focusedMarkerId}
                 markerHeight="5"
                 markerUnits="strokeWidth"
                 markerWidth="5"
@@ -1075,11 +1105,9 @@ export function ExecutionWorkGraphCanvas({
               const hovered = edge.id === hoveredEdgeId;
               const traced = tracedEdgeIds.has(edge.id);
               const dimmed = traceActive && !traced;
-              const connected = edge.sourceId === selectedId
-                || edge.targetId === selectedId
-                || edge.targetId === currentId;
               const control = edge.kind === "loop_back" || edge.kind === "retry";
               const paired = edge.paired;
+              const emphasized = selected || hovered || (traceActive && traced);
               return (
                 <Fragment key={edge.id}>
                   {traceActive && traced && edge.sourceTailPath ? (
@@ -1126,42 +1154,13 @@ export function ExecutionWorkGraphCanvas({
                       ? "true"
                       : undefined}
                     fill="none"
-                    markerEnd={`url(#${edge.kind === "loop_back"
-                      ? loopMarkerId
-                      : edge.kind === "retry"
-                      ? retryMarkerId
-                      : markerId})`}
-                    opacity={dimmed
-                      ? control ? 0.14 : 0.1
-                      : selected || hovered
-                      ? 0.98
-                      : traceActive && traced
-                      ? control ? 0.88 : 0.82
-                      : control
-                      ? paired
-                        ? connected ? 0.76 : 0.66
-                        : connected ? 0.72 : 0.58
-                      : paired
-                      ? connected ? 0.72 : 0.6
-                      : connected ? 0.66 : 0.48}
-                    stroke={edge.kind === "loop_back"
-                      ? "color-mix(in srgb, var(--warning) 62%, var(--icon-muted))"
-                      : edge.kind === "retry" || selected || hovered || (traceActive && traced)
-                      ? "var(--primary)"
-                      : "var(--icon-muted)"}
-                    strokeDasharray={!paired
-                      && (edge.kind === "spawn" || edge.kind === "invoke")
-                      ? "3 5"
-                      : undefined}
+                    markerEnd={`url(#${emphasized ? focusedMarkerId : control ? loopMarkerId : markerId})`}
+                    opacity={dimmed ? 0.12 : emphasized ? 1 : control ? 0.78 : 0.62}
+                    stroke={emphasized ? "var(--primary)" : control ? CONTROL_EDGE_COLOR : "var(--icon-muted)"}
+                    strokeDasharray={edge.kind === "retry" ? "4 3" : undefined}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={selected || hovered
-                      ? 1.7
-                      : traceActive && traced
-                      ? 1.4
-                      : control
-                      ? 1.15
-                      : 1.1}
+                    strokeWidth={selected || hovered ? 1.7 : 1.25}
                     style={{ transition: "opacity 150ms ease, stroke 150ms ease" }}
                   />
                   <path
@@ -1208,7 +1207,7 @@ export function ExecutionWorkGraphCanvas({
           </svg>
 
           {layout.edges.map((edge) => (
-            <UiTooltip label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`} key={`edge-control:${edge.id}`}><button
+            <UiTooltip label={edge.id === selectedEdgeId ? null : `${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`} key={`edge-control:${edge.id}`}><button
               aria-label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
               className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary) focus-visible:ring-offset-1"
               data-execution-edge-hit-kind={edge.kind}
@@ -1258,7 +1257,7 @@ export function ExecutionWorkGraphCanvas({
             const collapsed = collapsedNodeIds.has(node.id);
             return (
               <Fragment key={node.id}>
-              <UiTooltip label={title}><button
+              <UiTooltip label={selected ? null : title}><button
                 aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
                 className={cn(
@@ -1389,7 +1388,7 @@ export function ExecutionWorkGraphCanvas({
               </Fragment>
             );
           })}
-          {selectedLayoutNode && selectedInspectorStyle ? (
+          {selectedLayoutNode && inspectorStyle ? (
             <ExecutionNodeInspector
               attempt={selectedAttempt}
               directory={directory}
@@ -1398,24 +1397,43 @@ export function ExecutionWorkGraphCanvas({
               node={selectedLayoutNode.node}
               onClose={() => setSelectedId(null)}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
-              style={selectedInspectorStyle}
+              style={inspectorStyle}
               taskRun={selectedTaskRun}
             />
           ) : null}
-          {selectedLayoutEdge && selectedEdgeInspectorStyle ? (
+          {selectedLayoutEdge && inspectorStyle ? (
             <ExecutionEdgeInspector
               edge={selectedLayoutEdge.edge}
               execution={execution}
               onClose={() => setSelectedEdgeId(null)}
-              style={selectedEdgeInspectorStyle}
+              style={inspectorStyle}
             />
           ) : null}
         </div>
       </div>
       {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
         </div>
+        {layout.edges.some((edge) => edge.kind === "retry" || edge.kind === "loop_back") ? (
+          <div
+            aria-label={t("execution.graph_legend")}
+            className={cn("flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 px-3 py-2", getUiTypographyClassName({ role: "caption", tone: "soft" }))}
+            data-execution-edge-legend
+            role="group"
+          >
+            {(["flow", "retry", "loop_back"] as const).map((kind) => (
+              <span className="inline-flex items-center gap-1.5" key={kind}>
+                <svg aria-hidden="true" height="12" viewBox="0 0 24 12" width="24">
+                  <path d={kind === "loop_back" ? "M 3 10 L 3 4 L 21 4 M 18 1 L 21 4 L 18 7" : "M 2 6 L 21 6 M 18 3 L 21 6 L 18 9"}
+                    fill="none" stroke={kind === "flow" ? "var(--icon-muted)" : CONTROL_EDGE_COLOR}
+                    strokeDasharray={kind === "retry" ? "4 3" : undefined} strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.25" />
+                </svg>
+                {t(kind === "flow" ? "execution.edge_flow" : kind === "retry" ? "execution.edge_retry_short" : "execution.edge_loop_back_short")}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
-      {!expandedMode && expandedOpen ? (
+      {!onCloseExpanded && expandedOpen ? (
         <ExecutionWorkGraphExpandedDialog
           currentId={currentId}
           directory={directory}
@@ -1438,7 +1456,7 @@ function ExecutionWorkGraphExpandedDialog({
   onClose,
   onOpenWorkspaceFile,
   taskRuns,
-}: Omit<ExecutionWorkGraphCanvasProps, "expandedMode"> & {
+}: Omit<ExecutionWorkGraphCanvasProps, "onCloseExpanded"> & {
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -1460,16 +1478,12 @@ function ExecutionWorkGraphExpandedDialog({
           <h2 className="sr-only" id={titleId}>
             {t("execution.label")}
           </h2>
-          <UiDialogCloseButton
-            className="absolute right-3 top-3 z-50 border border-(--surface-control-border) bg-(--surface-panel-background) shadow-(--surface-control-shadow)"
-            onClose={onClose}
-          />
           <UiDialogBody className="flex min-h-0 flex-1 overflow-hidden bg-(--surface-canvas-background) p-0">
             <ExecutionWorkGraphCanvas
               currentId={currentId}
               directory={directory}
               execution={execution}
-              expandedMode
+              onCloseExpanded={onClose}
               nodePresentation={nodePresentation}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
               taskRuns={taskRuns}
@@ -1879,42 +1893,6 @@ function ExecutionNodeRunList({
       ) : null}
     </NodeDetailSection>
   );
-}
-
-function resolveNodeInspectorStyle(
-  canvasWidth: number,
-  x: number,
-  y: number,
-  nodeSize: number,
-  zoom: number,
-): CSSProperties {
-  const safeZoom = clampExecutionGraphZoom(zoom);
-  const visualWidth = Math.min(
-    NODE_INSPECTOR_WIDTH,
-    Math.max(
-      240,
-      canvasWidth * safeZoom - NODE_INSPECTOR_EDGE_PADDING * 2,
-    ),
-  );
-  const localWidth = visualWidth / safeZoom;
-  const localGap = NODE_INSPECTOR_GAP / safeZoom;
-  const localEdgePadding = NODE_INSPECTOR_EDGE_PADDING / safeZoom;
-  const right = x + nodeSize / 2 + localGap;
-  const fitsRight = right + localWidth
-    <= canvasWidth - localEdgePadding;
-  const left = fitsRight
-    ? right
-    : Math.max(
-        localEdgePadding,
-        x - nodeSize / 2 - localGap - localWidth,
-      );
-  return {
-    left,
-    top: Math.max(localEdgePadding, y - 32 / safeZoom),
-    transform: `scale(${1 / safeZoom})`,
-    transformOrigin: "top left",
-    width: visualWidth,
-  };
 }
 
 function formatEdgeObservedAt(value: string): string {

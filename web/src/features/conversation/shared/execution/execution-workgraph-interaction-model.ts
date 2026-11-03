@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 与用户本地的折叠、搜索、平移、缩放及焦点意图。
- * OUTPUT: 可隐藏节点、祖先路径、完整上下游聚焦路径、子图整体及其直接边界关系聚焦、全文检索结果、有界 viewport 比例、首次居中锚点、对称平移留白与焦点稳定的缩放滚动位置。
+ * OUTPUT: 可隐藏节点、祖先路径、完整上下游聚焦路径、子图整体及其直接边界关系聚焦、全文检索结果、有界 viewport 比例、首次居中锚点、对称平移留白、焦点稳定的缩放滚动位置与有界详情浮层位置。
  * POS: WorkGraph 画布的纯交互模型；不改变后端拓扑、节点状态或 Agent 路线。
  */
 import type {
@@ -39,6 +39,55 @@ export interface ExecutionGraphTraceEdge {
 export interface ExecutionGraphTrace {
   edgeIds: Set<string>;
   nodeIds: Set<string>;
+}
+
+// All inputs and outputs are viewport pixels. The canvas alone converts the
+// placement back into scaled graph coordinates; inspector text stays 1:1.
+export function resolveExecutionGraphInspectorPlacement({
+  anchorX, anchorY, anchorWidth, anchorHeight, viewportWidth, viewportHeight,
+}: {
+  anchorX: number;
+  anchorY: number;
+  anchorWidth: number;
+  anchorHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}): { left: number; top: number; width: number; maxHeight: number } {
+  const padding = 8;
+  const gap = 12;
+  const width = Math.min(304, Math.max(0, viewportWidth - padding * 2));
+  const height = Math.max(0, viewportHeight - padding * 2);
+  const x = Math.max(padding, Math.min(viewportWidth - padding, anchorX));
+  const y = Math.max(padding, Math.min(viewportHeight - padding, anchorY));
+  const right = x + anchorWidth / 2 + gap;
+  const left = x - anchorWidth / 2 - gap - width;
+  if (right + width <= viewportWidth - padding || left >= padding) {
+    const maxHeight = Math.min(448, height);
+    return {
+      left: right + width <= viewportWidth - padding ? right : left,
+      top: Math.max(padding, Math.min(viewportHeight - padding - maxHeight, y - 32)),
+      width,
+      maxHeight,
+    };
+  }
+  // A narrow panel has no side corridor. Stack on the roomier side of the
+  // selected node, preserving its hit target and scrolling details internally.
+  const above = Math.max(0, y - anchorHeight / 2 - gap - padding);
+  const belowTop = y + anchorHeight / 2 + gap;
+  const below = Math.max(0, viewportHeight - padding - belowTop);
+  // A selected long edge may span most of the viewport. Keep its details
+  // usable even when neither side can fit a reading area.
+  if (Math.max(above, below) < Math.min(64, height)) {
+    const maxHeight = Math.min(336, height);
+    return { left: viewportWidth - padding - width, top: viewportHeight - padding - maxHeight, width, maxHeight };
+  }
+  const maxHeight = Math.min(448, Math.max(above, below), height);
+  return {
+    left: Math.max(padding, Math.min(viewportWidth - padding - width, x - width / 2)),
+    top: below >= above ? belowTop : y - anchorHeight / 2 - gap - maxHeight,
+    width,
+    maxHeight,
+  };
 }
 
 export function projectExecutionGraphCollapse(

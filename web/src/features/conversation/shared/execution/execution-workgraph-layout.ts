@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度、节点展示密度与纯 UI 隐藏节点集合。
- * OUTPUT: 主责任图自上而下展开；节点图标与摘要卡片共享矩形避让和固定端口；稳定交叉最小化只在确实减少交叉时调整主层顺序；子图内部普通边按层间走廊分配轨道，跨子图边改从边框代理端口连接、把所有子图安全外扩区作为硬障碍并保留按需展示的精确节点短引线；所有箭头按最终接近方向对准目标边并保留可见间距；真正成环的控制回连继续在所属子图框内避让节点并合流到共享 U 形正交总线。
+ * OUTPUT: 主责任图自上而下展开；节点图标与摘要卡片共享矩形避让和固定端口；稳定交叉最小化只在确实减少交叉时调整主层顺序；子图内部普通边按层间走廊分配轨道，跨子图边改从边框代理端口连接、把所有子图安全外扩区作为硬障碍并保留按需展示的精确节点短引线；所有箭头按最终接近方向对准目标边并保留可见间距；同层相邻重试使用短侧连线，跨节点重试走层间走廊；回连在最近层间走廊接入分组侧轨并进入目标侧口，避免与前向箭头相向重叠。
  * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的树形几何投影；每个画布可复用单份拓扑几何，运行事实始终绑定最新快照。
  */
 import type {
@@ -23,7 +23,7 @@ const SUMMARY_NODE_HEIGHT = 64;
 const MAIN_VERTICAL_GAP = 72;
 const PREFERRED_MAIN_LAYER_HORIZONTAL_GAP = 36;
 const MIN_MAIN_LAYER_HORIZONTAL_GAP = 24;
-const NESTED_NODE_HORIZONTAL_GAP = 16;
+const NESTED_NODE_HORIZONTAL_GAP = 28;
 const NESTED_SUBGRAPH_HORIZONTAL_GAP = 40;
 const NESTED_LAYER_VERTICAL_GAP = 46;
 const PROCESS_EDGE_LANE_GAP = 7;
@@ -150,7 +150,6 @@ interface ExecutionControlRouteContext {
 interface ExecutionControlRouteCandidate {
   lane: number;
   path: string;
-  portOffset: number;
   segments: ExecutionGraphPathSegment[];
   side: -1 | 1;
 }
@@ -451,7 +450,7 @@ export function buildExecutionGraphLayout(
     if (sourceRoot !== targetRoot) {
       const sourcePort = boundaryPorts.sourcePortByEdgeId.get(edge.id) ?? null;
       const targetPort = boundaryPorts.targetPortByEdgeId.get(edge.id) ?? null;
-      const sides = executionGraphBoundaryPortSides(source, target);
+      const sides = executionGraphBoundaryPortSides(source, target, edge.kind);
       const sourcePoint = sourcePort
         ?? executionGraphNodeSideAnchor(source, sides.source);
       const targetPoint = targetPort
@@ -481,9 +480,9 @@ export function buildExecutionGraphLayout(
         sides,
       );
     } else {
-      path = buildControlEdgePath(source, target, edge.kind, {
+      path = buildControlEdgePath(source, target, {
         group: sharedGroup,
-        nodes,
+        nodes: nodes.filter((node) => rootByNodeId.get(node.node.id) === sourceRoot),
       });
     }
     edgePathById.set(edge.id, path);
@@ -925,7 +924,7 @@ function buildExecutionGraphBoundaryPorts(
     if (sourceRoot === targetRoot) {
       continue;
     }
-    const sides = executionGraphBoundaryPortSides(source, target);
+    const sides = executionGraphBoundaryPortSides(source, target, edge.kind);
     const sourceGroup = groupById.get(sourceRoot);
     if (sourceGroup) {
       requests.push(executionGraphBoundaryPortRequest(
@@ -994,10 +993,17 @@ function buildExecutionGraphBoundaryPorts(
 function executionGraphBoundaryPortSides(
   source: ExecutionGraphNodeLayout,
   target: ExecutionGraphNodeLayout,
+  kind: ExecutionGraphEdgeKind,
 ): {
   source: "bottom" | "left" | "right" | "top";
   target: "bottom" | "left" | "right" | "top";
 } {
+  // Returning control uses side ports, separate from the downward process
+  // anchors. A retry into a new later Attempt still follows the forward flow.
+  if (isExecutionControlEdge(kind) && target.y < source.y - 1) {
+    const side = source.x < target.x ? "left" : "right";
+    return { source: side, target: side };
+  }
   if (target.y > source.y + 1) {
     return { source: "bottom", target: "top" };
   }
@@ -1481,7 +1487,7 @@ function buildProcessEdgeRoutes(
     const sourceRoot = rootByNodeId.get(source.node.id) ?? source.node.id;
     const targetRoot = rootByNodeId.get(target.node.id) ?? target.node.id;
     if (sourceRoot !== targetRoot) {
-      const sides = executionGraphBoundaryPortSides(source, target);
+      const sides = executionGraphBoundaryPortSides(source, target, edge.kind);
       const sourcePoint = sourcePort
         ?? executionGraphNodeSideAnchor(source, sides.source);
       const targetPoint = targetPort
@@ -2104,23 +2110,31 @@ function buildProcessLaneEdgePath(
 function buildControlEdgePath(
   source: ExecutionGraphNodeLayout,
   target: ExecutionGraphNodeLayout,
-  kind: ExecutionGraphEdgeKind,
   context: ExecutionControlRouteContext,
 ): string {
-  if (Math.abs(source.y - target.y) < 1) {
+  if (source.node.id !== target.node.id && Math.abs(source.y - target.y) < 1) {
+    const side = source.x < target.x ? 1 : -1;
+    const direct = `M ${source.x + side * source.width / 2} ${source.y} L ${target.x - side * (target.width / 2 + EDGE_TARGET_CLEARANCE)} ${target.y}`;
+    // Adjacent immutable runs are a progression, not a return to the owner.
+    // Only use the short side link when it cannot pass through another run.
+    if (executionControlPathIsClear(direct, source, target, context)) {
+      return direct;
+    }
     return selectExecutionControlRoute(
       Array.from(
         { length: CONTROL_EDGE_ROUTE_LANE_COUNT },
-        (_, lane) => buildSiblingControlEdgeCandidate(
-          source,
-          target,
-          lane + (kind === "retry" ? 1 : 0),
-        ),
+        (_, lane) => buildSiblingControlEdgeCandidate(source, target, lane),
       ),
       source,
       target,
       context,
     ).path;
+  }
+  if (target.y > source.y) {
+    const forward = buildMainEdgePath(source, target);
+    if (executionControlPathIsClear(forward, source, target, context)) {
+      return forward;
+    }
   }
   return selectExecutionControlRoute(
     buildSideControlEdgeCandidates(source, target, context),
@@ -2130,33 +2144,35 @@ function buildControlEdgePath(
   ).path;
 }
 
-// 子节点先沿正常流程方向离开当前节点层，再从层外的水平轨道接入左右
-// 侧轨，最后回到目标节点的正常流程中心锚点。子图内的左右侧轨与底部总线固定内缩到
-// 圆角框的安全槽中，避免线条贴住边框或圆角。同一子图、目标与侧面的回连
-// 允许选择完全相同的 U 形总线，仅保留各源节点自己的接入竖线；路由只把
-// 节点碰撞视为硬约束，不再为了躲避其他线条制造大量平行轨道。
+function executionControlPathIsClear(
+  path: string,
+  source: ExecutionGraphNodeLayout,
+  target: ExecutionGraphNodeLayout,
+  context: ExecutionControlRouteContext,
+): boolean {
+  return executionGraphPathSegments(path).every((segment) => context.nodes.every((node) => (
+    node.node.id === source.node.id
+    || node.node.id === target.node.id
+    || executionGraphSegmentNodeOverlap(segment, node) === 0
+  )));
+}
+
+// Leave the source row into its nearest clear corridor, then join a stable side
+// rail. Returning through the target's side keeps opposing arrows off the
+// process port. Same-target returns may share the rail without merging facts.
 function buildSideControlEdgeCandidates(
   source: ExecutionGraphNodeLayout,
   target: ExecutionGraphNodeLayout,
   context: ExecutionControlRouteContext,
 ): ExecutionControlRouteCandidate[] {
-  const returnsUpward = source.y > target.y;
-  const sourceY = source.y
-    + (returnsUpward ? source.height / 2 : -source.height / 2);
-  const targetY = target.y
-    + (returnsUpward ? 1 : -1)
-      * (target.height / 2 + EDGE_TARGET_CLEARANCE);
-  const sourceLayerBoundary = executionControlSourceLayerBoundary(
-    source,
-    context.nodes,
-    returnsUpward,
-  );
+  const sourceY = source.y + source.height / 2;
+  const sourceLayerBoundary = executionControlSourceLayerBoundary(source, context.nodes);
   const preferredSide: -1 | 1 = source.x < target.x ? -1 : 1;
   const sides: Array<-1 | 1> = [preferredSide, preferredSide === -1 ? 1 : -1];
   const result: ExecutionControlRouteCandidate[] = [];
   for (const side of sides) {
-    const targetX = target.x + side * target.width / 2;
-    const baseRailX = context.group
+    const targetX = target.x + side * (target.width / 2 + EDGE_TARGET_CLEARANCE);
+    const railX = context.group
       ? side < 0
         ? context.group.x + CONTROL_EDGE_FRAME_SAFE_GAP
         : context.group.x + context.group.width - CONTROL_EDGE_FRAME_SAFE_GAP
@@ -2164,38 +2180,33 @@ function buildSideControlEdgeCandidates(
         ? Math.min(source.x - source.width / 2, targetX) - CONTROL_EDGE_GUTTER
         : Math.max(source.x + source.width / 2, targetX) + CONTROL_EDGE_GUTTER;
     for (let lane = 0; lane < CONTROL_EDGE_ROUTE_LANE_COUNT; lane += 1) {
-      const railX = context.group
-        ? baseRailX - side * lane * CONTROL_EDGE_KIND_LANE_GAP
-        : baseRailX + side * lane * CONTROL_EDGE_KIND_LANE_GAP;
-      const outerY = context.group
-        ? returnsUpward
-          ? context.group.y + context.group.height
-            - CONTROL_EDGE_FRAME_SAFE_GAP
-            - lane * CONTROL_EDGE_KIND_LANE_GAP
-          : context.group.y
-            + CONTROL_EDGE_FRAME_SAFE_GAP
-            + lane * CONTROL_EDGE_KIND_LANE_GAP
-        : sourceLayerBoundary
-          + (returnsUpward ? 1 : -1)
-            * (CONTROL_EDGE_GUTTER + lane * CONTROL_EDGE_KIND_LANE_GAP);
-      const approachY = targetY
-        + (returnsUpward ? 1 : -1)
-          * (CONTROL_EDGE_GUTTER + lane * CONTROL_EDGE_KIND_LANE_GAP / 2);
-      const path = [
-        `M ${source.x} ${sourceY}`,
-        `L ${source.x} ${outerY}`,
-        `L ${railX} ${outerY}`,
-        `L ${railX} ${approachY}`,
-        `L ${target.x} ${approachY}`,
-        `L ${target.x} ${targetY}`,
-      ].join(" ");
-      result.push({
-        lane,
-        path,
-        portOffset: 0,
-        segments: executionGraphPathSegments(path),
-        side,
-      });
+      const outerY = sourceLayerBoundary + CONTROL_EDGE_GUTTER
+        + lane * CONTROL_EDGE_KIND_LANE_GAP;
+      const approachY = target.y + target.height / 2 + CONTROL_EDGE_GUTTER;
+      // The direct approach works for the outermost target in its row. A short
+      // dogleg is available for nested targets with siblings on both sides.
+      for (const dogleg of [false, true]) {
+        const points = [
+          { x: source.x, y: sourceY },
+          { x: source.x, y: outerY },
+          { x: railX, y: outerY },
+          ...(dogleg ? [
+            { x: railX, y: approachY },
+            { x: targetX + side * 4, y: approachY },
+            { x: targetX + side * 4, y: target.y },
+          ] : [{ x: railX, y: target.y }]),
+          { x: targetX, y: target.y },
+        ];
+        const path = compactExecutionGraphRoutePoints(points).map((point, index) => (
+          `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`
+        )).join(" ");
+        result.push({
+          lane,
+          path,
+          segments: executionGraphPathSegments(path),
+          side,
+        });
+      }
     }
   }
   return result;
@@ -2204,7 +2215,6 @@ function buildSideControlEdgeCandidates(
 function executionControlSourceLayerBoundary(
   source: ExecutionGraphNodeLayout,
   nodes: ExecutionGraphNodeLayout[],
-  returnsUpward: boolean,
 ): number {
   const sourceTop = source.y - source.height / 2;
   const sourceBottom = source.y + source.height / 2;
@@ -2212,9 +2222,7 @@ function executionControlSourceLayerBoundary(
     node.y - node.height / 2 < sourceBottom + 1
       && node.y + node.height / 2 > sourceTop - 1
   ));
-  return returnsUpward
-    ? Math.max(...peers.map((node) => node.y + node.height / 2))
-    : Math.min(...peers.map((node) => node.y - node.height / 2));
+  return Math.max(...peers.map((node) => node.y + node.height / 2));
 }
 
 function buildSiblingControlEdgeCandidate(
@@ -2224,8 +2232,8 @@ function buildSiblingControlEdgeCandidate(
 ): ExecutionControlRouteCandidate {
   const sourceY = source.y + source.height / 2;
   const targetY = target.y + target.height / 2 + EDGE_TARGET_CLEARANCE;
-  const railY = Math.max(sourceY, targetY)
-    + CONTROL_EDGE_GUTTER
+  const railY = Math.max(sourceY, target.y + target.height / 2)
+    + CONTROL_EDGE_GUTTER - EDGE_TARGET_CLEARANCE
     + lane * CONTROL_EDGE_KIND_LANE_GAP;
   const path = [
     `M ${source.x} ${sourceY}`,
@@ -2236,7 +2244,6 @@ function buildSiblingControlEdgeCandidate(
   return {
     lane,
     path,
-    portOffset: 0,
     segments: executionGraphPathSegments(path),
     side: source.x <= target.x ? -1 : 1,
   };
@@ -2276,9 +2283,24 @@ function executionControlRouteScore(
   preferredSide: -1 | 1,
 ): number {
   let score = candidate.lane * 2
-    + Math.abs(candidate.portOffset) * 0.35
     + (candidate.side === preferredSide ? 0 : 20)
-    + executionGraphPathLength(candidate.segments) * 0.02;
+    + executionGraphPathLength(candidate.segments) * 0.02
+    + candidate.segments.length;
+  if (context.group) {
+    const { x, y, width, height } = context.group;
+    for (const segment of candidate.segments) {
+      const outside = segment.axis === "horizontal"
+        ? segment.fixed < y + CONTROL_EDGE_FRAME_SAFE_GAP
+          || segment.fixed > y + height - CONTROL_EDGE_FRAME_SAFE_GAP
+          || segment.start < x + CONTROL_EDGE_FRAME_SAFE_GAP
+          || segment.end > x + width - CONTROL_EDGE_FRAME_SAFE_GAP
+        : segment.fixed < x + CONTROL_EDGE_FRAME_SAFE_GAP
+          || segment.fixed > x + width - CONTROL_EDGE_FRAME_SAFE_GAP
+          || segment.start < y + CONTROL_EDGE_FRAME_SAFE_GAP
+          || segment.end > y + height - CONTROL_EDGE_FRAME_SAFE_GAP;
+      if (outside) score += 1_000_000;
+    }
+  }
   for (const segment of candidate.segments) {
     for (const node of context.nodes) {
       if (node.node.id === source.node.id || node.node.id === target.node.id) {
