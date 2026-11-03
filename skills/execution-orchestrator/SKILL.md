@@ -11,7 +11,7 @@ Execution 管理当前责任交付；Goal 管理跨轮目标。按需独立选�
 
 1. substantial execution 前先判断直接执行、局部 Task、Subagent、WorkGraph、Room Assignment、Gate/Loop 或 Goal 中哪些结构真的降低风险；简单原子任务直接完成。
    子任务使用 `nexus.command/subagent`，按下方参考操作；不要求先创建工作图。
-2. 执行当前任务的责任图时，优先消费本轮已注入的 `nexus_execution_context` 或最新回执；它已给出 exact binding、lane 和 allowed_actions 时不重复 inspect。缺失上下文、提示 refresh_required，或 Room coordinator 需要显式进入 coordination 时，调用宿主提供的 `nexus.command`：
+2. 责任执行先复用本轮 `nexus_execution_context` 或最新回执的 exact binding、lane、allowed_actions，不重复 inspect。仅缺少上下文、提示 refresh_required，或 Room coordinator 需进入 coordination 时调用 `nexus.command`：
 
    ```json
    {"domain":"execution","action":"inspect"}
@@ -20,7 +20,7 @@ Execution 管理当前责任交付；Goal 管理跨轮目标。按需独立选�
    明确读取同一可信 scope 的历史图时才传 `input.execution_id`。
    inspect 不回放成功工具历史；恢复优先使用交付、验收与产物证据，避免重做。
    查询、提取、编辑、选择或保存模板草图则直接走 WorkGraph authoring 参考；这些操作不要求 active Execution，也不先运行 execution inspect。
-3. 执行图从 `data.execution_context` XML 的 `<allowed_actions>`、lane 和 binding 判断权限；模板草图使用 authoring 目录。mutation 优先复用本轮已返回或宿主指令内联的 exact operation input_schema；每次 mutation 不必再次查合同。只有 schema 缺失、上下文压缩后不可见或输入校验报告协议变化时才读取：
+3. 按 `data.execution_context` XML 的 `<allowed_actions>`、lane、binding 判断权限；草图使用 authoring 目录。复用本轮可见或宿主内联的 exact input_schema，仅缺失、压缩后不可见或校验报告协议变化时查询：
 
    ```json
    {"domain":"execution","action":"contract","operation":"<operation>"}
@@ -50,7 +50,6 @@ Execution 管理当前责任交付；Goal 管理跨轮目标。按需独立选�
 
 - 图 materialize 前不能 assign；持久责任先建 Work Item，再由最新 context 建 Assignment。裸 `@` 只用于讨论或一次性帮助。
 - observation 只授予读取共享图的可见性，不授予 coordination、WorkBinding、ReviewBinding、Submission 或 Plan mutation。
-- Goal+WorkGraph 创建必须串行：先由 `goal-manager` 创建 Goal 并取得 applied receipt，再用 `goal_binding=current` prepare Plan。已有 transient WorkGraph 后出现明确 Goal 意图时使用 `promote_execution_to_goal`，不创建第二张图。
-- required Work Item 的最终 accepted review 可以自动终止无 blocker Execution；确认绑定 Goal 时，再按 receipt 切到 Goal domain 执行 `audit_objective_alignment` 与 `update_goal`。`execution/audit_execution_alignment` 只是非终态 Execution 的可选 Gate，不能替代 Goal 审计。
-- `/workgraph` 只启用当前协作。模板查询、提取、编辑、版本选择与保存走 authoring 参考，已有 Draft 直接复用。修改后展示草图，不机械增加确认；保存须展示后的明确确认。UI 保存直接提交宿主事务，编辑结果不回传来源聊天。
+- Goal+WorkGraph 的创建顺序、绑定与跨域收口见恢复参考。最终 accepted review 可以自动终止无 blocker Execution；确认绑定 Goal 时还需 Goal 审计与完成，Execution Gate 不能替代。
+- `/workgraph` 只启用当前协作；草图操作按 authoring 参考，已有 Draft 直接复用。修改后展示草图，不机械增加确认；保存须展示后的明确确认。UI 保存直接提交宿主，不回传来源聊天。
 - mutation、分派和交付推进到真实结果、明确外部 blocker 或终态；不因 handoff 要求用户发送“继续”。

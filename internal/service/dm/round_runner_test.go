@@ -263,6 +263,7 @@ func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T)
 	}
 	sender := newDMTestSender("sender-external-im-title")
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	if err = service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,

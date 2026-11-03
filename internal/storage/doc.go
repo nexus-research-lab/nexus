@@ -8,6 +8,7 @@
 //   - time_value.go：统一解析 SQLite/PostgreSQL 聚合 deadline 返回的可空时间值。
 //   - room_lock.go：跨 repository 的 Room-first mutation 行锁协议。
 //   - integration_test.go / workgraph*_integration_test.go：临时 SQLite/PostgreSQL 的迁移、事务回滚、并发幂等与 Draft/历史读取验收；仅测试使用。
+//   - workgraph_read_benchmark_test.go：合成长历史读取基准与完整/窗口投影一致性回归；只使用临时数据库。
 //   - queueadmission/：保存不受 Agent workspace 控制、与精确队列 payload 和物理会话绑定的一次性直接用户配置 admission。
 //   - configuration/：仅供宿主读取的配置 revision 持久密钥，原子初始化且缺失/损坏不重新生成。
 //   - channelauthorization/：保存 owner-main 私有 DM 发起的 Channel 授权 flow、

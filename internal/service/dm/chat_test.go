@@ -446,6 +446,7 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 	sender := newDMTestSender("sender-parallel-tools")
 	sessionKey := "agent:nexus:ws:dm:parallel-tools"
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,

@@ -118,6 +118,7 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	sender := newDMTestSender("sender-interrupt-policy")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-policy"
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -228,6 +229,7 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 	sender := newDMTestSender("sender-reconnect")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-reconnect"
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,

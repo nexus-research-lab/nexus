@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- WorkGraph 长历史读取不再逐节点重扫控制边；按保留的目标节点分批读取连线，减少大图的读取耗时与分配，保留失败、恢复、产物和主图计数语义。
 - WorkGraph 历史目录改为摘要，选中后才读取完整图；普通对话不再触发历史工作图重读，状态刷新复用未变化的画布几何。
 - 旧 Subagent transcript 改为版本化、可重试的一次性回填，读取失败明确标记历史迁移待完成；长执行在 SQL 层裁剪普通成功详情，保留失败、恢复、控制关系和产物。
 - 工作图命令一次返回全部字段错误及准确 schema，Room 派发内联交付协议；Agent 失败记录脱敏错误摘要。

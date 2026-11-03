@@ -148,6 +148,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	sender := newDMTestSender("sender-guide")
 	sessionKey := "agent:nexus:ws:dm:test-guide"
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -339,6 +340,7 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 	sender := newDMTestSender("sender-ack-guidance")
 	sessionKey := "agent:nexus:ws:dm:test-ack-guidance"
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -592,6 +594,7 @@ func TestServiceGuidanceErrorResultFallsBackToNextTurn(t *testing.T) {
 	sender := newDMTestSender("sender-guide-error-fallback")
 	sessionKey := "agent:nexus:ws:dm:test-guide-error-fallback"
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,

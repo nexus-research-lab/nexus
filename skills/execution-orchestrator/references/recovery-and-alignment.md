@@ -1,6 +1,6 @@
 # 恢复、对齐与 Goal bridge
 
-只在调用 `block_work`、`resume_work`、`audit_execution_alignment`、`promote_execution_to_goal`，或处理入口错误、Execution/Goal 收口时读取本文件。Execution 字段与枚举以本轮已返回/内联的 exact contract 为准；缺失时再查询，Goal 仍按 goal-manager 协议。
+只在调用 `block_work`、`resume_work`、`audit_execution_alignment`、`promote_execution_to_goal`，或处理入口错误、Goal 绑定、Execution/Goal 收口时读取本文件。Execution 字段与枚举以本轮已返回/内联的 exact contract 为准；缺失时再查询，Goal 仍按 goal-manager 协议。
 
 ## 固定 inspect 入口与调用纠正
 
@@ -43,6 +43,10 @@ automation、外部 IM 和普通 internal round 仍然按各自 source policy �
 - 只用于 current、非 terminal Execution 的可选 Gate。逐条精确复制当前 completion criteria，按 contract 提交三态 decision、每项 status、证据或具体 gap，以及 aggregate summary。
 - satisfied 必须有可复查的 `{ref,claim}`；unsatisfied/inconclusive 写清缺失结果或证据。
 - 该 operation 不完成 Execution，也不是 Goal 完成证据。terminal Execution 拒绝此调用；不要因名称相近改用它替代 Goal audit。
+
+## Goal + WorkGraph 创建顺序
+
+需要同时创建时必须串行：先由 `goal-manager` 创建 Goal 并取得 applied receipt，再用 `goal_binding=current` prepare Plan。已有 transient WorkGraph 后出现明确 Goal 意图时使用 `promote_execution_to_goal`，不创建第二张图。
 
 ## promote_execution_to_goal
 

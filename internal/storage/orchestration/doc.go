@@ -20,7 +20,7 @@
 //   - background_deadline.go：三类 outbox、Subagent reconciliation 与三类 saga 的
 //     最早 durable deadline 聚合读面；只负责 timer 索引，不 claim 或改写业务状态。
 //   - subagent_reconciliation.go：child Attempt 的 parent-exit deadline 与上次进程未落 deadline orphan 对账。
-//   - runtime_graph*.go：Agent/Tool/Subagent/Gate NodeRun、EdgeRun 与 Artifact ref；详情 SQL 窗口与 insert-only 历史回填事务。
+//   - runtime_graph*.go：Agent/Tool/Subagent/Gate NodeRun、EdgeRun 与 Artifact ref；控制端点一次汇总、恢复索引查找、详情 SQL 窗口、保留目标节点的普通连线分批读取与 insert-only 历史回填事务。
 //   - execution_summary.go：managed 历史元信息与当前 Plan 节点数的批量目录查询。
 //   - query.go / scan.go / workgraph.go：Snapshot SQL 投影、跨同一 Execution 的 Plan revision 且与 Snapshot 同一 read transaction 的 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史，以及 managed WorkGraph 读取。
 //

@@ -337,7 +337,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"command 可以记录交付状态",
 			"用户有没有说“协作”",
 			"Coordinator 分派顺序与 lane 转移",
-			"command 必须串行",
+			"`assign_work_batch` 一次派发",
+			"不同批次或逐项 mutation 仍串行",
 			"不要要求用户发送“继续”",
 		},
 	}

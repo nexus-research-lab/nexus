@@ -447,6 +447,8 @@ func TestWorkGraphReadWindowsDetailWithoutLosingLatePromotions(t *testing.T) {
 		node.StartedAt, node.UpdatedAt = now.Add(time.Duration(i)*time.Second), now.Add(time.Duration(i)*time.Second)
 		if i < 4 {
 			node.RecoveryKey = "read-group"
+			// Equal event timestamps still select the latest successful run ID.
+			node.StartedAt = now
 		}
 		if i == 0 {
 			node.Status = protocol.ExecutionRuntimeNodeFailed

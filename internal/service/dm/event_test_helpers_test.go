@@ -113,6 +113,19 @@ func collectEventsUntil(
 	}
 }
 
+// A terminal event precedes the round's final metadata writes. Join session
+// teardown before TempDir cleanup instead of treating that event as worker exit.
+func cleanupDMRuntimeSession(t *testing.T, runtimeManager *runtimectx.Manager, sessionKey string) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := runtimeManager.CloseSession(ctx, sessionKey); err != nil {
+			t.Errorf("关闭 DM 测试 session 失败: %v", err)
+		}
+	})
+}
+
 func waitForDMRuntimeIdle(t *testing.T, runtimeManager *runtimectx.Manager, sessionKey string) {
 	t.Helper()
 	waitContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)

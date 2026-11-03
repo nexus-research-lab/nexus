@@ -250,6 +250,7 @@ func TestServiceHandleChatDoesNotPersistSDKSessionIDWithoutTranscript(t *testing
 	sender := newDMTestSender("sender-without-transcript")
 	sessionKey := "agent:nexus:ws:dm:without-transcript"
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -321,6 +322,7 @@ func TestServiceHandleChatPersistsSDKSessionIDInAuthenticatedOwnerRuntime(t *tes
 		"",
 	)
 	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
 	writeOwnerTranscriptFixture(t, ownerUserID, agentValue.WorkspacePath, client.sessionID, []map[string]any{
 		{

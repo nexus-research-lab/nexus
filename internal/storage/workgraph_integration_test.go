@@ -276,7 +276,7 @@ func integrationCommandMeta(suffix string) orchestrationrepo.CommandMeta {
 	return orchestrationrepo.CommandMeta{CommandID: "command-" + suffix, EventID: "event-" + suffix, ActorKind: protocol.ExecutionActorAgent, ActorID: "lead"}
 }
 
-func prepareIntegrationBatch(t *testing.T, repo *orchestrationrepo.Repository, suffix string) orchestrationrepo.AssignBatchCommand {
+func prepareIntegrationBatch(t testing.TB, repo *orchestrationrepo.Repository, suffix string) orchestrationrepo.AssignBatchCommand {
 	t.Helper()
 	execution := protocol.Execution{
 		ID: "execution-" + suffix, OwnerUserID: "workgraph-owner", SessionKey: "session-" + suffix,

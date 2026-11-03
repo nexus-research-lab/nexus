@@ -1,5 +1,5 @@
 // INPUT: provider-neutral Runtime NodeRun / EdgeRun 与 owner/session 查询边界。
-// OUTPUT: 幂等 upsert、物理 round 的单 Execution 绑定、内部观测用有界运行图，以及保留候选主图并裁剪普通详情的 WorkGraph 运行事实。
+// OUTPUT: 幂等 upsert、物理 round 的单 Execution 绑定、内部观测用有界运行图，以及裁剪普通详情和其普通连线、保留控制边的 WorkGraph 运行事实。
 // POS: Execution Orchestration Repository 中不参与 command CAS 的观测事实存储。
 package orchestration
 
@@ -489,6 +489,7 @@ ORDER BY updated_at DESC, started_at DESC, node_run_id DESC`,
 		graphIDs,
 		nodeIDs,
 		bounded,
+		workGraph,
 	)
 	if err != nil {
 		return protocol.ExecutionRuntimeGraph{}, err
@@ -553,6 +554,7 @@ func (r *Repository) listRuntimeGraphEdges(
 	graphIDs map[string]struct{},
 	nodeIDs map[string]struct{},
 	bounded bool,
+	selectedOnly bool,
 ) ([]protocol.ExecutionRuntimeEdgeRun, int, bool, error) {
 	ids := make([]string, 0, len(graphIDs))
 	for graphID := range graphIDs {
@@ -576,6 +578,7 @@ func (r *Repository) listRuntimeGraphEdges(
 				batchGraphIDs,
 				nodeIDs,
 				false,
+				selectedOnly,
 			)
 			if err != nil {
 				return nil, 0, false, err
@@ -583,12 +586,7 @@ func (r *Repository) listRuntimeGraphEdges(
 			result = append(result, batchEdges...)
 			total += batchTotal
 		}
-		slices.SortFunc(result, func(left, right protocol.ExecutionRuntimeEdgeRun) int {
-			if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
-				return order
-			}
-			return strings.Compare(left.ID, right.ID)
-		})
+		sortRuntimeGraphEdges(result)
 		return result, total, false, nil
 	}
 	placeholders := make([]string, len(ids))
@@ -626,6 +624,36 @@ WHERE owner_user_id = %s AND session_key = %s
 		strings.Join(placeholders, ", "),
 	)
 	edgeArgs := slices.Clone(args)
+	if selectedOnly && !bounded {
+		// Query exact targets in bounded batches; never bind an unbounded canvas
+		// candidate set twice or fetch every ordinary edge in a long history.
+		// The raw total above is unchanged. Service counts visible canvas edges
+		// only after projection; discarded detail targets are not truncation.
+		// Keep an absent source's durable edge: service may reanchor it to the
+		// target's exact parent/Work Item while preserving the original run ID.
+		// Control edges are independent: a loop can resolve its destination from
+		// the source's Work Item segment even when the stored target is outside scope.
+		const nodeBatchSize = 200
+		result, err := r.readRuntimeGraphEdges(ctx, query+" AND edge_kind IN ('retry', 'loop_back')", args)
+		if err != nil {
+			return nil, 0, false, err
+		}
+		for start := 0; start < len(selectedNodeIDs); start += nodeBatchSize {
+			batchArgs := slices.Clone(args)
+			var targetBinds []string
+			for _, id := range selectedNodeIDs[start:min(start+nodeBatchSize, len(selectedNodeIDs))] {
+				targetBinds = append(targetBinds, r.bind(len(batchArgs)+1))
+				batchArgs = append(batchArgs, id)
+			}
+			batch, err := r.readRuntimeGraphEdges(ctx, query+" AND edge_kind NOT IN ('retry', 'loop_back') AND target_node_run_id IN ("+strings.Join(targetBinds, ",")+")", batchArgs)
+			if err != nil {
+				return nil, 0, false, err
+			}
+			result = append(result, batch...)
+		}
+		sortRuntimeGraphEdges(result)
+		return result, total, false, nil
+	}
 	if bounded {
 		sourcePlaceholders := make([]string, len(selectedNodeIDs))
 		targetPlaceholders := make([]string, len(selectedNodeIDs))
@@ -648,9 +676,18 @@ WHERE owner_user_id = %s AND session_key = %s
 	if bounded {
 		query += fmt.Sprintf("\nLIMIT %d", protocol.ExecutionRuntimeGraphEdgeProjectionLimit)
 	}
-	rows, err := r.db.QueryContext(ctx, query, edgeArgs...)
+	result, err := r.readRuntimeGraphEdges(ctx, query, edgeArgs)
 	if err != nil {
 		return nil, 0, false, err
+	}
+	sortRuntimeGraphEdges(result)
+	return result, total, bounded && total > len(result), nil
+}
+
+func (r *Repository) readRuntimeGraphEdges(ctx context.Context, query string, args []any) ([]protocol.ExecutionRuntimeEdgeRun, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
 	}
 	defer rows.Close()
 	result := make([]protocol.ExecutionRuntimeEdgeRun, 0)
@@ -667,21 +704,24 @@ WHERE owner_user_id = %s AND session_key = %s
 			&kind,
 			&item.CreatedAt,
 		); err != nil {
-			return nil, 0, false, err
+			return nil, err
 		}
 		item.Kind = protocol.ExecutionRuntimeEdgeKind(kind)
 		result = append(result, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, false, err
+		return nil, err
 	}
+	return result, nil
+}
+
+func sortRuntimeGraphEdges(result []protocol.ExecutionRuntimeEdgeRun) {
 	slices.SortFunc(result, func(left, right protocol.ExecutionRuntimeEdgeRun) int {
 		if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
 			return order
 		}
 		return strings.Compare(left.ID, right.ID)
 	})
-	return result, total, bounded && total > len(result), nil
 }
 
 func scanRuntimeGraphNode(

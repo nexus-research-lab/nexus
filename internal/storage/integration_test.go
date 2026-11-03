@@ -39,7 +39,7 @@ func TestDatabaseIntegration(t *testing.T) {
 
 // A positive target freezes an old release; zero applies the current chain and
 // verifies that another startup has no migrations left to apply.
-func migrateIntegrationDatabase(t *testing.T, cfg config.Config, target int64) {
+func migrateIntegrationDatabase(t testing.TB, cfg config.Config, target int64) {
 	t.Helper()
 	db, err := storage.OpenMigrationDB(cfg)
 	if err != nil {
@@ -68,7 +68,7 @@ func migrateIntegrationDatabase(t *testing.T, cfg config.Config, target int64) {
 	}
 }
 
-func openIntegrationDatabase(t *testing.T, cfg config.Config) *sql.DB {
+func openIntegrationDatabase(t testing.TB, cfg config.Config) *sql.DB {
 	t.Helper()
 	db, err := storage.OpenDB(cfg)
 	if err != nil {
@@ -78,7 +78,7 @@ func openIntegrationDatabase(t *testing.T, cfg config.Config) *sql.DB {
 	return db
 }
 
-func integrationDatabase(t *testing.T, driver string) config.Config {
+func integrationDatabase(t testing.TB, driver string) config.Config {
 	t.Helper()
 	cfg := config.Config{DatabaseDriver: driver, DatabaseURL: filepath.Join(t.TempDir(), "integration.db")}
 	if driver == "sqlite" {

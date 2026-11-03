@@ -144,6 +144,7 @@ Task、Goal、Plan、Work Item、Message 和 Artifact 都不是 node kind。Task
 - 节点检查器使用独立的最近 256 条 `detail` 历史窗口；它不属于主图完整性承诺，不改变 `runtime_*_total`，也不触发 partial。
 - 完整 durable 事实始终保留在存储层。
 - 写入时保存保守的读取分类；SQL 只裁剪已证明是普通成功 detail 叶子的旧历史。失败/运行中节点、ownership 父节点、后到 Artifact、控制边端点及同直接 owner 下失败后的最后一次成功仍保留，最终可见性和主图精确 total 由 service 统一计算。候选主图仍完整读取，不以原始 NodeRun LIMIT 代替产品投影窗口。
+- 控制边端点在一次读图中统一汇总，避免对每个 detail 重扫连线历史；普通连线按保留的目标 NodeRun 分批读取。来源已裁剪但目标仍在的 durable 连线继续交给投影层按目标的 exact parent/Work Item 解释，不丢失原始 run identity。retry/loop_back 保留完整，loop_back 仍可依据来源的 exact Work Item segment 解释范围外目标。原始连线计数与主图 total 的定义不变。
 
 ## 5. ExecutionGraphView 只读模型
 

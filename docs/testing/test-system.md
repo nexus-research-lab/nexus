@@ -42,6 +42,34 @@ SQLite 专项用例都适用于 PostgreSQL；例如 SQLite PRAGMA 与历史编�
 使用冻结的 v0.2.5 合成数据快照，经真实启动迁移函数升级，校验数据与重复启动。
 来源和重建方法见 `cmd/nexus-server/testdata/README.md`。不读取已安装 App 的数据。
 
+### WorkGraph 长历史读取基准
+
+`TestWorkGraphReadProjectionIntegration` 在两种数据库上对比完整读取和 SQL 窗口读取的
+最终主图、详情窗口、原始连线身份、产物、可见 total 与 truncated。夹具包含真实 managed
+Plan 和 coordination lane，避免运行记录全部被可见性过滤后产生空图一致的假阳性。
+原始位置序号允许因裁剪出现间隔，但保留节点的相对顺序和其余字段必须一致。
+测试从已有运行记录的 161 数据库升级，覆盖索引创建、owner/session/graph 边界、来源被裁剪的
+普通连线及原始目标在读取范围外的控制边；重试和回环边不按普通详情目标裁剪。
+
+```sh
+go test ./internal/storage -run '^TestWorkGraphReadProjectionIntegration$' -count=1
+go test ./internal/storage -run '^$' -bench '^BenchmarkWorkGraphRuntimeRead$' -benchtime=3x -count=3 -timeout=15m
+```
+
+PostgreSQL 仍需上文的显式测试连接。首次调查可用 `-benchtime=1x -count=1`，再用 benchmark
+路径筛选数据库、`detail`/`mixed`、`1000`/`10000`/`50000` 和 `full`/`window`；不能把单次结果当稳定分布。
+每 100 条合成工具记录附带一个 Agent round，包含失败/最后成功、retry/loop_back、详情父子关系
+和后到产物；mixed 另增加可见动作和失败密度。工具结果正文固定，建库、迁移、准备语句批量写入、
+ANALYZE、一次预热、完整/窗口投影一致性检查及 JSON 大小计算均不计入 `ns/op`。
+
+测量的是数据库及 OS 缓存已预热的串行仓储读取，包含取消上下文、SQL、扫描/解析、排序和产物关联。
+`B/op`/`allocs/op` 是 Go 分配总量，不是峰值内存，也不包含数据库进程内存；`json-B/op` 是内部仓储
+结果序列化大小，不是 HTTP 响应或模型 token。`nodes/op`/`edges/op` 是返回事实数。
+单次读取超过 45 秒必须失败并记录超时，不能把取消时间当完成耗时。完整/窗口都运行时，每个规模
+都对比最终投影；仅筛选 window 时只测读取，投影验证使用独立集成测试。
+环境、样本数、原始输出及对照结论保留在本地或 CI artifact；不据此宣称冷启动、浏览器绘制、
+真实模型 token 或端到端耗时已改善。
+
 ## 命令调用诊断
 
 在隔离开发实例上设置 `LOG_FORMAT=json`，日志级别为 `info` 或 `debug`，从配置的 `LOG_PATH`
