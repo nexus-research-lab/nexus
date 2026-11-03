@@ -23,6 +23,19 @@ func (s *SessionFileStore) appendJSONLAt(rootPath string, path string, row map[s
 	return appendJSONLAtRoot(root, relative, row)
 }
 
+// appendJSONLAtSynced is appendJSONLAt with a flush to stable storage.
+func (s *SessionFileStore) appendJSONLAtSynced(rootPath string, path string, row map[string]any) error {
+	if ownerUserID := s.ownerUserID; ownerUserID != "" {
+		return s.appendOwnerWorkspaceJSONLSynced(ownerUserID, rootPath, path, row)
+	}
+	root, relative, err := relativeStorePath(rootPath, path)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return appendJSONLAtRootSynced(root, relative, row)
+}
+
 func appendJSONLAtRoot(root *confinedfs.Root, relative string, row map[string]any) error {
 	return appendJSONLAtRootWithMode(
 		root,
@@ -37,6 +50,23 @@ func appendJSONLAtRootWithMode(
 	relative string,
 	row map[string]any,
 	mode os.FileMode,
+) error {
+	return appendJSONLRow(root, relative, row, mode, false)
+}
+
+// appendJSONLAtRootSynced appends one row and flushes it to stable storage
+// before returning. It is reserved for small control journals (the input
+// queue) whose rows record dispatch claims and stop gates.
+func appendJSONLAtRootSynced(root *confinedfs.Root, relative string, row map[string]any) error {
+	return appendJSONLRow(root, relative, row, storageFileMode(0o644), true)
+}
+
+func appendJSONLRow(
+	root *confinedfs.Root,
+	relative string,
+	row map[string]any,
+	mode os.FileMode,
+	synced bool,
 ) error {
 	if err := root.MkdirAll(filepath.Dir(relative), storageDirectoryMode()); err != nil {
 		return err
@@ -58,6 +88,9 @@ func appendJSONLAtRootWithMode(
 	}
 	if _, err = fmt.Fprintf(file, "%s\n", payload); err != nil {
 		return err
+	}
+	if synced {
+		return file.Sync()
 	}
 	return nil
 }

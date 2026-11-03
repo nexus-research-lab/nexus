@@ -145,15 +145,17 @@ func (s *InputQueueStore) appendActionLocked(location InputQueueLocation, row ma
 	if err != nil {
 		return err
 	}
+	// Queue rows carry dispatch claims, consumption receipts and stop gates;
+	// flush each one so a power loss cannot drop a claim after it was acted on.
 	if strings.TrimSpace(location.OwnerUserID) != "" {
-		return s.files.appendOwnerWorkspaceJSONL(
+		return s.files.appendOwnerWorkspaceJSONLSynced(
 			location.OwnerUserID,
 			location.WorkspacePath,
 			path,
 			row,
 		)
 	}
-	return s.files.appendJSONLAt(location.WorkspacePath, path, row)
+	return s.files.appendJSONLAtSynced(location.WorkspacePath, path, row)
 }
 
 func (s *InputQueueStore) pathForLocation(location InputQueueLocation) (string, error) {

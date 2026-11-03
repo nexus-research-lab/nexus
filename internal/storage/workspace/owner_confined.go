@@ -288,6 +288,27 @@ func (s *SessionFileStore) appendOwnerWorkspaceJSONL(
 	return appendJSONLAtRoot(parent, name, row)
 }
 
+// appendOwnerWorkspaceJSONLSynced is appendOwnerWorkspaceJSONL with a flush to
+// stable storage, for small control journals only.
+func (s *SessionFileStore) appendOwnerWorkspaceJSONLSynced(
+	ownerUserID string,
+	workspacePath string,
+	target string,
+	row map[string]any,
+) error {
+	parent, name, err := s.openOwnerWorkspaceFileParent(
+		ownerUserID,
+		workspacePath,
+		target,
+		true,
+	)
+	if err != nil {
+		return err
+	}
+	defer parent.Close()
+	return appendJSONLAtRootSynced(parent, name, row)
+}
+
 func (s *SessionFileStore) readOwnerWorkspaceJSONL(
 	ownerUserID string,
 	workspacePath string,
