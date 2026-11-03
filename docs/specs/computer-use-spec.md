@@ -34,16 +34,25 @@ settings computer-use
 再在已有权限范围内执行一次明确的 `focus_window`，然后正常观察。一次恢复仍失败就停止并报告；
 不能通过反复选择应用或重新授权来代替窗口恢复，此流程也不解除用户接管状态。
 
+`observe` 省略 `window_selector` 时沿用仍在授权窗口列表中的精确 window_ref；
+原窗口消失时仅在唯一候选窗口下自动选择，多窗口不能按旧标题猜测。默认包含截图，
+显式 `include_screenshot=false` 保留元数据恢复路径。按键在 MCP 输入边界忽略大小写，
+Return/Esc 分别规范为 enter/escape；Runtime 保留最终支持范围校验。
+动作失败可能已消耗 observation，`stale_observation` 不表示 session 到期。
+
 
 ## 动作后观察与接管
 
-固定的 `v0.2.0-rc.2` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
+固定的 `v0.2.0-rc.3` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
 每次动作沿用最近 `observe` 的截图、AX 和 `application_scene` 选项，让一次动作请求
 返回新的观察；新的 guard 替换已消耗的旧 guard。场景观察仅包含锚点显示器上的同一应用。
 Runtime 有界稳定等待不证明业务完成，必要时仍执行 `verify_state`。
 
 `observe` 与 `perform_action` 的截图通过原生 MCP image content block 交付，
 不把 Base64 图像放进 JSON 文本或 StructuredContent，避免触发大文本分页。
+宿主将 SDK 单条 JSON 消息上限固定为 32 MiB，容纳 16 MiB PNG 编码与观察元数据。
+SDK 读流提前关闭（包括超限）时，先关闭该子进程再等待其退出，不能在无人继续读管道时
+等待仍在写入的进程而使工具永久保持运行。
 持久化消息投影从两种操作的结果中移除图片内容和 AX 元素树，仅保留动作证据、
 opaque refs、元素数量等摘要；此清理不改变提供给模型的即时结果。
 
@@ -51,7 +60,10 @@ opaque refs、元素数量等摘要；此清理不改变提供给模型的即时
 `observation_error`，不能自动重做动作。已完成请求的本地缓存仅保留动作结果，不保留
 截图或 AX 树；重复 request_id 不派发动作，返回 `fresh_observation_required` 时另行观察。
 
-收到 `user_active` 后，本回合保留用户接管状态并拒绝后续新动作；fresh observe 不解除
+macOS 两次动作间的输入保留原授权，等待连续空闲 2 秒（单次最多 5 秒），按键或按钮
+仍按住时不算空闲。输入之前的观察失效，重新观察后决定后续动作；持续活动返回
+`busy/not_dispatched` 与 `wait_for_idle_then_observe`，模型最多额外尝试一次。
+等待不延长 session/round 到期时间。原生动作期间收到 `user_active` 后，本回合保留用户接管状态并拒绝后续新动作；fresh observe 不解除
 此状态。只有新的 `select_target` 宿主授权可以恢复；未知结果仍按原 ID 对账。
 Input Control 同时需要事件派发和 Input Monitoring，桌面引导补充输入监控请求及面板。
 

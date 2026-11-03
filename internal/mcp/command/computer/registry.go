@@ -1,5 +1,5 @@
 // INPUT: trusted round owner/identity and the host-owned Computer Use service.
-// OUTPUT: the bounded computer domain operation registry used by nexus.command.
+// OUTPUT: bounded computer operations with screenshot defaults and normalized key input for nexus.command.
 // POS: the only model-facing adapter for Nexus Computer Use.
 package computer
 
@@ -189,7 +189,7 @@ func (r registry) observe() command.Operation {
 		InputSchema: observeSchema(),
 		ReadOnly:    true,
 		ContextHandler: func(ctx context.Context, input map[string]any, _ *command.CallContext) (command.Result, error) {
-			var parsed observeInput
+			parsed := observeInput{IncludeScreenshot: true}
 			if err := decodeInput(input, &parsed); err != nil {
 				return rejected(err), nil
 			}
@@ -458,7 +458,7 @@ func (i actionInput) action() computeruse.ActionInput {
 	}
 }
 
-func (i actionInput) validate() error {
+func (i *actionInput) validate() error {
 	kind := strings.ToLower(strings.TrimSpace(i.Kind))
 	switch kind {
 	case "focus_element", "invoke_element", "set_value", "toggle_element", "select_element", "set_expanded":
@@ -486,6 +486,16 @@ func (i actionInput) validate() error {
 	case "press_keys":
 		if len(i.Keys) == 0 {
 			return errors.New("Computer Use press_keys 需要 keys")
+		}
+		for index, key := range i.Keys {
+			key = strings.ToLower(strings.TrimSpace(key))
+			switch key {
+			case "return":
+				key = "enter"
+			case "esc":
+				key = "escape"
+			}
+			i.Keys[index] = key
 		}
 	}
 	return nil
@@ -525,8 +535,8 @@ func enumProperty(description string, values ...string) map[string]any {
 
 func observeSchema() map[string]any {
 	return objectSchema(map[string]any{
-		"window_selector":    stringProperty("Optional exact window ref or title selector.", 0, 256),
-		"include_screenshot": map[string]any{"type": "boolean"},
+		"window_selector":    stringProperty("Optional exact window ref or title. Omit to reuse the selected window if it still exists, or select the only available window.", 0, 256),
+		"include_screenshot": map[string]any{"type": "boolean", "default": true, "description": "Include the screenshot needed for pixel actions. Set false only for metadata recovery."},
 		"application_scene":  map[string]any{"type": "boolean", "description": "Capture this application and its menus on the anchor display when advertised."},
 		"accessibility":      enumProperty("Accessibility payload size mode.", "interactive", "disabled", "full"),
 	})
@@ -550,7 +560,7 @@ func actionSchema() map[string]any {
 		"duration_ms": map[string]any{"type": "integer", "minimum": 0, "description": "Maximum from get_computer.action_limits.max_pointer_duration_ms"},
 		"delta_x":     map[string]any{"type": "integer", "description": "Absolute bound from get_computer.action_limits.max_scroll_delta"},
 		"delta_y":     map[string]any{"type": "integer", "description": "Absolute bound from get_computer.action_limits.max_scroll_delta"},
-		"keys":        map[string]any{"type": "array", "items": stringProperty("Key name.", 1, 128)},
+		"keys":        map[string]any{"type": "array", "items": stringProperty("Key name, e.g. mod, enter, escape, tab. Case-insensitive; Return means enter.", 1, 128)},
 	}, "kind")
 }
 

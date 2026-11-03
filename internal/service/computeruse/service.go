@@ -1,5 +1,5 @@
 // INPUT: Nexus round identity and the pinned typed nexus-cua client.
-// OUTPUT: owner-scoped Computer Use sessions, distinct target/observation readiness, bounded observations, and one-shot mutation reconciliation.
+// OUTPUT: owner-scoped Computer Use sessions, exact-window continuity, distinct observation readiness, bounded observations, and one-shot mutation reconciliation.
 // POS: Nexus' only Computer Use service boundary; transport credentials and sidecar process details stay below this package.
 package computeruse
 
@@ -721,6 +721,10 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 	}
 	sessionID := r.sessionID
 	selector := strings.TrimSpace(input.WindowSelector)
+	var previousWindow nexuscua.WindowRef
+	if r.window != nil {
+		previousWindow = r.window.WindowRef
+	}
 	r.mu.Unlock()
 	windows, err := r.client.ListWindows(ctx, sessionID, nil, defaultCommandTimeout)
 	if err != nil {
@@ -728,12 +732,22 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 		return Observation{}, err
 	}
 	var window *nexuscua.WindowSummary
-	if selector == "" && len(windows) == 1 {
-		window = &windows[0]
-	} else {
-		window, err = nexuscua.SelectWindow(windows, selector)
-		if err != nil {
-			return Observation{}, err
+	if selector == "" && previousWindow != "" {
+		for i := range windows {
+			if windows[i].WindowRef == previousWindow {
+				window = &windows[i]
+				break
+			}
+		}
+	}
+	if window == nil {
+		if selector == "" && len(windows) == 1 {
+			window = &windows[0]
+		} else {
+			window, err = nexuscua.SelectWindow(windows, selector)
+			if err != nil {
+				return Observation{}, err
+			}
 		}
 	}
 	accessibility, err := parseAccessibility(input.Accessibility)

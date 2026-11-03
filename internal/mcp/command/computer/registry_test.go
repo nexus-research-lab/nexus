@@ -3,6 +3,7 @@ package computer
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,6 +11,21 @@ import (
 	nexuscua "github.com/nexus-research-lab/nexus-cua/sdk/go"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 )
+
+func TestKeyInputNormalizesCommonModelSpellings(t *testing.T) {
+	input := actionInput{Kind: "press_keys", Keys: []string{" Mod ", "Return", "ESC", "a", "UnknownKey"}}
+	if err := input.validate(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(input.action().Keys, []string{"mod", "enter", "escape", "a", "unknownkey"}) {
+		t.Fatalf("unexpected normalized keys: %v", input.action().Keys)
+	}
+	// Unknown names remain subject to the runtime's closed key validation.
+	approval := computerActionApprovalInput("keys-1", input)
+	if !slices.Equal(approval["keys"].([]string), input.action().Keys) {
+		t.Fatal("approval and dispatch keys differ")
+	}
+}
 
 func TestComputerImagesUseNativeMCPBlocks(t *testing.T) {
 	for _, tc := range []struct {

@@ -5,5 +5,7 @@
 // Action results may carry a fresh observation and transient image, while read
 // failures remain separate from dispatch evidence.
 // Screenshots use native MCP image blocks, never JSON text or structured data.
+// Observe includes screenshots by default while explicit false permits metadata
+// recovery. The model input boundary normalizes key casing and Return/Esc aliases.
 // launch.go adapts separately approved application lifecycle commands.
 package computer

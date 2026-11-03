@@ -69,6 +69,8 @@ github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.1 h1:p22MZ/zfezSmKLD3NV
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.1/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.2 h1:cnJ9Ni9HfUsbAVmwrsOTS3GsKjfdQ6ly8qHRapuinDg=
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.2/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.3 h1:UAmXkrwcs1OVwz/hp/YcyZp8P20o4BHB6uWBDbMnOwk=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.3/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.2-beta.1 h1:5WwR5TV6A12taXMH7SggT8yCMMJMF9jWE7Wj+4AuHck=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.2-beta.1/go.mod h1:ln3IqPYYocZbYvl9TAOrG/cxGR9xcn4pnZRLdCTEGEU=
 github.com/pelletier/go-toml/v2 v2.4.3 h1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=

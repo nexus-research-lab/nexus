@@ -54,6 +54,8 @@ func (s *fakeSupervisor) Restart(context.Context) (Client, error) {
 func (s *fakeSupervisor) ArtifactRoot() string { return s.artifact }
 
 type fakeClient struct {
+	windows        []nexuscua.WindowSummary
+	lastObserve    nexuscua.ObserveWindowInput
 	observeAfter   bool
 	actionOutput   *nexuscua.ActionOutput
 	actionError    error
@@ -117,17 +119,50 @@ func (c *fakeClient) ListWindows(context.Context, nexuscua.SessionID, *nexuscua.
 	if c.listWindowsErr != nil {
 		return nil, c.listWindowsErr
 	}
+	if c.windows != nil {
+		return c.windows, nil
+	}
 	return []nexuscua.WindowSummary{{WindowRef: "window-1", Title: "Fixture", Visible: true}}, nil
 }
 
-func (c *fakeClient) ObserveWindow(context.Context, nexuscua.ObserveWindowInput, time.Duration) (nexuscua.WindowObservation, error) {
+func (c *fakeClient) ObserveWindow(_ context.Context, input nexuscua.ObserveWindowInput, _ time.Duration) (nexuscua.WindowObservation, error) {
+	c.lastObserve = input
 	if c.observeErr != nil {
 		return nexuscua.WindowObservation{}, c.observeErr
 	}
 	if c.observation.ObservationID != "" {
 		return c.observation, nil
 	}
-	return nexuscua.WindowObservation{ObservationID: "observation-1", WindowRef: "window-1"}, nil
+	return nexuscua.WindowObservation{ObservationID: "observation-1", WindowRef: input.WindowRef}, nil
+}
+
+func TestObserveRetainsExactWindowWithoutGuessingReplacement(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		windows  []nexuscua.WindowSummary
+		selector string
+		want     nexuscua.WindowRef
+	}{
+		{"selected survives", []nexuscua.WindowSummary{{WindowRef: "window-2"}, {WindowRef: "window-1"}}, "", "window-1"},
+		{"explicit wins", []nexuscua.WindowSummary{{WindowRef: "window-1"}, {WindowRef: "window-2"}}, "window-2", "window-2"},
+		{"sole replacement", []nexuscua.WindowSummary{{WindowRef: "window-2"}}, "", "window-2"},
+		{"ambiguous replacement", []nexuscua.WindowSummary{{WindowRef: "window-2", Title: "Fixture"}, {WindowRef: "window-3"}}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			service, client, _ := newFakeService(t)
+			round := prepareRound(t, service)
+			client.windows = tc.windows
+			client.lastObserve = nexuscua.ObserveWindowInput{}
+			_, err := round.Observe(context.Background(), ObserveInput{WindowSelector: tc.selector})
+			if tc.want == "" {
+				if err == nil || client.lastObserve.WindowRef != "" {
+					t.Fatal("ambiguous replacement was observed")
+				}
+			} else if err != nil || client.lastObserve.WindowRef != tc.want {
+				t.Fatalf("window=%s, err=%v; want %s", client.lastObserve.WindowRef, err, tc.want)
+			}
+		})
+	}
 }
 
 func (c *fakeClient) VerifyState(context.Context, nexuscua.VerifyStateInput, time.Duration) (nexuscua.VerificationOutput, error) {

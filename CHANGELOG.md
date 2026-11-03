@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix Computer Use screenshot responses getting stuck at the bridge's default 1 MiB message limit: use a bounded 32 MiB budget and close failed runtime streams before waiting for process exit.
+- Remember the exact selected Computer Use window, include screenshots by default, normalize common key spellings, and correct the read-operation request ID guidance.
+- Preserve macOS CUA authority during input between actions with a bounded idle wait and fresh observation; keep immediate cancellation and explicit reauthorization for takeover during native dispatch.
 - Distinguish missing Computer Use observations from missing target authority, and guide bounded recovery of macOS Stage Manager windows without repeated target grants.
 - Deliver Computer Use screenshots as native MCP image blocks instead of oversized JSON text, and remove post-action screenshots and AX trees from durable message projections.
 - Scope macOS packaging smoke checks to the target bundle, including previews without a registered URL scheme.
-- Integrate the pinned CUA v0.2.0-rc.2 SDK: return fresh post-action observations and images, expose same-application scene capture, preserve mutation evidence on read failure, and latch user takeover until a new target grant. Completed-action caches retain no screenshots or AX trees.
+- Integrate the pinned CUA v0.2.0-rc.3 SDK: return fresh post-action observations and images, expose same-application scene capture, preserve mutation evidence on read failure, and latch user takeover until a new target grant. Completed-action caches retain no screenshots or AX trees.
 - Guide macOS Input Control setup through Input Monitoring as well as Accessibility.
 - Allow isolated macOS preview bundles to retain their own default state root and exact CUA payload, include runtime license/provenance files, and scope lifecycle notifications by bundle identity.
 
