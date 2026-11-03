@@ -35,17 +35,20 @@ type AssignmentTargetAuthorizer interface {
 
 // ExecutionDispatchDelivery 是交给 Room 数据面的完整结构化工作交接。
 type ExecutionDispatchDelivery struct {
-	OwnerUserID       string
-	SessionKey        string
-	RoomID            string
-	ConversationID    string
-	SourceAgentID     string
-	TargetAgentID     string
-	Kind              protocol.ExecutionDispatchKind
-	Instruction       string
-	WorkContract      ExecutionDispatchWorkContract
-	Binding           protocol.ExecutionWorkBinding
-	DispatchDedupeKey string
+	// UserContinuation admits only this newly requested task through a prior member stop.
+	UserContinuation          bool
+	ContinuationPauseRevision int64
+	OwnerUserID               string
+	SessionKey                string
+	RoomID                    string
+	ConversationID            string
+	SourceAgentID             string
+	TargetAgentID             string
+	Kind                      protocol.ExecutionDispatchKind
+	Instruction               string
+	WorkContract              ExecutionDispatchWorkContract
+	Binding                   protocol.ExecutionWorkBinding
+	DispatchDedupeKey         string
 }
 
 // ExecutionDispatchWorkContract 是 Room instruction 的有界可执行输入摘要。
@@ -646,17 +649,20 @@ func (s *Service) deliverClaimedDispatch(
 			contractErr,
 		)
 	}
+	assignment := findAssignmentByID(snapshot, dispatch.AssignmentID)
 	receipt, err := s.dispatchConsumer.DeliverExecutionDispatch(ctx, ExecutionDispatchDelivery{
-		OwnerUserID:       snapshot.Execution.OwnerUserID,
-		SessionKey:        snapshot.Execution.SessionKey,
-		RoomID:            snapshot.Execution.RoomID,
-		ConversationID:    snapshot.Execution.ConversationID,
-		SourceAgentID:     snapshot.Execution.CoordinatorAgentID,
-		TargetAgentID:     dispatch.TargetAgentID,
-		Kind:              dispatch.Kind,
-		Instruction:       dispatch.Instruction,
-		WorkContract:      workContract,
-		DispatchDedupeKey: dispatch.DedupeKey,
+		UserContinuation:          assignment != nil && assignment.Metadata["user_continuation"] == true,
+		ContinuationPauseRevision: continuationPauseRevision(assignment),
+		OwnerUserID:               snapshot.Execution.OwnerUserID,
+		SessionKey:                snapshot.Execution.SessionKey,
+		RoomID:                    snapshot.Execution.RoomID,
+		ConversationID:            snapshot.Execution.ConversationID,
+		SourceAgentID:             snapshot.Execution.CoordinatorAgentID,
+		TargetAgentID:             dispatch.TargetAgentID,
+		Kind:                      dispatch.Kind,
+		Instruction:               dispatch.Instruction,
+		WorkContract:              workContract,
+		DispatchDedupeKey:         dispatch.DedupeKey,
 		Binding: protocol.ExecutionWorkBinding{
 			ExecutionID:  dispatch.ExecutionID,
 			PlanID:       dispatch.PlanID,
@@ -860,4 +866,11 @@ func (s *Service) cancelClaimedDispatch(
 		cause.Error(),
 	)
 	return cancelErr
+}
+
+func continuationPauseRevision(a *protocol.WorkAssignment) int64 {
+	if a == nil {
+		return 0
+	}
+	return protocol.Int64FromAny(a.Metadata["continuation_pause_revision"])
 }

@@ -369,7 +369,7 @@ func (s *Service) dispatchClaimedInputQueueItemLocked(
 	trustedQueue bool,
 ) error {
 	if item.Source == protocol.InputQueueSourceAgentPublicMention ||
-		item.Source == protocol.InputQueueSourceAgentRoomMessage {
+		item.Source == protocol.InputQueueSourceAgentRoomMessage || item.WorkBinding != nil || item.ReviewBinding != nil {
 		return s.dispatchAgentWakeQueueItem(
 			ctx,
 			sessionKey,
@@ -511,14 +511,15 @@ func (s *Service) dispatchAgentWakeQueueItem(
 	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))
 	for _, targetAgentID := range targetAgentIDs {
 		wakes = append(wakes, publicMentionWake{
-			HandoffID:     strings.TrimSpace(item.HandoffID),
-			TriggerType:   inputQueueWakeTriggerType(item),
-			QueueSource:   protocol.NormalizeInputQueueSource(string(item.Source)),
-			SourceAgentID: strings.TrimSpace(item.SourceAgentID),
-			TargetAgentID: targetAgentID,
-			Content:       content,
-			MessageID:     cmp.Or(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
-			ReplyRoute:    item.ReplyRoute,
+			HandoffID:            strings.TrimSpace(item.HandoffID),
+			TriggerType:          inputQueueWakeTriggerType(item),
+			QueueSource:          protocol.NormalizeInputQueueSource(string(item.Source)),
+			ContinuationAdmitted: item.RecoveryTarget != nil && item.WorkBinding != nil && !item.DispatchPaused,
+			SourceAgentID:        strings.TrimSpace(item.SourceAgentID),
+			TargetAgentID:        targetAgentID,
+			Content:              content,
+			MessageID:            cmp.Or(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
+			ReplyRoute:           item.ReplyRoute,
 			GoalCollaborationBinding: cloneGoalCollaborationBinding(
 				item.GoalCollaborationBinding,
 			),

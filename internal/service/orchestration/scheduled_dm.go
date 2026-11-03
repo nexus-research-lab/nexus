@@ -22,11 +22,12 @@ func (s *Service) PrepareScheduledDMRound(ctx context.Context, actor ActorContex
 		if s.scheduledWork == nil {
 			return nil, errors.New("scheduled admission unavailable")
 		}
+		continuation := actor.WorkBinding != nil && findAssignmentByID(snapshot, actor.WorkBinding.AssignmentID) != nil && findAssignmentByID(snapshot, actor.WorkBinding.AssignmentID).Metadata["user_continuation"] == true
 		allowed, err := s.scheduledWork.AutomaticDispatchAllowed(ctx, snapshot.Execution, actor.AgentID)
 		if err != nil {
 			return nil, err
 		}
-		if !allowed {
+		if !allowed && !continuation {
 			return nil, workBindingMismatch("queued DM responsibility is paused")
 		}
 		if actor.ReviewBinding != nil {

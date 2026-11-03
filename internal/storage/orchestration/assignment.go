@@ -100,6 +100,21 @@ func (r *Repository) Takeover(ctx context.Context, command TakeoverCommand) (*pr
 		return nil, err
 	}
 	if mutation.replayed {
+		if command.ContinuationInstruction != "" {
+			var q sqlQueryer = r.db
+			if mutation.tx != nil {
+				q = mutation.tx
+			}
+			receipt, readErr := r.findEventByCommand(ctx, q, replacement.ExecutionID, command.Meta.CommandID)
+			if readErr != nil {
+				r.abortMutation(mutation)
+				return nil, readErr
+			}
+			if receipt == nil || receipt.ActorID != command.Meta.ActorID || receipt.ActorKind != command.Meta.ActorKind || receipt.WorkItemID != replacement.WorkItemID || receipt.Payload["continued_attempt_id"] != command.Meta.Payload["continued_attempt_id"] {
+				r.abortMutation(mutation)
+				return nil, ErrCommandConflict
+			}
+		}
 		return r.finishMutation(ctx, mutation, command.Meta, protocol.ExecutionEvent{})
 	}
 	current, err := r.getAssignment(ctx, mutation.tx, command.CurrentAssignmentID)
@@ -130,6 +145,27 @@ func (r *Repository) Takeover(ctx context.Context, command TakeoverCommand) (*pr
 	if err = r.validateAssignmentTarget(ctx, mutation.tx, replacement, false); err != nil {
 		r.abortMutation(mutation)
 		return nil, err
+	}
+	if command.ContinuationInstruction != "" {
+		sourceID, _ := command.Meta.Payload["continued_attempt_id"].(string)
+		source, readErr := r.getAttempt(ctx, mutation.tx, sourceID)
+		if readErr != nil {
+			r.abortMutation(mutation)
+			return nil, readErr
+		}
+		if source == nil || source.AssignmentID != current.ID || source.ParentAttemptID != "" || (source.Status != protocol.WorkAttemptStatusFailed && source.Status != protocol.WorkAttemptStatusInterrupted && source.Status != protocol.WorkAttemptStatusTimedOut) || replacement.OwnerAgentID != current.OwnerAgentID || replacement.ReturnToAgentID != current.ReturnToAgentID {
+			r.abortMutation(mutation)
+			return nil, ErrInvariant
+		}
+		var pending int
+		if err = mutation.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM execution_result_receipts WHERE execution_id=`+r.bind(1)+` AND kind='delivery' AND target_id=`+r.bind(2)+` AND state='pending'`, replacement.ExecutionID, sourceID).Scan(&pending); err != nil {
+			r.abortMutation(mutation)
+			return nil, err
+		}
+		if pending != 0 {
+			r.abortMutation(mutation)
+			return nil, ErrCompletionBlocked
+		}
 	}
 	now := r.currentTime()
 	cancellationReason := "takeover: " + replacement.TakeoverReason
@@ -215,6 +251,16 @@ WHERE assignment_id = `+r.bind(3)+`
 	}
 	if rootAttempt != nil {
 		if err = r.insertAttempt(ctx, mutation.tx, *rootAttempt); err != nil {
+			r.abortMutation(mutation)
+			return nil, err
+		}
+	}
+	if command.ContinuationInstruction != "" && dispatch == nil {
+		if rootAttempt == nil {
+			r.abortMutation(mutation)
+			return nil, ErrInvariant
+		}
+		if err = r.insertContinuationPolicy(ctx, mutation.tx, replacement, *rootAttempt, command.ContinuationInstruction); err != nil {
 			r.abortMutation(mutation)
 			return nil, err
 		}

@@ -2,6 +2,8 @@
 
 ## 职责
 
+- 停止消息的“继续此任务”复用 shared/execution 的会话级动作；传递真实 `agent_round_id`，不能用合成的展示 round ID 匹配责任。
+
 - `RoomAgentStopButton` 统一本地与在线执行的停止按钮及 stopping 反馈；调用方只能传精确执行命令，按钮不拥有任务状态或权限判断。
 
 - `group-round-card-model.ts` 聚合一轮内的用户消息、Agent 执行身份、人工介入请求和权威展示顺序。

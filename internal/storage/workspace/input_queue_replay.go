@@ -36,6 +36,7 @@ func replayInputQueueRows(
 // inputQueueReplay 维护日志回放期间的实体索引与展示顺序。
 type inputQueueReplay struct {
 	paused             bool
+	pauseRevision      int64
 	recoveryAdmissions map[string]bool
 	location           InputQueueLocation
 	itemsByID          map[string]protocol.InputQueueItem
@@ -73,7 +74,9 @@ func (r *inputQueueReplay) enqueue(row map[string]any) {
 		// Only a new explicit user request may pass the existing pause gate.
 		// Restore/update/replayed ACKs cannot renew that permission after a stop.
 		if stringFromAny(row["action"]) == inputQueueActionEnqueue && item.RecoveryTarget != nil && protocol.ValidateInputQueueCapabilityEnvelope(item) == nil {
-			r.recoveryAdmissions[item.ID] = true
+			if item.ContinuationPauseRevision == nil || *item.ContinuationPauseRevision == r.pauseRevision {
+				r.recoveryAdmissions[item.ID] = true
+			}
 		}
 	}
 	r.itemsByID[item.ID] = item

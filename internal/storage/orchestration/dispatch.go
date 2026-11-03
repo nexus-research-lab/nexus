@@ -1,5 +1,5 @@
 // INPUT: pending Room Dispatch、consumer lease、delivery receipt 与 retry schedule。
-// OUTPUT: 可恢复的 outbox claim/deliver/retry CAS，以及永久失效 contract 的 terminal cancel。
+// OUTPUT: 可恢复的 outbox claim/deliver/retry CAS，以及永久失效 contract 的 terminal cancel；显式续跑保留可再次恢复的责任。
 // POS: Assignment 事务之后的可靠 Room 投递状态机；不依赖 realtime 服务。
 package orchestration
 
@@ -360,16 +360,27 @@ WHERE dispatch_id = `+r.bind(3)+`
 		return nil, ErrDispatchLease
 	}
 	if releaseResponsibility {
+		attemptStatus := protocol.WorkAttemptStatusCancelled
+		assignmentStatus := protocol.WorkAssignmentStatusReleased
+		assignmentVersion := assignment.Version + 1
+		if assignment.Metadata["user_continuation"] == true {
+			// Keep an explicitly continued task recoverable after delivery is
+			// cancelled, including a newer stop overtaking the durable outbox.
+			attemptStatus = protocol.WorkAttemptStatusInterrupted
+			assignmentStatus = assignment.Status
+			assignmentVersion = assignment.Version
+		}
 		terminalReason := "permanent dispatch failure: " + reason
 		if _, err = tx.ExecContext(ctx, `
 UPDATE execution_attempts
-SET status = 'cancelled',
-    failure_reason = `+r.bind(1)+`,
+SET status = `+r.bind(1)+`,
+    failure_reason = `+r.bind(2)+`,
     version = version + 1,
-    finished_at = `+r.bind(2)+`
-WHERE assignment_id = `+r.bind(3)+`
-  AND dispatch_id = `+r.bind(4)+`
+    finished_at = `+r.bind(3)+`
+WHERE assignment_id = `+r.bind(4)+`
+  AND dispatch_id = `+r.bind(5)+`
   AND status = 'pending'`,
+			attemptStatus,
 			terminalReason,
 			r.timestamp(now),
 			current.AssignmentID,
@@ -377,7 +388,8 @@ WHERE assignment_id = `+r.bind(3)+`
 		); err != nil {
 			return nil, err
 		}
-		assignmentResult, updateErr := tx.ExecContext(ctx, `
+		if assignmentStatus == protocol.WorkAssignmentStatusReleased {
+			assignmentResult, updateErr := tx.ExecContext(ctx, `
 UPDATE execution_work_assignments
 SET status = 'released',
     version = version + 1,
@@ -385,15 +397,16 @@ SET status = 'released',
 WHERE assignment_id = `+r.bind(2)+`
   AND version = `+r.bind(3)+`
   AND status = 'assigned'`,
-			r.timestamp(now),
-			assignment.ID,
-			assignment.Version,
-		)
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if err = requireOne(assignmentResult); err != nil {
-			return nil, err
+				r.timestamp(now),
+				assignment.ID,
+				assignment.Version,
+			)
+			if updateErr != nil {
+				return nil, updateErr
+			}
+			if err = requireOne(assignmentResult); err != nil {
+				return nil, err
+			}
 		}
 		if err = r.insertEvent(ctx, tx, protocol.ExecutionEvent{
 			ID:            "event-dispatch-cancel-" + current.ID,
@@ -401,7 +414,7 @@ WHERE assignment_id = `+r.bind(2)+`
 			Type:          protocol.ExecutionEventStatusChanged,
 			EntityType:    protocol.ExecutionEntityAssignment,
 			EntityID:      assignment.ID,
-			EntityVersion: assignment.Version + 1,
+			EntityVersion: assignmentVersion,
 			ActorKind:     protocol.ExecutionActorSystem,
 			ActorID:       leaseOwner,
 			CommandID:     "cancel-dispatch-" + current.ID,
@@ -413,8 +426,8 @@ WHERE assignment_id = `+r.bind(2)+`
 			Payload: map[string]any{
 				"reason":            reason,
 				"dispatch_status":   protocol.ExecutionDispatchStatusCancelled,
-				"assignment_status": protocol.WorkAssignmentStatusReleased,
-				"attempt_status":    protocol.WorkAttemptStatusCancelled,
+				"assignment_status": assignmentStatus,
+				"attempt_status":    attemptStatus,
 			},
 			CreatedAt: now,
 		}); err != nil {

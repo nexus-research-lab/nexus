@@ -1629,7 +1629,7 @@ function ExecutionNodeInspector({
             {t(recovery.states[node.attempt_id]?.status === "unknown" ? "execution.recovery_check" : recovery.states[node.attempt_id]?.status === "pending" ? "execution.recovery_pending" : "execution.recover_node")}
           </UiButton>
           <p role="status" className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
-            {t(recovery.states[node.attempt_id]?.status === "queued" ? "execution.recovery_queued" : recovery.states[node.attempt_id]?.status === "unknown" ? "execution.recovery_unknown" : recovery.states[node.attempt_id]?.status === "absent" ? "execution.recovery_absent" : "execution.recovery_hint")}
+            {t(recovery.states[node.attempt_id]?.status === "queued" ? "execution.recovery_queued" : recovery.states[node.attempt_id]?.status === "unknown" ? "execution.recovery_unknown" : recovery.states[node.attempt_id]?.status === "absent" ? "execution.recovery_absent" : recovery.states[node.attempt_id]?.status === "rejected" ? "execution.recovery_rejected" : "execution.recovery_hint")}
           </p>
         </div>
       ) : null}

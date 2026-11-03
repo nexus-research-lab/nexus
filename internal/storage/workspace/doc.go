@@ -3,7 +3,7 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - input_queue_recovery.go：持久化 dispatch pause/claim、单项显式恢复准入与 owner-scoped canonical 队列发现；下游受理后才消费条目。
+//   - input_queue_recovery.go：持久化 dispatch pause/claim、带暂停 revision 栅栏的单项显式恢复准入与 owner-scoped canonical 队列发现；下游受理后才消费条目。
 //   - agent_history.go / agent_history_overlay.go / room_history.go：完整回复落盘后更新独立 Room SQL 摘要，群聊只接受公区写入；失败记日志，不重试 canonical 消息。
 //   - history_*.go / user_input_probe.go：分阶段历史投影与严格只读用户输入判定（compact / normalize / causal control ordering / pagination / last-write round_index /
 //     rewrite_tail（区分未物化 round 与损坏边界）/ fork marker 前缀 / 按 Agent 执行轮配对的 result_summary / 同 message_id 合并 Goal 完成收据 / external_delivery / 不为完成态 host control 伪造中断 assistant 的 unfinished_round）。

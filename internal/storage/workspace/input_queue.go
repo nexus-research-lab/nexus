@@ -327,6 +327,10 @@ func (s *InputQueueStore) EnqueueIdempotent(
 		}, nil
 	}
 
+	if err := checkContinuationPause(location, rows, item); err != nil {
+		return InputQueueEnqueueResult{}, err
+	}
+
 	// Multiple terminal receipts can need the same coordinator inspection.
 	// Coalesce only pending host recovery, never user messages or completed receipts.
 	if item.Source == protocol.InputQueueSourceHostRecovery && item.RecoveryExecutionID != "" {
@@ -408,16 +412,17 @@ func MatchesInputQueueEnqueueIntent(existing protocol.InputQueueItem, candidate 
 }
 
 type inputQueueEnqueueIntent struct {
-	RecoveryExecutionID string
-	RecoveryTarget      *protocol.ExecutionRecoveryTarget
-	Content             string
-	Attachments         []protocol.ChatAttachment
-	DeliveryPolicy      protocol.ChatDeliveryPolicy
-	TargetAgentIDs      []string
-	Source              protocol.InputQueueSource
-	OwnerUserID         string
-	WorkBinding         *protocol.ExecutionWorkBinding
-	ReviewBinding       *protocol.ExecutionReviewBinding
+	ContinuationPauseRevision *int64
+	RecoveryExecutionID       string
+	RecoveryTarget            *protocol.ExecutionRecoveryTarget
+	Content                   string
+	Attachments               []protocol.ChatAttachment
+	DeliveryPolicy            protocol.ChatDeliveryPolicy
+	TargetAgentIDs            []string
+	Source                    protocol.InputQueueSource
+	OwnerUserID               string
+	WorkBinding               *protocol.ExecutionWorkBinding
+	ReviewBinding             *protocol.ExecutionReviewBinding
 }
 
 func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEnqueueIntent {
@@ -425,16 +430,17 @@ func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEn
 	targetAgentIDs = slices.Clone(targetAgentIDs)
 	slices.Sort(targetAgentIDs)
 	return inputQueueEnqueueIntent{
-		RecoveryExecutionID: item.RecoveryExecutionID,
-		RecoveryTarget:      item.RecoveryTarget,
-		Content:             strings.TrimSpace(item.Content),
-		Attachments:         protocol.NormalizeChatAttachments(item.Attachments, ""),
-		DeliveryPolicy:      protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
-		TargetAgentIDs:      targetAgentIDs,
-		Source:              protocol.NormalizeInputQueueSource(string(item.Source)),
-		OwnerUserID:         strings.TrimSpace(item.OwnerUserID),
-		WorkBinding:         normalizeExecutionWorkBinding(item.WorkBinding),
-		ReviewBinding:       normalizeExecutionReviewBinding(item.ReviewBinding),
+		ContinuationPauseRevision: item.ContinuationPauseRevision,
+		RecoveryExecutionID:       item.RecoveryExecutionID,
+		RecoveryTarget:            item.RecoveryTarget,
+		Content:                   strings.TrimSpace(item.Content),
+		Attachments:               protocol.NormalizeChatAttachments(item.Attachments, ""),
+		DeliveryPolicy:            protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
+		TargetAgentIDs:            targetAgentIDs,
+		Source:                    protocol.NormalizeInputQueueSource(string(item.Source)),
+		OwnerUserID:               strings.TrimSpace(item.OwnerUserID),
+		WorkBinding:               normalizeExecutionWorkBinding(item.WorkBinding),
+		ReviewBinding:             normalizeExecutionReviewBinding(item.ReviewBinding),
 	}
 }
 
@@ -472,6 +478,9 @@ func (s *InputQueueStore) EnqueueBounded(
 			strings.TrimSpace(existing.AgentID) == strings.TrimSpace(item.AgentID) {
 			return items, false, nil
 		}
+	}
+	if err := checkContinuationPause(location, rows, item); err != nil {
+		return nil, false, err
 	}
 	if capacity > 0 && len(items) >= capacity {
 		return items, false, ErrInputQueueCapacity

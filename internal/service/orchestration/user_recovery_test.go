@@ -3,87 +3,78 @@ package orchestration
 import (
 	"context"
 	"errors"
-	"sync"
+	store "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	"testing"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-type userRecoveryQueue struct {
-	mu       sync.Mutex
-	receipts map[string]protocol.ExecutionRecoveryTarget
-	writes   int
+type continuationRepositoryFake struct {
+	*fakeRepository
+	receipt *protocol.ExecutionEvent
+	writes  int
 }
 
-func (q *userRecoveryQueue) QueueExecutionRecovery(context.Context, protocol.Execution, string) error {
-	return errors.New("unexpected automatic recovery")
-}
-func (q *userRecoveryQueue) QueueWorkRecovery(_ context.Context, _ protocol.Execution, target protocol.ExecutionRecoveryTarget, key string) error {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if old, ok := q.receipts[key]; ok {
-		if old != target {
-			return errors.New("intent conflict")
-		}
-		return nil
-	}
-	q.receipts[key] = target
-	q.writes++
-	return nil
-}
-func (q *userRecoveryQueue) FindWorkRecovery(_ context.Context, _ protocol.Execution, key string) (*protocol.ExecutionRecoveryTarget, error) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if value, ok := q.receipts[key]; ok {
-		return &value, nil
+func (r *continuationRepositoryFake) FindAssignmentBatchReceipt(_ context.Context, _, key string) (*protocol.ExecutionEvent, error) {
+	if r.receipt != nil && r.receipt.CommandID == key {
+		return r.receipt, nil
 	}
 	return nil, nil
 }
-
+func (r *continuationRepositoryFake) Takeover(_ context.Context, c store.TakeoverCommand) (*protocol.ExecutionSnapshot, error) {
+	r.writes++
+	if c.Replacement.OwnerAgentID != r.snapshot.Assignments[0].OwnerAgentID || c.Replacement.ReturnToAgentID != r.snapshot.Assignments[0].ReturnToAgentID || c.ContinuationInstruction == "" {
+		return nil, errors.New("continuation changed owner/reviewer or omitted handoff")
+	}
+	if r.snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom && c.Dispatch == nil {
+		return nil, errors.New("Room continuation has no durable dispatch")
+	}
+	updated := cloneExecutionSnapshot(r.snapshot)
+	updated.Assignments[0].Status = protocol.WorkAssignmentStatusReleased
+	updated.Assignments = append(updated.Assignments, c.Replacement)
+	updated.Attempts = append(updated.Attempts, *c.RootAttempt)
+	updated.Execution.Version++
+	r.snapshot = updated
+	r.receipt = &protocol.ExecutionEvent{Type: protocol.ExecutionEventWorkTakenOver, CommandID: c.Meta.CommandID, ActorKind: c.Meta.ActorKind, ActorID: c.Meta.ActorID, WorkItemID: c.Replacement.WorkItemID, Payload: c.Meta.Payload}
+	return updated, nil
+}
 func TestUserRecoveryExactTargetReplayAndReconciliation(t *testing.T) {
 	for _, scope := range []protocol.ExecutionScopeKind{protocol.ExecutionScopeDM, protocol.ExecutionScopeRoom} {
 		t.Run(string(scope), func(t *testing.T) {
 			snapshot := assignedExecutionSnapshot()
 			snapshot.Execution.ScopeKind = scope
+			snapshot.Assignments[0].ReturnToAgentID = snapshot.Execution.CoordinatorAgentID
+			if scope == protocol.ExecutionScopeDM {
+				snapshot.Assignments[0].OwnerAgentID = snapshot.Execution.CoordinatorAgentID
+			}
 			snapshot.Attempts[0].Status = protocol.WorkAttemptStatusInterrupted
-			snapshot.Attempts[0].FailureReason = "__nexus_interrupt_without_message__"
-			queue := &userRecoveryQueue{receipts: map[string]protocol.ExecutionRecoveryTarget{}}
-			service := testService(&fakeRepository{snapshot: snapshot})
-			service.SetExecutionRecoveryConsumer(queue)
+			repository := &continuationRepositoryFake{fakeRepository: &fakeRepository{snapshot: snapshot}}
+			service := testService(repository)
+			service.SetScheduledWorkConsumer(continuationAdmission{})
+			service.SetAssignmentTargetAuthorizer(assignmentTargetAuthorizerFunc(func(context.Context, AssignmentTargetRequest) error { return nil }))
 			input := protocol.RequestExecutionRecovery{SessionKey: "session-1", RequestID: "user-request", WorkItemID: "work-1", AttemptID: "attempt-1"}
-			var group sync.WaitGroup
-			for range 8 {
-				group.Go(func() {
-					receipt, err := service.RequestWorkRecovery(context.Background(), "owner-1", "execution-1", input)
-					if err != nil || !receipt.Queued {
-						t.Errorf("request = %+v, %v", receipt, err)
-					}
-				})
+			for range 2 {
+				receipt, err := service.RequestWorkRecovery(context.Background(), "owner-1", "execution-1", input)
+				if err != nil || !receipt.Queued {
+					t.Fatalf("request: %+v %v", receipt, err)
+				}
 			}
-			group.Wait()
-			if queue.writes != 1 || snapshot.Attempts[0].Status != protocol.WorkAttemptStatusInterrupted || snapshot.Execution.Version != 10 {
-				t.Fatal("duplicate enqueue or premature domain mutation")
+			if repository.writes != 1 || len(repository.snapshot.Attempts) != 2 || repository.snapshot.Attempts[0].Status != protocol.WorkAttemptStatusInterrupted {
+				t.Fatal("continuation duplicated or rewrote old attempt")
 			}
-			target := protocol.ExecutionRecoveryTarget{ExecutionID: "execution-1", WorkItemID: "work-1", AttemptID: "attempt-1"}
-			if current, err := service.RecoveryTargetCurrent(context.Background(), "owner-1", "session-1", target); err != nil || !current {
-				t.Fatalf("current=%v err=%v", current, err)
-			}
-			snapshot.Attempts = append(snapshot.Attempts, protocol.WorkAttempt{ID: "new-attempt", AssignmentID: "assignment-1", Status: protocol.WorkAttemptStatusRunning, CreatedAt: time.Now()})
-			if current, err := service.RecoveryTargetCurrent(context.Background(), "owner-1", "session-1", target); err != nil || current {
-				t.Fatalf("old target dispatched: %v %v", current, err)
-			}
-			// A lost ACK is still readable/replayable after the graph has advanced.
-			receipt, err := service.RequestWorkRecovery(context.Background(), "owner-1", "execution-1", input)
-			if err != nil || !receipt.Queued || queue.writes != 1 {
+			// Read-only reconciliation survives service restart and later graph progress.
+			repository.snapshot.Execution.Status = protocol.ExecutionStatusCompleted
+			restarted := testService(repository)
+			receipt, err := restarted.GetWorkRecoveryReceipt(context.Background(), "owner-1", "execution-1", "session-1", input.RequestID)
+			if err != nil || !receipt.Queued || receipt.AttemptID != "attempt-1" {
 				t.Fatalf("lost ACK: %+v %v", receipt, err)
 			}
-			input.WorkItemID = "another-work"
-			if _, err := service.RequestWorkRecovery(context.Background(), "owner-1", "execution-1", input); err == nil {
+			input.WorkItemID = "other"
+			if _, err = restarted.RequestWorkRecovery(context.Background(), "owner-1", "execution-1", input); err == nil {
 				t.Fatal("same request changed intent")
 			}
-			if _, err := service.GetWorkRecoveryReceipt(context.Background(), "other-owner", "execution-1", "session-1", input.RequestID); err == nil {
-				t.Fatal("receipt leaked to another owner")
+			if _, err = restarted.GetWorkRecoveryReceipt(context.Background(), "other-owner", "execution-1", "session-1", input.RequestID); err == nil {
+				t.Fatal("cross-owner receipt")
 			}
 		})
 	}
@@ -105,13 +96,25 @@ func TestUserRecoveryRejectsStaleOrNonRecoverableTargets(t *testing.T) {
 			snapshot := assignedExecutionSnapshot()
 			snapshot.Attempts[0].Status = protocol.WorkAttemptStatusFailed
 			mutate(snapshot)
-			queue := &userRecoveryQueue{receipts: map[string]protocol.ExecutionRecoveryTarget{}}
-			service := testService(&fakeRepository{snapshot: snapshot})
-			service.SetExecutionRecoveryConsumer(queue)
+			repository := &continuationRepositoryFake{fakeRepository: &fakeRepository{snapshot: snapshot}}
+			service := testService(repository)
+			service.SetScheduledWorkConsumer(continuationAdmission{})
 			_, err := service.RequestWorkRecovery(context.Background(), "owner-1", "execution-1", protocol.RequestExecutionRecovery{SessionKey: "session-1", RequestID: "request", WorkItemID: "work-1", AttemptID: "attempt-1"})
-			if err == nil || queue.writes != 0 {
+			if err == nil || repository.writes != 0 {
 				t.Fatalf("accepted %s: %v", name, err)
 			}
 		})
 	}
+}
+
+type continuationAdmission struct{}
+
+func (continuationAdmission) AutomaticDispatchAllowed(context.Context, protocol.Execution, string) (bool, error) {
+	return false, nil
+}
+func (continuationAdmission) QueueScheduledWork(context.Context, protocol.Execution, protocol.ExecutionWorkBinding, string, string) error {
+	return errors.New("unexpected automatic dispatch")
+}
+func (continuationAdmission) ContinuationPauseRevision(context.Context, protocol.Execution, string) (int64, error) {
+	return 1, nil
 }

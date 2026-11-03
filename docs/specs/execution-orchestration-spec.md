@@ -1253,6 +1253,8 @@ layer cannot enforce.
 
 认证 owner 可对同一 session 的 current active Execution 发起 exact Work Item / root Attempt 恢复。目标必须属于当前 Plan/Spec、当前 Assignment 的最新根 Attempt，处于 failed/interrupted/timed_out 且未交付；历史、已接管、运行中、子 Attempt、暂停或已关闭目标拒绝。图上的 `can_recover` 是服务端能力提示，写入口与出队时仍重验权威身份。
 
-请求使用客户端新意图的稳定 request_id，经 DM/Room 原有持久队列唤醒原协调者，要求先核对该目标的产物、待审提交与未知副作用，再决定接管或继续；不会直接将 Attempt 标成 running，也不伪造用户消息。受理回执只证明已入队。相同 ID 重试返回原回执，不同目标不能复用；HTTP 回执丢失后先只读核对，确认未受理后才允许用户再次提交原意图。
+“继续此任务”使用稳定 request_id，由宿主保留原 owner/reviewer，原子释放旧 Assignment，建立新 Assignment、pending root Attempt、持久派发记录和用户操作回执。Room 使用 Dispatch outbox，DM 使用已分配状态的 dispatch policy，不依赖协调模型决定是否接管。旧 Attempt、检查点和已验收成果保持不变。新轮次先核对已有产物与未知副作用，再完成剩余工作。回执只证明续跑责任和派发意图已提交，不证明 runtime 已启动或任务完成。同一 ID 重试返回原回执，不同目标不能复用；HTTP 回执丢失后先只读核对。待处理的交付回执、仍活动的子 Attempt 或待审核 Submission 阻止重新执行。
 
-显式恢复仅允许新入队的该项通过已有队列暂停；其他被暂停项与 Goal continuation 不会随之恢复。随后发生的用户停止撤销此项准入，重复请求、恢复旧 claim 或重启不能重新授予许可。自动恢复仍遵守暂停门禁，不因这一入口获得新增权限。目标在排队期间被替换、交付或关闭时，出队前丢弃旧请求。
+显式续跑记录目标队列的暂停 revision，派发入队时原子核对；期间新的停止/恢复操作使旧准入失效。仅允许该项通过已有队列暂停，其他被暂停项与 Goal continuation 不会随之恢复。随后发生的用户停止撤销此项准入，重复请求、恢复旧 claim 或重启不能重新授予许可。自动恢复仍遵守暂停门禁。目标在排队期间被替换、交付或关闭时，出队前丢弃旧请求。
+
+续跑的派发被后续停止或永久投递失败取消时，新 Attempt 收口为 interrupted，保留该 Assignment 以便用户再次明确续跑；不会反复自动派发。原执行者同时是审核人时，续跑轮次保留同轮审核，不额外生成会被旧暂停阻挡的自审核任务；跨执行者审核仍走原审核人投递链路及其暂停限制。

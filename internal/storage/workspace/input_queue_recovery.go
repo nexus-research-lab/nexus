@@ -47,6 +47,7 @@ func (r *inputQueueReplay) pause(row map[string]any) {
 	if !inputQueueItemMatchesLocationScope(r.location, item) || !inputQueueItemMatchesLocationOwner(r.location, item) {
 		return
 	}
+	r.pauseRevision++
 	r.paused, _ = row["paused"].(bool)
 	if r.paused {
 		clear(r.recoveryAdmissions)
@@ -147,4 +148,35 @@ func (s *InputQueueStore) ClaimFirstDispatchable(location InputQueueLocation) (*
 		return &item, items, nil
 	}
 	return nil, items, nil
+}
+
+// ContinuationPauseRevision reads the stop/resume generation before a durable continuation is accepted.
+func (s *InputQueueStore) ContinuationPauseRevision(location InputQueueLocation) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows, err := s.inputQueueRowsLocked(location)
+	if err != nil {
+		return 0, err
+	}
+	replay := newInputQueueReplay(location)
+	for _, row := range rows {
+		replay.apply(row)
+	}
+	return replay.pauseRevision, nil
+}
+
+var ErrContinuationStopped = errors.New("continuation was superseded by a later stop or resume")
+
+func checkContinuationPause(location InputQueueLocation, rows []map[string]any, item protocol.InputQueueItem) error {
+	if item.ContinuationPauseRevision == nil {
+		return nil
+	}
+	replay := newInputQueueReplay(location)
+	for _, row := range rows {
+		replay.apply(row)
+	}
+	if *item.ContinuationPauseRevision != replay.pauseRevision {
+		return ErrContinuationStopped
+	}
+	return nil
 }

@@ -1,4 +1,4 @@
-// INPUT: 已完成 Agent 输出中的显式公区 @ 与目标 Agent 当前执行态。
+// INPUT: 已完成 Agent 输出中的显式公区 @、已准入的绑定续跑与目标 Agent 当前执行态。
 // OUTPUT: 任意非 self 成员间幂等 handoff、成功 target 的同 message-id reply 因果更新、同 Agent 串行 guide/queue/新轮唤醒、服务端分类的 handoff/queue 执行来源，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
 // POS: Room Agent 间公开协作的显式路由与纯资源护栏入口；不解释或限制业务协作拓扑。
 package realtime
@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -995,6 +996,9 @@ func buildPublicMentionSlot(
 }
 
 func normalizeWakeQueueSource(wake publicMentionWake) protocol.InputQueueSource {
+	if wake.QueueSource == protocol.InputQueueSourceHostRecovery && wake.WorkBinding != nil {
+		return protocol.InputQueueSourceAgentRoomMessage
+	}
 	if wake.QueueSource == protocol.InputQueueSourceAgentRoomMessage {
 		return protocol.InputQueueSourceAgentRoomMessage
 	}
@@ -1098,6 +1102,11 @@ func (s *Service) queueBusyPublicMentionWakes(
 		}
 		busySlot := busySlots[targetAgentID]
 		_, participationPaused := pausedTargets[targetAgentID]
+		if wake.ContinuationAdmitted {
+			// The queue already admitted this exact task through the stop pause.
+			// Member participation remains independent of that one-task exception.
+			participationPaused = slices.Contains(pausedAgentIDs, targetAgentID)
+		}
 		if busySlot == nil && !participationPaused {
 			ready = append(ready, wake)
 			continue

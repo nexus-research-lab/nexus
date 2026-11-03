@@ -562,6 +562,12 @@ func TestReviewDispatchExistsOnlyForCrossAgentReturn(t *testing.T) {
 		t.Fatal("self-review must stay in the current Agent responsibility")
 	}
 
+	assignment.Metadata = map[string]any{"dispatch_policy": true, "user_continuation": true}
+	if needsReviewDispatch(snapshot, &assignment) {
+		t.Fatal("explicit self continuation must not stall review on the paused queue")
+	}
+	assignment.Metadata = nil
+
 	assignment.ReturnToAgentID = "agent-reviewer"
 	if !needsReviewDispatch(snapshot, &assignment) {
 		t.Fatal("cross-Agent review must create a durable Room return")

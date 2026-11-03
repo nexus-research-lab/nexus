@@ -1,9 +1,9 @@
 // INPUT: Authenticated user recovery intent for one exact WorkGraph root Attempt.
-// OUTPUT: Recovery request/receipt and a queue target that grants no work capability.
+// OUTPUT: Exact continuation request/receipt and scoped queue admission identity.
 // POS: Shared HTTP and durable queue recovery identities; runtime effects require reconciliation.
 package protocol
 
-// ExecutionRecoveryTarget identifies the failed root to inspect, never a command to replay.
+// ExecutionRecoveryTarget identifies an exact root; HTTP targets the stopped root and bound queues target its replacement.
 type ExecutionRecoveryTarget struct {
 	ExecutionID string `json:"execution_id"`
 	WorkItemID  string `json:"work_item_id"`

@@ -214,6 +214,16 @@ func runWorkGraphRestartChild(t *testing.T) {
 			t.Fatalf("stop pause was lost: %v", err)
 		}
 	}
+	stopRecovery, err := server.startOrchestrationRecovery(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stopRecovery()
+	stopDispatch, err := server.startExecutionDispatches(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stopDispatch()
 	input := protocol.RequestExecutionRecovery{SessionKey: state.Actor.SessionKey, RequestID: "app-explicit-recovery", WorkItemID: state.Attempt.WorkItemID, AttemptID: state.Attempt.ID}
 	for range 2 {
 		receipt, err := server.services.Orchestration.RequestWorkRecovery(ctx, state.Actor.OwnerUserID, state.Actor.ExecutionID, input)
@@ -228,12 +238,18 @@ func runWorkGraphRestartChild(t *testing.T) {
 	waitAppCondition(t, 12*time.Second, func() bool {
 		_, observed := os.Stat(filepath.Join(root, "inspection-responded"))
 		return observed == nil && len(server.services.Runtime.GetRunningRoundIDs(state.Actor.SessionKey)) == 0 && (state.Actor.ScopeKind != protocol.ExecutionScopeRoom || server.services.RoomRealtime.GetActiveRoundSnapshot(state.Actor.ConversationID) == nil)
-	}, func() string { return "recovery inspection did not drain" })
+	}, func() string {
+		snap, _ := repository.GetSnapshot(ctx, state.Actor.ExecutionID)
+		data, _ := json.Marshal(snap)
+		event, queueErr := server.services.RoomRealtime.InputQueueSnapshotEvent(ctx, state.Actor.RoomID, state.Actor.ConversationID)
+		queue, _ := json.Marshal(event)
+		return fmt.Sprintf("recovery inspection did not drain: snapshot=%s queue=%s err=%v", data, queue, queueErr)
+	})
 	after, _ := repository.GetSnapshot(ctx, state.Actor.ExecutionID)
-	if len(after.Assignments) != 1 || len(after.Submissions) != 0 || len(after.Acceptances) != 0 {
-		t.Fatal("reopening or inspection replayed work")
+	if len(after.Assignments) != 1 || after.Assignments[0].ID == state.Attempt.AssignmentID || after.Assignments[0].OwnerAgentID != state.Attempt.ExecutorAgentID || len(after.Attempts) != 2 || len(after.Submissions) != 0 || len(after.Acceptances) != 0 {
+		t.Fatal("continuation changed owner, duplicated attempts or fabricated completion")
 	}
-	t.Log("durable progress and exact queue receipt reconciled; no external operation or successful completion was inferred")
+	t.Log("same-owner continuation reached a real runtime after restart; prior progress preserved; model inspection did not fabricate submission or completion")
 }
 func waitAppCondition(t *testing.T, timeout time.Duration, ready func() bool, detail func() string) {
 	t.Helper()

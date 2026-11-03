@@ -197,6 +197,8 @@ type ResumeCommand struct {
 
 // TakeoverCommand 原子释放旧 Assignment、终止其当前执行，并创建 replacement。
 type TakeoverCommand struct {
+	// ContinuationInstruction persists a DM delivery outbox in the same transaction.
+	ContinuationInstruction          string
 	ExpectedExecutionVersion         int64
 	ExpectedCurrentAssignmentVersion int64
 	CurrentAssignmentID              string

@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"errors"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"os"
@@ -70,6 +71,14 @@ func TestExplicitWorkRecoveryPassesOnlyItsOwnStopGate(t *testing.T) {
 	}
 	target := &protocol.ExecutionRecoveryTarget{ExecutionID: "execution", WorkItemID: "work", AttemptID: "attempt"}
 	request := protocol.InputQueueItem{ID: "recover", Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: "execution", RecoveryTarget: target, Content: "inspect exact work", DeliveryPolicy: protocol.ChatDeliveryPolicyQueue}
+	revision, err := store.ContinuationPauseRevision(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.ContinuationPauseRevision = &revision
+	request.AgentID = "agent-a"
+	request.TargetAgentIDs = []string{"agent-a"}
+	request.WorkBinding = &protocol.ExecutionWorkBinding{ExecutionID: "execution", PlanID: "plan", WorkItemID: "work", SpecID: "spec", AssignmentID: "assignment", AttemptID: "attempt"}
 	first, err := store.EnqueueIdempotent(location, request, "request")
 	if err != nil {
 		t.Fatal(err)
@@ -89,6 +98,17 @@ func TestExplicitWorkRecoveryPassesOnlyItsOwnStopGate(t *testing.T) {
 	}
 	if err := store.SetDispatchPaused(location, true); err != nil {
 		t.Fatal(err)
+	}
+	delayed := request
+	delayed.ID = "delayed"
+	copied := *request.RecoveryTarget
+	copied.AttemptID = "delayed-attempt"
+	delayed.RecoveryTarget = &copied
+	binding := *request.WorkBinding
+	binding.AttemptID = copied.AttemptID
+	delayed.WorkBinding = &binding
+	if _, err = store.EnqueueIdempotent(location, delayed, "delayed-request"); !errors.Is(err, ErrContinuationStopped) {
+		t.Fatalf("delayed delivery revived stopped work: %v", err)
 	}
 	// Replaying the same accepted request cannot undo a later user stop.
 	if _, err := store.EnqueueIdempotent(location, request, "request"); err != nil {

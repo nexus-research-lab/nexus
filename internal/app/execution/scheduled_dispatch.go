@@ -5,6 +5,7 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
@@ -53,4 +54,28 @@ func (c ScheduledConsumer) DeliverExecutionReviewDispatch(ctx context.Context, d
 		return c.Room.DeliverExecutionReviewDispatch(ctx, d)
 	}
 	return c.DM.DeliverExecutionReviewDispatch(ctx, d)
+}
+
+func (c ScheduledConsumer) QueueContinuedWork(ctx context.Context, e protocol.Execution, b protocol.ExecutionWorkBinding, instruction, key string, revision int64) error {
+	queue, ok := c.DM.(interface {
+		QueueContinuedWork(context.Context, protocol.Execution, protocol.ExecutionWorkBinding, string, string, int64) error
+	})
+	if !ok {
+		return errors.New("DM continuation queue unavailable")
+	}
+	return queue.QueueContinuedWork(ctx, e, b, instruction, key, revision)
+}
+
+func (c ScheduledConsumer) ContinuationPauseRevision(ctx context.Context, e protocol.Execution, target string) (int64, error) {
+	var host any = c.DM
+	if e.ScopeKind == protocol.ExecutionScopeRoom {
+		host = c.Room
+	}
+	reader, ok := host.(interface {
+		ContinuationPauseRevision(context.Context, protocol.Execution, string) (int64, error)
+	})
+	if !ok {
+		return 0, errors.New("continuation admission unavailable")
+	}
+	return reader.ContinuationPauseRevision(ctx, e, target)
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	store "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
+	workspace "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 type DispatchPolicyInput struct {
@@ -179,13 +180,18 @@ func (s *Service) reconcileDispatchPolicy(ctx context.Context, repository dispat
 	if snapshot == nil || !snapshot.Execution.Status.Current() || snapshot.Plan == nil || snapshot.Plan.ID != p.PlanID {
 		return deferPolicy("cancelled", "plan_or_execution_replaced")
 	}
-	if snapshot.Execution.Status == protocol.ExecutionStatusPaused || rootRecoveryStoppedByUser(snapshot) {
+	assignment := findAssignmentByID(snapshot, p.AssignmentID)
+	continuation := assignment != nil && assignment.Metadata["user_continuation"] == true
+	if snapshot.Execution.Status == protocol.ExecutionStatusPaused || (!continuation && rootRecoveryStoppedByUser(snapshot)) {
 		return deferPolicy(p.State, "paused")
 	}
 	if s.scheduledWork == nil {
 		return deferPolicy(p.State, "admission_unavailable")
 	}
-	allowed, err := s.scheduledWork.AutomaticDispatchAllowed(ctx, snapshot.Execution, p.TargetAgentID)
+	allowed := continuation
+	if !continuation {
+		allowed, err = s.scheduledWork.AutomaticDispatchAllowed(ctx, snapshot.Execution, p.TargetAgentID)
+	}
 	if err != nil {
 		return errors.Join(err, deferPolicy(p.State, "admission_unavailable"))
 	}
@@ -202,9 +208,35 @@ func (s *Service) reconcileDispatchPolicy(ctx context.Context, repository dispat
 			return deferPolicy("cancelled", "responsibility_changed")
 		}
 		binding := protocol.ExecutionWorkBinding{ExecutionID: p.ExecutionID, PlanID: p.PlanID, WorkItemID: p.WorkItemID, SpecID: p.SpecID, AssignmentID: p.AssignmentID, AttemptID: p.AttemptID}
-		if err := s.scheduledWork.QueueScheduledWork(ctx, snapshot.Execution, binding, p.Instruction, "policy:"+p.ID); err != nil {
+		if continuation {
+			c, ok := s.scheduledWork.(interface {
+				QueueContinuedWork(context.Context, protocol.Execution, protocol.ExecutionWorkBinding, string, string, int64) error
+			})
+			if !ok {
+				return deferPolicy(p.State, "continuation_queue_unavailable")
+			}
+			err = c.QueueContinuedWork(ctx, snapshot.Execution, binding, p.Instruction, "policy:"+p.ID, continuationPauseRevision(assignment))
+		} else {
+			err = s.scheduledWork.QueueScheduledWork(ctx, snapshot.Execution, binding, p.Instruction, "policy:"+p.ID)
+		}
+		if err != nil {
+			if errors.Is(err, workspace.ErrContinuationStopped) {
+				terminal := *attempt
+				terminal.Status = protocol.WorkAttemptStatusInterrupted
+				terminal.FailureReason = err.Error()
+				updated, finishErr := s.repository.FinishAttempt(ctx, store.FinishAttemptCommand{
+					ExpectedExecutionVersion: snapshot.Execution.Version, ExpectedAttemptVersion: attempt.Version, Attempt: terminal,
+					Meta: s.commandMeta(ActorContext{OwnerUserID: snapshot.Execution.OwnerUserID, SessionKey: snapshot.Execution.SessionKey, AgentID: snapshot.Execution.CoordinatorAgentID, ActorKind: protocol.ExecutionActorSystem}, "continuation-stopped:"+attempt.ID, "continuation-stopped"),
+				})
+				if finishErr != nil {
+					return finishErr
+				}
+				s.invalidateSnapshot(ctx, updated)
+				return deferPolicy("cancelled", "continuation_stopped")
+			}
 			return errors.Join(err, deferPolicy(p.State, "queue_receipt_unknown"))
 		}
+
 		return deferPolicy("queued", "")
 	}
 	if activeAssignmentForWork(snapshot, p.WorkItemID) != nil {

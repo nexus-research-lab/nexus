@@ -42,6 +42,7 @@ import {
   resolveExecutionWorkGraphHeaderModel,
   type ExecutionAgentDirectory,
 } from "./execution-process-model";
+import { useSharedExecutionContinuation } from "./execution-continuation-state";
 import { useExecutionRecovery } from "./use-execution-recovery";
 import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import type { ExecutionResource } from "./use-execution-resource";
@@ -104,7 +105,9 @@ export function ExecutionWorkGraphSurface({
   const currentExecution = hasManagedExecutionGraph(resource.execution)
     ? resource.execution
     : null;
-  const recovery = useExecutionRecovery(sessionScopeKey, currentExecution?.id ?? "", resource.refresh);
+  const localRecovery = useExecutionRecovery(sessionScopeKey, currentExecution?.id ?? "", resource.refresh);
+  const sharedContinuation = useSharedExecutionContinuation();
+  const recovery = sharedContinuation?.resource === resource ? sharedContinuation.action : localRecovery;
   const historyDetail = useExecutionViewResource(
     resource.sessionKey,
     mode === "history"

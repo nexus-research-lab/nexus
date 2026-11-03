@@ -204,7 +204,16 @@ func (s *Service) enqueueExecutionDispatch(
 		RootRoundID:     roomRootRoundID(parentRound),
 		WorkBinding:     (&delivery.Binding).Clone(),
 	}
+	if delivery.UserContinuation {
+		item.ContinuationPauseRevision = &delivery.ContinuationPauseRevision
+		item.Source = protocol.InputQueueSourceHostRecovery
+		item.RecoveryExecutionID = delivery.Binding.ExecutionID
+		item.RecoveryTarget = &protocol.ExecutionRecoveryTarget{ExecutionID: delivery.Binding.ExecutionID, WorkItemID: delivery.Binding.WorkItemID, AttemptID: delivery.Binding.AttemptID}
+	}
 	items, inserted, err := s.InputQueue.EnqueueBounded(location.Location, item, 0)
+	if errors.Is(err, workspacestore.ErrContinuationStopped) {
+		return receipt, orchestrationsvc.PermanentExecutionDispatchDelivery(err)
+	}
 	if err != nil {
 		return receipt, err
 	}

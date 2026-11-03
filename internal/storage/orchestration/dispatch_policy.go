@@ -5,6 +5,7 @@ package orchestration
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -158,4 +159,16 @@ func (r *Repository) ActivateDispatchPolicy(ctx context.Context, c ActivateDispa
 		return nil, err
 	}
 	return r.finishMutation(ctx, m, command.Meta, event)
+}
+
+// insertContinuationPolicy uses the existing durable DM dispatch worker for an already assigned continuation.
+func (r *Repository) insertContinuationPolicy(ctx context.Context, tx *sql.Tx, a protocol.WorkAssignment, attempt protocol.WorkAttempt, instruction string) error {
+	p := protocol.ExecutionDispatchPolicy{ID: "continue:" + a.ID, ExecutionID: a.ExecutionID, PlanID: a.PlanID, WorkItemID: a.WorkItemID, SpecID: a.SpecID, TargetAgentID: a.OwnerAgentID, ReturnToAgentID: a.ReturnToAgentID, Instruction: instruction}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	now := r.timestamp(r.currentTime())
+	_, err = tx.ExecContext(ctx, `INSERT INTO execution_dispatch_policies (policy_id,execution_id,plan_id,work_item_id,spec_id,intent_json,state,assignment_id,attempt_id,next_attempt_at,created_at) VALUES (`+r.bind(1)+`,`+r.bind(2)+`,`+r.bind(3)+`,`+r.bind(4)+`,`+r.bind(5)+`,`+r.bind(6)+`,'assigned',`+r.bind(7)+`,`+r.bind(8)+`,`+r.bind(9)+`,`+r.bind(10)+`)`, p.ID, p.ExecutionID, p.PlanID, p.WorkItemID, p.SpecID, string(raw), a.ID, attempt.ID, now, now)
+	return err
 }

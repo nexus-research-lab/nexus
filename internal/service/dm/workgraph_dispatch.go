@@ -1,5 +1,5 @@
 // INPUT: Host-issued exact WorkGraph responsibility and stable durable queue identity.
-// OUTPUT: Hidden DM work/review rounds honoring the existing queue pause gate.
+// OUTPUT: Hidden DM work/review rounds with exact continuation admission through the queue pause gate.
 // POS: DM counterpart of Room structured dispatch; model input cannot construct bindings.
 package dm
 
@@ -40,7 +40,7 @@ func (s *Service) DeliverExecutionReviewDispatch(ctx context.Context, d orchestr
 	id, err := s.enqueueWorkGraphRound(ctx, d.OwnerUserID, d.SessionKey, d.TargetAgentID, d.DispatchDedupeKey, d.Instruction, nil, &d.Binding)
 	return orchestration.ExecutionReviewDispatchReceipt{QueueItemID: id}, err
 }
-func (s *Service) enqueueWorkGraphRound(ctx context.Context, owner, session, agent, key, content string, work *protocol.ExecutionWorkBinding, review *protocol.ExecutionReviewBinding) (string, error) {
+func (s *Service) enqueueWorkGraphRound(ctx context.Context, owner, session, agent, key, content string, work *protocol.ExecutionWorkBinding, review *protocol.ExecutionReviewBinding, continuationRevision ...int64) (string, error) {
 	ctx = runtimehost.ContextWithExactOwner(ctx, owner)
 	session, location, err := s.resolveInputQueueLocation(ctx, session, agent)
 	if err != nil {
@@ -53,10 +53,34 @@ func (s *Service) enqueueWorkGraphRound(ctx context.Context, owner, session, age
 	if review != nil {
 		executionID = review.ExecutionID
 	}
-	result, err := s.InputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: executionID, OwnerUserID: owner, AgentID: agent, TargetAgentIDs: []string{agent}, Content: content, DeliveryPolicy: protocol.ChatDeliveryPolicyQueue, WorkBinding: work, ReviewBinding: review}, key)
+	var target *protocol.ExecutionRecoveryTarget
+	var pauseRevision *int64
+	if len(continuationRevision) > 0 && work != nil {
+		pauseRevision = &continuationRevision[0]
+		target = &protocol.ExecutionRecoveryTarget{ExecutionID: work.ExecutionID, WorkItemID: work.WorkItemID, AttemptID: work.AttemptID}
+	}
+	result, err := s.InputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{ContinuationPauseRevision: pauseRevision, RecoveryTarget: target, Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: executionID, OwnerUserID: owner, AgentID: agent, TargetAgentIDs: []string{agent}, Content: content, DeliveryPolicy: protocol.ChatDeliveryPolicyQueue, WorkBinding: work, ReviewBinding: review}, key)
 	if err != nil {
 		return "", err
 	}
 	s.StartSessionBackgroundTask(session, owner, func(ctx context.Context) { s.dispatchNextInputQueueItemAtLocation(ctx, session, agent, location) })
 	return result.Item.ID, nil
+}
+
+// QueueContinuedWork admits this explicit task without unpausing unrelated inputs.
+func (s *Service) QueueContinuedWork(ctx context.Context, e protocol.Execution, b protocol.ExecutionWorkBinding, instruction, key string, revision int64) error {
+	if e.ScopeKind != protocol.ExecutionScopeDM {
+		return errors.New("continuation requires DM scope")
+	}
+	_, err := s.enqueueWorkGraphRound(ctx, e.OwnerUserID, e.SessionKey, e.CoordinatorAgentID, key, instruction, &b, nil, revision)
+	return err
+}
+
+func (s *Service) ContinuationPauseRevision(ctx context.Context, e protocol.Execution, target string) (int64, error) {
+	ctx = runtimehost.ContextWithExactOwner(ctx, e.OwnerUserID)
+	_, location, err := s.resolveInputQueueLocation(ctx, e.SessionKey, target)
+	if err != nil {
+		return 0, err
+	}
+	return s.InputQueue.ContinuationPauseRevision(location)
 }

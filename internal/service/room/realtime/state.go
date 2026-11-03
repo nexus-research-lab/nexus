@@ -348,6 +348,8 @@ type activeRoomRound struct {
 type roomTrigger = roomdomain.Trigger
 
 type publicMentionWake struct {
+	// Set only after exact continuation queue admission under the Room dispatch lock.
+	ContinuationAdmitted     bool
 	HandoffID                string
 	TriggerType              string
 	QueueSource              protocol.InputQueueSource

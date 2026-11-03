@@ -5,6 +5,7 @@
  * OUTPUT: 始终复用 MessageItem 的稳定执行外壳与共享 xs 动作；精确停止/Thread 命令、忙碌和终态沿同一控制条投影。
  * POS: Room 主 Feed 单个 agent_round 的唯一 Assistant 展示面。
  */
+import { ExecutionRoundContinueButton } from "@/features/conversation/shared/execution/execution-continuation-context";
 import { Square } from "lucide-react";
 import { memo, useMemo, type ComponentProps, type ReactNode } from "react";
 
@@ -118,6 +119,7 @@ export function RoomAgentResultCard({
 }
 
 interface GroupAgentExecutionShellProps {
+  agentRoundId?: string;
   agentAvatar: string | null;
   agentId: string;
   agentMentionDirectory?: AgentMentionDirectory;
@@ -143,6 +145,7 @@ interface GroupAgentExecutionShellProps {
 }
 
 function GroupAgentExecutionShellInner({
+  agentRoundId,
   agentAvatar,
   agentId,
   agentMentionDirectory,
@@ -233,6 +236,7 @@ function GroupAgentExecutionShellInner({
                 {terminalLabel}
               </span>
             ) : null}
+            {terminalLabel ? <ExecutionRoundContinueButton agentId={agentId} agentRoundId={agentRoundId ?? ""} /> : null}
             {showStop ? (
               <RoomAgentStopButton isStopping={isStopping} onClick={onStopAgentRound!} />
             ) : null}

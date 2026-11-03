@@ -78,36 +78,37 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 		return typed, true
 	case map[string]any:
 		return protocol.InputQueueItem{
-			ID:                       stringFromAny(typed["id"]),
-			DispatchPending:          boolValueAny(typed["dispatch_pending"]),
-			RecoveryExecutionID:      stringFromAny(typed["recovery_execution_id"]),
-			RecoveryTarget:           executionRecoveryTargetFromAny(typed["recovery_target"]),
-			Scope:                    protocol.InputQueueScope(stringFromAny(typed["scope"])),
-			SessionKey:               stringFromAny(typed["session_key"]),
-			RoomID:                   stringFromAny(typed["room_id"]),
-			ConversationID:           stringFromAny(typed["conversation_id"]),
-			AgentID:                  stringFromAny(typed["agent_id"]),
-			AgentRoundID:             stringFromAny(typed["agent_round_id"]),
-			ClientMessageID:          stringFromAny(typed["client_message_id"]),
-			SourceAgentID:            stringFromAny(typed["source_agent_id"]),
-			SourceMessageID:          stringFromAny(typed["source_message_id"]),
-			HandoffID:                stringFromAny(typed["handoff_id"]),
-			TargetAgentIDs:           stringSliceFromAny(typed["target_agent_ids"]),
-			Source:                   protocol.InputQueueSource(stringFromAny(typed["source"])),
-			Content:                  stringFromAny(typed["content"]),
-			Attachments:              protocol.ChatAttachmentsFromAny(typed["attachments"]),
-			DeliveryPolicy:           protocol.ChatDeliveryPolicy(stringFromAny(typed["delivery_policy"])),
-			ReplyRoute:               inputQueueReplyRouteFromAny(typed["reply_route"]),
-			OwnerUserID:              stringFromAny(typed["owner_user_id"]),
-			RootRoundID:              stringFromAny(typed["root_round_id"]),
-			HopIndex:                 intFromAny(typed["hop_index"]),
-			GoalCollaborationBinding: goalCollaborationBindingFromAny(typed["goal_collaboration_binding"]),
-			WorkBinding:              executionWorkBindingFromAny(typed["work_binding"]),
-			ReviewBinding:            executionReviewBindingFromAny(typed["review_binding"]),
-			QueueOrder:               protocol.Int64FromAny(typed["queue_order"]),
-			ExpiresAt:                protocol.Int64FromAny(typed["expires_at"]),
-			CreatedAt:                protocol.Int64FromAny(typed["created_at"]),
-			UpdatedAt:                protocol.Int64FromAny(typed["updated_at"]),
+			ID:                        stringFromAny(typed["id"]),
+			DispatchPending:           boolValueAny(typed["dispatch_pending"]),
+			RecoveryExecutionID:       stringFromAny(typed["recovery_execution_id"]),
+			RecoveryTarget:            executionRecoveryTargetFromAny(typed["recovery_target"]),
+			ContinuationPauseRevision: continuationPauseRevisionFromAny(typed["continuation_pause_revision"]),
+			Scope:                     protocol.InputQueueScope(stringFromAny(typed["scope"])),
+			SessionKey:                stringFromAny(typed["session_key"]),
+			RoomID:                    stringFromAny(typed["room_id"]),
+			ConversationID:            stringFromAny(typed["conversation_id"]),
+			AgentID:                   stringFromAny(typed["agent_id"]),
+			AgentRoundID:              stringFromAny(typed["agent_round_id"]),
+			ClientMessageID:           stringFromAny(typed["client_message_id"]),
+			SourceAgentID:             stringFromAny(typed["source_agent_id"]),
+			SourceMessageID:           stringFromAny(typed["source_message_id"]),
+			HandoffID:                 stringFromAny(typed["handoff_id"]),
+			TargetAgentIDs:            stringSliceFromAny(typed["target_agent_ids"]),
+			Source:                    protocol.InputQueueSource(stringFromAny(typed["source"])),
+			Content:                   stringFromAny(typed["content"]),
+			Attachments:               protocol.ChatAttachmentsFromAny(typed["attachments"]),
+			DeliveryPolicy:            protocol.ChatDeliveryPolicy(stringFromAny(typed["delivery_policy"])),
+			ReplyRoute:                inputQueueReplyRouteFromAny(typed["reply_route"]),
+			OwnerUserID:               stringFromAny(typed["owner_user_id"]),
+			RootRoundID:               stringFromAny(typed["root_round_id"]),
+			HopIndex:                  intFromAny(typed["hop_index"]),
+			GoalCollaborationBinding:  goalCollaborationBindingFromAny(typed["goal_collaboration_binding"]),
+			WorkBinding:               executionWorkBindingFromAny(typed["work_binding"]),
+			ReviewBinding:             executionReviewBindingFromAny(typed["review_binding"]),
+			QueueOrder:                protocol.Int64FromAny(typed["queue_order"]),
+			ExpiresAt:                 protocol.Int64FromAny(typed["expires_at"]),
+			CreatedAt:                 protocol.Int64FromAny(typed["created_at"]),
+			UpdatedAt:                 protocol.Int64FromAny(typed["updated_at"]),
 		}, true
 	default:
 		return protocol.InputQueueItem{}, false
@@ -293,4 +294,12 @@ func inputQueueReplyRouteFromAny(value any) protocol.RoomReplyRoute {
 		route.NextReplyRoute = &next
 	}
 	return route
+}
+
+func continuationPauseRevisionFromAny(value any) *int64 {
+	if value == nil {
+		return nil
+	}
+	revision := protocol.Int64FromAny(value)
+	return &revision
 }

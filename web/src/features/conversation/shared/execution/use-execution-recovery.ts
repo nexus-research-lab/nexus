@@ -3,13 +3,14 @@
  * OUTPUT: Scoped recovery actions with shared duplicate-click guards and read-only unknown-outcome reconciliation.
  * POS: DM/Room WorkGraph recovery state; queued acknowledgement never marks an Attempt running or completed.
  */
+import { ApiRequestError } from "@/lib/api/core/http-error";
 import { useEffect, useRef } from "react";
 
 import { getExecutionRecoveryReceiptApi, requestExecutionRecoveryApi } from "@/lib/api/conversation/execution-api";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import type { ExecutionGraphNodeView } from "@/types/conversation/execution";
 
-type RecoveryStatus = "pending" | "queued" | "unknown" | "absent";
+type RecoveryStatus = "pending" | "queued" | "unknown" | "absent" | "rejected";
 interface RecoveryRequest { requestId: string; status: RecoveryStatus }
 export interface ExecutionRecoveryAction {
   run: (node: ExecutionGraphNodeView) => void;
@@ -49,8 +50,11 @@ export function useExecutionRecovery(sessionKey: string, executionId: string, on
       }
       update(receipt.queued ? "queued" : "absent");
       if (current.current === active) onRefresh();
-    } catch {
-      update("unknown");
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 409) {
+        update("rejected");
+        if (current.current === active) onRefresh();
+      } else update("unknown");
     }
   };
   return { states, run: (node) => { void run(node); } };

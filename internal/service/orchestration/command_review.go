@@ -1,5 +1,5 @@
 // INPUT: Submission 审核与后续协调。
-// OUTPUT: 原子命令结果与后续责任动作。
+// OUTPUT: 原子命令结果与后续责任动作；显式同执行者续跑保留同轮自审核。
 // POS: Orchestration 命令的业务阶段，复用同包授权、版本栅栏与结果投影。
 package orchestration
 
@@ -431,6 +431,11 @@ func needsReviewDispatch(
 	snapshot *protocol.ExecutionSnapshot,
 	assignment *protocol.WorkAssignment,
 ) bool {
+	if assignment != nil && assignment.Metadata["user_continuation"] == true && assignment.OwnerAgentID == assignment.ReturnToAgentID {
+		// This explicitly resumed responsibility can finish its own review in
+		// the admitted round without resuming the surrounding automatic queue.
+		return false
+	}
 	if snapshot != nil && assignment != nil && assignment.Metadata["dispatch_policy"] == true {
 		return true
 	}

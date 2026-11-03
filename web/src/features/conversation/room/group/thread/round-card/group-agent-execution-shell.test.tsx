@@ -1,3 +1,5 @@
+import { ContinuationContext } from "@/features/conversation/shared/execution/execution-continuation-state";
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 // INPUT: 真实 Agent 执行外壳的运行、stopping、终态和精确动作回调。
 // OUTPUT: 单层紧凑控制条、防重停止、可读 Thread 开关及无动作空条的回归。
 // POS: 使用真实 MessageItem 的 DOM 装配测试；不执行 runtime 或权限副作用。
@@ -63,4 +65,20 @@ it("does not show a separator or empty action group when capabilities and detail
   rendered.rerender(view({ status: "done", messages: [{ ...detailMessage, content: [{ type: "text", text: "Final reply" }] }] }));
   expect(screen.queryByRole("group", { name: MESSAGES.en["room.agent_actions"] })).toBeNull();
   expect(screen.getByText("Final reply")).toBeTruthy();
+});
+
+it("continues only the exact stopped work round and hides stale or replaced responsibility", async () => {
+  const run = vi.fn();
+  const node = { id: "work", kind: "agent", agent_id: "private-id", agent_round_id: "quill-round", work_item_id: "work", attempt_id: "attempt", can_recover: true };
+  const resource = { execution: { id: "execution", graph: { nodes: [node] } }, isStale: false, isLoading: false } as ExecutionResource;
+  const action = { run, states: {} };
+  const renderState = (round: string) => <ContinuationContext.Provider value={{ resource, action }}>{view({ status: "cancelled", agentRoundId: round })}</ContinuationContext.Provider>;
+  const rendered = render(renderState("quill-round"));
+  await userEvent.setup().click(screen.getByRole("button", { name: "Continue this task" }));
+  expect(run).toHaveBeenCalledWith(node);
+  rendered.rerender(renderState("older-round"));
+  expect(screen.queryByRole("button", { name: "Continue this task" })).toBeNull();
+  resource.isStale = true;
+  rendered.rerender(renderState("quill-round"));
+  expect(screen.queryByRole("button", { name: "Continue this task" })).toBeNull();
 });

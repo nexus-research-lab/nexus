@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { ExecutionContinuationProvider } from "@/features/conversation/shared/execution/execution-continuation-context";
 import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useMediaQuery } from "@/shared/lib/react/use-media-query";
@@ -212,7 +213,7 @@ export function RoomSurfaceShell({
 
   if (stableConversationFocusMode) {
     return (
-      <RoomMobileSurface
+      <ExecutionContinuationProvider resource={executionResource}><RoomMobileSurface
         activeWorkspacePath={activeWorkspacePath}
         availableRoomAgents={availableRoomAgents}
         key={roomId ?? currentAgent.agent_id}
@@ -252,12 +253,12 @@ export function RoomSurfaceShell({
         roomAvatar={roomAvatar}
         roomPrivateMessagesEnabled={roomPrivateMessagesEnabled}
         roomSkillNames={roomSkillNames}
-      />
+      /></ExecutionContinuationProvider>
     );
   }
 
   return (
-    <RoomSurfaceLayout
+    <ExecutionContinuationProvider resource={executionResource}><RoomSurfaceLayout
       activeWorkspacePath={activeWorkspacePath}
       activeSurfaceTab={activeSurfaceTab}
       availableRoomAgents={availableRoomAgents}
@@ -303,6 +304,6 @@ export function RoomSurfaceShell({
       onTodosChange={onTodosChange}
       surfaceSplitRef={surfaceSplitRef}
       onRoomEvent={handleRoomEvent}
-    />
+    /></ExecutionContinuationProvider>
   );
 }

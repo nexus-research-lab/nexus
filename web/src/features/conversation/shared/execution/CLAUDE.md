@@ -25,7 +25,7 @@
 - 后端必须先完成 runtime visibility 投影，再对 `visibility != detail` 的主图节点和连接主图节点的边应用独立窗口；普通成功读取/查找等 `detail` 历史不占主图配额，也不触发 partial。只有本应进入主图的节点或边确实被截断时才返回 `runtime_*_total` 与 `runtime_*_truncated` 并由 Surface 显式显示 partial；读取失败但仍保留最后成功快照时显式显示 stale，禁止把截断、断线或旧数据伪装成完整实时图。
 - 节点检查器以结构化 owner 为责任人真相源；自由文本 objective 若以同一 owner 身份开头，只在展示层消除这段冗余前缀，不改写后端 Work Item。
 - Composer 上方入口不承载交付契约工作台；完整领域数据仍由后端 read model 保留，节点进度只回答当前任务、走到哪里、由谁负责。
-- UI 不提供 WorkGraph 状态写入按钮；编排 mutation 仍由模型语义工具和后端 authority fence 负责，已确认命名图由共享保存表单直接提交宿主事务。UI 可以删除独立的命名工作图 aggregate，但不能修改图边、责任、运行状态或路线；详情中的失败与回连不得被解释成服务端自动重试或固定路由。
+- UI 的“继续此任务”通过 `execution-continuation-context.tsx` 共享动作，按 exact Agent/round 匹配可恢复节点，交由宿主创建同执行者的新尝试；其他编排状态不提供直接写入按钮；编排 mutation 仍由模型语义工具和后端 authority fence 负责，已确认命名图由共享保存表单直接提交宿主事务。UI 可以删除独立的命名工作图 aggregate，但不能修改图边、责任、运行状态或路线；详情中的失败与回连不得被解释成服务端自动重试或固定路由。
 - WorkGraph 对话编辑器必须以 Nexus 主智能体身份展示一条只存在于视图的接待说明，覆盖可修改范围、自然语言示例、版本选择和“应用”路径；不得把该说明写入隐藏 Session transcript、源 transcript 或模型上下文。该说明是首次编辑的顶部初始滚动锚点，短内容向下增长；恢复已有对话时按普通 FOLLOW/READING 规则保持位置。
 - 初始草图抽取必须把完整 source logical-key 节点、父子层级和依赖交给模型，宿主标记并强制保留 required/terminal、拓扑引用、验证/复核和协作边界；模型以抽象具体任务语义为主，只有移除后不损失结构语义的非关键孤立节点才可省略。
 - WorkGraph 画布加载使用共享 `lg` Spinner，常规按钮、菜单和检查状态使用 `sm/md`，版本切换使用 `xs`；三个 WorkGraph Surface 不得自行拼接旋转、颜色或 reduced-motion class。

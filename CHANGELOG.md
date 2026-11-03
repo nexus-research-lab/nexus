@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Continue interrupted WorkGraph tasks with their original agent from the stopped reply or graph, preserving accepted work and durable dispatch across restart.
+
 - Protect the entire private app tree, including newly created directories; migrate readable Skill projections to skills-public and cover package-manager, agent and browser credentials.
 - Clean disposable Windows workspace scratch only before runtime startup under desktop ownership, preserve migration safety across Windows path separators, and pin the Windows Rust toolchain.
 

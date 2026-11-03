@@ -331,9 +331,9 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 
 ### 7.4 精确节点恢复入口
 
-当前且读取成功的 WorkGraph 中，服务端标记 `can_recover` 的责任节点在详情显示“恢复此节点”；历史图和 stale 快照不提供动作。普通画布与放大视图共享同一请求状态和同步重复点击门禁。恢复只提交协调检查，不在前端乐观修改节点运行/完成状态；授权和暂停语义以执行编排规范“用户发起的精确节点恢复”为准。
+当前且读取成功的 WorkGraph 中，服务端标记 `can_recover` 的责任节点在详情显示“继续此任务”。Room 停止/失败消息旁通过 exact Agent ID + AgentRoundID 对应当前唯一可续跑节点，显示同一操作；不按姓名或消息顺序猜测归属。历史图、stale 快照和已被接管的旧消息不提供动作。聊天、普通画布与放大视图共享请求状态和同步重复点击门禁。前端不乐观修改运行/完成状态；授权和暂停语义以执行编排规范“用户发起的精确节点恢复”为准。
 
-`POST /executions/{execution_id}/recover` 接收 `protocol.RequestExecutionRecovery`；owner 来自认证上下文。`GET /executions/{execution_id}/recovery-receipt?session_key=...&request_id=...` 只读核对，返回 `protocol.ExecutionRecoveryReceipt`。收到 queued 回执显示等待协调者检查；连接失败进入 unknown，下一次动作只能查询回执；确认 absent 后才允许再次明确提交同一 request_id。session/Execution 切换或卸载后的迟到响应不能写回新视图。
+`POST /executions/{execution_id}/recover` 接收 `protocol.RequestExecutionRecovery`；owner 来自认证上下文，宿主原子建立同一负责人新的责任链与 durable dispatch。`GET /executions/{execution_id}/recovery-receipt?session_key=...&request_id=...` 只读核对事务回执。queued 显示已安排原执行者继续、等待启动；连接失败进入 unknown，下一次动作只能查询回执；确认 absent 后才允许再次明确提交同一 request_id。目标冲突显示不可继续并刷新图。session/Execution 切换或卸载后的迟到响应不能写回新视图。
 
 ## 8. 图布局与交互
 

@@ -50,6 +50,7 @@ export function GroupAgentReply({
     <GroupAgentExecutionShell
       agentAvatar={agentMentionDirectory.avatars[entry.agent_id] ?? null}
       agentId={entry.agent_id}
+      agentRoundId={entry.agent_round_id ?? undefined}
       agentMentionDirectory={agentMentionDirectory}
       agentName={getAgentDisplayName(agentMentionDirectory.names[entry.agent_id], t)}
       isThreadActive={isThreadActive}
