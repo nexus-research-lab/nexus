@@ -801,3 +801,44 @@ func TestQueueItemVisibleToUserHidesHostRecovery(t *testing.T) {
 		t.Fatal("queued user input must stay visible")
 	}
 }
+
+// A claim that survived a crash after its round was persisted must be
+// consumed, not dispatched as a second identical round.
+func TestSurvivingQueueClaimWithPersistedRoundIsConsumedWithoutReplay(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+	agentService := newDMAgentService(t, cfg)
+	client := newFakeDMClient()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:queue-claim-replay"
+	t.Cleanup(func() { _ = runtimeManager.CloseSession(context.Background(), sessionKey) })
+	_, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.InputQueue.Enqueue(location, protocol.InputQueueItem{ID: "claimed", Content: "already sent"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.InputQueue.ClaimDispatch(location, "claimed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.History.ForOwner(location.OwnerUserID).AppendRoundMarkerWithOptions(
+		location.WorkspacePath, sessionKey, inputQueueItemRoundID(protocol.InputQueueItem{ID: "claimed"}), "already sent", 1, workspacestore.RoundMarkerOptions{},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	service.dispatchNextInputQueueItemAtLocation(context.Background(), sessionKey, "", location)
+
+	items, err := service.InputQueue.Snapshot(location)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("surviving claim not consumed: %+v %v", items, err)
+	}
+	client.mu.Lock()
+	queries := len(client.queryPrompts)
+	client.mu.Unlock()
+	if queries != 0 {
+		t.Fatalf("persisted queued round was replayed %d time(s)", queries)
+	}
+}

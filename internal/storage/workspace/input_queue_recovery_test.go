@@ -113,3 +113,57 @@ func TestQueueDiscoverySkipsUnreadableJournalAndKeepsOthers(t *testing.T) {
 		t.Fatalf("locations = %+v, want the readable queue still discovered", locations)
 	}
 }
+
+func TestRestoreDispatchedRewindsClaimToPreDispatchState(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{OwnerUserID: "owner", Scope: protocol.InputQueueScopeDM, WorkspacePath: filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a"), SessionKey: "agent:agent-a:ws:dm:rewind"}
+	store := NewInputQueueStore("")
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{ID: "first", Content: "first"}); err != nil {
+		t.Fatal(err)
+	}
+	fresh, _, err := store.ClaimFirstDispatchable(location)
+	if err != nil || fresh == nil || fresh.DispatchPending {
+		t.Fatalf("fresh claim = %+v, %v", fresh, err)
+	}
+	items, err := store.RestoreDispatched(location, *fresh)
+	if err != nil || len(items) != 1 || items[0].DispatchPending {
+		t.Fatalf("known failure kept an unknown-outcome claim: %+v %v", items, err)
+	}
+
+	inherited, _, err := store.ClaimFirstDispatchable(location)
+	if err != nil || inherited == nil {
+		t.Fatal(err)
+	}
+	store = NewInputQueueStore("")
+	survivor, _, err := store.ClaimFirstDispatchable(location)
+	if err != nil || survivor == nil || !survivor.DispatchPending {
+		t.Fatalf("restart lost the surviving claim: %+v %v", survivor, err)
+	}
+	items, err = store.RestoreDispatched(location, *survivor)
+	if err != nil || len(items) != 1 || !items[0].DispatchPending {
+		t.Fatalf("inherited claim lost its unknown outcome: %+v %v", items, err)
+	}
+}
+
+func TestHasRoundMarkerMatchesExactRound(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	workspace := filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a")
+	history := NewAgentHistoryStore("").ForOwner("owner")
+	sessionKey := "agent:agent-a:ws:dm:marker"
+	if found, err := history.HasRoundMarker(workspace, sessionKey, "queue_x"); err != nil || found {
+		t.Fatalf("empty history found=%v err=%v", found, err)
+	}
+	if err := history.AppendRoundMarkerWithOptions(workspace, sessionKey, "queue_x", "hello", 1, RoundMarkerOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if found, err := history.HasRoundMarker(workspace, sessionKey, "queue_x"); err != nil || !found {
+		t.Fatalf("persisted round found=%v err=%v", found, err)
+	}
+	if found, err := history.HasRoundMarker(workspace, sessionKey, "queue_y"); err != nil || found {
+		t.Fatalf("other round found=%v err=%v", found, err)
+	}
+}

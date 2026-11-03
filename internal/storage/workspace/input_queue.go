@@ -879,7 +879,8 @@ func (s *InputQueueStore) Reorder(
 	return s.snapshotLocked(location)
 }
 
-// RestoreDispatched restores a failed dispatch at its original position. It uses
+// RestoreDispatched restores a failed dispatch at its original position, or
+// rewinds a still-present claim to the caller's pre-dispatch snapshot. It uses
 // the durable pre-dispatch ordering, including explicit user reorders, rather
 // than timestamps that may be identical for adjacent items.
 func (s *InputQueueStore) RestoreDispatched(location InputQueueLocation, item protocol.InputQueueItem) ([]protocol.InputQueueItem, error) {
@@ -898,7 +899,19 @@ func (s *InputQueueStore) RestoreDispatched(location InputQueueLocation, item pr
 		}
 		replay.apply(row)
 	}
-	if _, exists := replay.itemsByID[item.ID]; exists {
+	if existing, exists := replay.itemsByID[item.ID]; exists {
+		// A claimed item is never removed, so restoring only rewinds its claim to
+		// the pre-dispatch state: a known failure clears the pending mark, while
+		// a claim inherited from a previous process stays an unknown outcome.
+		if existing.DispatchPending == item.DispatchPending {
+			return replay.items(), nil
+		}
+		existing.DispatchPending = item.DispatchPending
+		row := map[string]any{"action": inputQueueActionUpdate, "item": existing, "timestamp": time.Now().UnixMilli()}
+		if err := s.appendActionLocked(location, row); err != nil {
+			return nil, err
+		}
+		replay.apply(row)
 		return replay.items(), nil
 	}
 	item = normalizeInputQueueItem(location, item, time.Now().UnixMilli())

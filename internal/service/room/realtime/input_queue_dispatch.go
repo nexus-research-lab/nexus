@@ -1,5 +1,5 @@
 // INPUT: Room 队列项、目标 Agent 运行态与 conversation 上下文。
-// OUTPUT: 串行队列接力，或把未消费 guide 恢复为下一轮输入。
+// OUTPUT: 串行队列接力、把未消费 guide 恢复为下一轮输入，以及已持久化队列轮次的遗留 claim 消费。
 // POS: Room 用户输入队列的数据面与 round 交接点。
 package realtime
 
@@ -118,6 +118,18 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	}
 	if err = s.InputQueue.ClaimDispatch(entry.Location, entry.Item.ID); err != nil {
 		s.LoggerFor(ctx).Error("弹出 Room 待发送队列失败", "session_key", sessionKey, "err", err)
+		return
+	}
+	// A claim surviving a crash between round persistence and queue
+	// consumption must not start the same queued round a second time.
+	if entry.Item.DispatchPending && s.roomQueuedRoundPersisted(ctx, contextValue, entry.Item) {
+		if _, commitErr := s.InputQueue.DispatchMany(entry.Location, itemIDs); commitErr != nil {
+			s.LoggerFor(ctx).Error("Queue acceptance receipt failed; retain claim for reconciliation", "item_id", entry.Item.ID, "err", commitErr)
+			return
+		}
+		s.StartSessionBackgroundTask(sessionKey, contextValue.Room.OwnerUserID, func(taskCtx context.Context) {
+			s.dispatchNextInputQueueItem(taskCtx, sessionKey, roomID, conversationID)
+		})
 		return
 	}
 	dispatchedItem := entry.Item
@@ -648,4 +660,26 @@ func (s *Service) inputQueueGuidanceTargetSlot(
 		}
 	}
 	return nil
+}
+
+// roomQueuedRoundPersisted reports whether the shared history already holds
+// the plain queued round ("queue_<item id>"). Handoff and Agent wake items keep
+// their own durable ledgers, so only that round identity is checked. A read
+// failure is treated as not persisted: the recovery note still guards replay.
+func (s *Service) roomQueuedRoundPersisted(ctx context.Context, contextValue *protocol.ConversationContextAggregate, item protocol.InputQueueItem) bool {
+	if s.roomHistory == nil || contextValue == nil {
+		return false
+	}
+	messages, err := s.roomHistory.ReadMessages(contextValue.Room.OwnerUserID, contextValue.Conversation.ID, nil)
+	if err != nil {
+		s.LoggerFor(ctx).Warn("读取 Room 历史以核对队列 claim 失败", "item_id", item.ID, "err", err)
+		return false
+	}
+	roundID := "queue_" + item.ID
+	for _, message := range messages {
+		if anyString(message["round_id"]) == roundID {
+			return true
+		}
+	}
+	return false
 }

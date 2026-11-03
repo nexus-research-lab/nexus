@@ -1,5 +1,5 @@
 // INPUT: DM 待发送项、当前运行 round 与队列控制动作。
-// OUTPUT: 不因 admission 暂时失败而删除的幂等入队、串行派发、round 锚定的 guide 或错过 hook 后的下一轮接力。
+// OUTPUT: 不因 admission 暂时失败而删除的幂等入队、串行派发、round 锚定的 guide、错过 hook 后的下一轮接力，以及已持久化轮次的遗留 claim 消费。
 // POS: DM 输入队列控制面与派发边界。
 package dm
 
@@ -297,6 +297,16 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	if checkErr != nil {
 		s.restoreFailedInputQueueDispatch(ctx, normalizedSessionKey, location, *item, checkErr)
 		return false
+	}
+	if current && item.DispatchPending {
+		// A claim surviving a crash between round persistence and queue
+		// consumption must not start the same queued round a second time.
+		persisted, persistedErr := s.History.ForOwner(location.OwnerUserID).HasRoundMarker(location.WorkspacePath, normalizedSessionKey, inputQueueItemRoundID(*item))
+		if persistedErr != nil {
+			s.restoreFailedInputQueueDispatch(ctx, normalizedSessionKey, location, *item, persistedErr)
+			return false
+		}
+		current = !persisted
 	}
 	if !current {
 		if _, err := s.InputQueue.Dispatch(location, item.ID); err != nil {

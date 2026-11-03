@@ -1,5 +1,5 @@
 // INPUT: durable round marker、assistant/result overlay 与 source round 元数据。
-// OUTPUT: append-only Agent 历史 overlay 及其重放状态。
+// OUTPUT: append-only Agent 历史 overlay、其重放状态与按 round ID 的存在性核对。
 // POS: workspace Agent 历史的 overlay 写入边界。
 package workspace
 
@@ -211,6 +211,22 @@ func (s *AgentHistoryStore) ReadRoomPublicCursor(
 		}
 	}
 	return latest, found, nil
+}
+
+// HasRoundMarker reports whether the session already persisted a round marker
+// with this exact round ID. Queue recovery uses it to consume a surviving
+// dispatch claim whose round was accepted before the claim could be removed.
+func (s *AgentHistoryStore) HasRoundMarker(workspacePath string, sessionKey string, roundID string) (bool, error) {
+	state, err := s.readOverlayHistoryState(workspacePath, sessionKey)
+	if err != nil {
+		return false, err
+	}
+	for _, marker := range state.RoundMarkers {
+		if marker.RoundID == roundID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *AgentHistoryStore) readOverlayHistoryState(

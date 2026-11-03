@@ -1146,6 +1146,8 @@ layer cannot enforce.
 
 启动时只为宿主确实留下在途工作的 Execution 安排协调核对：本次启动收口了遗留 root，或某个当前 Assignment 的最新 root 因宿主关闭/重启（`host_shutdown`、`host_restart`）中断或带 `host_recovery_required` 标记。用户停止、宿主控制停止、早已停滞或正在等待输入的图不因重启而被唤醒。
 
+运行中，非协调者成员的 root 失败或意外中断会持久化 `host_recovery_required` 并为未绑定 Goal 的 Execution 排入一次协调核对。协调者自身承担的 root 失败（DM 与 Room 相同）不自动唤醒协调者：失败已直接显示给用户，由用户继续；自动唤醒会在 provider 持续故障时形成“失败—唤醒—接管—再失败”的循环。
+
 启动恢复与周期审计逐个 Execution 隔离：单个 Execution 读取或收口失败只记录并跳过，扫描与游标继续推进，宿主照常启动服务。协调者的 Room 会话已删除、协调者已不是 Room 成员或 DM 协调 Agent 已删除时，恢复目标不可用（`ErrExecutionRecoveryTargetUnavailable`），该 Execution 被跳过而不是视为宿主故障。
 
 无 Goal 的 active Execution 通过持久化、幂等的宿主恢复输入唤醒原协调者，先核对已有产物、外部副作用和待审提交，再决定是否 take_over_work。绑定 Goal 的执行仍由原 Goal continuation authority 驱动，普通恢复输入不绕过 Goal 暂停、预算或停止。用户停止不自动唤醒协调者；恢复队列仍遵守持久暂停门禁。成员非用户失败或意外中断可触发协调检查，显式恢复成员参与也可请求检查其 interrupted Assignment。旧 Attempt 不原地复活。
