@@ -217,3 +217,5 @@ Composer 计划模式：
 - 项目 Skill、插件命令等动态内容不进入产品补全。
 - 系统 WorkGraph 模板只从 `internal/service/workgraphworkflow/builtins.go` 投影并保持只读。
 - owner 命名 WorkGraph 只从 `workgraph_workflows` 权威目录投影，并按 owner fence 读取、删除。
+
+命名 WorkGraph 的类型化参数语法、版本来源与运行样本回流以 [执行图规范](./execution-graph-spec.md#typed-template-inputs-and-observed-runs) 为准；Slash 目录不产生运行次数，实际 Plan 提交才记录来源。

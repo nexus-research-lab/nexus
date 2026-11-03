@@ -356,6 +356,14 @@ func (s *Service) reconcileRecoveries(
 	hasMore := false
 	processed := false
 	var runErrors []error
+	if deadlineDue(deadlines.DispatchPolicy, now) {
+		processed = true
+		count, runErr := s.ReconcileDispatchPolicies(ctx, batchSize)
+		if runErr != nil {
+			runErrors = append(runErrors, fmt.Errorf("dispatch policies: %w", runErr))
+		}
+		hasMore = hasMore || count >= batchSize
+	}
 	if deadlineDue(deadlines.RuntimeResult, now) {
 		processed = true
 		count, runErr := s.ReconcileRuntimeResults(ctx, batchSize)
@@ -402,6 +410,7 @@ func (s *Service) reconcileRecoveries(
 	}
 	if !processed {
 		return duework.Result{NextDueAt: earliestDeadline(
+			deadlines.DispatchPolicy,
 			deadlines.RuntimeResult,
 			deadlines.CompletionAudit,
 			deadlines.GoalConfirmation,
@@ -415,6 +424,7 @@ func (s *Service) reconcileRecoveries(
 	return duework.Result{
 		HasMore: hasMore,
 		NextDueAt: earliestDeadline(
+			refreshed.DispatchPolicy,
 			refreshed.RuntimeResult,
 			refreshed.CompletionAudit,
 			refreshed.GoalConfirmation,

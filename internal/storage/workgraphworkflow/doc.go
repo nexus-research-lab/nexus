@@ -12,4 +12,6 @@
 //
 // 两类存储都只接收责任节点语义与依赖，不接收 Runtime Graph、Tool、Attempt、Submission 或 Acceptance。
 // 历史命名图的恢复 origin 与源图抽取唯一键隔离；删除 aggregate 同事务解除草稿保存绑定，版本历史保留。
+//   - statistics.go：按 owner 与版本统计已提交的复用运行及完成耗时样本。
+
 package workgraphworkflow

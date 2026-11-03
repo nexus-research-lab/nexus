@@ -212,7 +212,27 @@ export interface ExecutionAcceptanceView {
   created_at: string;
 }
 
+export interface WorkCheckpoint {
+  id: string;
+  attempt_id: string;
+  agent_id: string;
+  summary: string;
+  next_step: string;
+  artifact_refs?: string[];
+  evidence?: string[];
+  effects?: { operation: string; outcome: "confirmed" | "unknown"; receipt_ref?: string }[];
+  created_at: string;
+}
+export interface ExecutionDispatchPolicy {
+  id: string;
+  target_agent_id: string;
+  return_to_agent_id: string;
+  state: "pending" | "assigned" | "queued" | "cancelled";
+  reason?: string;
+}
 export interface ExecutionWorkItemView {
+  checkpoint?: WorkCheckpoint;
+  dispatch_policy?: ExecutionDispatchPolicy;
   id: string;
   logical_key: string;
   kind: ExecutionWorkItemKind;

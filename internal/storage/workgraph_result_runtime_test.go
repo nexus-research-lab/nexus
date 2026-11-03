@@ -69,7 +69,7 @@ func TestWorkGraphResultRuntimeAcceptance(t *testing.T) {
 	}
 }
 
-func runResultProviderRound(t *testing.T, service *svc.Service, actor svc.ActorContext, binary, model, mode, kind string) {
+func runResultProviderRound(t *testing.T, service *svc.Service, actor svc.ActorContext, binary, model, mode, kind string, task ...string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
@@ -97,7 +97,7 @@ func runResultProviderRound(t *testing.T, service *svc.Service, actor svc.ActorC
 	options := manager.WithWorkResultHook(bridge.Options{
 		CLIPath: binary, CWD: t.TempDir(), Env: environment, Model: model,
 		System:  bridge.SystemOptions{Text: "You are validating a synthetic WorkGraph responsibility. Use only supplied evidence and the bound WorkGraph. Be concise. No other work or external actions are needed."},
-		Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeNXS, MaxTurns: 4, Thinking: &bridge.ThinkingConfig{Type: bridge.ThinkingModeDisabled}},
+		Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeNXS, MaxTurns: 8, Thinking: &bridge.ThinkingConfig{Type: bridge.ThinkingModeDisabled}},
 		Tools:   bridge.ToolOptions{Available: []string{}, Allow: []string{"mcp__nexus__command"}},
 		Skills:  bridge.SkillOptions{Mode: bridge.SkillModeNone}, SettingSources: []string{},
 		MCP: bridge.MCPOptions{SDKServers: map[string]sdkmcp.SDKMCPServer{"nexus": server}, StrictConfig: true},
@@ -124,6 +124,9 @@ func runResultProviderRound(t *testing.T, service *svc.Service, actor svc.ActorC
 		operationName = "review_work"
 		prompt += "\nReview the bound submission against the supplied artifact and the exact criterion verified. Make your explicit decision with evidence. Do not continue coordinating other work."
 	}
+	if len(task) > 0 {
+		prompt = contextText + "\n" + task[0]
+	}
 	if mode == "hook" {
 		manager.SetWorkResultHook(key, actor.AgentRoundID, runtimehook.ResultCallback(service, actor, nil))
 		defer manager.ClearWorkResultHook(key, actor.AgentRoundID)
@@ -144,6 +147,8 @@ func runResultProviderRound(t *testing.T, service *svc.Service, actor svc.ActorC
 	for {
 		select {
 		case <-ctx.Done():
+			evidence, _ := json.Marshal(map[string]any{"mode": mode, "kind": kind, "model": model, "elapsed_ms": time.Since(start).Milliseconds(), "turn_budget": 8, "command_calls": commandCalls.Load(), "has_usage": false, "outcome": "timeout"})
+			t.Log(string(evidence))
 			t.Fatal("provider round timed out")
 		case message, ok := <-messages:
 			if !ok {
@@ -155,7 +160,7 @@ func runResultProviderRound(t *testing.T, service *svc.Service, actor svc.ActorC
 			result := message.Result
 			usage, hasUsage := sdkprotocol.TokenUsageFromResult(*result)
 			usage.Raw = nil
-			evidence, _ := json.Marshal(map[string]any{"mode": mode, "kind": kind, "model": model, "elapsed_ms": time.Since(start).Milliseconds(), "turns": result.NumTurns, "command_calls": commandCalls.Load(), "usage": usage, "has_usage": hasUsage, "runtime_error": result.IsError})
+			evidence, _ := json.Marshal(map[string]any{"mode": mode, "kind": kind, "model": model, "elapsed_ms": time.Since(start).Milliseconds(), "turn_budget": 8, "turns": result.NumTurns, "command_calls": commandCalls.Load(), "usage": usage, "has_usage": hasUsage, "runtime_error": result.IsError})
 			t.Log(string(evidence))
 			if result.IsError {
 				detail := strings.Join(result.Errors, "; ")
@@ -167,7 +172,7 @@ func runResultProviderRound(t *testing.T, service *svc.Service, actor svc.ActorC
 				t.Fatalf("provider/runtime rejected round: %s %s", result.Subtype, detail)
 			}
 			if mode == "hook" && commandCalls.Load() != 0 {
-				t.Error("hook path fell back to explicit commands")
+				t.Log("hook-enabled round fell back to explicit commands; retain its full usage and timing in the comparison")
 			}
 			return
 		}

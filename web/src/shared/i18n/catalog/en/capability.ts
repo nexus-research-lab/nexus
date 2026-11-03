@@ -2,6 +2,21 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCapabilityMessages } from "../zh/capability";
 
 export const enCapabilityMessages = {
+  "capability.workgraph_parameters": "Inputs",
+  "capability.parameter_string": "Text",
+  "capability.parameter_number": "Number",
+  "capability.parameter_integer": "Integer",
+  "capability.parameter_boolean": "Boolean",
+  "capability.parameter_string_list": "Text list",
+  "capability.parameter_required": "Required",
+  "capability.parameter_optional": "Optional",
+  "capability.parameter_default": "Default",
+  "capability.parameter_example_hint": "Copy the example and fill in your inputs and request before sending.",
+  "capability.workgraph_statistics": "Observed runs by version",
+  "capability.workgraph_version_stats": "v{version}: {runs} runs · {completed} completed · {closed} closed without completion · {active} active · {failed}/{attempts} attempts failed",
+  "capability.workgraph_elapsed_stats": "Average {seconds}s elapsed across {samples} completed runs",
+  "capability.workgraph_statistics_hint": "Elapsed time includes waiting. These samples inform template improvements; they do not predict success or measure model cost.",
+
   "capability.pairing_target": "Conversation target",
   "capability.pairing_target_dm": "Direct chat",
   "capability.pairing_target_chats": "Chats",

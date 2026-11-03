@@ -338,7 +338,8 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		)
 	}
 	err = s.handleChat(dispatchCtx, Request{
-		Internal:                          item.Source == protocol.InputQueueSourceHostRecovery,
+		Internal:          item.Source == protocol.InputQueueSourceHostRecovery,
+		queuedWorkBinding: item.WorkBinding.Clone(), queuedReviewBinding: item.ReviewBinding.Clone(),
 		ExecutionID:                       item.RecoveryExecutionID,
 		SessionKey:                        normalizedSessionKey,
 		AgentID:                           textutil.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),

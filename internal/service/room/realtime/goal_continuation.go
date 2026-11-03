@@ -1,5 +1,5 @@
 // INPUT: Room Goal 状态/lead、成员目录、协作者 active slot、显式输入队列与上一轮执行结果。
-// OUTPUT: 启动 slot 前对齐的有效 lead，以及使用稳定或旧记录恢复的 Execution reservation、按复杂度和成员适配分工、在同 Goal 工作收敛后原子 claim 的隐藏 continuation。
+// OUTPUT: Goal 启用时启动 slot 前对齐的有效 lead，以及使用稳定或旧记录恢复的 Execution reservation、按复杂度和成员适配分工、在同 Goal 工作收敛后原子 claim 的隐藏 continuation。
 // POS: Room 与 Goal 权限/状态机之间的续跑适配层。
 package realtime
 
@@ -323,6 +323,9 @@ func (s *Service) reconcileRoomGoalLead(
 		return nil
 	}
 	goal, err := provider.CurrentOptional(ctx, sessionKey)
+	if errors.Is(err, goalsvc.ErrGoalDisabled) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

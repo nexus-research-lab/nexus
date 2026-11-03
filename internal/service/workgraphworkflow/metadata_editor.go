@@ -275,7 +275,7 @@ func (s *Service) RuntimeEditorPolicy(
 	if err != nil {
 		return protocol.ScopedSessionRuntimePolicy{}, false, err
 	}
-	workflows, err := s.repository.List(ctx, ownerUserID)
+	workflows, err := s.List(ctx, ownerUserID)
 	if err != nil {
 		return protocol.ScopedSessionRuntimePolicy{}, false, err
 	}
@@ -305,6 +305,17 @@ func (s *Service) RuntimeEditorPolicy(
 版本目录：%s
 
 unavailable_slash_names：%s`, languageRule, record.revision, record.selectedRevision, payload, versionDirectory, unavailableNames)
+
+	draft, draftErr := s.loadDraftByID(ctx, ownerUserID, record.previewID)
+	if draftErr != nil {
+		return protocol.ScopedSessionRuntimePolicy{}, false, draftErr
+	}
+	for _, workflow := range workflows {
+		if workflow.ID == savedWorkflowID(draft) && len(workflow.Statistics) > 0 {
+			statistics, _ := json.Marshal(workflow.Statistics)
+			prompt += "\nObserved template execution statistics by exact saved version (elapsed wall time includes waits; not runtime latency or a predicted success rate): " + string(statistics) + ". Use these observations when the user requests improvements; preserve parameter definitions and do not auto-save a modified template."
+		}
+	}
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: prompt,
 		ToolPolicy: protocol.RuntimeToolPolicy{
@@ -651,6 +662,7 @@ func editorRevisionRequest(revision int64, preview protocol.WorkGraphWorkflowPre
 	}
 	return protocol.ReviseWorkGraphWorkflowPreviewRequest{
 		Revision:           revision,
+		Parameters:         cloneParameters(preview.Parameters),
 		SlashName:          preview.SlashName,
 		Title:              preview.Title,
 		Description:        preview.Description,
@@ -665,6 +677,9 @@ func normalizeAndValidateEditorPreview(
 	current protocol.WorkGraphWorkflowPreview,
 	request protocol.ReviseWorkGraphWorkflowPreviewRequest,
 ) (protocol.WorkGraphWorkflowPreview, error) {
+	if err := validateParameters(request.Parameters); err != nil {
+		return protocol.WorkGraphWorkflowPreview{}, err
+	}
 	request.SlashName = normalizeSlashName(request.SlashName)
 	request.Title = strings.TrimSpace(request.Title)
 	request.Description = strings.TrimSpace(request.Description)
@@ -760,6 +775,7 @@ func normalizeAndValidateEditorPreview(
 			})
 		}
 	}
+	current.Parameters = cloneParameters(request.Parameters)
 	current.SlashName = request.SlashName
 	current.Title = request.Title
 	current.Description = request.Description

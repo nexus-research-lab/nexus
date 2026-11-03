@@ -708,6 +708,20 @@ func projectExecutionWorkItemView(
 		NeededInput:        state.NeededInput,
 		UpdatedAt:          state.UpdatedAt,
 	}
+	for _, checkpoint := range snapshot.Checkpoints {
+		if checkpoint.WorkItemID == workItem.ID && checkpoint.SpecID == spec.ID {
+			copy := checkpoint
+			item.Checkpoint = &copy
+			break
+		}
+	}
+	for _, policy := range snapshot.DispatchPolicies {
+		if policy.WorkItemID == workItem.ID && policy.SpecID == spec.ID {
+			copy := policy
+			item.DispatchPolicy = &copy
+			break
+		}
+	}
 	if item.UpdatedAt.IsZero() {
 		item.UpdatedAt = snapshot.Execution.UpdatedAt
 	}

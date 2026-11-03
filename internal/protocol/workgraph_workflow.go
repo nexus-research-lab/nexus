@@ -37,6 +37,8 @@ type WorkGraphArtifactContract struct {
 // WorkGraphWorkflow 是从实际完成图抽象并由用户确认保存的可复用命名工作图。
 // Source* 只保留 provenance；运行身份和结果事实永不进入模板。
 type WorkGraphWorkflow struct {
+	Statistics         []WorkGraphWorkflowStatistics `json:"statistics,omitempty"`
+	Parameters         []WorkGraphParameter          `json:"parameters,omitempty"`
 	ID                 string                        `json:"id"`
 	OwnerUserID        string                        `json:"-"`
 	BuiltIn            bool                          `json:"built_in,omitempty"`
@@ -83,6 +85,7 @@ type WorkGraphWorkflowDependency struct {
 // WorkGraphWorkflowPreview 是已进入 durable Draft、但尚未进入 Slash 目录的一条完整抽象草图版本。
 // 用户可在普通对话或隐藏专用 DM 中修订元信息、节点与依赖；保存前仍须通过完整结构校验。
 type WorkGraphWorkflowPreview struct {
+	Parameters         []WorkGraphParameter          `json:"parameters,omitempty"`
 	HeadRevision       int64                         `json:"head_revision,omitempty"`
 	SelectedRevision   int64                         `json:"selected_revision,omitempty"`
 	PreviewID          string                        `json:"preview_id"`
@@ -280,6 +283,7 @@ type ReviseWorkGraphWorkflowDraftRequest struct {
 
 // ReviseWorkGraphWorkflowPreviewRequest 是编辑 Agent 通过受限 Execution command 一次性提交的完整草图版本。
 type ReviseWorkGraphWorkflowPreviewRequest struct {
+	Parameters         []WorkGraphParameter          `json:"parameters,omitempty"`
 	Revision           int64                         `json:"revision"`
 	SlashName          string                        `json:"slash_name"`
 	Title              string                        `json:"title"`

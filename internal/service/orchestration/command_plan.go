@@ -18,6 +18,7 @@ import (
 
 // PlanExecutionInput 是 proposal materializer 使用的内部权威 primitive，不是 MCP 模型参数。
 type PlanExecutionInput struct {
+	WorkflowSource   *protocol.WorkGraphWorkflowSource
 	ExecutionID      string
 	SnapshotRevision int64
 	CommandID        string
@@ -545,6 +546,7 @@ func (s *Service) buildPlanCommand(
 			BasePlanID:       basePlanID,
 			CreatedByAgentID: strings.TrimSpace(actor.AgentID),
 			RevisionReason:   draft.RevisionReason,
+			Metadata:         workflowSourceMetadata(input.WorkflowSource),
 		},
 		WorkItems:           workItems,
 		Dependencies:        dependencies,

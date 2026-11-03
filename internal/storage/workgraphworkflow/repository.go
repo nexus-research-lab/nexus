@@ -49,6 +49,10 @@ func (r *Repository) createWorkflow(ctx context.Context, tx *sql.Tx, workflow pr
 	if err != nil {
 		return err
 	}
+	parametersJSON, err := marshalJSON(workflow.Parameters)
+	if err != nil {
+		return err
+	}
 	artifactContractJSON, err := marshalJSON(workflow.ArtifactContract)
 	if err != nil {
 		return err
@@ -57,11 +61,11 @@ func (r *Repository) createWorkflow(ctx context.Context, tx *sql.Tx, workflow pr
 INSERT INTO workgraph_workflows (
     workflow_id, owner_user_id, slash_name, title, description,
     source_execution_id, source_session_key, objective,
-    completion_criteria_json, artifact_contract_json, version, created_at, updated_at
+    completion_criteria_json, artifact_contract_json, version, created_at, updated_at, parameters_json
 ) VALUES (`+
 		r.bind(1)+`,`+r.bind(2)+`,`+r.bind(3)+`,`+r.bind(4)+`,`+r.bind(5)+`,`+
 		r.bind(6)+`,`+r.bind(7)+`,`+r.bind(8)+`,`+r.jsonBind(9)+`,`+r.jsonBind(10)+`,`+r.bind(11)+`,`+
-		r.bind(12)+`,`+r.bind(13)+`)`,
+		r.bind(12)+`,`+r.bind(13)+`,`+r.bind(14)+`)`,
 		workflow.ID,
 		workflow.OwnerUserID,
 		workflow.SlashName,
@@ -74,7 +78,7 @@ INSERT INTO workgraph_workflows (
 		artifactContractJSON,
 		workflow.Version,
 		r.timestamp(workflow.CreatedAt),
-		r.timestamp(workflow.UpdatedAt),
+		r.timestamp(workflow.UpdatedAt), parametersJSON,
 	)
 	if err != nil {
 		return err
@@ -166,6 +170,10 @@ func (r *Repository) updateWorkflow(ctx context.Context, tx *sql.Tx, workflow pr
 	if err != nil {
 		return err
 	}
+	parametersJSON, err := marshalJSON(workflow.Parameters)
+	if err != nil {
+		return err
+	}
 	artifactContractJSON, err := marshalJSON(workflow.ArtifactContract)
 	if err != nil {
 		return err
@@ -175,13 +183,13 @@ UPDATE workgraph_workflows
 SET slash_name = `+r.bind(1)+`, title = `+r.bind(2)+`, description = `+r.bind(3)+`,
     source_execution_id = `+r.bind(4)+`, source_session_key = `+r.bind(5)+`,
 	    objective = `+r.bind(6)+`, completion_criteria_json = `+r.jsonBind(7)+`,
-	    artifact_contract_json = `+r.jsonBind(8)+`, version = `+r.bind(9)+`, updated_at = `+r.bind(10)+`
-WHERE owner_user_id = `+r.bind(11)+` AND workflow_id = `+r.bind(12)+`
-  AND version = `+r.bind(13),
+	    artifact_contract_json = `+r.jsonBind(8)+`, version = `+r.bind(9)+`, updated_at = `+r.bind(10)+`, parameters_json = `+r.bind(11)+`
+WHERE owner_user_id = `+r.bind(12)+` AND workflow_id = `+r.bind(13)+`
+  AND version = `+r.bind(14),
 		workflow.SlashName, workflow.Title, nullString(workflow.Description),
 		workflow.SourceExecutionID, workflow.SourceSessionKey, workflow.Objective,
 		criteriaJSON, artifactContractJSON, workflow.Version, r.timestamp(workflow.UpdatedAt),
-		workflow.OwnerUserID, workflow.ID, workflow.Version-1,
+		parametersJSON, workflow.OwnerUserID, workflow.ID, workflow.Version-1,
 	)
 	if err != nil {
 		return err
@@ -438,7 +446,7 @@ func (r *Repository) workflowSelect() string {
        source_execution_id, source_session_key, objective,
        ` + r.dialect.JSONText("completion_criteria_json") + `,
        ` + r.dialect.JSONText("artifact_contract_json") + `,
-       version, created_at, updated_at
+       version, created_at, updated_at, parameters_json
 FROM workgraph_workflows`
 }
 
@@ -451,6 +459,7 @@ func scanWorkflow(scanner rowScanner) (protocol.WorkGraphWorkflow, error) {
 	var description sql.NullString
 	var criteriaJSON string
 	var artifactContractJSON string
+	var parametersJSON string
 	err := scanner.Scan(
 		&workflow.ID,
 		&workflow.OwnerUserID,
@@ -464,9 +473,12 @@ func scanWorkflow(scanner rowScanner) (protocol.WorkGraphWorkflow, error) {
 		&artifactContractJSON,
 		&workflow.Version,
 		&workflow.CreatedAt,
-		&workflow.UpdatedAt,
+		&workflow.UpdatedAt, &parametersJSON,
 	)
 	if err != nil {
+		return protocol.WorkGraphWorkflow{}, err
+	}
+	if err = unmarshalJSON(parametersJSON, &workflow.Parameters); err != nil {
 		return protocol.WorkGraphWorkflow{}, err
 	}
 	workflow.Description = description.String

@@ -19,7 +19,7 @@ func TestWorkGraphUpgradeIntegration(t *testing.T) {
 			migrateIntegrationDatabase(t, cfg, 158)
 			oldDB := openIntegrationDatabase(t, cfg)
 			oldRepo := orchestrationrepo.NewSQLRepository(driver, oldDB)
-			batch := prepareIntegrationBatch(t, oldRepo, "pre-upgrade")
+			batch := prepareIntegrationBatch(t, legacyPlanWriter{oldRepo, oldDB, driver}, "pre-upgrade")
 			if err := oldDB.Close(); err != nil {
 				t.Fatal(err)
 			}

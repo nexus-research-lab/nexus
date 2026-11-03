@@ -76,8 +76,6 @@ func scopeSnapshotToTrustedWorkBinding(
 		)
 	}
 	if snapshot == nil ||
-		snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom ||
-		actor.ScopeKind != protocol.ExecutionScopeRoom ||
 		actor.WorkBinding == nil {
 		return snapshot, nil
 	}
@@ -225,11 +223,11 @@ func authorizeStructuredRoomWorkBinding(
 		return workBindingMismatch("structured Room Assignment binding is stale")
 	}
 
-	if assignment.Strategy == protocol.AssignmentStrategySelf {
+	if assignment.Strategy == protocol.AssignmentStrategySelf && assignment.Metadata["dispatch_policy"] != true {
 		if binding.DispatchID != "" {
 			return workBindingMismatch("self Room WorkBinding must not carry a Dispatch")
 		}
-	} else {
+	} else if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom {
 		if binding.DispatchID == "" {
 			return workBindingMismatch("dispatched Room WorkBinding is missing its Dispatch")
 		}
@@ -280,6 +278,10 @@ func snapshotForExecutionWorkBinding(
 	binding protocol.ExecutionWorkBinding,
 ) (*protocol.ExecutionSnapshot, error) {
 	result := *snapshot
+	result.Checkpoints = filterValues(snapshot.Checkpoints, func(value protocol.WorkCheckpoint) bool {
+		return value.WorkItemID == binding.WorkItemID && value.SpecID == binding.SpecID
+	})
+	result.DispatchPolicies = nil
 	if snapshot.Plan != nil {
 		plan := *snapshot.Plan
 		result.Plan = &plan

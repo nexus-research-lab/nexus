@@ -373,6 +373,12 @@ func (r *Repository) getSnapshot(
 		deriveSnapshot(snapshot)
 		return snapshot, nil
 	}
+	if snapshot.Checkpoints, err = r.listLatestCheckpoints(ctx, queryer, executionID, plan.ID); err != nil {
+		return nil, err
+	}
+	if snapshot.DispatchPolicies, err = r.listDispatchPolicies(ctx, queryer, plan.ID); err != nil {
+		return nil, err
+	}
 	if snapshot.WorkItems, err = r.listSnapshotWorkItems(ctx, queryer, plan.ID); err != nil {
 		return nil, err
 	}

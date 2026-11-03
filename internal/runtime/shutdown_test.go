@@ -84,3 +84,32 @@ func TestManagerShutdownSetsRecoveryReasonBeforeCancellation(t *testing.T) {
 		t.Fatalf("cancel reason=%q", got)
 	}
 }
+
+func TestManagerShutdownAllowsBridgeTerminationAfterCallerTimeout(t *testing.T) {
+	client := &fakeRuntimeClient{disconnectFn: func(ctx context.Context) error {
+		// A warm bridge can exhaust its 5s graceful-exit phase before SIGTERM.
+		timer := time.NewTimer(5100 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	if _, err := manager.GetOrCreate(t.Context(), "warm-session", bridge.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	short, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if err := manager.Close(short); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("short caller did not stop waiting: %v", err)
+	}
+	if err := manager.Close(t.Context()); err != nil {
+		t.Fatalf("completed bridge cleanup retained a false timeout: %v", err)
+	}
+	if client.disconnectCalls != 1 || manager.HasSession("warm-session") {
+		t.Fatal("shared shutdown did not retire the client exactly once")
+	}
+}

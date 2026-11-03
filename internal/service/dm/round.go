@@ -1,5 +1,5 @@
 // INPUT: 已准备的 DM round、runtime 消息、工具面指纹与终态结果。
-// OUTPUT: durable 历史、SDK session 工具面基线、ACK 门控的引导确认、Goal 结算及用户队列优先的后续派发。
+// OUTPUT: durable 历史、内部轮次的维护策略、SDK session 工具面基线、ACK 门控的引导确认、Goal 结算及用户队列优先的后续派发。
 // POS: DM 单轮执行生命周期的主状态机。
 package dm
 
@@ -301,6 +301,11 @@ func (r *roundRunner) runtimeInputOptions() sdkprotocol.OutboundMessageOptions {
 	}
 	options := runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation")
 	options.RecallQuery = ""
+	// Match Room internal rounds: host bookkeeping and recovery instructions
+	// must not trigger another model round to extract personal memories.
+	if r.internal && runtimectx.SupportsMessageExecutionPolicy(r.client) {
+		options.SkipAutoMemory = true
+	}
 	if r.deferredAssistant != nil {
 		options.MessageUUID = strings.TrimSpace(r.userMessageID)
 	}

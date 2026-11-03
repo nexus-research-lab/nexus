@@ -171,7 +171,7 @@ func readWorkGraphHistory(ctx context.Context, repo *orchestrationrepo.Repositor
 // are synthetic. Inserts are prepared in one transaction, outside read timing.
 func seedWorkGraphReadHistory(t testing.TB, db *sql.DB, repo *orchestrationrepo.Repository, driver, profile string, size int) protocol.Execution {
 	t.Helper()
-	batch := prepareIntegrationBatch(t, repo, "read-history")
+	batch := prepareIntegrationBatch(t, legacyPlanWriter{repo, db, driver}, "read-history")
 	e, err := repo.Get(t.Context(), batch.ExecutionID)
 	if err != nil {
 		t.Fatal(err)

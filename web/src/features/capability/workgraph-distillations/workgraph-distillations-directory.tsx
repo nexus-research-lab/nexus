@@ -21,6 +21,7 @@ import {
 import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
 import { WorkGraphDistillationDialog } from "@/features/conversation/shared/execution/workgraph-distillation-dialog";
 import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/lib/conversation/workgraph-workflow-events";
+import { workgraphInvocationExample } from "@/features/conversation/shared/execution/workgraph-invocation";
 import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import {
   getWorkGraphWorkflowsApi,
@@ -179,7 +180,7 @@ export function WorkGraphDistillationsDirectory() {
   const selected = items.find((item) => item.id === distillationId) ?? null;
 
   const copyCommand = async (item: WorkGraphWorkflow) => {
-    if (await copy(`/${item.slash_name} `)) {
+    if (await copy(workgraphInvocationExample(item))) {
       setCopiedId(item.id);
     } else {
       setCommandFailure({ title: t("capability.workgraph_copy_failed"), impact: t("capability.workgraph_copy_failed_impact"), tone: "error", onDismiss: () => setCommandFailure(null) });

@@ -72,6 +72,8 @@ func (m *contextMutex) Unlock() {
 // RoundID / UserMessageID / AgentRoundID 由后端 mint：
 // WS 入口不填，由聊天入口生成；后端内部调用方（automation / queue / goal）可预置 RoundID。
 type Request struct {
+	queuedWorkBinding         *protocol.ExecutionWorkBinding
+	queuedReviewBinding       *protocol.ExecutionReviewBinding
 	SessionKey                string
 	AgentID                   string
 	Content                   string

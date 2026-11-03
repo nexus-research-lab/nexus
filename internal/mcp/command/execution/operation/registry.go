@@ -23,6 +23,8 @@ func BuildAll(
 		abandonExecution(svc, sctx),
 		assignWork(svc, sctx),
 		assignWorkBatch(svc, sctx),
+		configureDispatch(svc, sctx),
+		recordCheckpoint(svc, sctx),
 		submitWork(svc, sctx),
 		reviewWork(svc, sctx),
 		blockWork(svc, sctx),

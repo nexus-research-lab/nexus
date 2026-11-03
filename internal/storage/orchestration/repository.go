@@ -200,6 +200,12 @@ func (r *Repository) finishMutation(
 		_ = value.tx.Rollback()
 		return nil, err
 	}
+	if event.Type == protocol.ExecutionEventAcceptanceRecorded || event.Type == protocol.ExecutionEventStatusChanged {
+		if _, err := value.tx.ExecContext(ctx, `UPDATE execution_dispatch_policies SET next_attempt_at=`+r.bind(1)+` WHERE execution_id=`+r.bind(2)+` AND state IN ('pending','assigned')`, r.timestamp(r.currentTime()), value.executionID); err != nil {
+			_ = value.tx.Rollback()
+			return nil, err
+		}
+	}
 	if err := value.tx.Commit(); err != nil {
 		return nil, err
 	}

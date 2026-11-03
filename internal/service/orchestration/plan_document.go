@@ -227,7 +227,12 @@ func ParseExecutionPlanDocument(
 	}
 	canonicalizePlanDraft(&normalizedDraft)
 
+	workflow, err := parsePlanWorkflowSource(fields, operation)
+	if err != nil {
+		return protocol.ExecutionPlanProposalDocument{}, PlanDraft{}, err
+	}
 	document := protocol.ExecutionPlanProposalDocument{
+		WorkflowSource:      workflow,
 		Version:             version,
 		Operation:           operation,
 		Objective:           objective,
@@ -368,6 +373,11 @@ func validatePlanYAMLNode(node *yaml.Node, path string, depth int, count *int) e
 		}
 	case yaml.ScalarNode:
 		switch node.Tag {
+		case "!!float":
+			if strings.HasPrefix(path, "$.workflow.parameters.") {
+				return nil
+			}
+			return newPlanDocumentError(node, path, "scalar type !!float is not allowed outside workflow parameters", nil)
 		case "!!str", "!!int", "!!bool":
 			return nil
 		default:

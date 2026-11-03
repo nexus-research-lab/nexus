@@ -40,5 +40,8 @@
 //   - goal.go / workflow.go：Execution-Goal 边界与 WorkGraph authoring/edit/save。
 //   - read.go / abandon.go：权威读取与无 successor 的 transient Execution 放弃。
 //
+//   - dispatch_policy.go / checkpoint.go / workflow_parameters.go：声明派发、进展记录和类型化模板编辑 transport。
+//
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 doc.go（L2）
+
 package operation

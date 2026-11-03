@@ -16,6 +16,7 @@ var planDocumentAllowedRootFields = []string{
 	"supersede_active_work",
 	"replacement_reason",
 	"items",
+	"workflow",
 }
 
 var planDocumentRequiredRootFields = []string{

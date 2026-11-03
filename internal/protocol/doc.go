@@ -43,5 +43,8 @@
 // ExecutionReviewBinding、EventMessage 及 New*Event 构造器；精确字段以对应 Go
 // 类型为准，前端事件类型由 typescript_event.go 生成。
 //
+//   - execution_dispatch_policy.go / work_checkpoint.go / workgraph_parameters.go：显式派发策略、进展检查点、模板输入来源与统计线格式。
+//
 // [PROTOCOL]: wire 变化时更新本头部，并检查 docs/specs、docs/README.md 与 AGENTS.md。
+
 package protocol

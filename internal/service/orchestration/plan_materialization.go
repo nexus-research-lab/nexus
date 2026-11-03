@@ -263,6 +263,7 @@ func (s *Service) materializeAuthoritativePlan(
 
 	document := proposal.Document
 	input := PlanExecutionInput{
+		WorkflowSource:      document.WorkflowSource,
 		ExecutionID:         proposal.TargetExecutionID,
 		SnapshotRevision:    proposal.TargetExecutionVersion,
 		CommandID:           proposal.MaterializationCommandID,

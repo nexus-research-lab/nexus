@@ -7,12 +7,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"sync"
+	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // InterruptHostShutdown distinguishes recoverable process exit from user stop.
 const InterruptHostShutdown = protocol.InterruptHostShutdown
+
+// The bridge first closes stdin, then allows 5s each for graceful exit and
+// termination. Host shutdown must leave time for both phases and receipt writes;
+// the shorter idle-round abort budget would report a false cleanup failure.
+const hostShutdownSessionTimeout = 15 * time.Second
 
 // ErrRuntimeManagerClosed 表示宿主已经开始退出，不再接受执行或后台任务。
 var ErrRuntimeManagerClosed = errors.New("runtime manager is shutting down")
@@ -77,7 +84,7 @@ func (m *Manager) closeRuntimeSessions(cancellations []context.CancelFunc, start
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
+			ctx, cancel := context.WithTimeout(context.Background(), hostShutdownSessionTimeout)
 			err := m.CloseSession(ctx, key)
 			cancel()
 			// CloseSession may return before round/IO cleanup completes. Keep the

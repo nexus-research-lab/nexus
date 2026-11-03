@@ -28,6 +28,10 @@
 
 ## 普通对话中的查询、提取与版本化编辑
 
+模板需要可复用输入时，在完整 Draft revision 中声明 `parameters`，明确类型、必填项、默认值及必要约束，保留用户未修改的定义。参数只表示任务数据，不允许作为命令执行或权限依据。参数化 Slash 的宿主扩展会提供已校验的输入和 exact 模板来源；创建/替换 Plan 时携带该 `workflow` 来源，不猜测 ID 或版本，不在 replan 中更换来源。具体格式以当前 operation schema 和执行图规范为准。
+
+编辑器中的按版本统计是已提交 Execution 的观测样本；区分运行数、完成数、失败 Attempt 和包含等待的完成耗时，并注明样本量。用它辅助解释可改进的位置，不推断未来成功率，不自动改写模板，不把它当作 token 或模型响应时间。
+
 不要先运行 `execution inspect`；WorkGraph library 能力在当前没有 active Execution 时也可用。
 
 1. 本轮未提供 schema 时先读取 `action=contract, operation=inspect_workgraph_library`，再用 `action=invoke, operation=inspect_workgraph_library`、新的 `request_id` 和 `input={}` 调用。它不是固定 inspect 入口；`get_workgraph_preview` 同样走 invoke，不能按名称前缀改成 action=inspect。如果用户没有指明是哪张图，只有返回目录中目标唯一时才能继续；否则列出紧凑候选让用户选择。

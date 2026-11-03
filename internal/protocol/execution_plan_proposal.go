@@ -50,6 +50,7 @@ const (
 // Items 的顺序就是未来 Plan membership 的 position；调用方必须在计算 digest 前完成
 // string normalization 以及 dependency/output scope 的稳定排序。
 type ExecutionPlanProposalDocument struct {
+	WorkflowSource      *WorkGraphWorkflowSource       `json:"workflow,omitempty"`
 	Version             int                            `json:"nexus_plan"`
 	Operation           ExecutionPlanProposalOperation `json:"operation"`
 	Objective           string                         `json:"objective"`

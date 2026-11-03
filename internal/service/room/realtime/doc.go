@@ -39,5 +39,8 @@
 //
 // 运行开始、消息、命令回执、附件、结束及 compact 证据共用 orchestration/runtimehook.Observer；Goal 快照转换共用 goal/runtimeusage，子任务证据合并与确认由 Goal 观察值负责。本包保留可信身份、锁、结算屏障和会话编排。
 //
+//   - scheduled_dispatch.go：声明派发的成员与队列暂停准入适配。
+//
 // [PROTOCOL]: 行为变化时检查 Room specs、Execution specs、父级 room L2 与 AGENTS.md。
+
 package realtime

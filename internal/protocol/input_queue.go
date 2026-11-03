@@ -93,6 +93,19 @@ func ValidateInputQueueCapabilityEnvelope(item InputQueueItem) error {
 	if item.WorkBinding == nil && item.ReviewBinding == nil {
 		return nil
 	}
+	if NormalizeInputQueueScope(string(item.Scope)) == InputQueueScopeDM {
+		if item.Source != InputQueueSourceHostRecovery || item.RecoveryExecutionID == "" || item.GoalCollaborationBinding != nil || item.DeliveryPolicy != ChatDeliveryPolicyQueue || item.AgentID == "" || len(item.TargetAgentIDs) != 1 || item.TargetAgentIDs[0] != item.AgentID {
+			return invalidInputQueueCapabilityEnvelope("bound DM input requires an exact hidden host queue target")
+		}
+		if item.WorkBinding != nil {
+			if !item.WorkBinding.Complete() || item.WorkBinding.ExecutionID != item.RecoveryExecutionID || item.WorkBinding.DispatchID != "" {
+				return invalidInputQueueCapabilityEnvelope("invalid DM work binding")
+			}
+		} else if !item.ReviewBinding.Complete() || item.ReviewBinding.ExecutionID != item.RecoveryExecutionID || item.ReviewBinding.TargetAgentID != item.AgentID {
+			return invalidInputQueueCapabilityEnvelope("invalid DM review binding")
+		}
+		return nil
+	}
 	if NormalizeInputQueueScope(string(item.Scope)) != InputQueueScopeRoom {
 		return invalidInputQueueCapabilityEnvelope("execution-bound input queue item must use Room scope")
 	}

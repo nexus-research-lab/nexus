@@ -9,6 +9,7 @@ function content(value: WorkGraphWorkflow | WorkGraphWorkflowPreview) {
   return {
     slash_name: value.slash_name, title: value.title, description: value.description ?? "",
     source_execution_id: value.source_execution_id, source_session_key: value.source_session_key,
+    parameters: (value.parameters ?? []).map((p) => ({ name: p.name, type: p.type, description: p.description ?? "", required: p.required ?? false, default: p.default, enum: p.enum ?? [], minimum: p.minimum, maximum: p.maximum })).sort((a, b) => a.name.localeCompare(b.name)),
     objective: value.objective, completion_criteria: value.completion_criteria ?? [],
     nodes: value.nodes.map((node) => ({
       logical_key: node.logical_key, source_work_item_id: node.source_work_item_id ?? "",

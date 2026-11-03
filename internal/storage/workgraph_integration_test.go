@@ -276,11 +276,11 @@ func integrationCommandMeta(suffix string) orchestrationrepo.CommandMeta {
 	return orchestrationrepo.CommandMeta{CommandID: "command-" + suffix, EventID: "event-" + suffix, ActorKind: protocol.ExecutionActorAgent, ActorID: "lead"}
 }
 
-func prepareIntegrationBatch(t testing.TB, repo *orchestrationrepo.Repository, suffix string) orchestrationrepo.AssignBatchCommand {
+func prepareIntegrationBatch(t testing.TB, repo integrationPlanWriter, suffix string) orchestrationrepo.AssignBatchCommand {
 	return prepareIntegrationBatchScope(t, repo, suffix, protocol.ExecutionScopeDM)
 }
 
-func prepareIntegrationBatchScope(t testing.TB, repo *orchestrationrepo.Repository, suffix string, scope protocol.ExecutionScopeKind) orchestrationrepo.AssignBatchCommand {
+func prepareIntegrationBatchScope(t testing.TB, repo integrationPlanWriter, suffix string, scope protocol.ExecutionScopeKind, dependencies ...bool) orchestrationrepo.AssignBatchCommand {
 	t.Helper()
 	execution := protocol.Execution{
 		ID: "execution-" + suffix, OwnerUserID: "workgraph-owner", SessionKey: "session-" + suffix,
@@ -321,6 +321,9 @@ func prepareIntegrationBatchScope(t testing.TB, repo *orchestrationrepo.Reposito
 			Dispatch: &protocol.ExecutionDispatch{ID: "dispatch-" + id, DedupeKey: "dedupe-" + id, TargetAgentID: owner,
 				Kind: protocol.ExecutionDispatchRoomDirected, Status: protocol.ExecutionDispatchStatusPending, Instruction: "deliver evidence"},
 		})
+	}
+	if len(dependencies) > 0 && dependencies[0] {
+		plan.Dependencies = []protocol.ExecutionPlanDependency{{PlanID: planID, ExecutionID: execution.ID, WorkItemID: plan.WorkItems[1].WorkItem.ID, DependsOnWorkItemID: plan.WorkItems[0].WorkItem.ID, Kind: protocol.WorkDependencyHard}}
 	}
 	if _, err := repo.WritePlan(t.Context(), plan); err != nil {
 		t.Fatal(err)

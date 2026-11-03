@@ -196,7 +196,7 @@ func authorizeRoomAttemptTerminalBinding(
 		strings.TrimSpace(assignment.OwnerAgentID) != agentID {
 		return nil, workBindingMismatch("Room root Attempt Assignment binding is stale")
 	}
-	if assignment.Strategy == protocol.AssignmentStrategySelf {
+	if assignment.Strategy == protocol.AssignmentStrategySelf && assignment.Metadata["dispatch_policy"] != true {
 		if binding.DispatchID != "" {
 			return nil, workBindingMismatch("self Room root Attempt must not carry a Dispatch")
 		}

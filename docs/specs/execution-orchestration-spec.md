@@ -800,7 +800,7 @@ root_round_id
 
 ## 6. Execution operations
 
-The Execution directory exposes exactly 13 operations through round-scoped
+The Execution directory exposes exactly 15 operations through round-scoped
 `nexus.command`. Each owns one atomic control-plane transition; `contract`,
 `inspect`, and `invoke` are transport actions, not business operations.
 
@@ -812,6 +812,8 @@ The Execution directory exposes exactly 13 operations through round-scoped
 | `abandon_execution` | Cancel a transient unbound Execution and atomically release/cancel its live chain. A Goal-bound Execution must use Goal retarget instead. |
 | `assign_work` | Assign one ready Work Item to one owner; create the pending root Attempt plus Room dispatch when required. Never creates parallel current owners. |
 | `assign_work_batch` | Coordinator declares multiple ready assignments in one bounded command; all owners, root Attempts, dispatch outboxes and audit events commit under one Execution CAS, or none do. |
+| `configure_dispatch` | Replace the pending routing policy set for the exact active Plan. Each entry selects an explicit owner/reviewer; a durable host coordinator assigns it once when its hard dependencies are accepted. An empty set cancels pending policies, leaving assigned responsibility intact. |
+| `record_checkpoint` | Append current root-owner progress and effect receipts without Submission, Acceptance or readiness changes. |
 | `submit_work` | Append one immutable Submission and correlate/complete the current Attempt. Hard dependents stay locked until Acceptance. |
 | `review_work` | Append one Acceptance decision (see below). |
 | `block_work` | Move the Work Item to `waiting_input` for a specific external input/authority blocker. Rejected while an unreviewed Submission exists. |
@@ -909,6 +911,57 @@ For an active Execution, coordinator `next_actions` recommends `take_over_work` 
 No operation may combine planning, assignment, execution, submission, and acceptance
 into one implicit mutation. Retries must reuse the stable request identity and the
 receipt idempotency identity where provided.
+
+### Declarative dependency dispatch
+
+`configure_dispatch` is available only to an unbound, authorized coordinator. Entries
+name current Plan Work Items (including not-yet-Ready work), explicit owner and
+reviewer, optional instruction and Room route. At most 32 entries are accepted;
+request identity binds immutable intent. Replacement/cancellation and its audit
+receipt commit under one Execution CAS. Manual assignment wins over a pending
+policy. A new Plan invalidates old pending/assigned policies; no inference transfers
+them to a new spec, agent or Execution.
+
+The host rechecks readiness, Plan/spec, scope membership, user stop/queue pause and
+exact active, unsuspended Goal revision before assigning. Room work uses the
+existing durable dispatch outbox, including policy-authorized self work. DM uses
+an exact private WorkBinding in its durable hidden queue and activates its root
+Attempt before runtime admission. Queue retries use the same durable identity;
+a proved physical round reconciles a lost enqueue receipt. They never replay a
+work result or external side effect. A selected owner leaving a Room cannot be
+silently replaced. Failure/rejection still requires explicit coordinator judgment;
+the policy neither retries failed responsibility nor grants takeover/acceptance.
+
+Scheduled self work uses separate work and review rounds. Its Submission creates
+a durable review outbox even when owner and reviewer are the same Agent. Room
+requires handoff + queue receipts; DM requires its queue receipt. The host binds
+only the exact selected responsibility at dequeue; model text cannot construct a
+binding. Existing unconfigured work keeps explicit assignment behavior.
+
+Host-generated DM work, review and recovery rounds skip automatic memory
+extraction when the runtime supports message-level maintenance policy, matching
+Room internal rounds. These bookkeeping instructions do not become another
+personal-memory model task. Independent WorkGraph recovery remains available
+when the optional Goal feature is disabled; Goal-bound admission still checks its
+exact active Goal authority.
+
+### Progress checkpoints
+
+Only a current, unsubmitted root owner may `record_checkpoint`. The receipt binds
+Execution/Plan/Work Item/spec/Assignment/Attempt and reporting Agent. It holds a
+concise summary, next step, artifact/evidence references and optional external
+effects. An effect is reported `confirmed` only with a receipt reference, or
+`unknown` when confirmation is missing. These are observations, not proof of an
+external transaction or completion. Reconcile artifacts and receipts before
+continuing; unknown outcomes never authorize replay.
+
+Checkpoint data is append-only, at most 16 KiB per record and 32 per Attempt.
+Execution CAS order determines the latest record. Current-spec projections expose
+only the latest checkpoint per Work Item; bound workers see only their own work.
+Takeover retains it as read-only evidence from the previous Attempt; old owners
+cannot append to the successor. A new spec does not inherit obsolete checkpoints.
+Checkpoint writes never submit, accept, unlock hard dependencies, revive an
+Attempt or automatically resume a queue.
 
 ## 7. Goal operations
 

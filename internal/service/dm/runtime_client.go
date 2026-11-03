@@ -165,6 +165,19 @@ func (s *Service) ensureClient(
 	if scopedPolicyActive {
 		dynamicSystemPrompt = runtimehost.JoinPromptSections(dynamicSystemPrompt, scopedPolicy.SystemPrompt)
 	}
+	if request.queuedWorkBinding != nil || request.queuedReviewBinding != nil {
+		provider, ok := s.ExecutionContext.(interface {
+			PrepareScheduledDMRound(context.Context, orchestration.ActorContext) (*protocol.Execution, error)
+		})
+		if !ok {
+			return dmClientPreparation{}, errors.New("scheduled DM authority unavailable")
+		}
+		boundExecution, boundErr := provider.PrepareScheduledDMRound(ctx, orchestration.ActorContext{OwnerUserID: agentValue.OwnerUserID, SessionKey: sessionKey, AgentID: agentValue.AgentID, ExecutionID: request.ExecutionID, ScopeKind: protocol.ExecutionScopeDM, Role: orchestration.ExecutionActorMember, WorkBinding: request.queuedWorkBinding, ReviewBinding: request.queuedReviewBinding, RootRoundID: request.RoundID, RuntimeRoundID: request.RoundID, AgentRoundID: request.AgentRoundID})
+		if boundErr != nil {
+			return dmClientPreparation{}, boundErr
+		}
+		request.GoalID, request.GoalObjectiveRevision = boundExecution.GoalID, boundExecution.GoalObjectiveRevision
+	}
 	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
 	explicitGoalID := strings.TrimSpace(request.GoalID)
 	executionID := request.ExecutionID
@@ -186,8 +199,8 @@ func (s *Service) ensureClient(
 	responsibilityState := runtimectx.NewResponsibilityAuthorityState(
 		goalAuthority,
 		executionID,
-		nil,
-		nil,
+		request.queuedWorkBinding,
+		request.queuedReviewBinding,
 	)
 	sdkSessionIdentity := runtimectx.NewSDKSessionIdentityState(
 		textutil.PointerValue(sessionItem.SessionID),

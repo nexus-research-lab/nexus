@@ -820,6 +820,8 @@ const (
 	ExecutionEventPlanActivated      ExecutionEventType = "plan_activated"
 	ExecutionEventPlanSuperseded     ExecutionEventType = "plan_superseded"
 	ExecutionEventWorkItemCreated    ExecutionEventType = "work_item_created"
+	ExecutionEventCheckpointRecorded ExecutionEventType = "checkpoint_recorded"
+	ExecutionEventDispatchConfigured ExecutionEventType = "dispatch_configured"
 	ExecutionEventWorkAssigned       ExecutionEventType = "work_assigned"
 	ExecutionEventAttemptStarted     ExecutionEventType = "attempt_started"
 	ExecutionEventAttemptReconcile   ExecutionEventType = "attempt_reconciliation_scheduled"
@@ -889,6 +891,8 @@ type ExecutionEvent struct {
 // 模型 MCP 只接收由它派生的 actor-specific context，不直接接收整份 Snapshot。
 // 历史 Attempt、Submission、Acceptance 与 event 使用独立分页接口，不应无限塞入快照。
 type ExecutionSnapshot struct {
+	Checkpoints            []WorkCheckpoint                `json:"checkpoints,omitempty"`
+	DispatchPolicies       []ExecutionDispatchPolicy       `json:"dispatch_policies,omitempty"`
 	Execution              Execution                       `json:"execution"`
 	Plan                   *ExecutionPlanRevision          `json:"plan,omitempty"`
 	WorkItems              []WorkItem                      `json:"work_items,omitempty"`

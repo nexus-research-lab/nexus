@@ -687,7 +687,10 @@ INSERT INTO execution_plan_revisions (
 		nullString(plan.CreatedByAgentID), nullString(plan.RevisionReason), plan.Version,
 		r.timestamp(plan.CreatedAt), nullTime(plan.ActivatedAt), nullTime(plan.SupersededAt), metadataJSON,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return r.recordWorkflowUsage(ctx, tx, plan)
 }
 
 func (r *Repository) ensureWorkItem(ctx context.Context, tx *sql.Tx, item protocol.WorkItem) error {

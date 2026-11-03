@@ -46,5 +46,8 @@
 //   - runtime_graph_artifact.go：保留消息文件的 working_file/deliverable 角色与产出 Agent/round，按工具身份关联图记录。
 //   - runtime_graph_command.go：消费 RuntimeCommandFact，核心不依赖 MCP；回执过滤与复制由 runtimehook 完成。
 //
+//   - dispatch_policy.go / scheduled_dm.go / checkpoint.go / workflow_source.go：显式依赖派发、DM 精确入队激活、进展记录与模板来源校验端口。
+//
 // [PROTOCOL]: 行为或 wire 变化时检查两份 execution spec、protocol L2 与 AGENTS.md。
+
 package orchestration

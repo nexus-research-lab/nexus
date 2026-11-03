@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- WorkGraph 支持显式声明后续节点的负责人和审核人，依赖验收后由宿主一次派发到 DM/Room；保留暂停、Plan/Goal 版本及成员权限检查，不自动重试失败任务。
+- WorkGraph 支持记录可恢复进展检查点，接管后保留产物和未知外部效果的核对线索；检查点不代表交付或验收。
+- 命名 WorkGraph 支持类型化参数、默认值与约束；详情展示输入示例和按模板版本聚合的实际运行、失败及完成耗时样本，对话编辑可参考统计。
+
 - WorkGraph 节点详情支持显式恢复：只受理当前失败根节点的协调检查，丢失回执先查询，保留其他暂停任务。
 - 已绑定责任且 runtime 能力匹配的 WorkGraph 轮次可通过 Stop 结构化声明交付或审核；结果先持久接收，再按领域回执对账，支持工具竞态和重启恢复，不把运行结束当作验收。
 
@@ -24,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows 原生开发入口支持 `make dev`、`dev-nxs` 和独立服务启动，自动等待 Control 就绪、检查端口并在退出时清理本次启动的进程；`nexus-server check-desktop-runtime` 可在原生 Windows 上验证随包 nxs。
 
 ### Changed
+
+- WorkGraph 内部 DM 交付、审核与恢复轮次在支持的 runtime 上跳过自动记忆抽取，减少额外模型调用；Goal 功能关闭时独立 Room 工作图仍可恢复检查。宿主关闭使用独立宽限等待运行时的退出阶段，并继续保留真实清理失败。
 
 - Markdown 正文与流式显示隐藏 HTML 注释，包括结果钩子声明；代码块中的注释示例继续显示。
 

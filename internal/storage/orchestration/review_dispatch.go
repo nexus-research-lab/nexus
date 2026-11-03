@@ -24,6 +24,9 @@ func (r *Repository) normalizeReviewDispatch(
 	crossAgentReview := strings.TrimSpace(assignment.ReturnToAgentID) !=
 		strings.TrimSpace(assignment.OwnerAgentID)
 	if source == nil {
+		if assignment.Metadata["dispatch_policy"] == true {
+			return nil, fmt.Errorf("%w: scheduled work requires review dispatch", ErrInvariant)
+		}
 		// self 同时用于 DM 与 Room，只有服务层提供的回投才能证明这是 Room 跨 Agent 审核。
 		if assignment.Strategy != protocol.AssignmentStrategyRoomMember || !crossAgentReview {
 			return nil, nil
@@ -33,7 +36,7 @@ func (r *Repository) normalizeReviewDispatch(
 			ErrInvariant,
 		)
 	}
-	if !crossAgentReview {
+	if !crossAgentReview && assignment.Metadata["dispatch_policy"] != true {
 		return nil, fmt.Errorf(
 			"%w: self-review Assignment must not create a review-return Dispatch",
 			ErrInvariant,
@@ -267,11 +270,20 @@ func (r *Repository) MarkReviewDispatchDelivered(
 	handoffID = strings.TrimSpace(handoffID)
 	queueItemID = strings.TrimSpace(queueItemID)
 	if dispatchID == "" || expectedVersion <= 0 || leaseOwner == "" ||
-		handoffID == "" || queueItemID == "" {
+		queueItemID == "" {
 		return nil, fmt.Errorf(
 			"%w: review delivery identity and receipt are required",
 			ErrInvariant,
 		)
+	}
+	if handoffID == "" {
+		var scope protocol.ExecutionScopeKind
+		if err := r.db.QueryRowContext(ctx, `SELECT e.scope_kind FROM execution_review_dispatches d JOIN executions e ON e.execution_id=d.execution_id WHERE d.review_dispatch_id=`+r.bind(1), dispatchID).Scan(&scope); err != nil {
+			return nil, err
+		}
+		if scope != protocol.ExecutionScopeDM {
+			return nil, fmt.Errorf("%w: Room review requires a handoff receipt", ErrInvariant)
+		}
 	}
 	now := r.currentTime()
 	result, err := r.db.ExecContext(ctx, `

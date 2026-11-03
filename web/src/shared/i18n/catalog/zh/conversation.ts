@@ -1,4 +1,17 @@
 export const zhConversationMessages = {
+  "execution.dispatch_policy": "自动派发",
+  "execution.dispatch_pending": "等待依赖验收",
+  "execution.dispatch_assigned": "已分配，待确认入队",
+  "execution.dispatch_queued": "已交给派发队列",
+  "execution.dispatch_cancelled": "派发策略已取消",
+  "execution.dispatch_owner": "负责人",
+  "execution.dispatch_reviewer": "审核人",
+  "execution.checkpoint": "最新检查点",
+  "execution.checkpoint_next": "下一步",
+  "execution.effect_unknown": "结果未知，先核对回执",
+  "execution.effect_confirmed": "已报告确认",
+  "execution.checkpoint_hint": "仅为已报告进展。继续前核对产物与回执；检查点不代表验收通过。",
+
   "room.history_mutation_unconfirmed": "变更结果未确认，请核对当前会话后再继续管理。",
   "room.host_unset": "未设置",
   "room.host_label": "群主",

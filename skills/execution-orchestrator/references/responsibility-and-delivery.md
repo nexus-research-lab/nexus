@@ -1,6 +1,6 @@
 # Responsibility 与交付
 
-只在调用 `assign_work`、`assign_work_batch`、`submit_work`、`review_work` 或 `take_over_work` 时读取本文件。字段、枚举、长度和数组上限只认当前 exact contract：本轮已返回或宿主内联的 schema 可直接复用，缺失/不可见/校验提示变化时才查 contract。权限仍以最新 binding 和 allowed_actions 为准。
+只在调用 `assign_work`、`assign_work_batch`、`configure_dispatch`、`record_checkpoint`、`submit_work`、`review_work` 或 `take_over_work` 时读取本文件。字段、枚举、长度和数组上限只认当前 exact contract：本轮已返回或宿主内联的 schema 可直接复用，缺失/不可见/校验提示变化时才查 contract。权限仍以最新 binding 和 allowed_actions 为准。
 
 ## Locator 与 authority
 
@@ -33,3 +33,9 @@
 
 - 只由 coordinator 对已有 current Assignment、且没有未审核 Submission 的 Work Item 调用。提交 replacement `target_agent_id` 和具体 `reason`；strategy、dispatch、reviewer 与 assign 规则相同。
 - 该 operation 原子释放旧 Assignment 并创建 replacement。不要自行拆成两次状态变化，也不要在 work/review lane 依靠 coordinator 身份越权调用。
+
+## 声明后续派发与检查点
+
+- 后续节点的 owner/reviewer 已明确且无需中途再决策时，可一次 `configure_dispatch` 声明当前 Plan 的待派发集合；下游尚未 Ready 也可声明。宿主只在硬依赖验收后派发一次。空集合撤销尚未分配的策略；已有责任不受影响。变更 Plan 后重新决定，不推断或搬移旧策略。
+- 自动派发仍遵守暂停、Goal revision 和 Room 成员资格。失败或审核不通过先核对，再显式接管/返工；策略不会自动重试或验收。已配置节点不要再重复 assign。
+- 只有有实际恢复价值的阶段才 `record_checkpoint`，记录当前产物、证据和下一步。外部效果没有 durable receipt 时写 unknown；恢复时先对账。检查点不是交付，不能据此解锁下游。当前责任之外、已提交后和 Subagent 均不能记录。

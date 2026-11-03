@@ -1660,6 +1660,25 @@ function ExecutionNodeInspector({
           </ul>
         </NodeDetailSection>
       ) : null}
+      {item?.dispatch_policy ? (
+        <NodeDetailSection label={t("execution.dispatch_policy")}>
+          <p>{t(`execution.dispatch_${item.dispatch_policy.state}`)}</p>
+          <p>{t("execution.dispatch_owner")}: {item.dispatch_policy.target_agent_id}</p>
+          <p>{t("execution.dispatch_reviewer")}: {item.dispatch_policy.return_to_agent_id}</p>
+        </NodeDetailSection>
+      ) : null}
+      {item?.checkpoint ? (
+        <NodeDetailSection label={t("execution.checkpoint")}>
+          <p>{item.checkpoint.summary}</p>
+          <p>{t("execution.checkpoint_next")}: {item.checkpoint.next_step}</p>
+          {item.checkpoint.artifact_refs?.map((ref) => <p key={ref}>{ref}</p>)}
+          {item.checkpoint.evidence?.map((evidence) => <p key={evidence}>{evidence}</p>)}
+          {item.checkpoint.effects?.map((effect, index) => (
+            <p key={index}>{effect.operation} · {t(effect.outcome === "unknown" ? "execution.effect_unknown" : "execution.effect_confirmed")}{effect.receipt_ref ? ` · ${effect.receipt_ref}` : ""}</p>
+          ))}
+          <p>{t("execution.checkpoint_hint")}</p>
+        </NodeDetailSection>
+      ) : null}
       {item?.block_reason?.trim() ? (
         <NodeDetailSection label={t("execution.blocker")}>
           <p>{item.block_reason.trim()}</p>

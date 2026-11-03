@@ -187,6 +187,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		workgraphworkflowsvc.NewLLMAbstractor(providerService, preferencesService),
 	)
 	workGraphWorkflowService.SetMainAgentResolver(core.Agent)
+	orchestrationService.SetWorkflowSourceValidator(workGraphWorkflowService)
 	providerService.SetDefaultAgentSelectionResolver(func(ctx context.Context, ownerUserID string) (providercfg.DefaultAgentSelection, error) {
 		prefs, err := preferencesService.Get(ctx, ownerUserID)
 		if err != nil {
@@ -342,7 +343,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
 	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
 	orchestrationService.SetExecutionRecoveryConsumer(appexecution.RecoveryConsumer{DM: dmService, Room: roomRealtime})
-	orchestrationService.SetExecutionReviewDispatchConsumer(roomRealtime)
+	scheduledConsumer := appexecution.ScheduledConsumer{DM: dmService, Room: roomRealtime, Goals: goalService}
+	orchestrationService.SetScheduledWorkConsumer(scheduledConsumer)
+	orchestrationService.SetExecutionReviewDispatchConsumer(scheduledConsumer)
 	orchestrationService.SetExecutionCancellationConsumer(
 		appexecution.NewCancellationConsumer(roomRealtime, runtimeManager),
 	)

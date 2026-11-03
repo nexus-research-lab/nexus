@@ -215,6 +215,8 @@ type ExecutionAcceptanceView struct {
 
 // ExecutionWorkItemView 是一个 Work Item 当前 spec 的完整用户可见交付契约。
 type ExecutionWorkItemView struct {
+	Checkpoint         *WorkCheckpoint             `json:"checkpoint,omitempty"`
+	DispatchPolicy     *ExecutionDispatchPolicy    `json:"dispatch_policy,omitempty"`
 	ID                 string                      `json:"id"`
 	LogicalKey         string                      `json:"logical_key"`
 	Kind               WorkItemKind                `json:"kind"`

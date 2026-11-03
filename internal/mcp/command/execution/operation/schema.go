@@ -331,6 +331,7 @@ func reviseWorkflowPreviewSchema() map[string]any {
 		"description":         nonEmptyStringProperty("草图用途说明。"),
 		"objective":           nonEmptyStringProperty("复用时发送给模型的内部执行目标。"),
 		"completion_criteria": stringArrayProperty("整张草图的完成标准。"),
+		"parameters":          workflowParametersSchema(),
 		"nodes": map[string]any{
 			"type": "array", "minItems": 1, "maxItems": 64, "items": nodeSchema,
 		},

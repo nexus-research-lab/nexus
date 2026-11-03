@@ -147,3 +147,12 @@ NEXUS_BROWSER_SMOKE=1 NEXUS_SMOKE_NXS_BINARY=/absolute/path/to/nxs \
 - 前端：`pnpm test src/features/conversation/shared/execution src/shared/ui/markdown/core/markdown-comments.test.tsx src/shared/ui/markdown/streaming`，另跑 `pnpm run check`。浏览器检查当前/历史/stale 的入口、普通/放大图共享状态、unknown 只读核对及注释流式隐藏。
 - 可选真实 runtime/provider：显式设置 `NEXUS_TEST_RESULT_RUNTIME_BINARY`（nxs 绝对路径）、`NEXUS_TEST_RESULT_MODEL` 与测试 Provider 的 `ANTHROPIC_BASE_URL` / 凭据环境，再执行 `go test ./internal/storage -run '^TestWorkGraphResultRuntimeAcceptance$' -count=1 -v -timeout 25m`。`NEXUS_TEST_RESULT_SAMPLES` 为 1–5，缺省 1；默认门禁跳过，不读取个人应用配置或自动调用收费模型。每轮关闭 thinking 并使用临时 CWD/config/数据库，显式工具路径复用真实 nexus.command parser 与领域服务，钩子路径复用生产路由/声明解析/领域回执。输出仅含模型、调用数、终态 usage、耗时与结果校验，不输出凭据或完整上下文。
 - 上述 provider 实验是相同小型合成交付/审核的有界对照，不等同真实应用会话、长任务、安装版升级或 macOS/Windows 原生宿主恢复验收。缓存、Provider 排队与模型行为会影响 token/耗时；未经实测不能只凭减少工具数宣称性能收益。
+
+### WorkGraph 声明派发、检查点、模板与应用恢复
+
+- `NEXUS_TEST_POSTGRES_URL=... go test -race ./internal/storage -run 'TestWorkGraph(DispatchPolicy|Checkpoint|Template|Upgrade|RuntimeResult|ReadProjection)Integration$' -count=1 -timeout=5m` 验证依赖验收前不派发、并发唯一责任、同请求意图、暂停/恢复、进展与验收分离、接管后证据保留、类型参数及精确模板版本统计。使用独立 PostgreSQL schema；SQLite 同时执行。158/161 升级夹具用冻结的旧结构 SQL 写入旧数据，不能用当前 repository 伪装旧版。
+- `NEXUS_WORKGRAPH_APP_ACCEPTANCE=1 NEXUS_SMOKE_NXS_BINARY=/absolute/nxs go test ./internal/app/server -run 'TestWorkGraph(ApplicationAcceptance|ProcessRestartAcceptance)$' -count=1 -v -timeout=3m` 使用完整 AppServices、真实 runtime Manager/nxs 和本地脚本化 Provider；状态、数据库、workspace 和测试 Provider 都是临时资源。DM/Room 各执行两步依赖工作和独立审核，通过实际队列和结果 hook 检查唯一 SQL 写入及正常清理。
+- 重启用例启动独立宿主子进程，在真实 Provider 请求在途时杀死它，并分别覆盖用户停止后杀进程；新进程重开同一临时状态，核对检查点、unknown 效果、停止暂停和重复恢复请求的同一 durable 回执。显式恢复必须真的请求 Provider 并结束，不能仅凭入队或瞬时 idle 判成功；恢复检查不提交、不验收、不重放模拟外部操作。此用例不等同原生桌面壳退出、Windows 或安装版数据库验收。
+- 多节点真实模型对照：提供上一节的 runtime/model/provider 环境，并设置 `NEXUS_TEST_PIPELINE_RUNTIME=1`，执行 `go test ./internal/storage -run '^TestWorkGraphPipelineRuntimeAcceptance$' -count=1 -v -timeout=18m`。固定三节点硬依赖算术链，每个节点各有交付/审核轮，运行三组 tool/hook 配对、交替先后顺序。两条路径统一配置 `MaxTurns=8`、每轮 3 分钟；SDK 终态报告的 `num_turns` 原样保留，不将配置值当作实测轮次上限。结果须有三份 Submission/Acceptance 和最终 Completion。Queue consumer 在该模型实验中是受控端口，应用队列证据由上一项提供。
+- 时间口径为 Query→Result，排除进程启动；token 是实际终态 usage（含缓存），不换算金额。hook 回退显式工具、重复轮次和 runtime 错误必须保留；超时记录已用时间且标记 usage 缺失，不能填零或作为成功样本。分开报告完整配对、失败/不完整运行与预算调整，不反复筛选通过样本。日志、截图及测量报告放在本地或 CI artifact，不提交真实凭据或验收产物。
+- 前端行为：`pnpm test src/features/conversation/shared/execution src/features/capability/workgraph-distillations`，并执行 `pnpm run check`。浏览器覆盖检查点的未知效果提示、派发状态、模板参数/示例/统计，以及宽窄屏和明暗主题。

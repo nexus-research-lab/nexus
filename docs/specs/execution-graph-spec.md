@@ -393,3 +393,35 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 普通对话 runtime 事件没有 managed Execution identity 时，不发送 WorkGraph 失效通知；创建、绑定、重绑与责任 mutation 仍走各自的显式失效出口。Runtime 事实不增加 Execution CAS version，因此不得仅凭 version 相同忽略运行更新。
 
 每个 Canvas 只缓存一份由 Execution identity、可见拓扑、规范化宽度和节点密度确定的几何。边输入顺序不改变几何；状态、摘要和产物变化复用坐标/路径，但始终重新绑定当前节点、Work Item 和边对象。折叠、拓扑或宽度变化重新布局。
+
+### Typed template inputs and observed runs
+
+Saved WorkGraph templates may declare up to 32 parameters: `string`, `number`,
+`integer`, `boolean`, or `string_list`, with optional description, required flag,
+typed default, string enum and finite numeric bounds. Values are bounded task
+data, never shell substitution, executable code or runtime authority. Parameter
+editing uses the existing complete Draft revision and user-confirmed save flow;
+parameters participate in saved-content receipt reconciliation.
+
+A parameterized slash uses `/name {"parameters":{...},"request":"..."}`. The host
+rejects unknown/duplicate inputs, missing required values and invalid types or
+bounds before starting work. Omitted defaults are resolved; the canonical input
+map is limited to 16 KiB. Templates without definitions keep free-text arguments.
+The capability detail shows definitions and an editable invocation example.
+
+A create/replace Plan Document can include `workflow: {id, version, parameters}`.
+The host validates the owner-visible saved/built-in template and exact version,
+resolves defaults, then seals this provenance with the proposal. Replans cannot
+change it. The first authoritative Plan inserts a single usage receipt per
+Execution in the same transaction. Slash expansion, preview, sealing, failed Plan
+transactions and idempotent replay cannot add runs. Provenance records declared
+reuse; it does not assert that a model followed every template instruction.
+
+Template detail and its editor expose owner-scoped aggregates by exact saved
+version: runs, completed/closed-without-completion/active counts, Attempts and
+failed Attempts. Completed elapsed wall time has a separate sample count and
+includes waiting; it is neither model latency nor token cost. Deleting an Execution
+removes its usage from these current-history statistics. Template revision does
+not relabel older runs. Statistics inform explicit edits; no automatic rewrite or
+predicted success rate is inferred. Checkpoint and dispatch state appear in the
+existing node inspector, without adding a second completion state or graph editor.

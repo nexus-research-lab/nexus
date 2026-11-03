@@ -122,6 +122,15 @@ func (s *Service) PreparePlanExecution(
 		}
 		return nil, domainError(ErrorCodePlanDocumentInvalid, err.Error())
 	}
+	if document.WorkflowSource != nil {
+		if s.workflowSources == nil {
+			return nil, domainError(ErrorCodeInvalidInput, "template source validation is unavailable")
+		}
+		document.WorkflowSource, err = s.workflowSources.ValidateWorkflowSource(ctx, actor.OwnerUserID, *document.WorkflowSource)
+		if err != nil {
+			return nil, domainError(ErrorCodeInvalidInput, err.Error())
+		}
+	}
 	goalBinding, err := normalizePlanGoalBindingIntent(document.Operation, input.GoalBinding, actor)
 	if err != nil {
 		return nil, err

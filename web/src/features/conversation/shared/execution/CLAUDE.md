@@ -51,3 +51,5 @@
 - Canvas 使用每实例单条拓扑几何缓存；运行状态变化仍绑定最新节点、Work Item、边和检查器事实。输入边规范排序后布局，不能依赖 transport 的边数组顺序。
 
 - `use-execution-recovery.ts` 拥有 session/Execution-scoped 恢复请求、同步防重复及 unknown 的只读回执核对；Surface 只向有效当前图注入，同一 action 贯穿普通/放大画布。Canvas 仅呈现服务端 `can_recover` 的节点动作与受理状态，不乐观改变责任状态。
+
+- 节点检查器展示当前 spec 的最新检查点与已声明派发状态；未知效果先核对，不把进展当验收。workgraph-invocation.ts 只生成参数化 Slash 示例，workgraph-save-state.ts 把参数契约纳入完整保存回执核对。

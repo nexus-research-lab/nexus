@@ -128,6 +128,8 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 		"\n  <lane type=\"%s\" />",
 		xmlValue(executionContextLane(role, options)),
 	)
+	renderDispatchPolicies(&output, snapshot)
+	renderWorkCheckpoints(&output, snapshot)
 	fmt.Fprintf(&output, "\n  <mode plan_only=\"%t\" />", options.PlanMode)
 	if strings.TrimSpace(snapshot.Execution.GoalID) != "" {
 		fmt.Fprintf(
@@ -1010,7 +1012,7 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
-			"assign_work_batch",
+			"assign_work_batch", "configure_dispatch", "record_checkpoint",
 			"submit_work",
 			"review_work",
 			"block_work",
@@ -1039,7 +1041,7 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
-			"assign_work_batch",
+			"assign_work_batch", "configure_dispatch", "record_checkpoint",
 			"submit_work",
 			"review_work",
 			"block_work",
@@ -1066,7 +1068,7 @@ func renderActionBoundary(
 			forbidden,
 			"execute_work_in_plan_mode",
 			"assign_work",
-			"assign_work_batch",
+			"assign_work_batch", "configure_dispatch", "record_checkpoint",
 			"submit_work",
 			"review_work",
 			"block_work",
@@ -1096,7 +1098,9 @@ func renderActionBoundary(
 		setAvailability("abandon_execution", transientCoordinator)
 		setAvailability("assign_work", availability.hasReadyWork)
 		setAvailability("assign_work_batch", availability.hasReadyWork && !options.WorkBound && !options.ReviewBound)
+		setAvailability("configure_dispatch", view.snapshot.Plan != nil && !options.WorkBound && !options.ReviewBound)
 		setAvailability("submit_work", availability.hasOwnedSubmittableAssignment)
+		setAvailability("record_checkpoint", availability.hasOwnedSubmittableAssignment && !options.ReviewBound)
 		setAvailability("review_work", availability.hasPendingReview)
 		setAvailability("block_work", availability.hasBlockableWork)
 		setAvailability("resume_work", availability.hasResumableWork)
@@ -1114,6 +1118,7 @@ func renderActionBoundary(
 	case ExecutionActorMember:
 		allowed = append(allowed, "audit_execution_alignment")
 		setAvailability("submit_work", availability.hasOwnedSubmittableAssignment)
+		setAvailability("record_checkpoint", availability.hasOwnedSubmittableAssignment && !options.ReviewBound)
 		setAvailability("review_work", availability.hasPendingReview)
 		setAvailability("block_work", availability.hasOwnedCurrentAssignment)
 		setAvailability("resume_work", availability.hasOwnedResumableWork)
@@ -1123,7 +1128,7 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
-			"assign_work_batch",
+			"assign_work_batch", "configure_dispatch", "record_checkpoint",
 			"take_over_work",
 			"promote_execution_to_goal",
 			"mutate_shared_plan",
@@ -1137,7 +1142,7 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
-			"assign_work_batch",
+			"assign_work_batch", "configure_dispatch", "record_checkpoint",
 			"submit_work",
 			"review_work",
 			"block_work",
@@ -1893,4 +1898,34 @@ func xmlValue(value string) string {
 	var output bytes.Buffer
 	_ = xml.EscapeText(&output, []byte(strings.TrimSpace(value)))
 	return output.String()
+}
+
+func renderDispatchPolicies(output *strings.Builder, snapshot *protocol.ExecutionSnapshot) {
+	if len(snapshot.DispatchPolicies) == 0 {
+		return
+	}
+	output.WriteString("\n  <dispatch_policies>")
+	for _, p := range snapshot.DispatchPolicies {
+		fmt.Fprintf(output, "\n    <policy work_item_id=%q owner=%q reviewer=%q state=%q reason=%q />", xmlValue(p.WorkItemID), xmlValue(p.TargetAgentID), xmlValue(p.ReturnToAgentID), xmlValue(p.State), xmlValue(p.Reason))
+	}
+	output.WriteString("\n  </dispatch_policies>")
+}
+
+func renderWorkCheckpoints(output *strings.Builder, snapshot *protocol.ExecutionSnapshot) {
+	if len(snapshot.Checkpoints) == 0 {
+		return
+	}
+	output.WriteString("\n  <checkpoints authority=\"reported_progress_only\" resume=\"reconcile_artifacts_and_receipts_before_effects\">")
+	for _, p := range snapshot.Checkpoints {
+		fmt.Fprintf(output, "\n    <checkpoint work_item_id=%q attempt_id=%q>", xmlValue(p.WorkItemID), xmlValue(p.AttemptID))
+		writeXMLTextElement(output, 6, "summary", p.Summary)
+		writeXMLTextElement(output, 6, "next_step", p.NextStep)
+		renderStringList(output, "artifact_refs", "ref", p.ArtifactRefs)
+		renderStringList(output, "evidence", "item", p.Evidence)
+		for _, effect := range p.Effects {
+			fmt.Fprintf(output, "\n      <effect operation=%q outcome=%q receipt_ref=%q />", xmlValue(effect.Operation), xmlValue(effect.Outcome), xmlValue(effect.ReceiptRef))
+		}
+		output.WriteString("\n    </checkpoint>")
+	}
+	output.WriteString("\n  </checkpoints>")
 }

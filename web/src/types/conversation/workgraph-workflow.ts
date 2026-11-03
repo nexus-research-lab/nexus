@@ -1,7 +1,7 @@
 /**
  * INPUT: internal/protocol/workgraph_workflow.go 的 owner-safe JSON。
  * OUTPUT: 默认对话模型抽取的 durable Draft/版本与用户确认保存的命名 Slash 工作图展示类型。
- * POS: WorkGraph 草图编辑、目录与复用 UI 的协议镜像；不包含运行事实。
+ * POS: WorkGraph 草图编辑、目录与复用 UI 的协议镜像；只附带按模板版本聚合的运行统计。
  */
 
 import type { ExecutionWorkItemKind } from "./execution";
@@ -62,7 +62,30 @@ export interface WorkGraphWorkflowDependency {
   kind: "hard" | "soft";
 }
 
+export interface WorkGraphParameter {
+  name: string;
+  type: "string" | "number" | "integer" | "boolean" | "string_list";
+  description?: string;
+  required?: boolean;
+  default?: string | number | boolean | string[];
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+}
+export interface WorkGraphWorkflowStatistics {
+  version: number;
+  runs: number;
+  completed: number;
+  closed_without_completion: number;
+  active: number;
+  attempts: number;
+  failed_attempts: number;
+  elapsed_samples: number;
+  elapsed_milliseconds: number;
+}
 export interface WorkGraphWorkflow {
+  parameters?: WorkGraphParameter[];
+  statistics?: WorkGraphWorkflowStatistics[];
   id: string;
   built_in?: boolean;
   methodology_category?: WorkGraphMethodologyCategory | string;
@@ -82,6 +105,7 @@ export interface WorkGraphWorkflow {
 }
 
 export interface WorkGraphWorkflowPreview {
+  parameters?: WorkGraphParameter[];
 	/** Absent only in historical transcript artifacts; load save state before confirming. */
   head_revision?: number;
   selected_revision?: number;

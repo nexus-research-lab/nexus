@@ -1,5 +1,5 @@
-// INPUT: Authoritative Execution and queue recovery identity.
-// OUTPUT: Reconciliation-only coordinator instructions, stale-work checks and a best-effort queue scan.
+// INPUT: Authoritative Execution, exact work/review bindings and queue recovery identity.
+// OUTPUT: Reconciliation-only coordinator instructions, stale work/review checks and a best-effort queue scan.
 // POS: Shared DM/Room recovery input semantics; no automatic tool replay.
 package runtimehost
 
@@ -28,6 +28,15 @@ func (h *Host) RecoveryInputCurrent(ctx context.Context, item protocol.InputQueu
 	sessionKey := item.SessionKey
 	if item.Scope == protocol.InputQueueScopeRoom {
 		sessionKey = protocol.BuildRoomSharedSessionKey(item.ConversationID)
+	}
+	if item.ReviewBinding != nil {
+		validator, ok := h.ExecutionContext.(interface {
+			RecoveryReviewInputCurrent(context.Context, string, string, protocol.ExecutionReviewBinding) (bool, error)
+		})
+		if !ok {
+			return false, errors.New("review queue validator unavailable")
+		}
+		return validator.RecoveryReviewInputCurrent(ctx, item.OwnerUserID, sessionKey, *item.ReviewBinding)
 	}
 	if item.WorkBinding != nil {
 		if validator, ok := h.ExecutionContext.(interface {

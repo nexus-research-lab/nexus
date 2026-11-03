@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -17,6 +18,30 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+type maintenancePolicyDMClient struct {
+	*fakeDMClient
+	supported bool
+}
+
+func (c *maintenancePolicyDMClient) Supports(capability agentclient.Capability) bool {
+	return c.supported && capability == agentclient.CapabilityMessageExecutionPolicy
+}
+
+func TestInternalRoundsSkipAutomaticMemoryOnlyWhenSupported(t *testing.T) {
+	for _, internal := range []bool{false, true} {
+		for _, supported := range []bool{false, true} {
+			runner := &roundRunner{internal: internal, content: "original user input", client: &maintenancePolicyDMClient{fakeDMClient: newFakeDMClient(), supported: supported}}
+			options := runner.runtimeInputOptions()
+			if options.SkipAutoMemory != (internal && supported) {
+				t.Fatalf("internal=%t supported=%t: %+v", internal, supported, options)
+			}
+			if internal && options.RecallQuery != "" || !internal && options.RecallQuery != runner.content {
+				t.Fatalf("unexpected recall input: %+v", options)
+			}
+		}
+	}
+}
 
 func TestRoundRunnerPersistsExternalAssistantReplyReceipt(t *testing.T) {
 	t.Parallel()

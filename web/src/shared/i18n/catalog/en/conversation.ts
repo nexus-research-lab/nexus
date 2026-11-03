@@ -2,6 +2,19 @@ import type { MessageSegment } from "../message-segment";
 import type { zhConversationMessages } from "../zh/conversation";
 
 export const enConversationMessages = {
+  "execution.dispatch_policy": "Automatic dispatch",
+  "execution.dispatch_pending": "Waiting for accepted dependencies",
+  "execution.dispatch_assigned": "Assigned; queue receipt pending",
+  "execution.dispatch_queued": "Handed to the dispatch queue",
+  "execution.dispatch_cancelled": "Dispatch policy cancelled",
+  "execution.dispatch_owner": "Owner",
+  "execution.dispatch_reviewer": "Reviewer",
+  "execution.checkpoint": "Latest checkpoint",
+  "execution.checkpoint_next": "Next step",
+  "execution.effect_unknown": "Outcome unknown — reconcile first",
+  "execution.effect_confirmed": "Reported confirmed",
+  "execution.checkpoint_hint": "Reported progress only. Verify artifacts and receipts before continuing; this is not acceptance.",
+
   "room.history_mutation_unconfirmed": "This change could not be confirmed. Check the current conversation before making further changes.",
   "room.host_unset": "Not set",
   "room.host_label": "Host",

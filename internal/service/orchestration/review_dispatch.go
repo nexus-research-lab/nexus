@@ -259,8 +259,7 @@ func authorizeReviewDispatchSnapshot(
 		snapshot.Execution.Status != protocol.ExecutionStatusWaiting {
 		return nil, errors.New("review return targets a terminal or paused Execution")
 	}
-	if snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom ||
-		snapshot.Plan == nil ||
+	if snapshot.Plan == nil ||
 		snapshot.Plan.ID != dispatch.PlanID ||
 		snapshot.Plan.Status != protocol.PlanRevisionStatusActive {
 		return nil, errors.New("review return targets a stale Room Plan")

@@ -431,6 +431,9 @@ func needsReviewDispatch(
 	snapshot *protocol.ExecutionSnapshot,
 	assignment *protocol.WorkAssignment,
 ) bool {
+	if snapshot != nil && assignment != nil && assignment.Metadata["dispatch_policy"] == true {
+		return true
+	}
 	return snapshot != nil &&
 		assignment != nil &&
 		snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
