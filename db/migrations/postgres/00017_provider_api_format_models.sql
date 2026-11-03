@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS automation_task_events (
 CREATE INDEX IF NOT EXISTS idx_automation_task_events_job_created ON automation_task_events (job_id, created_at DESC, event_id DESC);
 CREATE INDEX IF NOT EXISTS idx_automation_task_events_owner_created ON automation_task_events (owner_user_id, created_at DESC, event_id DESC);
 
+-- +goose StatementBegin
 DO $$
 DECLARE
     constraint_name TEXT;
@@ -152,6 +153,7 @@ BEGIN
         EXECUTE format('ALTER TABLE automation_cron_runs DROP CONSTRAINT %I', constraint_name);
     END IF;
 END $$;
+-- +goose StatementEnd
 
 -- +goose Down
 DELETE FROM automation_cron_runs AS run
@@ -161,6 +163,7 @@ WHERE NOT EXISTS (
     WHERE job.job_id = run.job_id
 );
 
+-- +goose StatementBegin
 DO $$
 DECLARE
     constraint_exists BOOLEAN;
@@ -184,6 +187,7 @@ BEGIN
             FOREIGN KEY (job_id) REFERENCES automation_cron_jobs (job_id) ON DELETE CASCADE;
     END IF;
 END $$;
+-- +goose StatementEnd
 
 DROP INDEX IF EXISTS idx_automation_task_events_owner_created;
 DROP INDEX IF EXISTS idx_automation_task_events_job_created;

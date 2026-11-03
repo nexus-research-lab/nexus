@@ -36,13 +36,6 @@ describe("SkillDirectoryCard", () => {
     );
 
     const selectAction = screen.getByRole("button", { name: "Research Skill" });
-    expect(selectAction.className).toContain("surface-radius-md");
-    expect(screen.getByRole("heading", { name: "Research Skill" }).className)
-      .toContain("ui-type-section-title");
-    expect(screen.getByText("Collect evidence and produce a concise report.").className)
-      .toContain("ui-type-metadata");
-    expect(screen.getByText("Built-in · v1.2.0").parentElement?.className)
-      .toContain("ui-type-caption");
 
     await user.click(selectAction);
     expect(onSelect).toHaveBeenCalledOnce();

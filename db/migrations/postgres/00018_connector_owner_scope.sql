@@ -34,6 +34,7 @@ SET owner_user_id = NULL,
 
 DROP INDEX IF EXISTS ix_provider_provider;
 
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -52,6 +53,7 @@ BEGIN
             );
     END IF;
 END $$;
+-- +goose StatementEnd
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_provider_public_provider ON provider (provider) WHERE visibility = 'public';
 CREATE UNIQUE INDEX IF NOT EXISTS uq_provider_owner_provider ON provider (owner_user_id, provider) WHERE visibility = 'private';

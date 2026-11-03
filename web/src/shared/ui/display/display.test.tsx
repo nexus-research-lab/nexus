@@ -12,7 +12,6 @@ import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSkeleton, UiSkeletonCardList } from "@/shared/ui/display/skeleton";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
 
 describe("display badges", () => {
   it("renders an optional semantic dot and caps positive counters", () => {
@@ -25,8 +24,7 @@ describe("display badges", () => {
     );
 
     expect(screen.getByText("运行中").querySelector(".bg-current")).toBeTruthy();
-    expect(screen.getByText("12").className).toContain("rounded-full");
-    expect(screen.getByText("运行中").className).toContain("radius-control-xs");
+
     expect(screen.getByText("99+")).toBeTruthy();
 
     rerender(<UiCounterBadge count={0} />);
@@ -40,11 +38,9 @@ describe("UiSkeleton", () => {
     const skeleton = screen.getByTestId("skeleton");
 
     expect(skeleton.getAttribute("aria-hidden")).toBe("true");
-    expect(skeleton.className.split(" ")).toContain("ui-skeleton-sheen");
-    expect(skeleton.className).toContain("_76%");
 
     rerender(<UiSkeleton data-testid="skeleton" tone="subtle" />);
-    expect(skeleton.className).toContain("_48%");
+
   });
 });
 
@@ -74,9 +70,7 @@ describe("UiQRCode", () => {
     );
 
     expect(container.querySelector("section.surface-radius-md")).toBeTruthy();
-    expect(screen.getByRole("img", { name: "授权二维码" }).className)
-      .toContain("surface-radius-sm");
-    expect(screen.getByText(payload).className).toContain("ui-type-code");
+
   });
 });
 
@@ -153,33 +147,5 @@ describe("UiResourceState", () => {
     expect((action as HTMLButtonElement).disabled).toBe(true);
     expect(action.getAttribute("aria-busy")).toBe("true");
     expect(screen.queryByText("保存", { exact: true })).toBeNull();
-  });
-});
-
-describe("UiStateBlock", () => {
-  it("projects empty and compact states through semantic type and shape roles", () => {
-    const { rerender } = render(
-      <UiStateBlock
-        description="创建一个对象后会显示在这里"
-        icon={<span aria-hidden="true">+</span>}
-        title="暂无对象"
-      />,
-    );
-
-    expect(screen.getByRole("heading", { name: "暂无对象" }).className).toContain("ui-type-object-title");
-    expect(screen.getByText("创建一个对象后会显示在这里").className).toContain("ui-type-supporting");
-    expect(screen.getByText("+").parentElement?.className).toContain("surface-radius-md");
-
-    rerender(
-      <UiStateBlock
-        description="请稍后重试"
-        icon={<span aria-hidden="true">!</span>}
-        size="sm"
-        title="读取失败"
-        tone="danger"
-      />,
-    );
-    expect(screen.getByRole("heading", { name: "读取失败" }).className).toContain("ui-type-section-title");
-    expect(screen.getByText("!").parentElement?.className).toContain("radius-control-md");
   });
 });

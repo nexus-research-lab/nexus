@@ -51,7 +51,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 .DEFAULT_GOAL := help
 
 .PHONY: check-architecture help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
-	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser test-web-browser-smoke check-web check-web-ui typecheck-web prepare-host-data \
+	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser check-web typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
 	check-backend check-normalization check-go-vet check-go check-go-fresh check-go-full check-desktop-sandbox check-desktop-sandbox-windows check-desktop-sandbox-windows-native check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-check-ui app-check-ui-app app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
@@ -187,17 +187,11 @@ lint-web: ## Run frontend lint
 test-web: ## Run frontend standard tests
 	cd web && $(PNPM) run test:standard
 
-test-web-browser-smoke: ## Run one explicit browser UI smoke project
-	cd web && $(PNPM) run test:browser:smoke
-
-test-web-browser: ## Run the complete shared UI browser matrix (install Playwright Chromium and WebKit first)
-	cd web && $(PNPM) run test:browser:full
+test-web-browser: ## Run real-browser flow tests manually (install Playwright Chromium first)
+	cd web && $(PNPM) run test:browser
 
 check-web: ## Run frontend standard checks and production build without browser UI
 	cd web && $(PNPM) run check:standard
-
-check-web-ui: ## Run frontend standard checks, Gallery tests and the complete browser UI matrix
-	cd web && $(PNPM) run check:ui
 
 typecheck-web: ## Run frontend type check
 	cd web && $(PNPM) run typecheck

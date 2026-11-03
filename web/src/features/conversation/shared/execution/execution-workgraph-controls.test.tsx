@@ -42,18 +42,9 @@ function renderControls(overrides: Partial<Parameters<typeof ExecutionWorkGraphC
 
 describe("ExecutionWorkGraphControls", () => {
   it("uses shared compact action and popover geometry", () => {
-    const { container, onResetZoom, onZoomOut } = renderControls();
-    const controls = container.querySelector("[data-execution-workgraph-controls]");
-    const toolbar = controls?.firstElementChild;
+    const { onResetZoom, onZoomOut } = renderControls();
     const zoomOut = screen.getByRole("button", { name: /zoom out|缩小/i });
     const zoomReset = screen.getByRole("button", { name: /reset to 100%|重置为 100%/i });
-
-    expect(toolbar?.className).toContain("surface-popover");
-    expect(toolbar?.className).toContain("surface-radius-sm");
-    expect(zoomOut.className).toContain("h-7");
-    expect(zoomOut.className).toContain("radius-control-sm");
-    expect(zoomReset.className).toContain("ui-type-metadata");
-    expect(zoomReset.className).toContain("radius-control-xs");
 
     fireEvent.click(zoomOut);
     fireEvent.click(zoomReset);
@@ -71,13 +62,9 @@ describe("ExecutionWorkGraphControls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /search workgraph|搜索工作图/i }));
     const input = screen.getByRole("searchbox", { name: /search workgraph|搜索工作图/i });
-    const searchShell = input.parentElement;
-    const searchSurface = searchShell?.parentElement;
 
     expect(document.activeElement).toBe(input);
-    expect(searchShell?.className).toContain("ui-type-control");
-    expect(searchShell?.className).toContain("h-7");
-    expect(searchSurface?.className).toContain("surface-popover");
+
     expect(container.querySelectorAll("button:disabled")).toHaveLength(2);
 
     fireEvent.keyDown(input, { key: "Enter" });

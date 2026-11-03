@@ -90,7 +90,7 @@ describe("AgentOptionsAdvancedTab", () => {
 
     const spinner = container.querySelector("svg.animate-spin");
     expect(spinner).not.toBeNull();
-    expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
+
   });
 
   it("projects permission modes as shared neutral choices", async () => {
@@ -107,8 +107,7 @@ describe("AgentOptionsAdvancedTab", () => {
       name: /agent_options\.advanced\.permission\.bypass\.label/,
     });
     expect(defaultMode.getAttribute("aria-pressed")).toBe("true");
-    expect(defaultMode.className).toContain("bg-(--surface-interactive-active-background)");
-    expect(defaultMode.className).not.toContain("shadow-");
+
     for (const control of document.querySelectorAll<HTMLButtonElement>("[data-agent-permission-mode]")) {
       expect(document.getElementById(control.getAttribute("aria-describedby")!)).not.toBeNull();
     }

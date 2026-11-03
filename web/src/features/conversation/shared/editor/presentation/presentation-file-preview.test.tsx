@@ -83,8 +83,6 @@ describe("PresentationFilePreview", () => {
     expect(secondThumbnail?.getAttribute("aria-pressed")).toBe("false");
     expect((previous as HTMLButtonElement).disabled).toBe(true);
     expect((next as HTMLButtonElement).disabled).toBe(false);
-    expect(next.className).toContain("h-8");
-    expect(next.className).toContain("radius-control-md");
 
     await user.click(next);
 

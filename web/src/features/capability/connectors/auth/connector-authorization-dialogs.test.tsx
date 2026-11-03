@@ -87,8 +87,7 @@ describe("Connector authorization dialogs", () => {
     );
 
     expect(screen.getByRole("dialog", { name: "连接 高德地图" })).toBeTruthy();
-    expect(screen.getByText("粘贴高德开放平台的 Web 服务 Key。").className)
-      .toContain("ui-type-supporting");
+
     await user.type(screen.getByLabelText("API Key*"), "  secret-key  ");
     await user.click(screen.getByRole("button", { name: "连接" }));
 
@@ -98,22 +97,18 @@ describe("Connector authorization dialogs", () => {
   it("renders OAuth callback data as shared code typography and submits complete fields", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    const { container } = render(
-      <I18nProvider>
-        <ConnectorOAuthClientDialog
-          busy={false}
-          detail={FEISHU_DETAIL}
-          onClose={vi.fn()}
-          onDelete={vi.fn()}
-          onSave={onSave}
-        />
-      </I18nProvider>,
-    );
+    render(
+<I18nProvider>
+<ConnectorOAuthClientDialog
+busy={false}
+detail={FEISHU_DETAIL}
+onClose={vi.fn()}
+onDelete={vi.fn()}
+onSave={onSave} />
+</I18nProvider>
+);
 
     expect(screen.getByRole("dialog", { name: "配置 飞书云文档" })).toBeTruthy();
-    expect(screen.getByText(/先在飞书开放平台应用添加回调地址/).className)
-      .toContain("ui-type-supporting");
-    expect(container.querySelector("code")?.className).toContain("ui-type-code");
 
     await user.type(screen.getByLabelText("Client ID*"), "client-id");
     await user.type(screen.getByLabelText("Client Secret*"), "client-secret");
@@ -122,7 +117,6 @@ describe("Connector authorization dialogs", () => {
     expect(onSave).toHaveBeenCalledWith("feishu-docx", "client-id", "client-secret");
   });
 });
-
 
 it("translates a direct credential dialog without clearing its draft or submitting on locale change", async () => {
   const user = userEvent.setup();

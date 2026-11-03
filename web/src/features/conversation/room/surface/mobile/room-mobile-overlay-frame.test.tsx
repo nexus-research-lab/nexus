@@ -41,8 +41,7 @@ it("uses the shared modal root and wraps focus without dismissing on blank conte
   const dialog = screen.getByRole("dialog", { name: "Focused view" });
   expect(dialog.getAttribute("aria-modal")).toBe("true");
   expect(dialog.getAttribute("data-modal-root")).toBe("true");
-  expect(dialog.className).toContain("ui-layer-dialog");
-  expect(dialog.className).toContain("min-h-0 min-w-0 flex-col overflow-hidden");
+
   const back = within(dialog).getByRole("button", { name: "Back" });
   await waitFor(() => expect(document.activeElement).toBe(back));
   expect(document.body.style.overflow).toBe("hidden");

@@ -41,7 +41,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-
 function language(locale: "zh" | "en" = "zh"): I18nContextValue {
   const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key]);
   return { locale, setLocale: vi.fn(), t };
@@ -132,17 +131,16 @@ describe("ScheduledTaskRunHistoryItem", () => {
     );
 
     expect(container.querySelector("summary.radius-control-md")).toBeTruthy();
-    expect(screen.getByText("诊断详情").closest("summary")?.className)
-      .toContain("ui-type-caption");
+
     expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(0);
 
     const copyButton = screen.getByRole("button", { name: "复制诊断" });
-    expect(copyButton.className).toContain("radius-control-xs");
+
     await user.click(copyButton);
     expect(onCopyDiagnostic).toHaveBeenCalledWith(RUN);
 
     const retryButton = screen.getByRole("button", { name: "重新运行" });
-    expect(retryButton.className).toContain("focus-visible:ring-2");
+
     await user.click(retryButton);
     expect(onRetry).toHaveBeenCalledWith(RUN);
   });

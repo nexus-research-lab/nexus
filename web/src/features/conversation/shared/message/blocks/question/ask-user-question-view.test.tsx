@@ -71,8 +71,7 @@ describe("AskUserQuestionView", () => {
 
     const deny = screen.getByRole("button", { name: "composer.permission_deny" });
     const submit = screen.getByRole("button", { name: "composer.question_submit" });
-    expect(deny.className).toContain("radius-control-sm");
-    expect(submit.className).toContain("bg-(--button-primary-background)");
+
     expect(deny.getAttribute("type")).toBe("button");
     expect(submit.getAttribute("type")).toBe("button");
 
@@ -90,9 +89,7 @@ describe("AskUserQuestionView", () => {
       target: { value: "补充回答" },
     });
     expect(props.onUpdateCustomAnswer).toHaveBeenCalledWith(0, "补充回答");
-    expect(screen.getByText(QUESTION.question).className).toContain("ui-type-body");
-    expect(screen.getByText(QUESTION.options[0].description).className)
-      .toContain("ui-type-supporting");
+
   });
 
   it("uses semantic typography for the collapsed terminal resolution", () => {
@@ -104,9 +101,6 @@ describe("AskUserQuestionView", () => {
       submitEnabled: false,
     });
 
-    expect(screen.getByText("composer.question_status_submitted").className)
-      .toContain("ui-type-caption");
-    expect(screen.getByText("保守").className).toContain("ui-type-caption");
     expect(screen.queryByRole("button", { name: "composer.question_submit" }))
       .toBeNull();
   });

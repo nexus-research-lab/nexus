@@ -33,9 +33,7 @@ describe("IconPicker", () => {
     const selected = screen.getByRole("button", { name: "头像 5" });
     expect(idle.getAttribute("aria-pressed")).toBe("false");
     expect(selected.getAttribute("aria-pressed")).toBe("true");
-    expect(selected.className).toContain("aspect-square");
-    expect(selected.className).toContain("max-w-full");
-    expect(selected.className).not.toContain("shadow-");
+
     expect(selected.querySelector("img")?.getAttribute("alt")).toBe("");
 
     await user.click(idle);

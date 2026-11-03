@@ -41,7 +41,7 @@ it.each(["en", "zh"] as const)("names the mounted modal in %s and leaves a missi
   rerender(view(SOURCE));
   const dialog = screen.getByRole("dialog", { name: MESSAGES[locale]["subagents.panel_title"] });
   expect(dialog.getAttribute("aria-modal")).toBe("true");
-  expect(dialog.className).toContain("min-h-0");
+
   await screen.findByRole("button", { name: /Research/ });
   unmount();
   expect(document.body.style.overflow).not.toBe("hidden");

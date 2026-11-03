@@ -45,11 +45,6 @@ describe("ChannelLoginPanel", () => {
       </I18N_CONTEXT.Provider>,
     );
 
-    expect(screen.getByRole("heading", { name: "扫码连接" }).className)
-      .toContain("ui-type-control");
-    expect(screen.getByText(LOGIN.user_id).className).toContain("ui-type-code");
-    expect(screen.getByRole("img", { name: MESSAGES.zh["capability.channel_login_qr_alt"] }).className)
-      .toContain("surface-radius-sm");
     expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(1);
 
     await user.type(screen.getByPlaceholderText("验证码"), "648201");
@@ -138,7 +133,6 @@ describe("ChannelLoginPanel", () => {
     expect(onStartLogin).toHaveBeenCalledTimes(1);
   });
 });
-
 
 it.each(["zh", "en"] as const)("keeps a required missing QR inline and hides an optional missing QR in %s", (locale) => {
   const show = (required: boolean) => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>

@@ -1,6 +1,6 @@
 // INPUT: src 下共置的组件测试与 @ 路径别名。
 // OUTPUT: 在 jsdom 中运行 React 组件行为测试的独立 Vitest 4 配置。
-// POS: 前端组件测试入口；Node 合同测试继续由 scripts/*.test.mjs 负责。
+// POS: 前端行为测试统一入口；Node 脚本只保留静态工具与宿主夹具验证。
 
 import { fileURLToPath } from "node:url";
 
@@ -32,7 +32,7 @@ export default defineConfig({
     // 由 jsdom 提供浏览器存储，避免 Node 25 的同名全局对象覆盖它。
     execArgv: ["--no-experimental-webstorage"],
     environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx,mjs}"],
     setupFiles: ["./src/test/setup.ts"],
   },
 });

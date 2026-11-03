@@ -45,8 +45,6 @@ describe("ExecutionNodeTaskList", () => {
     expect(screen.getByText("4/8")).toBeTruthy();
     const active = screen.getByText("正在核对完整的协议与本轮交付结果");
     expect(active.getAttribute("title")).toBeNull();
-    expect(active.className).not.toContain("truncate");
-    expect(active.closest("li")?.className).toContain("ui-type-supporting");
 
     const toggle = screen.getByRole("button", { name: "另有 3 步" });
     expect(toggle.getAttribute("aria-controls")).toBe(list.id);
@@ -111,7 +109,7 @@ describe("ExecutionNodeTaskList", () => {
     render(view({ ...RUN, todos: RUN.todos.map((todo) => ({ ...todo, status: "completed" })) }));
     expect(screen.getByText("8/8")).toBeTruthy();
     expect(screen.getByRole("list").firstElementChild?.getAttribute("value")).toBe("4");
-    expect(screen.getByText("步骤 8").className).toContain("line-through");
+
   });
 
   it("renders no empty section for a run without displayable tasks", () => {

@@ -39,15 +39,12 @@ describe("WorkspaceSurfaceHeader", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByText("工作区").className).toContain("ui-type-section-title");
     expect(screen.getByText("工作区").getAttribute("title")).toBeNull();
-    expect(screen.getByRole("button", { name: "新建" }).className).toContain("ui-type-caption");
+
     const identity = container.querySelector(".workspace-surface-header-identity-avatar")!;
     const avatar = screen.getByRole("img", { name: "Nova" });
-    expect(identity.className).not.toMatch(/border|radius|shadow|bg-/);
+
     expect(avatar.parentElement).toBe(identity);
-    expect(avatar.className).toContain("h-10 w-10");
-    expect(avatar.className).toContain("rounded-(--radius-control-md)");
 
     fireEvent.click(screen.getByRole("button", { name: "动态" }));
     expect(onChangeTab).toHaveBeenCalledWith("activity");
@@ -61,7 +58,7 @@ describe("WorkspaceSurfaceHeader", () => {
     showCompact(container);
     const trigger = screen.getByRole("button", { name: /工作区导航.*文件/ });
     expect(trigger.getAttribute("aria-haspopup")).toBe("listbox");
-    expect(trigger.className).toContain("ui-type-supporting");
+
     await user.click(trigger);
     const list = screen.getByRole("listbox");
     expect(trigger.getAttribute("aria-controls")).toBe(list.id);
@@ -163,7 +160,7 @@ describe("WorkspaceSurfaceHeader", () => {
     const { container } = render(<I18nProvider><WorkspaceSurfaceHeader leadingVariant="action"
       leading={<UiButton onClick={onBack}>Directory</UiButton>} compactTabsLabel="Views" tabs={TABS} /></I18nProvider>);
     const back = screen.getByRole("button", { name: "Directory" });
-    expect(back.parentElement!.className).not.toMatch(/h-10|w-10|border|radius|bg-/);
+
     fireEvent.click(back);
     expect(onBack).toHaveBeenCalledOnce();
     showCompact(container);

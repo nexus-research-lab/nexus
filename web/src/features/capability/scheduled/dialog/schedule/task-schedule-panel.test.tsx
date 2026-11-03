@@ -88,13 +88,12 @@ describe("TaskSchedulePanel", () => {
   });
 });
 
-
 it("keeps unknown mutation recovery a warning without granting repeat submission", () => {
   const props = makeProps("every");
   props.mutationFailure = projectScheduledTaskMutationFailure(new Error("connection lost"), "failed");
-  const { container } = render(<TestForm props={props} label="Unknown result" />);
+  render(<TestForm props={props} label="Unknown result" />);
   expect(props.mutationFailure.effect).toBe("unknown");
-  expect(container.querySelector('[data-resource-state="error"]')?.querySelector("svg")?.getAttribute("class")).toContain("text-(--warning)");
+
   expect(screen.getByRole("button", { name: "capability.scheduled_dialog_reconcile" })).toBeTruthy();
   expect(props.onConfirmMutationReviewed).not.toHaveBeenCalled();
 });

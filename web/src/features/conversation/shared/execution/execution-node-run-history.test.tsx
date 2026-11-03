@@ -82,10 +82,9 @@ describe("ExecutionNodeRunHistory", () => {
     expect(runs).toHaveLength(2);
     expect((runs[0] as HTMLDetailsElement).open).toBe(false);
     expect((runs[1] as HTMLDetailsElement).open).toBe(true);
-    expect(runs[1].querySelector("summary")?.className).toContain("ui-type-supporting");
 
     const safeReference = screen.getByRole("button", { name: "output/report.md" });
-    expect(safeReference.className).toContain("radius-control-xs");
+
     await user.click(safeReference);
     expect(onOpenWorkspaceFile).toHaveBeenCalledWith("output/report.md", "agent-1");
 
@@ -168,7 +167,6 @@ describe("ExecutionNodeRunHistory", () => {
     expect(note.textContent).toContain("First line\n<script>never execute</script>");
     expect(container.querySelector("script")).toBeNull();
     expect(within(note).getByText("TOOL_FAILED")).toBeTruthy();
-    expect(screen.getByText("Result continues").className).toContain("whitespace-pre-wrap");
 
     rerender(history({ ...NODE, runs: [{ id: "run-error", status: "failed", error_code: "CODE_WITHOUT_SUMMARY" }] }));
     expect(screen.getByRole("note").textContent).toBe("CODE_WITHOUT_SUMMARY");

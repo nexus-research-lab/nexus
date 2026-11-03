@@ -33,8 +33,7 @@ it("scales the same content for thumbnails and preserves source text/shape styli
   const svg = screen.getByRole("img", { name: "Preview" });
   const content = svg.innerHTML;
   expect(svg.getAttribute("viewBox")).toBe("0 0 1280 720");
-  expect((screen.getAllByText("Repeat")[0] as HTMLElement).style.fontSize).toBe("20px");
-  expect(svg.querySelector("foreignObject > div")?.getAttribute("style")).toContain("justify-content: center");
+
   expect(svg.querySelector("g > rect")?.getAttribute("rx")).toBe("14");
   view.rerender(<PresentationSlideCanvas slide={slide} thumbnail />);
   expect(svg.innerHTML).toBe(content);

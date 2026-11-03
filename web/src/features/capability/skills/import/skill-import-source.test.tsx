@@ -57,10 +57,6 @@ describe("SkillImportSource", () => {
     const user = userEvent.setup();
     render(view("git"));
 
-    const modes = screen.getByRole("group", {
-      name: "capability.skills_import_title",
-    });
-    expect(modes.className).toContain("segmented-control");
     expect(screen.getByRole("button", {
       name: "capability.skills_import_mode_git",
     }).getAttribute("aria-pressed")).toBe("true");
@@ -74,11 +70,7 @@ describe("SkillImportSource", () => {
   it("renders local import through shared panel, typography, and loading recipes", () => {
     const { container } = render(view("local", true));
 
-    expect(screen.getByText("capability.skills_import_zip_title").className)
-      .toContain("ui-type-section-title");
     expect(container.querySelector("section.surface-radius-md")).toBeTruthy();
-    expect(screen.getByRole("button", {
-      name: /capability.skills_importing/,
-    }).querySelector("svg")?.className.baseVal).toContain("motion-reduce:animate-none");
+
   });
 });

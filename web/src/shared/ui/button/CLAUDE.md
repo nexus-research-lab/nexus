@@ -1,7 +1,7 @@
 # 按钮原语
 
 - 本目录拥有按钮和图标按钮的交互结构及样式投影。
-- 生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.test.mjs` 递归检查本所有者，新文件同样受约束。
+- 生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.mjs` 递归检查本所有者，新文件同样受约束。
 - `split-button.tsx` 只组合一个共享边界内的主动作与可选菜单动作；两个命令保留独立 button、焦点和 ARIA，菜单开关及选择事务仍归消费者。
 - 业务命令、权限判断和加载事务由消费者负责。
 - 非中性 ghost、text 与图标动作共享同一组 tone 配方；危险和成功实底使用主题配对前景，不能各自硬编码白字或复制颜色矩阵。

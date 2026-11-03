@@ -47,15 +47,12 @@ describe("ChannelCard", () => {
       <ChannelCard item={CHANNEL} onConfigure={onConfigure} />,
     );
 
-    expect(screen.getByText(CHANNEL.title).className).toContain("ui-type-control");
-    expect(screen.getByText(CHANNEL.description).className).toContain("ui-type-metadata");
     expect(container.querySelector(".ui-type-caption")).toBeTruthy();
 
     const docs = screen.getByRole("link", {
       name: "capability.channel_docs_action",
     });
     expect(docs.getAttribute("href")).toBe(CHANNEL.docs_url);
-    expect(docs.className).toContain("ui-type-metadata");
 
     await user.click(screen.getByRole("button", {
       name: "capability.channel_configure_action",

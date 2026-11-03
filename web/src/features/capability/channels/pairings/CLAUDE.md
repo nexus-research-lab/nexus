@@ -20,7 +20,6 @@
 
 - `pairing-session-target.tsx` 编辑独立 IM 或本地 Room 的精确话题，沿用配对 Agent；读取失败保留草稿并阻止提交，写入携带 `binding_version`。更换 Agent 清空 Room 目标，须重新选择；`pairing-recovery.ts` 按目标与版本核验未知写结果。
 
-- `browser-tests/pairings.spec.ts` 用隔离 App 数据检查配置控件等宽、同高、对齐、窄屏无溢出与详情折叠。
 
 - 会话目标参考定时任务的双栏选择：左侧群聊、右侧具体会话，支持搜索；独立聊天与群聊在左栏并列；底部选择摘要与取消、保存同排。草稿显示完整路径，显式保存才写入，目录失败禁止提交。
 

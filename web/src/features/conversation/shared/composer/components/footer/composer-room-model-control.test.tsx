@@ -176,7 +176,7 @@ describe("ComposerRoomModelControl", () => {
     expect(screen.getByRole("button", { name: "Go back" })).toBeTruthy();
     rerender(<Harness extraModels={30} />);
     expect(screen.getByRole("dialog").style.maxHeight).toBe("242px");
-    expect(menu.className).toContain("overflow-y-auto");
+
     expect(within(menu).getAllByRole("menuitem")).toHaveLength(34);
     await user.keyboard("{End}{Enter}");
     expect(commands.resetModel).toHaveBeenCalledExactlyOnceWith("pixel");

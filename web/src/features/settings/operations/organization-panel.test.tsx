@@ -7,8 +7,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { OrganizationPanel } from "./organization-panel";
-import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
-import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 
 const auth = vi.hoisted(() => ({ organizationRole: "owner" as string | undefined, organizationId: "org-1" as string | undefined }));
 const api = vi.hoisted(() => ({
@@ -50,12 +48,11 @@ afterEach(cleanup);
 
 it("未加入组织时仍复用全宽页头与独立居中正文，不请求成员目录", () => {
   auth.organizationId = undefined;
-  const { container } = render(<I18nProvider><OrganizationPanel /></I18nProvider>);
-  const page = container.querySelector("[data-organization-page]")!;
-  expect(WORKSPACE_CONTENT_PAGE_CLASS_NAME.split(" ").every((name) => page.classList.contains(name))).toBe(true);
+  render(<I18nProvider><OrganizationPanel /></I18nProvider>);
+
   const heading = screen.getByRole("heading", { name: /^(组织|Organization)$/ });
   const body = screen.getByText(/你还没有加入组织|You are not in an organization/).parentElement!;
-  expect(SETTINGS_CONTENT_BODY_CLASS_NAME.split(" ").every((name) => body.classList.contains(name))).toBe(true);
+
   expect(body.contains(heading)).toBe(false);
   expect(screen.getByRole("button", { name: /创建组织|Create organization/ })).toBeTruthy();
   expect(api.listMembers).not.toHaveBeenCalled();

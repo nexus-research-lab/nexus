@@ -80,6 +80,7 @@ skills/room-playbook
 /docs/testing/evidence/
 /docs/testing/*
 !/docs/testing/desktop-sandbox-acceptance.md
+!/docs/testing/test-system.md
 
 # Local build candidates and review evidence.
 /.local/

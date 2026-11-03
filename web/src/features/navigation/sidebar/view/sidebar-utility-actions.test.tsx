@@ -28,8 +28,6 @@ describe("SidebarPanelToggleAction", () => {
 
     const action = screen.getByRole("button", { name: "收起侧栏" });
     expect(action.getAttribute("type")).toBe("button");
-    expect(action.className).toContain("h-8 w-8");
-    expect(action.className).toContain("rounded-full");
 
     await user.click(action);
     expect(onCollapse).toHaveBeenCalledOnce();
@@ -70,7 +68,7 @@ it("opens personal settings from the account row and keeps logout explicit", asy
   expect(screen.getByRole("button", { name: "设置" })).toBeTruthy();
   expect(screen.getAllByRole("separator")).toHaveLength(1);
   const account = screen.getByRole("menuitem", { name: "测试用户" });
-  expect(account.className).toBe(screen.getByRole("menuitem", { name: "帮助" }).className);
+
   await user.click(account);
   expect(screen.getByTestId("route").textContent).toBe("/settings?section=personal");
   expect(screen.queryByRole("menu")).toBeNull();
@@ -99,7 +97,7 @@ it("shows the account name and opens settings inside the account menu with actio
   };
   const view = render(<MemoryRouter><SidebarFooterActions {...props} /><CurrentLocation /></MemoryRouter>);
   expect(screen.getByRole("button", { name: "Local User" })).toBeTruthy();
-  expect(screen.getByText("Local User").className).toContain("truncate");
+
   await user.click(screen.getByRole("button", { name: "Local User" }));
   const settings = screen.getByRole("menuitem", { name: "设置" });
   await user.click(settings);

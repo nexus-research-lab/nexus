@@ -75,7 +75,7 @@ entries -> app -> pages -> widgets -> features -> entities -> shared
 - `shared` ↛ `entities / features / widgets / pages / app`；`entities` ↛ `features / widgets / pages / app`；`features` ↛ `widgets / pages / app`；`widgets` ↛ `pages / app`。
 - 路由能力由 page/app 注入，或使用无业务状态的 `shared/navigation/route-paths.ts`；页面和 Feature 不为构造 URL 导入 App 装配层。
 - 已迁移的 entity/feature/widget 切片之间只访问对方 `public.ts`；未迁移目录直接导入职责文件，不为命名形式新增全域 barrel。
-- `web/scripts/frontend-boundaries.test.mjs` 用 TypeScript AST 检查别名、相对路径、重导出、动态与 side-effect import，没有白名单；不得通过改写 import、移到含混目录或加例外恢复向上耦合。
+- ESLint `nexus/dependency-direction` 用 TypeScript AST 检查别名、相对路径、重导出、动态与 side-effect import，没有白名单；不得通过改写 import、移到含混目录或加例外恢复向上耦合。
 
 ### 2.1 现有目录的归属
 
@@ -295,7 +295,7 @@ Widget 可认识 Agent、Room、Goal 等产品对象，但只组合下层合同�
 
 - 普通 button、nav row、panel、card 无阴影；primary action 用行动色而非阴影；selected/current 用中性背景、文字或位置。
 - menu/popover、dialog 与真正悬浮的 floating action 用对应 elevation。
-- 业务代码不得写 `shadow-[...]`；`features/pages` 任意阴影基线为零，由 `frontend-foundation-contract.test.mjs` 禁止，无逐文件额度。
+- 业务代码不得写 `shadow-[...]`；`features/pages` 任意阴影基线为零，由 ESLint `nexus/semantic-style-owners` 禁止，无逐文件额度。
 
 ### 6.2 状态
 
@@ -333,7 +333,7 @@ Widget 可认识 Agent、Room、Goal 等产品对象，但只组合下层合同�
 - 文档写稳定不变量；进行中的迁移计划标记 `non-normative`。
 - 代码、测试和文档冲突时，不得只改一相就结束。
 
-`web/scripts/frontend-file-contract.test.mjs` 对 `shared/ui/button`、`dialog / form / list / menu / navigation / overlay / typography / workspace/catalog` 及共享 `lib`、`navigation` 递归强制契约：识别首条代码前的真实注释，拒绝缺项、重复、空内容与占位文本。
+ESLint `nexus/file-contract` 对 `shared/ui/button`、`dialog / form / list / menu / navigation / overlay / typography / workspace/catalog` 及共享 `lib`、`navigation` 递归强制契约：识别首条代码前的真实注释，拒绝缺项、重复、空内容与占位文本。
 
 其他领域随迁移逐批纳入；未纳入不是省略边界说明的理由，也不写机械模板凑覆盖率。
 
@@ -348,34 +348,31 @@ Widget 可认识 Agent、Room、Goal 等产品对象，但只组合下层合同�
 | Widget | 关键组合状态、窄屏结构和资源失败降级 |
 | Page | 路由、恢复与少量主路径浏览器 smoke test |
 
-- 源码正则只作架构或禁止项门禁，不替代行为测试，也不冻结公共控件调用方的实现细节；特殊表面组合由设计规范、行为测试和浏览器验收判断。
+- 禁止用源码文本、注释措辞、Tailwind class 或装饰性内联样式证明产品行为；禁止在 Node 测试中自启 Vite SSR 或手工转译 TypeScript。依赖方向、文件契约结构与禁止项由 ESLint/AST 检查，CSS token 引用使用 CSS 工具链。定位计算、滚动锁、尺寸恢复与用户主题偏好属于行为，可保留对应断言。
 - 涉及布局、Portal、碰撞和视口尺寸的 UI 必须用真实浏览器验证。
 
 ### 8.1 测试入口与命令
 
 | 入口 | 合同 |
 | --- | --- |
-| `src/**/*.test.tsx` | 与 primitive/pattern 共置的 Vitest + jsdom；经 Testing Library 从角色、名称和真实用户事件观察 |
-| `scripts/*.test.mjs` | 纯模型、协议、架构边界和禁止项；不伪造 DOM 交互结论；有界并发运行，避免大量 Vite 转换进程使门禁随机崩溃 |
-| `npm run test:components` | 日常组件测试，默认排除 `src/dev/ui-gallery` |
-| `npm run test:contracts` | 规范、边界、恢复和禁止项合同 |
-| `npm run test:ui-gallery` | 仅 Gallery DOM 陈列合同 |
+| `src/**/*.test.{ts,tsx,mjs}` | 与所有者共置的 Vitest；组件使用 jsdom + Testing Library，纯逻辑与协议测试可声明 Node 环境 |
+| `scripts/*.test.mjs` | 静态工具自身行为、CSS token 与原生夹具服务检查；不另行加载业务 TypeScript |
+| `npm run test:components` | 所有共置行为测试 |
+| `npm run test:contracts` | 静态工具、token 与宿主夹具检查 |
 | `npm run test:components:all` | 显式覆盖全部 Vitest 文件 |
 | `npm test` / `npm run test:standard` | 串行覆盖 components 与 contracts |
 | `npm run check` / `check:standard` | 串行 lint、typecheck、日常测试与生产构建；不启动浏览器，不含截图或视口矩阵 |
-| `npm run test:browser:smoke` | `ui-gallery.spec.ts` 的 `light-zh-1440` 项目，单 worker，不依赖业务后端 |
-| `npm run test:browser:full` | 固定版本 Playwright + 独立端口与优化缓存的 Vite 服务器，完整浏览器合同 |
-| `npm run check:ui` / `make check-web-ui` | 日常门禁 + Gallery DOM 合同 + 完整浏览器矩阵 |
+| `npm run test:browser` / `make test-web-browser` | 手动运行的真实浏览器流程测试，单一 Chromium 桌面项目，不进 CI 门禁 |
 | `make check-web` | 仅标准前端门禁 |
 
 - Vitest 默认两个 fork worker，可用 `VITEST_MAX_WORKERS` 覆盖；CI 的 4 核 runner 固定使用 4 个。
-- 浏览器服务器固定 `browser-test` mode，避免并发开发或 SSR 检查使缓存失效。首次安装 `npx playwright install chromium webkit`，Linux CI 加 `--with-deps`。
+- 浏览器服务器固定 `browser-test` mode，避免并发开发使缓存失效。首次安装 `npx playwright install chromium`。
 - `frontend-token-contract.test.mjs` 用既有 CSS 工具链与 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS：
   - 必需引用须有声明，可选注入须有 fallback；
   - 三主题 canonical 别名不得缺失、循环或在同一声明块重复；
   - 进入 `color-mix()` 的公共控件颜色槽须解析别名并通过 DOM CSS 解析器颜色校验（拒绝把渐变当颜色）；
   - 不执行运行时表达式，不证明 DOM 继承、实际绘制或对比度；无逐文件额度。
-- `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行同一套检查；失败不得靠跳过、重试或更新截图消除。
+- `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行标准检查（`check:standard`）；失败不得靠跳过或重试消除。
 - macOS 原生宿主（需图形会话，不进默认门禁，不替代完整业务或 Windows 检查）：
   - `make app-check-ui`：在已解锁的图形会话编译独立 QA App，复用生产窗口与 WKWebView 源码，验证 Gallery 的原生输入、浮层、焦点及隐藏恢复。
     - 应用标识、偏好、状态根、端口和优化缓存隔离；不启动产品 sidecar，不以旧安装包作当前源码证据。
@@ -384,44 +381,34 @@ Widget 可认识 Agent、Room、Goal 等产品对象，但只组合下层合同�
     - 读取与空闲订阅由隔离夹具提供，Vite HTTP/WS 代理禁用；`native-ui-fixtures.test.mjs` 用真实本地服务验证读写边界与零转发。
     - 锁屏或无图形会话不能用合成 DOM 事件代替原生输入证据。
 
-### 8.2 视觉回归矩阵与 Gallery
+### 8.2 Gallery
 
-视觉回归至少覆盖：light / dark / rain；320px、产品窄屏断点附近与桌面宽度；default / hover / focus / disabled / selected / loading / error；中英文长文案与 reduced motion。
+Gallery 是开发期快速查看共享组件外观的陈列页，不是验收门禁。
 
 Gallery 入口 `http://localhost:3000/ui-gallery.html?theme=light&locale=zh`：
 
 - 独立开发 HTML，不经登录态、业务 API 或产品路由；不得加入 Vite 生产 `rollupOptions.input`。
 - `theme=light|dark|rain`、`locale=zh|en`、`section=foundation|content|interaction|workspace|coverage` 必须写回 URL，保证复查地址可复现。
 - 直接渲染真实 `shared/ui` 组件，不建截图替身。
-- 公开 React 组件必须进入唯一覆盖清单：可视组件直接渲染，复合组件内部原语由真实父组件覆盖，Provider、SVG Filter 等无界面基础设施标注真实消费路径。新增公开组件未登记时覆盖合同失败。
+- Gallery 覆盖清单自愿维护；新增公开组件不要求登记，不设置陈列页覆盖门禁。
 
-### 8.3 浏览器测试
+### 8.3 浏览器流程测试
 
-`browser-tests/ui-gallery.spec.ts` 是浏览器行为真相入口：
+`browser-tests/` 只保留 jsdom 无法覆盖的真实浏览器流程，手动运行，不进 CI 门禁：
 
-- 矩阵采用成对覆盖：Chromium 保留 light/dark/rain × 320/767/768/1440px 全组合（12 个项目），WebKit 保留三主题 × 320/1440px（6 个项目）；中/英按主题与宽度交替分配，使主题×语言、语言×宽度、主题×宽度的每种组合都至少被覆盖一次，`light-zh-1440` 固定存在。新增维度或取值时必须维持该成对覆盖性质，不得退回完整笛卡尔积，也不得删减到任一两两组合缺失。
-- 覆盖：控件实际高度/字号/字重/图文间距；按钮禁用/忙碌；真实 focus-visible；hover 几何；选择器/动作菜单键盘与禁用项；碰撞翻转与滚动重定位；模态滚动锁、初始焦点、Tab 循环、弹窗内浮层命中、逐层 Escape、焦点归还；正常/减少动效。
-- 受控 Workspace 标签：选择、创建、固定与键盘关闭后的活动项恢复。Room 持久化与最终替换规则由导航功能共置测试验证（§3.1）。
-- 表单：实际输入、原生选择、搜索清除与多行编辑；技术字段的等宽字体、验证码居中命中区与前导零保留；原生 FormData 验证展示角色不改写提交值。
-- 键盘遍历用真实宿主规则：macOS WebKit 用 Option-Tab，其他用 Tab；不改用户系统偏好，不伪造 DOM 焦点顺序。
-- 模态焦点链由键盘触发验证，关闭后回到键盘触发器；鼠标触发遵循宿主原生 button 聚焦行为，不强改 macOS 点击规则（依据：[Apple Safari 键盘说明](https://support.apple.com/guide/safari/cpsh003/mac)、[WebKit 鼠标焦点说明](https://bugs.webkit.org/show_bug.cgi?id=236322)）。
-- 使用真实角色/名称和浏览器布局，不以复制样式或 stub 组件伪造通过。
+- `conversation-scroll.spec.ts`：FOLLOW/READING、历史前插与轮次跳转的真实滚动几何；
+- `login.spec.ts`、`setup.spec.ts`：登录与首次初始化的提交、阻塞与只读恢复；
+- `human-dm.spec.ts`、`team-room.spec.ts`、`team-workspace.spec.ts`：DM 消息、Team 设置/危险动作与共享文件上传下载；
+- `provider-credentials.spec.ts`、`provider-capabilities.spec.ts`、`operations.spec.ts`：设置与运营的业务流程；
+- `composer-mentions.spec.ts`：Composer 提及镜像的真实输入行为。
 
-其他浏览器入口（同一矩阵）：
+全部接口由本地夹具响应或拒绝。不新增像素、截图、对比度或主题×宽度矩阵类断言；视觉判断以 `design.md` 和 Gallery 人工查看为准。
 
-- `browser-tests/login.spec.ts`：真实登录路由 + 隔离认证响应，验证提交、未知结果阻塞、只读恢复与禁用部署。远端聊天 CJK 字体被阻断，截图只验收 App 本地字体，不得据此声称远端字体或聊天阅读面已验收。
-- `browser-tests/app-shell.spec.ts`：真实 App 入口 + 固定只读快照与本地事件连接，验证 Launcher 输入、导航往返、完整侧栏标签、窄屏工作区切换，以及同账号多页面保存、刷新后的固定与取消固定。
-  - 播放器 CDN 请求由已安装 WASM 响应，业务写入全部拒绝；不能据此宣称真实业务数据、第三方 CDN 或原生窗口手势已验证。
+### 8.4 Gallery 夹具
 
-证据与 CI：
+以下夹具用于人工查看真实组件状态；业务行为由所属模块的共置测试覆盖：
 
-- 截图随 HTML report 输出到 `playwright-report/`；失败 trace/截图输出到 `test-results/`，CI 保留 14 天。它们是复查证据，不是跨平台像素基线门禁。
-- CI 按 `--shard` 拆为八个任务，保留全部用例，分别上传 `frontend-browser-evidence-<shard>`；`frontend` 汇总门禁只在代码检查及全部分片成功后通过，失败、取消或跳过均不算成功。
-- 提交说明写明实际检查的浏览器、主题、宽度和状态。Chromium/WebKit 自动化不等于 macOS/Windows 原生窗口 chrome 或完整业务页面已验收，这些按变更范围在实际宿主复查。
-
-### 8.4 Gallery 夹具覆盖
-
-| 夹具 | 验证内容 |
+| 夹具 | 展示内容 |
 | --- | --- |
 | 目录卡片 | 真实坐标下的整卡命中、独立次动作和键盘主动作 |
 | 列表次动作 | hover/focus 可见性；disabled 时无 hover 反馈 |
@@ -453,7 +440,7 @@ Gallery 入口 `http://localhost:3000/ui-gallery.html?theme=light&locale=zh`：
 2. Primitive 收口：Button、Form、Dialog、Overlay、Menu、Tabs 补齐语义 API 与行为测试；
 3. Pattern 收口：ResponsiveDialog、AnchoredPopover、FilterBar、SettingsSection、Conversation 浮动工作栈；
 4. 所有权迁移：按切片迁移 `hooks / store / types / lib/api`，拆分 `conversation/shared`；
-5. 视觉回归：陈列面、浏览器矩阵与 CI 截图证据已建立；跨平台像素基线和原生宿主整体审查按环境渐进；
+5. 视觉复核：Gallery 陈列面用于人工查看；不维护浏览器截图矩阵或像素基线，原生宿主整体审查按环境进行；
 6. 清债：移除兼容导入、闲置组件、无差异 variant 和过细目录文档，开启强制门禁。
 
 迁移状态不改变上文规范；未迁移的旧代码是已知债务，不是复制的先例。

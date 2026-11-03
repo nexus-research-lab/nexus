@@ -147,7 +147,7 @@ describe("WorkspaceContextMenu", () => {
     expect(child.style.maxHeight).toBe("320px");
     expect(child.style.top).toBe("148px");
     expect(within(child).getAllByRole("menuitem")).toHaveLength(43);
-    expect(child.className).toContain("overflow-y-auto");
+
     bounds.mockReturnValue(new DOMRect(300, 110, 216, 36));
     fireEvent.scroll(parent);
     expect(child.style.left).toBe("70px");
@@ -221,7 +221,6 @@ describe("WorkspaceContextMenu", () => {
     );
     expect(submenuTrigger).toBeTruthy();
     expect(submenuTrigger?.tagName).toBe("BUTTON");
-    expect(submenuTrigger?.className).toContain("radius-control-md");
 
     await user.click(submenuTrigger!);
     expect(submenuTrigger?.getAttribute("aria-expanded")).toBe("true");

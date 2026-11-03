@@ -7,9 +7,11 @@ on:
       - "cmd/**"
       - "db/migrations/**"
       - "scripts/check-architecture/**"
+      - "tools/protocol-tsgen/**"
+      - "web/src/types/generated/protocol.ts"
       - "go.mod"
       - "go.sum"
-      - "Makefile"
+      - "makefile"
       - ".github/workflows/backend-check.yml"
   push:
     branches: [main]
@@ -18,9 +20,11 @@ on:
       - "cmd/**"
       - "db/migrations/**"
       - "scripts/check-architecture/**"
+      - "tools/protocol-tsgen/**"
+      - "web/src/types/generated/protocol.ts"
       - "go.mod"
       - "go.sum"
-      - "Makefile"
+      - "makefile"
       - ".github/workflows/backend-check.yml"
   workflow_dispatch:
 
@@ -36,6 +40,20 @@ jobs:
     name: Backend code checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus-test
+          POSTGRES_DB: nexus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexus -d nexus_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NEXUS_TEST_POSTGRES_URL: postgres://nexus:nexus-test@127.0.0.1:5432/nexus_test?sslmode=disable
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -44,14 +62,22 @@ jobs:
           cache: true
       - name: Check internal production dependency boundaries
         run: go run ./scripts/check-architecture
+      - name: Check generated frontend protocol
+        run: |
+          go generate ./internal/protocol
+          git diff --exit-code -- web/src/types/generated/protocol.ts
       - name: Static analysis
         run: go vet -p=4 ./...
       - name: Tests
         run: go test -p=4 -count=1 ./...
 
   desktop-contracts:
-    name: macOS desktop option and auth tests
-    runs-on: macos-15
+    name: Native Go contracts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -60,4 +86,4 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Test desktop contracts
-        run: go test -count=1 ./internal/runtime/clientopts ./internal/handler/auth
+        run: go test -count=1 ./internal/infra/confinedfs ./internal/infra/desktopinstance ./internal/runtime ./internal/runtime/clientopts ./internal/handler/auth

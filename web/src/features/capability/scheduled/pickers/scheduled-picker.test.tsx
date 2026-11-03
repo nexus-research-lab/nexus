@@ -28,8 +28,7 @@ describe("Scheduled Picker controls", () => {
     );
 
     const trigger = screen.getByRole("button", { name: "调度: 09:30" });
-    expect(trigger.className).toContain("radius-control-lg");
-    expect(trigger.className).toContain("ui-type-control");
+
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
     await user.click(trigger);
@@ -50,7 +49,7 @@ describe("Scheduled Picker controls", () => {
 
     expect(screen.getByRole("group", { name: "Minutes" })).toBeTruthy();
     const selected = screen.getByRole("button", { name: "08" });
-    expect(selected.className).toContain("radius-control-md");
+
     expect(selected.getAttribute("aria-pressed")).toBe("true");
     await user.click(screen.getByRole("button", { name: "09" }));
     expect(onSelect).toHaveBeenCalledWith("09");

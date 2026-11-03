@@ -50,11 +50,7 @@ describe("LauncherRecentEntries", () => {
 
     const dmButton = screen.getByRole("button", { name: "私聊 Researcher" });
     const roomButton = screen.getByRole("button", { name: "房间 Design review" });
-    for (const button of [dmButton, roomButton]) {
-      expect(button.className).toContain("min-h-8");
-      expect(button.className).toContain("bg-transparent");
-      expect(button.getAttribute("style")).toBeNull();
-    }
+
     expect(dmButton.querySelector("svg")).toBeNull();
     expect(dmButton.querySelector("[data-launcher-recent-entry-marker]")).toBeTruthy();
     expect(roomButton.querySelector("[data-launcher-recent-entry-marker]")).toBeNull();

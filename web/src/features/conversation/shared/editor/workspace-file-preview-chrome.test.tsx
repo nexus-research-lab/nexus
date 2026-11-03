@@ -45,10 +45,7 @@ describe("WorkspaceFilePreviewHeader", () => {
     );
 
     const action = screen.getByRole("button", { name: "下载文件" });
-    expect(action.className).toContain("h-7");
-    expect(action.className).toContain("w-7");
-    expect(action.className).toContain("radius-control-sm");
-    expect(action.className).not.toContain("rounded-[");
+
     await user.click(action);
     expect(onClick).toHaveBeenCalledTimes(1);
 

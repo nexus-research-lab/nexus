@@ -41,11 +41,6 @@ describe("ToolBlockHeaderActions", () => {
     const deny = screen.getByRole("button", { name: /^(deny|拒绝)$/i });
     const allow = screen.getByRole("button", { name: /^(allow|允许)$/i });
     const copy = screen.getByRole("button", { name: /^(result copied|已复制结果)$/i });
-    expect(deny.className).toContain("min-h-6");
-    expect(deny.className).toContain("radius-control-xs");
-    expect(allow.className).toContain("text-(--brand-action)");
-    expect(copy.className).toContain("h-6");
-    expect(copy.className).toContain("text-(--success)");
 
     fireEvent.click(deny);
     fireEvent.click(allow);

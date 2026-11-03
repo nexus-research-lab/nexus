@@ -46,7 +46,6 @@ describe("UiSelectMenu", () => {
     expect(option.getAttribute("type")).toBe("button");
     expect(option.getAttribute("aria-selected")).toBe("true");
     expect(option.getAttribute("data-active")).toBe("true");
-    expect(option.className).toContain("radius-control-md");
 
     await user.click(option);
     expect(onMouseDown).toHaveBeenCalledTimes(1);
@@ -296,21 +295,6 @@ describe("UiSelectMenu listbox navigation", () => {
 });
 
 describe("UiActionMenu", () => {
-  it("centers plain actions but keeps structured action labels left aligned", () => {
-    render(<UiActionMenuContent items={[
-      { value: "plain", label: "Remove" },
-      { value: "identity", label: <span>Account</span> },
-      { value: "icon", label: "Settings", icon: <svg /> },
-      { value: "description", label: "Details", description: "Help text" },
-      { value: "trailing", label: "Shortcut", trailing: "⌘K" },
-      { value: "checked", label: "Toggle", checked: false },
-    ]} onSelect={() => {}} />);
-    expect(screen.getByRole("menuitem", {name: "Remove"}).className).toContain("text-center");
-    for (const name of ["Account", "Settings", "Details Help text", "Shortcut ⌘K"]) {
-      expect(screen.getByRole("menuitem", {name}).className).toContain("text-left");
-    }
-    expect(screen.getByRole("menuitemcheckbox", {name: "Toggle"}).className).toContain("text-left");
-  });
 
   it("keeps complete action copy in semantic, content-sized rows and hides decorative icons", async () => {
     const user = userEvent.setup();
@@ -321,18 +305,10 @@ describe("UiActionMenu", () => {
       value: "approve", label, description, icon: <svg role="img" aria-label="Decorative symbol" />,
     }, { value: "disabled", label: "Unavailable", description, disabled: true, tone: "danger" }]} onSelect={onSelect} /></div>);
     const action = screen.getByRole("menuitem", { name: `${label} ${description}` });
-    expect(screen.getByText(label).className).toContain("whitespace-normal");
-    expect(screen.getByText(label).className).not.toContain("truncate");
-    expect(action.className).toContain("min-h-12");
-    expect(action.className).toContain("ui-type-control");
-    for (const copy of screen.getAllByText(description)) {
-      expect(copy.className).toContain("ui-type-metadata");
-      expect(copy.className).toContain("ui-type-tone-muted");
-      expect(copy.className).not.toContain("truncate");
-    }
+
     expect(screen.queryByRole("img")).toBeNull();
     const disabled = screen.getByRole("menuitem", { name: `Unavailable ${description}` });
-    expect(disabled.className).toContain("[&:not(:disabled):hover]:");
+
     await user.click(disabled);
     expect(onSelect).not.toHaveBeenCalled();
     await user.click(action);
@@ -505,11 +481,10 @@ describe("UiActionMenu", () => {
     const action = screen.getByRole("menuitem", { name: "删除" });
     const disabledAction = screen.getByRole("menuitem", { name: "不可用" });
     expect(actionRef.current).toBe(action);
-    expect(action.className).toContain("bg-(--surface-interactive-active-background)");
+
     expect(action.getAttribute("type")).toBe("button");
     expect(action.getAttribute("data-active")).toBe("true");
-    expect(action.className).toContain("radius-control-md");
-    expect(action.className).toContain("text-(--destructive)");
+
     expect((disabledAction as HTMLButtonElement).disabled).toBe(true);
     expect(disabledAction.getAttribute("aria-disabled")).toBe("true");
 

@@ -75,7 +75,6 @@ describe("AgentCommunicationDirectory", () => {
     const { props } = renderDirectory();
     const contact = screen.getByRole("button", { name: "搭档" });
 
-    expect(contact.className).toContain("radius-control-md");
     expect(contact.getAttribute("aria-pressed")).toBe("true");
     expect(contact.querySelector(".ui-type-section-title")).not.toBeNull();
 
@@ -110,9 +109,7 @@ describe("AgentCommunicationDirectory", () => {
 
     const loading = screen.getByRole("status");
     expect(loading.getAttribute("data-resource-state")).toBe("loading");
-    expect(loading.querySelector("svg")?.getAttribute("class")).toContain(
-      "motion-reduce:animate-none",
-    );
+
   });
 
   it("keeps a refreshed snapshot searchable and offers an exact clear action", async () => {

@@ -1,4 +1,5 @@
 -- +goose Up
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF to_regclass('public.im_channel_configs') IS NOT NULL THEN
@@ -25,8 +26,10 @@ BEGIN
             ADD CONSTRAINT ck_im_pairings_channel_type CHECK (channel_type IN ('dingtalk', 'wechat', 'weixin-personal', 'feishu', 'telegram', 'discord'));
     END IF;
 END $$;
+-- +goose StatementEnd
 
 -- +goose Down
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF to_regclass('public.im_pairings') IS NOT NULL THEN
@@ -45,3 +48,4 @@ BEGIN
             ADD CONSTRAINT ck_im_channel_configs_channel_type CHECK (channel_type IN ('dingtalk', 'wechat', 'weixin-personal', 'feishu', 'telegram', 'discord'));
     END IF;
 END $$;
+-- +goose StatementEnd

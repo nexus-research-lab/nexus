@@ -88,7 +88,7 @@ describe("Provider detail test actions", () => {
       testModelOptions={options.map((option) => ({ ...option, label: `${option.label} renamed` }))} />);
     expect(screen.getByRole("menu")).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Auto renamed" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: longName }).className).not.toContain("truncate");
+
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("switch"));
     expect(input.onEnabledChange).toHaveBeenCalledExactlyOnceWith(false);

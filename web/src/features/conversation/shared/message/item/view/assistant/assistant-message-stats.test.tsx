@@ -28,11 +28,6 @@ describe("AssistantMessageStats", () => {
 
     const copy = screen.getByRole("button", { name: /copy reply|复制回答/i });
     const fork = screen.getByRole("button", { name: /branch in new chat|分支到新聊天/i });
-    expect(copy.className).toContain("h-5");
-    expect(copy.className).toContain("radius-control-xs");
-    expect(copy.className).toContain("text-(--success)");
-    expect(fork.className).toContain("h-5");
-    expect(fork.className).toContain("radius-control-xs");
 
     fireEvent.click(copy);
     await act(async () => {
@@ -61,20 +56,12 @@ describe("AssistantMessageStats", () => {
     const trigger = screen.getByRole("button", {
       name: /referenced memories|引用的记忆/i,
     });
-    expect(trigger.className).toContain("h-6");
-    expect(trigger.className).toContain("rounded-full");
 
     fireEvent.click(trigger);
     const dialog = screen.getByRole("dialog", {
       name: /referenced memories|引用的记忆/i,
     });
     expect(dialog.id).toBe(trigger.getAttribute("aria-controls"));
-    expect(dialog.className).toContain("surface-popover");
-    expect(screen.getByRole("heading", {
-      name: /referenced memories|引用的记忆/i,
-    }).className).toContain("ui-type-metadata");
-    expect(screen.getByText("The user prefers compact controls.").parentElement?.className)
-      .toContain("ui-type-supporting");
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", {

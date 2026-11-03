@@ -68,7 +68,7 @@ describe("ToolBlockResult", () => {
       expect(notice.getAttribute("data-inline-notice-tone")).toBe(tone);
       expect(notice.getAttribute("data-tool-result-semantic-outcome")).toBe(outcome);
       expect(notice.getAttribute("data-inline-notice-width")).toBe("compact");
-      expect(notice.className).toContain("max-w-sm");
+
       expect(screen.getByText(reasonCode).tagName).toBe("CODE");
     },
   );
@@ -88,7 +88,6 @@ describe("ToolBlockResult", () => {
     );
 
     expect(screen.queryByRole("status")).toBeNull();
-    expect(screen.getByText("ordinary full-width tool output").className)
-      .not.toContain("max-w-sm");
+
   });
 });

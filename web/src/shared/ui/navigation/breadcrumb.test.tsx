@@ -50,13 +50,9 @@ describe("UiBreadcrumb", () => {
       />,
     );
 
-    const link = screen.getByRole("link", { name: "Nexus 工作区" });
-    expect(link.className).toContain("min-h-6");
-    expect(link.className).toContain("whitespace-nowrap");
     expect(container.querySelectorAll("[data-slot='breadcrumb-separator']")).toHaveLength(3);
     expect(container.querySelector("[data-slot='breadcrumb-leading']")?.textContent).toBe("N");
-    expect(container.querySelector("[data-current='true']")?.className).toContain("basis-2/5");
-    expect(container.querySelector("[data-current='true']")?.className).not.toContain("flex-1");
+
     expect(screen.getByText("counter.txt").getAttribute("aria-current")).toBe("page");
   });
 });

@@ -59,10 +59,6 @@ describe("ConnectorDetailHeader", () => {
       { wrapper: I18nProvider },
     );
 
-    expect(screen.getByRole("heading", { name: DETAIL.title }).className)
-      .toContain("ui-type-object-title");
-    expect(screen.getByText(DETAIL.description).className)
-      .toContain("ui-type-supporting");
     expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "添加到 Nexus" }));

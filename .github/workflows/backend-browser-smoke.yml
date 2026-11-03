@@ -1,0 +1,56 @@
+name: Real backend browser smoke
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8 * * *"
+permissions:
+  contents: read
+concurrency:
+  group: backend-browser-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Install and build Web
+        working-directory: web
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.2 --activate
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install chromium
+          pnpm run build
+      - name: Fetch paired nxs runtime
+        env:
+          NEXUS_DESKTOP_NXS_RELEASE: nxs-stable
+          NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
+        run: |
+          case "$(uname -m)" in
+            arm64) runtime_arch=arm64 ;;
+            x86_64) runtime_arch=amd64 ;;
+            *) echo "Unsupported runner architecture" >&2; exit 1 ;;
+          esac
+          node scripts/desktop/fetch-nxs-runtime.js --goos darwin --goarch "$runtime_arch" \
+            --output "${RUNNER_TEMP}/nxs/nxs" --ripgrep-output "${RUNNER_TEMP}/nxs/rg"
+      - name: Real backend, runtime and browser smoke
+        env:
+          NEXUS_BROWSER_SMOKE: "1"
+          NEXUS_SMOKE_NXS_BINARY: ${{ runner.temp }}/nxs/nxs
+        run: go test ./internal/app/server -run '^TestBrowserSmoke$' -count=1 -timeout=3m
+      - name: Upload failure evidence
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-browser-smoke
+          path: web/test-results/smoke/
+          if-no-files-found: ignore
+          retention-days: 14

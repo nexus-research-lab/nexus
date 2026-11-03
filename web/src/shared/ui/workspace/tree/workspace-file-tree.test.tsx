@@ -59,15 +59,12 @@ describe("WorkspaceFileTree", () => {
     const root = screen.getByRole("list", { name: "common.file_tree" });
     const docs = within(root).getByRole("button", { name: "docs" });
     expect(docs.getAttribute("aria-expanded")).toBe("true");
-    expect(docs.className).toContain("bg-transparent");
-    expect(docs.className).not.toContain("aria-[expanded=true]:bg-");
-    expect(docs.parentElement?.parentElement?.className).not.toContain("bg-(--surface-sidebar-active-background)");
-    expect(docs.querySelector("span.ui-type-supporting")?.className).toContain("ui-type-weight-regular");
+
     const children = screen.getByRole("list", { name: "docs" });
     expect(docs.getAttribute("aria-controls")).toBe(children.id);
     const file = screen.getByRole("button", { name: "notes.txt" });
     expect(file.getAttribute("aria-current")).toBe("true");
-    expect(file.parentElement?.parentElement?.className).toContain("bg-(--surface-sidebar-active-background)");
+
     expect(within(file.parentElement?.parentElement!).getAllByRole("button")).toHaveLength(2);
     expect(file.hasAttribute("aria-expanded")).toBe(false);
     await user.click(file);

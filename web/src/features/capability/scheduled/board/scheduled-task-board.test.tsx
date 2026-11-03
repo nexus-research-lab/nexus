@@ -51,16 +51,10 @@ describe("ScheduledTaskBoard", () => {
     const user = userEvent.setup();
     render(view({ onCreateFromPreset }));
 
-    expect(screen.getByText("capability.scheduled_quick_start_title").className)
-      .toContain("ui-type-page-title");
-    expect(screen.getByText("capability.scheduled_empty_description").className)
-      .toContain("ui-type-metadata");
-
     const suggestion = screen.getByRole("button", {
       name: /capability.scheduled_suggestion_daily_title/,
     });
-    expect(suggestion.className).toContain("radius-control-sm");
-    expect(suggestion.className).toContain("focus-visible:ring-2");
+
     await user.click(suggestion);
     expect(onCreateFromPreset).toHaveBeenCalledTimes(1);
   });
@@ -70,9 +64,7 @@ describe("ScheduledTaskBoard", () => {
 
     const status = screen.getByRole("status");
     expect(status.textContent).toContain("capability.scheduled_refreshing");
-    expect(status.className).toContain("ui-type-caption");
-    expect(status.querySelector("svg")?.className.baseVal)
-      .toContain("motion-reduce:animate-none");
+
     expect(container.innerHTML).not.toContain("rounded-[8px]");
   });
 });

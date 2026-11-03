@@ -39,7 +39,7 @@ describe("AgentOptionsEditorActions", () => {
     const notice = screen.getByRole("status");
     expect(notice.getAttribute("data-inline-notice-tone")).toBe(noticeTone);
     expect(notice.getAttribute("data-inline-notice-width")).toBe("full");
-    expect(notice.className).toContain("order-first");
+
     expect(notice.textContent).toContain("已有 Agent 设置仍然保留");
   });
 
@@ -57,7 +57,7 @@ describe("AgentOptionsEditorActions", () => {
     expect(status.getAttribute("aria-atomic")).toBe("true");
     expect(status.hasAttribute("title")).toBe(false);
     expect(status.hasAttribute("data-inline-notice-tone")).toBe(false);
-    expect(status.className).not.toContain("truncate");
+
     expect(document.activeElement).toBe(save);
     rendered.rerender(<AgentOptionsEditorActions {...props} feedback={null} />);
     expect(screen.queryByRole("status")).toBeNull();

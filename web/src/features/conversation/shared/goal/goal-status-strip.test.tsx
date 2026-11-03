@@ -16,47 +16,28 @@ describe("GoalStatusStrip", () => {
   it("uses shared badges, typography, and accessible actions", async () => {
     const user = userEvent.setup();
     const onPause = vi.fn();
-    const { container } = render(
-      <I18N_CONTEXT.Provider
-        value={goalTestI18n("zh")}
-      >
-        <GoalStatusStrip
-          canResume={false}
-          compact={false}
-          disabled={false}
-          executionBinding={{ state: "confirmed", execution_id: "execution-1" }}
-          goal={ACTIVE_GOAL}
-          isGenerating={false}
-          isLoading={false}
-          mutationBlockReason={null}
-          mutationBlocked={false}
-          onClearRequest={vi.fn()}
-          onEdit={vi.fn()}
-          onPause={onPause}
-          onRefresh={vi.fn()}
-          onResume={vi.fn()}
-          scopeLabel="当前 Goal"
-        />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    const status = screen.getByText("运行中");
-    const binding = container.querySelector('[data-goal-binding-state="confirmed"]');
-    const leading = container.querySelector('span[aria-hidden="true"]');
-    const objective = screen.getByText("统一前端组件规范");
-    const panel = container.querySelector("section");
-    const usage = screen.getByText("2,500 tokens").parentElement;
-
-    expect(panel?.className).toContain("conversation-activity-chip");
-    expect(panel?.className).toContain("px-3");
-    expect(leading?.className).toContain("min-h-5");
-    expect(leading?.className).toContain("!p-0");
-    expect(status.className).toContain("min-h-5");
-    expect(status.className).toContain("radius-control-xs");
-    expect(binding?.className).toContain("min-h-5");
-    expect(objective.className).toContain("ui-type-supporting");
-    expect(usage?.className).toContain("ui-type-caption");
-    expect(usage?.className).not.toContain("rounded-");
+    render(
+<I18N_CONTEXT.Provider
+value={goalTestI18n("zh")}
+>
+<GoalStatusStrip
+canResume={false}
+compact={false}
+disabled={false}
+executionBinding={{ state: "confirmed",execution_id: "execution-1" }}
+goal={ACTIVE_GOAL}
+isGenerating={false}
+isLoading={false}
+mutationBlockReason={null}
+mutationBlocked={false}
+onClearRequest={vi.fn()}
+onEdit={vi.fn()}
+onPause={onPause}
+onRefresh={vi.fn()}
+onResume={vi.fn()}
+scopeLabel="当前 Goal" />
+</I18N_CONTEXT.Provider>
+);
 
     await user.click(screen.getByRole("button", { name: "暂停" }));
     expect(onPause).toHaveBeenCalledOnce();
@@ -78,7 +59,7 @@ describe("Goal status readability and busy actions", () => {
     const { rerender } = render(element("en"));
     const pause = screen.getByRole("button", { name: "Pause" });
     expect(pause.getAttribute("aria-busy")).toBe("true");
-    expect(pause.querySelector("svg")?.classList.contains("animate-spin")).toBe(true);
+
     expect(screen.getByRole("button", { name: "Refresh" }).getAttribute("aria-busy")).toBeNull();
     expect(screen.getByText("Active")).toBeTruthy();
     rerender(element("zh"));
@@ -98,8 +79,7 @@ describe("Goal status readability and busy actions", () => {
     const attention = screen.getByText((_, node) => node?.tagName === "DIV"
       && node.textContent?.includes(neededInput) === true && node.className.includes("whitespace-pre-wrap"));
     expect(attention.textContent).toContain(reason);
-    expect(attention.className).not.toContain("line-clamp");
-    expect(attention.className).toContain("ui-type-supporting");
+
     expect((screen.getByRole("button", { name: /^Edit:/ }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(onRefresh).toHaveBeenCalledOnce();

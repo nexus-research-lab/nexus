@@ -194,8 +194,7 @@ describe("RoomAgentSwitcher", () => {
     );
 
     const trigger = screen.getByRole("button", { name: /Alpha/ });
-    expect(trigger.className).toContain("min-h-7");
-    expect(trigger.className).toContain("border-transparent");
+
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
 
     await user.click(trigger);

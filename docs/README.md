@@ -8,6 +8,7 @@
 | --- | --- |
 | 产品概览 | [中文 README](../README_zh.md) · [英文 README](../README.md) |
 | 技术架构 | [Nexus 技术架构](./nexus-architecture-blueprint.md) · [架构图](./architecture-html/) |
+| 测试 | [测试体系与运行入口](./testing/test-system.md) |
 | 模块边界 | [Internal 模块边界](./specs/internal-boundaries.md) |
 | 前端 | [工程与设计系统治理](./specs/frontend-engineering-spec.md) · [视觉与交互](../design.md) · [Agent 入口](../web/AGENTS.md) |
 | 权限与沙箱 | [帮我批准](./auto-review.md) · [桌面沙箱与一次性审批](./guides/desktop-sandbox.md) · [macOS / Windows 沙箱实现导读](./guides/desktop-sandbox-implementation.zh-CN.md) |

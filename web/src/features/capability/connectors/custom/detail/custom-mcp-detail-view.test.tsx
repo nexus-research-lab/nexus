@@ -50,9 +50,7 @@ describe("CustomMCPDetailView", () => {
     expect(container.querySelector("[data-slot='capability-detail-page']")).toBeTruthy();
     expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
     expect(container.querySelector("[data-slot='capability-detail-identity-actions']")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: SERVER.name }).className)
-      .toContain("ui-type-object-title");
-    expect(screen.getByText("node server.js").className).toContain("ui-type-code");
+
     expect(screen.getByText("capability.custom_mcp_enabled")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("switch", {

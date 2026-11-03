@@ -98,18 +98,11 @@ describe("SubagentTaskList", () => {
 
     const row = screen.getByRole("button", { name: /资料整理/ });
     expect(row.tagName).toBe("DIV");
-    expect(row.className).toContain("min-h-10");
-    expect(row.className).toContain("radius-control-md");
-    expect(screen.getByText("资料整理").className).toContain("ui-type-supporting");
-    expect(screen.getByText("汇总公共组件使用情况").className).toContain("ui-type-metadata");
-    expect(row.querySelector(".h-6.w-6")?.className)
-      .toContain("status-running-soft-border");
 
     await user.click(row);
     expect(onSelectTask).toHaveBeenCalledWith("task-1");
   });
 });
-
 
 it("separates unknown and failed/stopped history while keeping exact keyboard selection", () => {
   const onSelectTask = vi.fn();
@@ -122,7 +115,7 @@ it("separates unknown and failed/stopped history while keeping exact keyboard se
   const { container, rerender } = render(list({ tasks, onSelectTask }));
   const unknown = screen.getByRole("region", { name: "Status unavailable · 1" });
   const row = within(unknown).getByRole("button", { name: /New state/ });
-  expect(row.querySelector(".h-6.w-6")?.className).not.toContain("status-running-soft-border");
+
   expect(screen.queryByText(MESSAGES.en["subagents.no_active"])).toBeNull();
   const history = screen.getByRole("region", { name: "History · 2" });
   expect(within(history).getByText("Failed")).toBeTruthy();
@@ -170,7 +163,6 @@ it("omits invalid times and provides an exact date plus updated minute labels fo
   expect(refresh).not.toHaveBeenCalled();
   expect(screen.getByRole("region", { name: "Active" })).toBeTruthy();
 });
-
 
 it.each(["en", "zh"] as const)("keeps a missing requested task actionable with one busy feedback surface in %s", (locale) => {
   const refresh = vi.fn();

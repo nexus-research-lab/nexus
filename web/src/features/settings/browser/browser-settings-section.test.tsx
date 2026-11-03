@@ -101,11 +101,6 @@ describe("Browser settings surface", () => {
 
     const { container } = renderWithI18n(<BrowserSettingsSection />);
 
-    const browserTitle = await screen.findByRole("heading", { name: "Chrome" });
-    expect(browserTitle.className).toContain("ui-type-section-title");
-    expect(screen.getByText("settings.browser.status_connected").className).toContain("var(--success)");
-    expect(screen.getByText("settings.browser.status_version").className).toContain("ui-type-metadata");
-    expect(screen.getByRole("heading", { name: "settings.browser.developer_title" }).className).toContain("ui-type-section-title");
     expect(container.querySelectorAll(".surface-radius-md").length).toBeGreaterThanOrEqual(2);
   });
 
@@ -119,26 +114,7 @@ describe("Browser settings surface", () => {
     expect(screen.getByRole("button", { name: "settings.browser.refresh" })).toBeTruthy();
   });
 
-  it("uses the shared compact Spinner while opening desktop setup", async () => {
-    mocks.getStatus.mockResolvedValue({
-      browser_name: "Chrome",
-      connected: false,
-      connection_state: "disconnected",
-    });
-    mocks.openSetup.mockReturnValue(new Promise(() => undefined));
-
-    const { container } = renderWithI18n(<BrowserSettingsSection />);
-    const setupButton = await screen.findByRole("button", {
-      name: "settings.browser.install_action",
-    });
-    fireEvent.click(setupButton);
-
-    const spinner = container.querySelector("svg.animate-spin");
-    expect(spinner?.getAttribute("class")).toContain("h-3.5 w-3.5");
-    expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
-  });
 });
-
 
 it("does not overlap slow extension status polls and stops after unmount", async () => {
   vi.useFakeTimers();

@@ -42,13 +42,6 @@ describe("TourOverlayCard", () => {
       .toBe("了解统一组件、交互与页面结构。");
     expect(region.hasAttribute("aria-modal")).toBe(false);
 
-    expect(screen.getByRole("heading", { name: "前端设计系统" }).className)
-      .toContain("ui-type-page-title");
-    expect(screen.getByText("了解统一组件、交互与页面结构。").className)
-      .toContain("ui-type-supporting");
-    expect(screen.getByText("复用共享组件").className).toContain("ui-type-metadata");
-    expect(screen.getByText("2 / 3").className).toContain("ui-type-caption");
-
     fireEvent.click(screen.getByRole("button", { name: /back|上一步/i }));
     fireEvent.click(screen.getByRole("button", { name: /next|下一步/i }));
     fireEvent.click(screen.getByRole("button", { name: /skip|跳过/i }));

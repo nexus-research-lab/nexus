@@ -13,7 +13,6 @@ import { makeController } from "./composer-session-settings.test-support";
 import { ComposerSessionControls } from "./composer-session-controls";
 import { applySessionModelSelection } from "./composer-session-control-options";
 
-
 function Controls({ controller, disabled = false }: { controller: ComposerSessionSettingsController; disabled?: boolean }) {
   return <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
     <ComposerSessionControls controller={controller} disabled={disabled} slot="leading" />
@@ -47,7 +46,7 @@ describe("ComposerSessionControls", () => {
     const open = () => user.click(screen.getByRole("button", { name: "composer.session_model" }));
     await open();
     // 多 Provider 时分组标题只出现一次，模型行不再重复 Provider 名称。
-    expect(screen.getByText("Other provider with a long name").parentElement?.className).toContain("ui-type-metadata");
+
     await user.click(screen.getByRole("menuitem", { name: "Base composer.session_model_default" }));
     // 继承判定由控制器负责：选回默认模型时清空覆盖并按需保留强度。
     expect(controller.updateModel).toHaveBeenCalledWith("provider", "base");

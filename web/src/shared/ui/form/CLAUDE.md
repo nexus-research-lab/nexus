@@ -1,7 +1,7 @@
 # 表单原语
 
 - 本目录拥有选择项、原生复选框、复选行、表单控件和分段控制器。
-- 生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.test.mjs` 递归检查本所有者，新文件同样受约束。
+- 生产 TS/TSX 文件必须在首条代码前保留真实、非空的 `INPUT / OUTPUT / POS` 合同；`scripts/frontend-file-contract.mjs` 递归检查本所有者，新文件同样受约束。
 - 这里只处理通用输入语义，不维护业务草稿或提交事务。
 - `source-text-styles.ts` 是源码编辑、流式写入与无高亮纯文本/分段预览共用的字体、字号和行高所有者；预览不复制测量字体常量。滚动/内嵌焦点配方由 `layout/preview-viewport-styles.ts` 统一拥有；消费者负责具名 region、键盘可聚焦语义和外层空间，不把 HTML iframe 包进第二个滚动面。
 - `UiSourceEditor` 是工作区、AGENTS.md 和记忆源码的无边框文本编辑原语，统一等宽 14px/24px、内部滚动、只读/禁用及内嵌键盘焦点；它保留 native textarea 的值、选区、IME 和 Tab 行为，不接管草稿、自动保存、快捷键或退出编辑。Field 关联复用内部 accessibility owner，源码控件不得从业务覆盖字体或焦点。

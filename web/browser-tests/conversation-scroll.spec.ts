@@ -1,4 +1,4 @@
-// INPUT: Production FOLLOW hook and real browser layout across the shared browser matrix.
+// INPUT: Production FOLLOW hook and real browser layout.
 // OUTPUT: Live process shrink/growth, terminal/reading geometry and bottom-control visibility regressions.
 // POS: Isolated conversation scroll harness; no model or backend requests.
 import { expect, test } from "@playwright/test";

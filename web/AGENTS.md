@@ -12,10 +12,19 @@ Read the existing owner before changing code. Follow these canonical sources:
   owners, consumers and business boundaries. These maps do not define a second
   engineering or design standard.
 
-Run focused tests while iterating. Before delivery, run `npm run check`;
-shared UI, layout and overlay changes also require the explicit `npm run test:browser:full` browser matrix.
-Install its pinned browsers with `npx playwright install chromium webkit` when needed.
-Use `npm run test:browser:smoke` for the isolated UI Gallery project and `make check-web-ui` for
-the standard checks plus the complete browser gate. `make check-web` stays on the
-standard frontend checks and does not start Playwright. Report actual browser/host coverage and any
-remaining migration debt without claiming untested native-host behavior.
+Run focused tests while iterating. Before delivery, run `npm run check` (`make check-web`);
+it does not start Playwright. To see what shared components look like, open the dev-only
+`ui-gallery.html` from `npm run dev`; it is a viewing page, not a gate. `npm run test:browser`
+runs the small set of real-browser flow tests (scroll, auth, DM/Team, settings) on one Chromium
+project; run it manually when touching those flows (`npx playwright install chromium` first).
+Report remaining migration debt without claiming untested native-host behavior.
+
+Behavior tests use Vitest beside their owners (`*.test.ts`, `*.test.tsx`, or
+`*.test.mjs`; Node-only tests declare their environment). Do not start Vite SSR
+servers or manually transpile TypeScript in tests. Assert behavior, requests and
+accessible state, not source text, comment wording, Tailwind classes or decorative
+styles. Computed geometry, scroll locking and user preferences remain behavioral
+contracts. Architecture and file-header structure belong to ESLint; CSS token
+integrity remains an AST/CSS tool check. Gallery registration is voluntary.
+Real-backend smoke runs through `TestBrowserSmoke`; see
+[`test-system.md`](../docs/testing/test-system.md).

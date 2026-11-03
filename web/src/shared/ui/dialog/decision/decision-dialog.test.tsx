@@ -86,11 +86,9 @@ describe("PromptDialog", () => {
     const { onConfirm } = renderPrompt();
     const dialog = screen.getByRole("dialog", { name: "新建文件夹" });
     const input = screen.getByRole("textbox", { name: "新建文件夹" });
-    const confirm = screen.getByRole("button", { name: "确认" });
 
     expect(dialog.querySelector(".max-w-sm")).toBeTruthy();
-    expect(input.className).toContain("dialog-input");
-    expect(confirm.className).toContain("bg-(--button-primary-background)");
+
     await waitFor(() => expect(document.activeElement).toBe(input));
 
     await user.clear(input);

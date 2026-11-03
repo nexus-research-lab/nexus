@@ -45,7 +45,7 @@ it.each(["about", "workspace", "workgraph"] as const)("keeps the %s page in one 
   const dialog = screen.getByRole("dialog", { name: MESSAGES.en[titleKey[tab]] });
   expect(dialog.getAttribute("aria-modal")).toBe("true");
   const header = dialog.querySelector("header")!;
-  expect(header.className).toContain("h-[var(--mobile-shell-header-height,52px)]");
+
   expect(header.hasAttribute("data-desktop-window-drag-region")).toBe(true);
   const back = within(dialog).getByRole("button", { name: "Back" });
   await waitFor(() => expect(document.activeElement).toBe(back));

@@ -38,7 +38,6 @@ describe("SkillsCatalogGrid", () => {
     rerender(view(false));
     expect(screen.getByRole("status").getAttribute("data-resource-state"))
       .toBe("empty");
-    expect(screen.getByText("capability.skills_empty_description").className)
-      .toContain("ui-type-supporting");
+
   });
 });

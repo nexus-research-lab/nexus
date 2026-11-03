@@ -1,6 +1,6 @@
 // INPUT: Canonical theme tokens and every production CSS/TS module.
 // OUTPUT: Undefined tokens, broken aliases, duplicate declarations and non-color control paint fail the gate.
-// POS: Static token integrity, paired with computed styles in the real-browser matrix; no per-file exception budget.
+// POS: Static token integrity, no per-file exception budget.
 
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";

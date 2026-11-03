@@ -23,9 +23,11 @@
     "src",
     "visual-review",
     "browser-tests",
+    "smoke-tests",
     "vite.config.ts",
     "vitest.config.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "playwright.smoke.config.ts"
   ],
   "exclude": ["node_modules"]
 }

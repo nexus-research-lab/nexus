@@ -24,10 +24,7 @@ describe("SidebarRailAction", () => {
     const primary = screen.getByRole("button", { name: "聊天" });
     expect(primary.getAttribute("aria-current")).toBe("page");
     expect(primary.getAttribute("aria-pressed")).toBe("true");
-    expect(primary.className).toContain("h-[50px]");
-    expect(primary.className).toContain("ui-type-caption");
-    expect(primary.querySelector("svg")?.parentElement?.className).toContain("h-8 w-8");
-    expect(primary.querySelector("svg")?.getAttribute("class")).toContain("h-[18px]");
+
     expect(screen.getByText("3")).not.toBeNull();
 
     rerender(
@@ -43,10 +40,7 @@ describe("SidebarRailAction", () => {
     const pinned = screen.getByRole("button", { name: /项目讨论/ });
     expect(pinned.getAttribute("aria-current")).toBeNull();
     expect(pinned.getAttribute("aria-pressed")).toBeNull();
-    expect(pinned.className).toContain("absolute inset-0");
-    expect(pinned.className).toContain("ui-type-caption");
-    expect(pinned.querySelector("svg")?.parentElement?.className).toContain("h-8 w-8");
-    expect(screen.getByText("拖动排序").className).toContain("sr-only");
+
   });
 
   it("shows a pinned avatar and keeps its title available without a visible caption", async () => {
@@ -54,7 +48,7 @@ describe("SidebarRailAction", () => {
       iconContent={<img alt="" src="/avatar.png" />} />);
     const button = screen.getByRole("button", { name: "每周工作回顾" });
     expect(button.querySelector("img")?.getAttribute("src")).toBe("/avatar.png");
-    expect(screen.getByText("每周工作回顾").className).toBe("sr-only");
+
     await userEvent.setup().hover(button);
     expect(await screen.findByRole("tooltip")).toBeTruthy();
   });

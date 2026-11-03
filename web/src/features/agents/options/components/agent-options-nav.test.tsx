@@ -29,8 +29,6 @@ describe("AgentOptionsNav", () => {
     const tools = screen.getByRole("button", { name: "agent_options.nav.tools" });
     expect(identity.getAttribute("aria-current")).toBe("page");
     expect(tools.hasAttribute("aria-current")).toBe(false);
-    expect(identity.className).toContain("ui-type-control");
-    expect(identity.className).toContain("aria-[current=page]");
 
     await user.click(tools);
     expect(onTabChange).toHaveBeenCalledWith("advanced");

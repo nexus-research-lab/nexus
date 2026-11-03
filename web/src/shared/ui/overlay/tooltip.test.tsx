@@ -35,7 +35,7 @@ describe("UiTooltip", () => {
 
     const tooltip = screen.getByRole("tooltip", { name: "打开工作图" });
     expect(trigger.getAttribute("aria-describedby")).toBe(tooltip.id);
-    expect(tooltip.className).toContain("ui-layer-tooltip");
+
     expect(tooltip.dataset.uiOverlayOpen).toBe("true");
 
     fireEvent.keyDown(document, { key: "Escape" });

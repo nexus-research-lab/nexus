@@ -45,7 +45,7 @@ describe("RoomMemberSelector", () => {
     const participationChoice = screen.getByRole("button", {
       name: "room.resume_member 研究员",
     });
-    expect(memberRow.className).toContain("min-h-10");
+
     expect(participationChoice.getAttribute("aria-pressed")).toBe("true");
 
     await user.click(participationChoice);

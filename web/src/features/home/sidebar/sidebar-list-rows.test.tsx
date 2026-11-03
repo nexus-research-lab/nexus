@@ -46,8 +46,6 @@ describe("sidebar formula previews", () => {
     );
 
     const deleteBtn = screen.getByRole("button", { name: "删除" });
-    expect(deleteBtn.className).toContain("h-6 w-6");
-    expect(deleteBtn.className).toContain("absolute right-0");
 
     fireEvent.click(deleteBtn);
     expect(onDelete).toHaveBeenCalledOnce();

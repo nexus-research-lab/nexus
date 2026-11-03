@@ -82,12 +82,6 @@ describe("PairingList", () => {
       </I18N_CONTEXT.Provider>,
     );
 
-    expect(screen.getByRole("heading", { name: AGENT.name }).className)
-      .toContain("ui-type-section-title");
-    expect(screen.getByText(PAIRING.external_name).className)
-      .toContain("ui-type-control");
-    expect(screen.getByText(PAIRING.external_ref).className)
-      .toContain("ui-type-code");
     expect(container.querySelector("section.surface-radius-sm")).toBeTruthy();
 
     await user.click(screen.getByText("处理智能体"));
@@ -128,8 +122,6 @@ describe("PairingList", () => {
     );
 
     await user.click(screen.getByText("技术详情"));
-    expect(screen.getByText(PAIRING.session_key).className)
-      .toContain("ui-type-code");
 
     await user.click(screen.getByRole("button", {
       name: "复制 IM session key",

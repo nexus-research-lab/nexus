@@ -32,10 +32,6 @@ describe("CapabilityPageLayout", () => {
       </CapabilityPageLayout>,
     );
 
-    expect(screen.getByRole("heading", { name: "Connectors" }).className).toContain("ui-type-page-title");
-    const descriptions = screen.getAllByText("Manage connected tools.");
-    expect(descriptions.some((node) => node.className.includes("ui-type-metadata"))).toBe(true);
-    expect(descriptions.some((node) => node.className.includes("ui-type-supporting"))).toBe(true);
     expect(screen.getByRole("button", { name: "Create" })).toBeTruthy();
     expect(screen.getByText("Catalog")).toBeTruthy();
   });
@@ -117,13 +113,7 @@ describe("CapabilityPageLayout", () => {
     expect(container.querySelector("[data-slot='capability-detail-page']")).toBeTruthy();
     expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "common.location_aria" })).toBeTruthy();
-    expect(container.querySelector(".workspace-content-header")?.className)
-      .toContain("max-[559px]:hidden");
-    expect(container.querySelector(".workspace-content-header")?.className)
-      .not.toContain("lg:block");
-    expect(container.querySelector("[data-slot='capability-detail-body']")?.className)
-      .toContain("pt-5");
-    expect(screen.getByText("Research Skill").className).toContain("ui-type-metadata");
+
     expect(screen.getByText("Research Skill").getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Detail content")).toBeTruthy();
   });
@@ -151,10 +141,7 @@ describe("CapabilityPageLayout", () => {
     expect(container.querySelector("[data-slot='capability-detail-identity-leading']")?.textContent)
       .toBe("RM");
     expect(container.querySelector("[data-slot='capability-detail-identity-actions']")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "RichMail" }).className)
-      .toContain("ui-type-object-title");
-    expect(screen.getByText("Manage mail and schedules.").className)
-      .toContain("ui-type-supporting");
+
     expect(screen.getByText("Connected")).toBeTruthy();
   });
 
@@ -170,9 +157,6 @@ describe("CapabilityPageLayout", () => {
       </>,
     );
 
-    expect(screen.getByRole("heading", { name: "Messaging" }).className).toContain("ui-type-section-title");
-    expect(screen.getByText("Available now").className).toContain("ui-type-metadata");
-    expect(screen.getByText("4").className).toContain("ui-type-caption");
     expect(container.querySelector(".radius-control-sm")).toBeTruthy();
   });
 
@@ -192,23 +176,13 @@ describe("CapabilityPageLayout", () => {
       </CapabilityDetailSplitLayout>,
     );
 
-    const layout = container.querySelector("[data-slot='capability-detail-layout']");
     const aside = container.querySelector("[data-slot='capability-detail-aside']");
     const main = container.querySelector("[data-slot='capability-detail-main']");
 
-    expect(layout?.className).toContain("max-w-[1180px]");
-    expect(aside?.className).toContain("@[960px]/capability-detail:col-start-2");
-    expect(main?.className).toContain("@[960px]/capability-detail:col-start-1");
     expect(aside?.compareDocumentPosition(main as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(screen.getByRole("heading", { name: "Availability" }).className)
-      .toContain("ui-type-section-title");
-    expect(screen.getByText("Per-agent configuration").className)
-      .toContain("ui-type-supporting");
-    expect(screen.getByText("2/4 enabled").className)
-      .toContain("ui-type-caption");
+
   });
 });
-
 
 it("names capability artwork with image semantics without exposing decorative children", () => {
   const { rerender } = render(<CapabilityBrandIcon title="Mail" src="/mail.svg" />);

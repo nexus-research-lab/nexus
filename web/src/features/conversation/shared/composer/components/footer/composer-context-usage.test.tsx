@@ -1,6 +1,6 @@
 // INPUT: DM/Room 上下文快照与 hover、focus、Escape 和清空事件。
 // OUTPUT: 证明唯一详情、焦点和逐 Agent 快照保持，Room 高度只由共享边界和视口约束。
-// POS: 上下文指标 DOM 回归；实际碰撞与截图由浏览器矩阵验证。
+// POS: 上下文指标 DOM 回归；实际碰撞在 Gallery 中人工查看。
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

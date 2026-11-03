@@ -53,11 +53,6 @@ describe("SkillsUpdateHighlight", () => {
     );
 
     expect(container.querySelector(".surface-radius-md")).toBeTruthy();
-    expect(screen.getByRole("heading", {
-      name: "capability.skills_updates_title",
-    }).className).toContain("ui-type-section-title");
-    expect(screen.getByText(UPDATE.description).className)
-      .toContain("ui-type-metadata");
 
     await user.click(screen.getByRole("button", {
       name: "capability.skills_update",

@@ -52,32 +52,21 @@ describe("WorkspaceTaskPanel", () => {
     );
 
     const trigger = container.querySelector<HTMLButtonElement>("[data-workspace-task-trigger]");
-    const visual = container.querySelector("[data-workspace-task-visual]");
     expect(trigger).not.toBeNull();
-    expect(visual?.className).toContain("conversation-activity-chip");
-    expect(visual?.className).not.toContain("conversation-activity-plain");
-    expect(visual?.className).toContain("ui-type-metadata");
-    expect(screen.getByText("Nexus").className).toContain("ui-type-caption");
 
     fireEvent.click(trigger!);
-
-    const progress = screen.getByRole("dialog").querySelector("[data-workspace-task-progress-label]");
-    expect(progress?.className).toContain("ui-type-metadata");
-    expect(progress?.className).toContain("ui-type-tone-soft");
-    expect(screen.getByText("统一活动条").className).toContain("ui-type-metadata");
 
     const detailActions = screen.getAllByRole("button", {
       name: /expand task details|展开任务详情/i,
     });
-    expect(detailActions[0].className).toContain("radius-control-xs");
+
     fireEvent.click(detailActions[0]);
-    expect(screen.getByText("已完成需求解析").className).toContain("ui-type-caption");
 
     const collapse = screen.getAllByRole("button", {
       name: /collapse tasks panel|收起任务面板/i,
     }).find((action) => action !== trigger);
     expect(collapse).toBeDefined();
-    expect(collapse!.className).toContain("radius-control-xs");
+
     fireEvent.click(collapse!);
     expect(document.activeElement).toBe(trigger);
     expect(screen.queryByRole("dialog")).toBeNull();

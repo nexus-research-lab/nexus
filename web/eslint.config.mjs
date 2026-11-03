@@ -1,3 +1,4 @@
+import { frontendRules } from "./scripts/frontend-lint-rules.mjs";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -14,7 +15,7 @@ export default tseslint.config(
     ],
   },
   {
-    files: ["src/**/*.{ts,tsx}", "visual-review/**/*.{ts,tsx}", "browser-tests/**/*.ts", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"],
+    files: ["src/**/*.{ts,tsx,mjs}", "visual-review/**/*.{ts,tsx}", "browser-tests/**/*.ts", "smoke-tests/**/*.ts", "vite.config.ts", "vitest.config.ts", "playwright.config.ts", "playwright.smoke.config.ts"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
@@ -30,12 +31,16 @@ export default tseslint.config(
       },
     },
     plugins: {
+      nexus: { rules: frontendRules },
       "@typescript-eslint": tseslint.plugin,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
       "jsx-a11y": jsxA11y,
     },
     rules: {
+      "nexus/dependency-direction": "error",
+      "nexus/file-contract": "error",
+      "nexus/semantic-style-owners": "error",
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.flatConfigs.recommended.rules,
       "no-restricted-syntax": [

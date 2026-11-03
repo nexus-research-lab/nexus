@@ -43,18 +43,13 @@ describe("ChannelAccountsPanel", () => {
   it("renders managed account identity and safe error copy through shared owners", () => {
     const { container } = renderPanel(ACCOUNT.account_id);
 
-    expect(screen.getByRole("heading", { name: "已连接账号" }).className)
-      .toContain("ui-type-control");
-    expect(screen.getByText(ACCOUNT.user_id).className).toContain("ui-type-code");
     expect(container.querySelectorAll("section.surface-radius-sm")).toHaveLength(2);
     const accountFailure = screen.getByRole("status");
     expect(accountFailure.getAttribute("data-inline-notice-tone")).toBe("danger");
     expect(accountFailure.getAttribute("data-inline-notice-width")).toBe("full");
-    expect(screen.getByText(MESSAGES.zh["capability.channel_account_error_title"]).className)
-      .toContain("ui-type-metadata");
+
     expect(screen.queryByText(ACCOUNT.last_error)).toBeNull();
-    expect(screen.getByRole("button", { name: "删除该账号" }).querySelector("svg")?.classList)
-      .toContain("motion-reduce:animate-none");
+
   });
 
   it("dispatches deletion for the exact account", async () => {

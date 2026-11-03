@@ -1,6 +1,6 @@
 // INPUT: Build mode, desktop entry selection and local proxy ports.
 // OUTPUT: Web/desktop bundles and independent browser-test dependency caches.
-// POS: Frontend toolchain assembly; browser tests must not share optimized modules with dev or SSR contract servers.
+// POS: Frontend toolchain assembly; browser tests must not share optimized modules with development servers.
 
 import path from "node:path";
 import { defineConfig, loadEnv } from "vite";

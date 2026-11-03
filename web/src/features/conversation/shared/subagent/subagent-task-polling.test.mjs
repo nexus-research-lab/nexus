@@ -1,0 +1,173 @@
+// @vitest-environment node
+
+import assert from "node:assert/strict";
+
+import { test } from "vitest";
+
+test("subagent task changes refresh only the exact source and task", async () => {
+  const {
+    isSubagentTaskChangeFor,
+  } = await import("@/features/conversation/shared/subagent/subagent-task-model.ts");
+  const sessionSource = {
+    kind: "session",
+    session_key: "agent:dev:ws:dm:conversation-1",
+  };
+  const event = {
+    agent_id: "agent-dev",
+    data: { task_ids: ["task-market-research"] },
+    delivery_mode: "ephemeral",
+    event_type: "subagent_task_changed",
+    protocol_version: 2,
+    session_key: sessionSource.session_key,
+    timestamp: Date.now(),
+  };
+
+  assert.equal(isSubagentTaskChangeFor(event, sessionSource), true);
+  assert.equal(
+    isSubagentTaskChangeFor(event, sessionSource, "task-market-research"),
+    true,
+  );
+  assert.equal(isSubagentTaskChangeFor(event, sessionSource, "task-other"), false);
+  assert.equal(
+    isSubagentTaskChangeFor(event, { ...sessionSource, session_key: "other" }),
+    false,
+  );
+  assert.equal(isSubagentTaskChangeFor(event, sessionSource, null, "agent-other"), false);
+
+  const roomEvent = {
+    ...event,
+    conversation_id: "conversation-room",
+    room_id: "room-1",
+    session_key: "room-session",
+  };
+  assert.equal(isSubagentTaskChangeFor(roomEvent, {
+    kind: "room",
+    conversation_id: "conversation-room",
+    room_id: "room-1",
+  }, null, "agent-dev"), true);
+  assert.equal(isSubagentTaskChangeFor(roomEvent, {
+    kind: "room",
+    conversation_id: "conversation-other",
+    room_id: "room-1",
+  }), false);
+
+});
+
+test("subagent title uses the model-provided task description before its generic type", async () => {
+  const {
+    findSubagentTaskByToolUseId,
+    preferFreshSubagentTask,
+    subagentTaskAvatarSeed,
+    subagentTaskTitle,
+  } = await import("@/features/conversation/shared/subagent/subagent-task-model.ts");
+  const { MESSAGES } = await import("@/shared/i18n/messages.ts");
+  const t = (key) => MESSAGES.en[key];
+
+  assert.equal(
+    subagentTaskTitle({
+      agent_type: "Explore",
+      description: "调研 iPhone Air 硬件规格",
+    }, t),
+    "调研 iPhone Air 硬件规格",
+  );
+  assert.equal(
+    subagentTaskTitle({
+      agent_type: "Explore",
+      description: "调研 iPhone Air 硬件规格",
+      name: "硬件规格研究员",
+    }, t),
+    "硬件规格研究员",
+  );
+  assert.equal(subagentTaskTitle({ agent_type: "Explore" }, t), "Explore");
+  assert.equal(subagentTaskTitle({}, t), MESSAGES.en["agent.subagent_name_fallback"]);
+  assert.equal(
+    subagentTaskAvatarSeed({
+      task_id: "task-one",
+      tool_use_id: "tool-agent-one",
+    }),
+    "tool-agent-one",
+  );
+  assert.equal(
+    subagentTaskAvatarSeed({ task_id: "task-legacy" }),
+    "task-legacy",
+  );
+
+  const tasks = [
+    { task_id: "task-one", tool_use_id: "tool-agent-one" },
+    { task_id: "task-two", tool_use_id: "tool-agent-two" },
+  ];
+  assert.equal(
+    findSubagentTaskByToolUseId(tasks, "tool-agent-two"),
+    tasks[1],
+  );
+  assert.equal(findSubagentTaskByToolUseId(tasks, "task-one"), tasks[0]);
+  assert.equal(findSubagentTaskByToolUseId(tasks, "missing"), null);
+
+  const capabilities = {
+    observe: true,
+    transcript: true,
+    stop: true,
+    send_message: true,
+    resume: true,
+  };
+  const staleRunningDetail = {
+    capabilities,
+    runtime_kind: "nxs",
+    status: "running",
+    task_id: "task-one",
+    updated_at: 2_000,
+  };
+  const completedListTask = {
+    ...staleRunningDetail,
+    status: "completed",
+  };
+  assert.equal(
+    preferFreshSubagentTask(completedListTask, staleRunningDetail),
+    completedListTask,
+    "an equally timestamped terminal list projection must beat a stale active detail",
+  );
+  const resumedDetail = {
+    ...staleRunningDetail,
+    updated_at: 3_000,
+  };
+  assert.equal(
+    preferFreshSubagentTask(completedListTask, resumedDetail),
+    resumedDetail,
+    "a newer active detail must expose a resumed task immediately",
+  );
+});
+
+test("room subagent tasks can be scoped to the Agent that launched them", async () => {
+  const { filterSubagentTasksByHostAgent } = await import("@/features/conversation/shared/subagent/subagent-task-list-model.ts");
+  const tasks = [
+    {
+      host_agent_id: "agent-cindy",
+      round_id: "round-previous",
+      task_id: "task-hardware",
+      updated_at: 1_000,
+    },
+    {
+      host_agent_id: "agent-kevin",
+      round_id: "round-current",
+      task_id: "task-market",
+      updated_at: 2_000,
+    },
+    {
+      host_agent_id: "agent-kevin",
+      round_id: "round-current",
+      task_id: "task-release",
+      updated_at: 2_000,
+    },
+    { task_id: "task-legacy" },
+  ];
+
+  assert.deepEqual(
+    filterSubagentTasksByHostAgent(tasks, "agent-cindy"),
+    [tasks[0]],
+  );
+  assert.deepEqual(
+    filterSubagentTasksByHostAgent(tasks, "agent-kevin"),
+    [tasks[1], tasks[2]],
+  );
+  assert.equal(filterSubagentTasksByHostAgent(tasks, null), tasks);
+});

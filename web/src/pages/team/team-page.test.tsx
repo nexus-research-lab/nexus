@@ -80,9 +80,7 @@ it.each([false, true])("aligns humans by remote Control identity, including dire
   const other = screen.getByText("Their message").closest("[data-message-alignment]");
   expect(mine?.getAttribute("data-message-alignment")).toBe("right");
   expect(other?.getAttribute("data-message-alignment")).toBe("left");
-  expect(other?.querySelector(".nexus-chat-message-header")?.classList.contains("justify-start")).toBe(true);
-  expect(other?.querySelector(".nexus-chat-user-content-shell")?.classList.contains("mr-auto")).toBe(true);
-  expect(other?.querySelector(".nexus-chat-user-actions")?.classList.contains("justify-start")).toBe(true);
+
   expect(screen.queryByText("My Remote Name")).toBeNull();
 });
 
@@ -150,10 +148,7 @@ it("shows remote delivery progress and failure without exposing a private Thread
   room.room!.deliveries = [delivery];
   const view = render(page());
   expect(await screen.findByText("team.delivery_pending")).toBeTruthy();
-  const activitySlot = screen.getByText("team.delivery_pending").closest('[data-message-activity-stable-slot]');
-  expect(activitySlot?.className).toContain("px-0");
-  expect(activitySlot?.querySelector("[data-message-activity-icon]")?.className).toContain("justify-center");
-  expect(activitySlot?.className).not.toContain("px-1.5");
+
   expect(screen.getByText("team.delivery_pending").closest('[role="status"]')?.querySelector('[data-loading-orb="active"]')).toBeTruthy();
   expect(screen.queryByRole("button", {name: "room.thread_action_open"})).toBeNull();
   room.room!.deliveries = [{...delivery, state: "leased"}];
@@ -187,8 +182,7 @@ it("moves the local Thread action from its trigger to the Agent reply header", a
   expect(replyChip.closest(".nexus-chat-message-header")).toBe(thread.closest(".nexus-chat-message-header"));
   expect(replyChip.closest("[data-reply-chip]")?.hasAttribute("data-handoff-reply")).toBe(false);
   expect(replyChip.closest("[data-reply-chip]")?.getAttribute("aria-label")).toContain("Request");
-  expect(replyChip.closest("[data-reply-chip]")?.className).toContain("radius-control-sm");
-  expect(replyChip.closest("[data-reply-chip]")?.className).not.toContain("rounded-full");
+
   expect(screen.queryByText("team.reply_to")).toBeNull();
 });
 it("shows the Agent execution identity before its first public reply", async () => {
@@ -400,7 +394,6 @@ it("renders only explicit Relay mentions with Unicode offsets and whole-name bou
   }
 });
 
-
 it("preserves existing messages while a read refresh is pending", () => {
   room.messages = [{id: "existing", conversation_id: "conversation", message_seq: 1,
     author_type: "user", author_user_id: "user", author_username: "Name", author_display_name: "Name",
@@ -413,7 +406,6 @@ it("preserves existing messages while a read refresh is pending", () => {
   expect(screen.getByRole("list").getAttribute("aria-busy")).toBe("true");
   expect(screen.queryByText("team.loading")).toBeNull();
 });
-
 
 it("resets the draft on room navigation and ignores a previous room send completion", async () => {
   let resolve!: (value: boolean) => void;

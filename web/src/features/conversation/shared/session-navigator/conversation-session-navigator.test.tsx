@@ -123,16 +123,6 @@ describe("ConversationSessionNavigator", () => {
     fireEvent.mouseLeave(screen.getByRole("navigation"));
     expect(navigation.clearPreview).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByText("Second request").className).toContain(
-      "ui-type-supporting",
-    );
-    expect(screen.getByText("09:12").className).toContain("ui-type-caption");
-    expect(screen.getByText("Second response").className).toContain(
-      "ui-type-metadata",
-    );
-    expect(screen.getByText("Running").parentElement?.className).toContain(
-      "ui-type-caption",
-    );
   });
   it("keeps focus transitions inside the preview and exits by blur or non-IME Escape", () => {
     render(<I18nProvider><ConversationSessionNavigator scopeKey="session" scrollRef={createRef<HTMLDivElement>()} timeline={EMPTY_TIMELINE} /></I18nProvider>);

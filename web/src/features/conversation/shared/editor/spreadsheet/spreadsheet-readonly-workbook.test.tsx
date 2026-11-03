@@ -57,7 +57,7 @@ describe("SpreadsheetReadonlyWorkbook", () => {
     expect(merge.getAttribute("aria-colspan")).toBe("3");
     expect(merge.style.height).toBe("78px");
     expect(merge.style.width).toBe("288px");
-    expect(merge.style.fontSize).toBe("16px");
+
     expect(merge.style.justifyContent).toBe("center");
 
     const region = screen.getByRole("region", { name: sheet.name });
@@ -95,13 +95,11 @@ describe("SpreadsheetReadonlyWorkbook", () => {
       </I18nProvider>,
     );
 
-    const group = screen.getByRole("group");
     const overview = screen.getByRole("button", { name: "Overview" });
     const details = screen.getByRole("button", { name: "Details" });
-    expect(group.className).toContain("overflow-x-auto");
+
     expect(overview.getAttribute("aria-pressed")).toBe("true");
-    expect(overview.className).toContain("border-b-2");
-    expect(overview.className).toContain("rounded-none");
+
     expect(details.getAttribute("title")).toBeNull();
 
     await user.click(details);

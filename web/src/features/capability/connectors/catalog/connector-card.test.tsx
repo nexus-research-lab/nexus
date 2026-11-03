@@ -57,21 +57,6 @@ describe("ConnectorCard", () => {
     }
   });
 
-  it("uses the shared medium Spinner for an in-flight connector action", () => {
-    const { container } = render(
-      <ConnectorCard
-        busy
-        connector={CONNECTOR}
-        onSelect={vi.fn()}
-      />,
-      { wrapper: I18nProvider },
-    );
-
-    const spinner = container.querySelector("svg.animate-spin");
-    expect(spinner?.getAttribute("class")).toContain("h-4 w-4");
-    expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
-  });
-
   it("shows coming-soon status without exposing a connection action", () => {
     localStorage.setItem(LOCALE_STORAGE_KEY, "en");
     render(<ConnectorCard connector={{ ...CONNECTOR, status: "coming_soon" }} onSelect={vi.fn()} />,

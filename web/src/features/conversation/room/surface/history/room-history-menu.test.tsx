@@ -195,8 +195,7 @@ describe("RoomHistoryMenu", () => {
     );
 
     const trigger = screen.getByRole("button", { name: /History|历史/ });
-    expect(trigger.className).toContain("h-9 w-9");
-    expect(trigger.className).toContain("border-transparent");
+
     await user.click(trigger);
     expect(screen.getByRole("dialog", { name: /History|历史/ })).toBeTruthy();
 

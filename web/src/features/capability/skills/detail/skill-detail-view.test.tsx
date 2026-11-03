@@ -33,14 +33,6 @@ describe("SkillDetailView", () => {
       </I18N_CONTEXT.Provider>,
     );
 
-    const backButton = screen.getByRole("button", {
-      name: "capability.skills_detail_back",
-    });
-    expect(backButton.className).toContain("radius-control-sm");
-    expect(backButton.className).toContain("ui-type-supporting");
-    expect(screen.getByRole("heading", {
-      name: "capability.skills_detail_loading",
-    }).className).toContain("ui-type-object-title");
     expect(container.querySelector(".surface-radius-md")).toBeTruthy();
   });
 

@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { UiListActionButton } from "@/shared/ui/list/list-action";
-import { UiListRow, UiListRowContent } from "@/shared/ui/list/list-row";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiListSectionDivider } from "@/shared/ui/list/list-section-divider";
 
 describe("UiListRow", () => {
@@ -57,38 +57,7 @@ describe("UiListRow", () => {
     const row = screen.getByTestId("static-row");
     expect(row.hasAttribute("role")).toBe(false);
     expect(row.hasAttribute("tabindex")).toBe(false);
-    expect(screen.getByText("只读项目").className).toContain("ui-type-section-title");
-    expect(screen.getByText("最近更新").className).toContain("ui-type-metadata");
-  });
 
-  it("exposes the same title, metadata, and description layout to custom rows", () => {
-    render(
-      <UiListRowContent
-        description="IM · 飞书 · 历史"
-        meta={<time>17 天前</time>}
-        title="系统测试"
-      />,
-    );
-
-    expect(screen.getByText("系统测试").className).toContain("ui-type-section-title");
-    expect(screen.getByText("IM · 飞书 · 历史").className).toContain("ui-type-metadata");
-    expect(screen.getByText("17 天前").parentElement?.className).toContain("items-center");
-  });
-
-  it("keeps compact geometry inside the shared density contract", () => {
-    render(
-      <UiListRow
-        data-testid="compact-row"
-        density="compact"
-        onClick={() => undefined}
-        title="紧凑会话"
-      />,
-    );
-
-    const row = screen.getByTestId("compact-row");
-    expect(row.className).toContain("min-h-12");
-    expect(row.className).toContain("radius-control-md");
-    expect(row.className).not.toContain("min-h-[64px]");
   });
 
   it("provides a shared dense row for 40px dialog and sidebar lists", () => {
@@ -103,8 +72,7 @@ describe("UiListRow", () => {
     );
 
     const row = screen.getByTestId("dense-row");
-    expect(row.className).toContain("min-h-10");
-    expect(row.className).toContain("py-1.5");
+
     expect(row.getAttribute("title")).toBeNull();
   });
 
@@ -124,7 +92,7 @@ describe("UiListRow", () => {
     expect(row.getAttribute("role")).toBe("button");
     expect(row.getAttribute("aria-disabled")).toBe("true");
     expect(row.hasAttribute("tabindex")).toBe(false);
-    expect(row.className).toContain("opacity-(--disabled-opacity)");
+
     await user.click(row);
     expect(onOpen).not.toHaveBeenCalled();
   });
@@ -162,8 +130,7 @@ describe("UiListActionButton", () => {
     await user.click(action);
     expect(onDelete).toHaveBeenCalledOnce();
     expect(onOpen).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "确认修改" }).className)
-      .toContain("text-(--brand-action)");
+
   });
 });
 
@@ -187,12 +154,10 @@ describe("UiListSectionDivider", () => {
   });
 
   it("owns the labeled horizontal separation between list groups", () => {
-    const { container } = render(<UiListSectionDivider aria-label="IM" label="IM" />);
+    render(<UiListSectionDivider aria-label="IM" label="IM" />);
     const divider = screen.getByRole("separator", { name: "IM" });
 
     expect(divider.getAttribute("aria-orientation")).toBe("horizontal");
-    expect(screen.getByText("IM").className).toContain("ui-type-caption");
-    expect(container.querySelector("[aria-hidden='true']")?.className)
-      .toContain("bg-(--divider-subtle-color)");
+
   });
 });

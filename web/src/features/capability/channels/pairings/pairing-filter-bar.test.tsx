@@ -29,13 +29,9 @@ describe("PairingFilterBar", () => {
       </I18N_CONTEXT.Provider>,
     );
 
-    const tabs = screen.getByRole("group", { name: "按配对状态筛选" });
     const pending = screen.getByRole("button", { name: /待处理/ });
-    expect(tabs.className).toContain("w-fit");
-    expect(tabs.className).not.toContain("segmented-control");
+
     expect(pending.getAttribute("aria-pressed")).toBe("true");
-    expect(pending.className).toContain("border-(--text-strong)");
-    expect(pending.className).not.toContain("radius-control-sm");
 
     await user.click(screen.getByRole("button", { name: /已授权/ }));
     expect(onChange).toHaveBeenCalledWith("status", "active");

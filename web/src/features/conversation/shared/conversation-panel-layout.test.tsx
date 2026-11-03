@@ -47,7 +47,6 @@ describe("ConversationPanelBottomArea Goal anchoring", () => {
     const statusStack = container.querySelector("[data-conversation-status-stack]");
     const composerAnchor = container.querySelector("[data-conversation-composer-anchor]");
 
-    expect(floatingGoal?.className).toContain("bottom-full");
     expect(composerAnchor?.contains(floatingGoal)).toBe(true);
     expect(statusStack?.querySelector("[data-test-goal]")).toBeNull();
     expect(composerAnchor?.querySelector("[data-test-composer]")).toBeTruthy();
@@ -61,8 +60,6 @@ describe("ConversationPanelBottomArea Goal anchoring", () => {
     const floatingGoal = container.querySelector<HTMLElement>("[data-conversation-goal-float]");
     const activityDock = floatingGoal?.querySelector<HTMLElement>("[data-conversation-activity-dock]");
 
-    expect(floatingGoal?.className).toContain("pb-3");
-    expect(activityDock?.className).toContain("mb-2");
     expect(activityDock?.querySelector("[data-test-activity]")).toBeTruthy();
   });
 

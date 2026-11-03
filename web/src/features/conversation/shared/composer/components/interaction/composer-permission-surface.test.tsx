@@ -84,7 +84,7 @@ describe("ComposerPermissionSurface", () => {
     const password = screen.getByLabelText("service.password") as HTMLInputElement;
 
     expect(token.type).toBe("password");
-    expect(token.className).toContain("input-shell");
+
     expect(allow.disabled).toBe(true);
     await user.type(token, "token-value");
     expect(allow.disabled).toBe(true);

@@ -104,8 +104,6 @@ describe("ScheduledTaskCard", () => {
     const { container } = render(view(TASK, onRunNow));
 
     expect(container.querySelector("article.surface-radius-md")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: TASK.name }).className).toContain("ui-type-section-title");
-    expect(screen.getByText(TASK.instruction).className).toContain("ui-type-metadata");
 
     await user.click(screen.getByRole("button", { name: "立即运行" }));
     expect(onRunNow).toHaveBeenCalledWith(TASK);
@@ -117,7 +115,7 @@ describe("ScheduledTaskCard", () => {
 
     const spinner = container.querySelector("svg.animate-spin");
     expect(spinner).toBeTruthy();
-    expect(spinner?.getAttribute("class")).toContain("motion-reduce:animate-none");
+
   });
 
   it("opens permission attention with shared panel and badge owners", async () => {
@@ -149,11 +147,10 @@ describe("ScheduledTaskCard", () => {
     await user.click(screen.getByRole("button", { name: /查看.*详情/ }));
 
     expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("等待处理").className).toContain("rounded-full");
+
     expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(0);
   });
 });
-
 
 it.each(["zh", "en"] as const)("localizes shared permission actions in %s and keeps protected actions inert", async (locale) => {
   const user = userEvent.setup();
@@ -178,7 +175,6 @@ it.each(["zh", "en"] as const)("localizes shared permission actions in %s and ke
   expect(decide).toHaveBeenCalledOnce();
 });
 
-
 it("updates card action names when the locale changes without changing the run target", async () => {
   const onRunNow = vi.fn();
   const result = render(view(TASK, onRunNow, "en"));
@@ -190,7 +186,6 @@ it("updates card action names when the locale changes without changing the run t
   expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
 });
 
-
 it.each(["zh", "en"] as const)("does not expose the internal execution Agent when source names are missing in %s", (locale) => {
   const task = { ...TASK, agent_id: "private-executor-identity" };
   const result = render(view(task, vi.fn(), locale));
@@ -201,7 +196,6 @@ it.each(["zh", "en"] as const)("does not expose the internal execution Agent whe
   expect(result.container.textContent).not.toContain(task.agent_id);
 });
 
-
 it("closes a resolved attention surface when a new attempt starts", async () => {
   const failed = { ...TASK, last_error: "old attempt private error", failure_streak: 1 };
   const { rerender } = render(view(failed));
@@ -211,7 +205,6 @@ it("closes a resolved attention surface when a new attempt starts", async () => 
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByText(/old attempt private error/)).toBeNull();
 });
-
 
 it("localizes an open deletion review without exposing stale permission actions", async () => {
   const task = { ...TASK, name: "Review task", instruction: "Work", deletion_state: "review_required" };

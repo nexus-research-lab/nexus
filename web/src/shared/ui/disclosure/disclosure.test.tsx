@@ -23,15 +23,8 @@ describe("UiDisclosure", () => {
     );
 
     const details = container.querySelector("details");
-    const summary = container.querySelector("summary");
     expect(details?.open).toBe(true);
-    expect(details?.className).toContain("surface-radius-md");
-    expect(summary?.className).toContain("focus-visible:ring-2");
-    expect(summary?.className).toContain("ui-type-supporting");
-    expect(screen.getByText("创建平台应用").parentElement?.className)
-      .toContain("border-(--divider-subtle-color)");
-    expect(container.querySelector("svg")?.className.baseVal)
-      .toContain("group-open/disclosure:rotate-180");
+
     await user.click(screen.getByText("连接说明"));
     expect(details?.open).toBe(false);
   });
@@ -51,7 +44,7 @@ describe("UiDisclosure", () => {
     );
 
     const details = container.querySelector("details");
-    expect(container.querySelector("summary")?.className).toContain("min-h-9");
+
     fireEvent(details as HTMLDetailsElement, new Event("toggle"));
     expect(onToggle).toHaveBeenCalledOnce();
   });

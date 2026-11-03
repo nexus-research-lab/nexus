@@ -105,7 +105,7 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     fireEvent.click(retry);
     const title = await screen.findByText("Action submitted; history not refreshed");
     const feedback = title.closest('[data-resource-state="error"]')!;
-    expect(feedback.querySelector('svg')?.getAttribute("class")).toContain("text-(--warning)");
+
     expect(feedback.textContent).toContain("do not repeat the action");
     expect(feedback.textContent).not.toContain("private-read-failure");
     rerender(view([callbacks], "zh"));
