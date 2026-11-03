@@ -7,5 +7,8 @@
 // Screenshots use native MCP image blocks, never JSON text or structured data.
 // Observe includes screenshots by default while explicit false permits metadata
 // recovery. The model input boundary normalizes key casing and Return/Esc aliases.
+// Error Content and structured receipts both retain mutation status and recovery
+// fields; background capture errors spell out both metadata-only observe options.
+// Capability output distinguishes authorization kinds from restore_window's model alias.
 // launch.go adapts separately approved application lifecycle commands.
 package computer

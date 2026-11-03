@@ -149,4 +149,29 @@ func TestRejectedPreservesCUARecoveryFields(t *testing.T) {
 	if result.StructuredContent["recovery_action"] != recovery {
 		t.Fatalf("recovery_action = %#v", result.StructuredContent["recovery_action"])
 	}
+	var modelData map[string]any
+	if err := json.Unmarshal([]byte(result.Content[0]["text"].(string)), &modelData); err != nil {
+		t.Fatalf("model cannot read structured recovery: %v", err)
+	}
+	if modelData["recovery_action"] != recovery || modelData["mutation_status"] != string(nexuscua.MutationIndeterminate) {
+		t.Fatal("model-visible error lost recovery or indeterminate evidence")
+	}
+}
+
+func TestBackgroundCaptureFailureExplainsMetadataRecoveryToModel(t *testing.T) {
+	recovery := "focus_window"
+	for _, status := range []nexuscua.MutationStatus{nexuscua.MutationNotApplicable, nexuscua.MutationIndeterminate} {
+		result := rejected(&nexuscua.CUAError{Code: nexuscua.ErrorTargetUnavailable, Message: "capture target remained suspended or blank", RecoveryAction: &recovery, MutationStatus: status, Retryable: true})
+		var modelData map[string]any
+		if err := json.Unmarshal([]byte(result.Content[0]["text"].(string)), &modelData); err != nil {
+			t.Fatal(err)
+		}
+		if status == nexuscua.MutationIndeterminate {
+			if modelData["recovery_hint"] != nil {
+				t.Fatal("indeterminate mutation suggested automatic focus replay")
+			}
+		} else if hint, _ := modelData["recovery_hint"].(string); !strings.Contains(hint, "include_screenshot=false AND accessibility=disabled") {
+			t.Fatal("metadata recovery omitted one of its required options")
+		}
+	}
 }

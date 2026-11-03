@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Preserve Computer Use recovery fields in model-visible error text and explain both required options for background-window metadata recovery.
 - Fix Computer Use screenshot responses getting stuck at the bridge's default 1 MiB message limit: use a bounded 32 MiB budget and close failed runtime streams before waiting for process exit.
 - Remember the exact selected Computer Use window, include screenshots by default, normalize common key spellings, and correct the read-operation request ID guidance.
 - Preserve macOS CUA authority during input between actions with a bounded idle wait and fresh observation; keep immediate cancellation and explicit reauthorization for takeover during native dispatch.

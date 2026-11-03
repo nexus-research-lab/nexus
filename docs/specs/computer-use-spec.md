@@ -39,6 +39,11 @@ settings computer-use
 显式 `include_screenshot=false` 保留元数据恢复路径。按键在 MCP 输入边界忽略大小写，
 Return/Esc 分别规范为 enter/escape；Runtime 保留最终支持范围校验。
 动作失败可能已消耗 observation，`stale_observation` 不表示 session 到期。
+错误的模型可见 Content 与宿主 StructuredContent 同时保留 error_code、mutation_status、
+retryable 和 recovery_action。后台截图失败额外明确元数据恢复必须同时传
+`include_screenshot=false` 与 `accessibility="disabled"`；只禁用 AX 不会禁用截图。
+`get_computer.actions` 是授权类别，`action_schema` 是模型动作参数；`action_aliases`
+明确 `restore_window` 使用 `set_window_minimized` 授权，不能把两者误判为能力缺失。
 
 
 ## 动作后观察与接管

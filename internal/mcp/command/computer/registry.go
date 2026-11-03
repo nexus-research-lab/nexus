@@ -122,6 +122,14 @@ func (r registry) getComputer() command.Operation {
 			if limits, ok := value["action_limits"].(nexuscua.ActionLimits); ok {
 				value["action_schema"] = boundedActionSchema(limits)
 			}
+			if actions, ok := value["actions"].([]nexuscua.ActionKind); ok {
+				for _, action := range actions {
+					if action == nexuscua.ActionSetWindowMinimized {
+						value["action_aliases"] = map[string]string{"restore_window": "set_window_minimized"}
+						value["action_names_hint"] = "actions lists authorization kinds. perform_action uses action_schema names: restore_window restores a window using the set_window_minimized grant."
+					}
+				}
+			}
 			return structured(value), nil
 		},
 	}
@@ -155,7 +163,7 @@ func (r registry) selectTarget() command.Operation {
 		SearchHint:  "computer select target app application session 选择目标 应用 会话",
 		InputSchema: objectSchema(map[string]any{
 			"selector":               stringProperty("Exact application name or stable application id returned by list_applications.", 1, 256),
-			"allowed_actions":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Requested subset of get_computer.actions; omitted means all exposed actions shown for approval."},
+			"allowed_actions":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Requested authorization kinds from get_computer.actions; restore_window requires the set_window_minimized grant. Omitted means all exposed actions shown for approval."},
 			"allow_foreground_input": map[string]any{"type": "boolean", "description": "Explicit foreground-input authority; defaults to false."},
 			"ttl_seconds":            map[string]any{"type": "integer", "minimum": 1, "description": "Upper bound, capped by the round and runtime limits."},
 		}, "selector"),
@@ -184,7 +192,7 @@ func (r registry) selectTarget() command.Operation {
 func (r registry) observe() command.Operation {
 	return command.Operation{
 		Name:        "observe",
-		Description: "Capture a fresh observation for the selected target window. Use the returned observation_id and element_ref values only for the current round and before the next mutation.",
+		Description: "Capture a fresh observation for the selected window; screenshots default to true. Metadata-only recovery requires BOTH include_screenshot=false and accessibility=disabled. Use fresh observation_id and element_ref values only before the next mutation.",
 		SearchHint:  "computer observe screenshot accessibility window observation 观察 截图 无障碍窗口",
 		InputSchema: observeSchema(),
 		ReadOnly:    true,
@@ -538,7 +546,7 @@ func observeSchema() map[string]any {
 		"window_selector":    stringProperty("Optional exact window ref or title. Omit to reuse the selected window if it still exists, or select the only available window.", 0, 256),
 		"include_screenshot": map[string]any{"type": "boolean", "default": true, "description": "Include the screenshot needed for pixel actions. Set false only for metadata recovery."},
 		"application_scene":  map[string]any{"type": "boolean", "description": "Capture this application and its menus on the anchor display when advertised."},
-		"accessibility":      enumProperty("Accessibility payload size mode.", "interactive", "disabled", "full"),
+		"accessibility":      enumProperty("Accessibility payload size mode. disabled does not disable the screenshot; metadata-only reads also require include_screenshot=false.", "interactive", "disabled", "full"),
 	})
 }
 
@@ -651,15 +659,19 @@ func rejected(err error) command.Result {
 	if errors.As(err, &cuaErr) {
 		data["error_code"] = cuaErr.Code
 		data["mutation_status"] = cuaErr.MutationStatus
+		data["retryable"] = cuaErr.Retryable
 		if cuaErr.RecoveryAction != nil {
 			data["recovery_action"] = *cuaErr.RecoveryAction
+			if *cuaErr.RecoveryAction == "focus_window" && cuaErr.MutationStatus != nexuscua.MutationIndeterminate {
+				data["recovery_hint"] = "For the same selected window, call observe with include_screenshot=false AND accessibility=disabled. Then perform one authorized focus_window and observe again. Do not reopen the target session. If recovery fails again, report the error."
+			}
 		}
 	}
-	return command.Result{
-		Content:           []map[string]any{{"type": "text", "text": message}},
-		StructuredContent: data,
-		IsError:           true,
-	}
+	// Runtimes may expose only MCP Content to the model. Recovery and mutation
+	// evidence must be present there as well as in the host's structured receipt.
+	result := structured(data)
+	result.IsError = true
+	return result
 }
 
 func cloneMap(input map[string]any) map[string]any {
