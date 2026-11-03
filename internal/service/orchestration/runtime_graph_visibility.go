@@ -318,3 +318,26 @@ func runtimeGraphCanonicalToolLeaf(name string) string {
 	}
 	return result.String()
 }
+
+// PrepareRuntimeGraphRead classifies only intrinsic detail-only tools. Storage
+// must still retain failures, artifact/control endpoints, ancestors and the
+// latest success after a failure before applying the independent detail window.
+func PrepareRuntimeGraphRead(node protocol.ExecutionRuntimeNodeRun) protocol.ExecutionRuntimeNodeRun {
+	node.WorkGraphReadClass, node.RecoveryKey = "", ""
+	if node.Kind != protocol.ExecutionRuntimeNodeTool {
+		return node
+	}
+	leaf := runtimeGraphCanonicalToolLeaf(node.Name)
+	owner := node.ParentSubjectID
+	if owner == "" {
+		owner = node.AgentRoundID
+	}
+	if owner != "" && leaf != "" {
+		node.RecoveryKey = stableRuntimeGraphID("runtime_recovery", node.AgentID, owner, leaf)
+	}
+	// Agent launch records carry exact ownership evidence for old Subagent runs.
+	if leaf != "agent" && leaf != "task" && !runtimeGraphVisibilityHint(node) && !runtimeGraphToolActionVisible(node) && !runtimeGraphNodeHasCanvasArtifact(node) {
+		node.WorkGraphReadClass = "detail"
+	}
+	return node
+}

@@ -1,5 +1,5 @@
 // INPUT: 已提交的 Execution/Runtime Graph mutation 与 owner/session identity。
-// OUTPUT: 不携带业务写权限的 WorkGraph 失效通知，供 transport 重新拉取只读投影。
+// OUTPUT: 仅 managed Execution 的 WorkGraph 失效通知；普通对话运行事实不刷新历史工作图。
 // POS: orchestration 到实时传输层的窄事件 port；服务不依赖 handler 或 WebSocket。
 package orchestration
 
@@ -38,8 +38,8 @@ func (s *Service) invalidateMutationResult(
 }
 
 // ExecutionInvalidation 是一次 durable WorkGraph 读取失效事实。
-// ExecutionID/Version 可在 planless、撤销或 identity fence 场景为空/0；
-// OwnerUserID + SessionKey 始终决定唯一广播范围。
+// Version 只描述责任状态；runtime 事件使用 0，不能用 Execution CAS 版本去重。
+// 空 identity 的 bind/rebind fence 由 transport 单独发送。
 type ExecutionInvalidation struct {
 	OwnerUserID string
 	SessionKey  string
@@ -78,6 +78,11 @@ func (s *Service) invalidateSnapshot(
 }
 
 func (s *Service) invalidateActor(ctx context.Context, actor ActorContext) {
+	// Conversation-only runtime facts do not change the managed WorkGraph.
+	// The command that creates or binds a Plan emits its own snapshot event.
+	if actor.ExecutionID == "" {
+		return
+	}
 	s.invalidateExecution(ctx, ExecutionInvalidation{
 		OwnerUserID: strings.TrimSpace(actor.OwnerUserID),
 		SessionKey:  strings.TrimSpace(actor.SessionKey),

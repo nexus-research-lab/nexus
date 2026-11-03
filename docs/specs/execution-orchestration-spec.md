@@ -9,7 +9,7 @@ WorkGraph execution:
 - the user Goal control command and its continuation boundary;
 - the durable Plan and responsibility model;
 - the authority of coordinator, worker, reviewer, and Subagent rounds;
-- the atomic semantics of the 12 Execution operations and 5 Goal operations;
+- the atomic semantics of the 13 Execution operations and 5 Goal operations;
 - transaction, idempotency, reconciliation, and terminal-state invariants;
 - current limits that callers and UI code must preserve.
 
@@ -96,7 +96,8 @@ Transport chooses owner, session, conversation, and responsible Agent; it never
 chooses a different lifecycle. "Dialogue" means the user asks the active model;
 "Composer" means the trusted host control above the input box accepts the Goal
 before any model continuation starts. These are eight product entry paths, not
-eight tool variants. Every model command loads its exact contract before invoke.
+eight tool variants. Commands use the exact operation contract; Execution may reuse
+a contract already supplied in the current physical round (§5.2).
 
 | Entry | Command sequence | Resulting state and authority |
 | --- | --- | --- |
@@ -587,7 +588,8 @@ External channel admission is a separate policy layer, not a substitute for thes
   `input`, `request_id`, and the explicit revision/digest fields used by Automation.
 - `contract` loads only the requested operation schema; `inspect` performs one
   actor-filtered read; `invoke` resolves the operation from the in-process directory.
-  A mutation must load the fresh exact contract first.
+  Execution may reuse the exact schema already returned or host-injected in this
+  physical round; schema reuse never caches authority or skips input validation.
 - Business input travels directly through the SDK `stream-json` MCP call. Nexus
   creates no temporary input file, writable staging root, shell process,
   environment capability, capability token, loopback broker, or command shim.
@@ -606,16 +608,30 @@ External channel admission is a separate policy layer, not a substitute for thes
 ### 5.2 Agent-facing command sequences
 
 DM and Room use the same tool. Host-bound identity is never accepted from model
-input. Read operations map to `inspect` and never go through `invoke`.
+input. Fixed current-state reads map to `inspect`; authoring reads keep their
+registered `invoke` route. For Execution, consume the current injected context or
+latest mutation receipt first. Inspect when it is missing, marked
+`refresh_required`, or an unbound Room coordinator must explicitly enter
+coordination. Reuse an exact schema already visible in this physical round; fetch
+`contract` only when it is absent or no longer visible after compaction. Validation
+errors return the authoritative schema directly. Latest bindings and allowed
+actions still govern every call, and the service reloads state and checks revisions.
 
 | Business operation | Exact tool sequence | Design boundary |
 | --- | --- | --- |
 | `get_goal` | `{"domain":"goal","action":"inspect"}` | Current Goal only; no input. |
 | `create_goal`, `retarget_goal`, `audit_objective_alignment`, `update_goal` | Goal inspect → exact contract → `invoke` with business `input` and a stable `request_id` | Goal id, revision, owner, Agent, Room lead, and round remain host facts. |
 | `get_execution` (current or historical) | Execution inspect; historical reads add only `input.execution_id` | Historical selection is non-authorizing and never changes the current Execution. |
-| `prepare_plan_execution` | Execution inspect → exact contract → `invoke` with the complete Plan input | Strictly validates and durably seals a complete proposal without materializing the WorkGraph. |
-| `plan_execution` | Exact contract → `invoke` with `{}` and a stable `request_id` | Atomically materializes only the host-bound sealed proposal under retry, CAS, and Goal-revision fences. |
-| Remaining Execution mutations | Execution inspect → exact contract → `invoke` with current business input and stable `request_id` | Schemas stay visible; current service state and exact bindings decide authority. |
+| `prepare_plan_execution` | Current context + exact schema → `invoke` with the complete Plan input | Strictly validates and durably seals a complete proposal without materializing the WorkGraph. |
+| `plan_execution` | Available exact schema → `invoke` with `{}` and a stable `request_id` | Atomically materializes only the host-bound sealed proposal under retry, CAS, and Goal-revision fences. |
+| Remaining Execution mutations | Current context + exact schema → `invoke` with current business input and stable `request_id` | Schemas stay visible; current service state and exact bindings decide authority. |
+
+Input validation reports all independent field errors in stable order before
+calling a domain handler. Operation input errors include the same `input_schema`
+used by `contract` and `executed: false`; supplied values are not echoed. Room
+work and review dispatches include the canonical `submit_work` and `review_work`
+schemas respectively, injected by app composition so orchestration and realtime
+services do not import MCP. Dispatch text supplies fields, never authority.
 
 A stable `request_id` identifies one semantic intent and is reused for retries.
 Changing operation, target, or input requires a new ID. No transport path is
@@ -774,7 +790,7 @@ root_round_id
 
 ## 6. Execution operations
 
-The Execution directory exposes exactly 12 operations through round-scoped
+The Execution directory exposes exactly 13 operations through round-scoped
 `nexus.command`. Each owns one atomic control-plane transition; `contract`,
 `inspect`, and `invoke` are transport actions, not business operations.
 
@@ -785,6 +801,7 @@ The Execution directory exposes exactly 12 operations through round-scoped
 | `plan_execution` | Resolve the host-owned exact proposal from empty model input and materialize it as `create`, `replan`, or `replace` under CAS, identity, base-Plan, and Goal fences. Transactional and idempotent; Plan Mode rejects it. |
 | `abandon_execution` | Cancel a transient unbound Execution and atomically release/cancel its live chain. A Goal-bound Execution must use Goal retarget instead. |
 | `assign_work` | Assign one ready Work Item to one owner; create the pending root Attempt plus Room dispatch when required. Never creates parallel current owners. |
+| `assign_work_batch` | Coordinator declares multiple ready assignments in one bounded command; all owners, root Attempts, dispatch outboxes and audit events commit under one Execution CAS, or none do. |
 | `submit_work` | Append one immutable Submission and correlate/complete the current Attempt. Hard dependents stay locked until Acceptance. |
 | `review_work` | Append one Acceptance decision (see below). |
 | `block_work` | Move the Work Item to `waiting_input` for a specific external input/authority blocker. Rejected while an unreviewed Submission exists. |
@@ -792,6 +809,21 @@ The Execution directory exposes exactly 12 operations through round-scoped
 | `take_over_work` | Coordinator-only atomic replacement: release the old Assignment, interrupt/cancel its chain, create a fresh Assignment/Attempt/dispatch. Rejected while an unreviewed Submission exists. |
 | `audit_execution_alignment` | Append an optional visible three-state objective-alignment gate to a current Execution; terminal Execution rejects it. It transitions no work, reroutes, retries, starts no Goal, completes no Execution, and never satisfies Goal `audit_objective_alignment`. |
 | `promote_execution_to_goal` | Bind a compatible transient Execution to a newly created durable Goal, preserving Plan and history without copying the Plan, under objective, state, configuration, authority, and exact binding fences. |
+
+`assign_work_batch` uses the same readiness and target authorization as
+`assign_work`. All items belong to the same current Execution and active Plan;
+duplicates reject the whole batch. At most one self assignment is allowed, last
+in the batch, and its Room WorkBinding is installed only after commit. DM therefore
+admits only a single self item. A work/review lane cannot create new coordinator
+assignments. Each assignment keeps its own event; an aggregate event binds the
+request to its exact business-input digest. Authorized replay produces no new
+Assignments/Attempts/outbox entries. Reusing that ID for a different input is
+rejected. Replay may restore only the original self Assignment and root Attempt
+while both remain current; replacement/resumed chains never inherit that receipt.
+The commit wakes the existing durable dispatch/recovery loops once. Ready nodes
+with no declared owner remain unscheduled; sibling responsibilities assigned to
+one Room member remain serial. Runtime completion alone still creates neither a
+Submission nor an Acceptance.
 
 For an active Execution, coordinator `next_actions` recommends `take_over_work` when an open current Assignment has a failed/interrupted latest root Attempt and no unreviewed Submission. The recommendation requires reconciliation of existing outputs and side effects before replacement; it does not automatically wake the coordinator or replay work.
 

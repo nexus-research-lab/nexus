@@ -45,6 +45,7 @@ import {
 import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import type { ExecutionResource } from "./use-execution-resource";
 import { useWorkGraphHistoryResource } from "./use-workgraph-history-resource";
+import { useExecutionViewResource } from "./use-execution-view-resource";
 import { WorkGraphDistillationDialog } from "./workgraph-distillation-dialog";
 
 type WorkGraphSurfaceMode = "current" | "history";
@@ -102,10 +103,18 @@ export function ExecutionWorkGraphSurface({
   const currentExecution = hasManagedExecutionGraph(resource.execution)
     ? resource.execution
     : null;
-  const historyExecution = historyResource.history.find(
-    (item) => item.id === selectedHistoryId,
-  ) ?? historyResource.history[0] ?? null;
-  const execution = mode === "history" ? historyExecution : currentExecution;
+  const historyDetail = useExecutionViewResource(
+    resource.sessionKey,
+    mode === "history"
+      ? historyResource.history.find((item) => item.id === selectedHistoryId)?.id
+        ?? historyResource.history[0]?.id ?? null
+      : null,
+  );
+  const execution = mode === "history" ? historyDetail.execution : currentExecution;
+  const historyError = historyResource.error ?? historyDetail.error;
+  const historyLoading = historyResource.isLoading || historyDetail.isLoading;
+  const historyStale = Boolean(historyError && historyDetail.execution);
+  const refreshHistory = () => { historyResource.refresh(); historyDetail.refresh(); };
   const sketchScopeKey = `${sessionScopeKey}\u0000${execution?.id ?? ""}`;
   const [sketchPreview, setSketchPreview] = useResettableState<
     WorkGraphWorkflowPreview | null
@@ -155,10 +164,10 @@ export function ExecutionWorkGraphSurface({
     });
   }
   historicalExecutions.forEach((item) => {
-    const active = mode === "history" && item.id === execution?.id;
+    const active = mode === "history" && item.id === selectedHistoryId;
     historyMenuItems.push({
       active,
-      description: `${new Date(item.updated_at).toLocaleDateString(locale)} · ${item.work_items?.length ?? 0} ${t("execution.workflow_nodes_short")}`,
+      description: `${new Date(item.updated_at).toLocaleDateString(locale)} · ${item.work_item_count} ${t("execution.workflow_nodes_short")}`,
       icon: <Clock3 className="h-3.5 w-3.5" />,
       label: item.objective,
       trailing: active ? <Check className="h-3.5 w-3.5 text-(--success)" /> : null,
@@ -302,6 +311,11 @@ export function ExecutionWorkGraphSurface({
                 : "execution.workflow_save_as_sketch")}
             </UiButton>
           ) : null}
+          {execution?.graph?.history_pending ? (
+            <UiBadge shape="pill" size="xs" tone="warning" title={t("execution.surface_history_pending")}>
+              {t("execution.surface_history_pending")}
+            </UiBadge>
+          ) : null}
           {runtimeProjectionPartial ? (
             <UiBadge
               aria-label={t("execution.surface_partial", {
@@ -368,16 +382,16 @@ export function ExecutionWorkGraphSurface({
         />
       ) : null}
 
-      {mode === "history" && historyResource.error ? (
+      {mode === "history" && historyError ? (
         <ReadResourceReliabilityNotice
-          impact={t(historyResource.isStale
+          impact={t(historyStale
             ? "execution.surface_history_stale_impact"
             : "execution.surface_history_unavailable_impact")}
-          isRefreshing={historyResource.isLoading}
-          onRefresh={historyResource.refresh}
+          isRefreshing={historyLoading}
+          onRefresh={refreshHistory}
           problem={t("execution.surface_history_load_failed")}
           resource="workgraph-history"
-          stale={historyResource.isStale}
+          stale={historyStale}
         />
       ) : null}
 
@@ -393,19 +407,19 @@ export function ExecutionWorkGraphSurface({
       ) : (
         <div className="grid min-h-0 flex-1 place-items-center px-6 py-8 text-center">
           <div className="flex max-w-64 flex-col items-center gap-2 text-(--text-soft)">
-            {(mode === "history" ? historyResource.isLoading : resource.isLoading) ? (
+            {(mode === "history" ? historyLoading : resource.isLoading) ? (
               <LoaderCircle
                 className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
               />
-            ) : (mode === "history" ? historyResource.error : resource.error) ? (
+            ) : (mode === "history" ? historyError : resource.error) ? (
               <CircleAlert className="h-5 w-5 text-(--warning)" />
             ) : (
               <Workflow className="h-5 w-5 text-(--icon-muted)" />
             )}
             <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
-              {(mode === "history" ? historyResource.isLoading : resource.isLoading)
+              {(mode === "history" ? historyLoading : resource.isLoading)
                 ? t("execution.surface_loading")
-                : (mode === "history" ? historyResource.error : resource.error)
+                : (mode === "history" ? historyError : resource.error)
                 ? t("execution.surface_error")
                 : mode === "history"
                 ? t("execution.surface_history_empty")

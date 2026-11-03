@@ -73,6 +73,7 @@ func (stub *applyWorkflowStub) StartMetadataEditor(
 }
 
 func (stub *applyWorkflowStub) GetMetadataEditor(
+	context.Context,
 	string,
 	protocol.GetWorkGraphWorkflowEditorRequest,
 ) (*protocol.WorkGraphWorkflowEditorSession, error) {
@@ -80,6 +81,7 @@ func (stub *applyWorkflowStub) GetMetadataEditor(
 }
 
 func (stub *applyWorkflowStub) ApplyMetadataEditor(
+	ctx context.Context,
 	ownerUserID string,
 	request protocol.ApplyWorkGraphWorkflowEditorRequest,
 ) (*protocol.WorkGraphWorkflowPreview, error) {

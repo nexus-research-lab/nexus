@@ -2,6 +2,7 @@
 //
 // macOS 桌面构造显式接收入口实例锁，经 App 两阶段沙箱恢复后才挂载路由。
 // 启动时修复 IM 回传的本地持久入队意图，不重发结果未知的外部消息。
+// 业务恢复前用 lifecycle context 执行版本化 WorkGraph 历史回填；失败项保留待重试状态。
 //
 // L2 | 父级: internal/app（L1 见 AGENTS.md）
 //

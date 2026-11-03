@@ -204,3 +204,45 @@ func TestCommandResultJSONShapes(t *testing.T) {
 		})
 	}
 }
+
+func TestOperationInputReportsAllErrorsAndSchemaBeforeExecuting(t *testing.T) {
+	schema := map[string]any{
+		"type": "object", "additionalProperties": false, "required": []string{"result_summary"},
+		"properties": map[string]any{
+			"result_summary": map[string]any{"type": "string"},
+			"evidence":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		},
+	}
+	called := false
+	operation := Operation{Name: "submit_work", InputSchema: schema, Handler: func(context.Context, map[string]any) (Result, error) { called = true; return Result{}, nil }}
+	tool := NewTool(func(ctx context.Context, request Request) (any, error) {
+		return HandleSemantic(ctx, Actor{}, "execution", "get_execution", []Operation{operation}, request)
+	})
+	var previous string
+	for range 10 {
+		result, err := tool.Handler(context.Background(), map[string]any{
+			"domain": "execution", "action": "invoke", "operation": "submit_work", "request_id": "submit-work-0001",
+			"input": map[string]any{"content": "private supplied content", "result": "secret", "evidence": []any{true, 42}},
+		})
+		if err != nil || !result.IsError || called {
+			t.Fatalf("invalid request executed: %+v %v", result, err)
+		}
+		message := result.Content[0]["text"].(string)
+		for _, field := range []string{"$.result_summary", "$.content", "$.result", "$.evidence[0]", "$.evidence[1]"} {
+			if !strings.Contains(message, field) {
+				t.Fatalf("missing %s in %s", field, message)
+			}
+		}
+		if strings.Contains(message, "secret") || strings.Contains(message, "private supplied content") {
+			t.Fatal("supplied values leaked")
+		}
+		if previous != "" && previous != message {
+			t.Fatal("field error order changed")
+		}
+		previous = message
+		encoded, _ := json.Marshal(result.StructuredContent)
+		if !strings.Contains(string(encoded), `"executed":false`) || !strings.Contains(string(encoded), `"input_schema"`) {
+			t.Fatalf("missing correction contract: %s", encoded)
+		}
+	}
+}

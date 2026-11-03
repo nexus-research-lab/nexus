@@ -1,16 +1,15 @@
 // INPUT: 当前 owner/session 下已聚合的 Subagent task 与其受限 transcript。
 // OUTPUT: 只包含 exact ToolUse identity、名称、状态和时间的脱敏 ToolRun 历史。
-// POS: Session 历史到 WorkGraph 兼容投影的只读边界；不返回 prompt、input 或 output。
+// POS: 版本化 WorkGraph 迁移的 Session 只读边界；普通图读取不调用，不返回 prompt、input 或 output。
 package session
 
 import (
 	"context"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-const subagentToolRunProjectionLimit = 256
 
 // SubagentToolRun 是从已有 Subagent transcript 恢复的最小 Tool lifecycle。
 // ParentToolUseID 精确指向父 Agent 启动该 Subagent 的 ToolUse。
@@ -25,37 +24,52 @@ type SubagentToolRun struct {
 	FinishedAt      int64  `json:"finished_at,omitempty"`
 }
 
-// ListSubagentToolRuns 从现有 task transcript 恢复 exact Tool lifecycle。
-// 该读取用于旧执行的只读兼容投影；实时执行仍由 Bridge lifecycle 写入运行图。
-func (s *Service) ListSubagentToolRuns(
+// ReadSubagentHistoryForMigration 从现有 task transcript 恢复 exact Tool lifecycle。
+// 仅用于版本化历史回填；不截断迁移输入，实时执行由 Bridge lifecycle 写入运行图。
+func (s *Service) ReadSubagentHistoryForMigration(
 	ctx context.Context,
 	rawSessionKey string,
-) ([]SubagentToolRun, error) {
+) ([]SubagentTask, []SubagentToolRun, error) {
 	list, err := s.ListSubagentTasks(ctx, rawSessionKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	result := make([]SubagentToolRun, 0)
 	for _, task := range list.Items {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		if strings.TrimSpace(task.ToolUseID) == "" {
 			continue
 		}
 		workspacePath := s.subagentTaskWorkspacePath(ctx, task)
-		messages, _, readErr := s.readOwnerSubagentTaskThread(ctx, task, workspacePath)
+		messages, readErr := s.readSubagentTaskThreadForMigration(ctx, task, workspacePath)
 		if readErr != nil {
-			return nil, readErr
-		}
-		remaining := subagentToolRunProjectionLimit - len(result)
-		if remaining <= 0 {
-			break
+			return nil, nil, readErr
 		}
 		runs := subagentToolRunsFromMessages(task, messages)
-		if len(runs) > remaining {
-			runs = runs[:remaining]
-		}
 		result = append(result, runs...)
 	}
-	return result, nil
+	return list.Items, result, nil
+}
+
+// Interactive history tolerates missing child files; a one-time migration must
+// retain the pending marker when an advertised path, link or exact ID cannot be read.
+func (s *Service) readSubagentTaskThreadForMigration(ctx context.Context, task SubagentTask, workspacePath string) ([]protocol.Message, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	owner, agent := authctx.OwnerUserID(ctx), subagentTaskHostAgentID(task)
+	if path := strings.TrimSpace(task.TranscriptPath); path != "" {
+		return s.history.ReadTranscriptPathMessagesForOwner(owner, path, workspacePath, task.SessionKey, agent)
+	}
+	if strings.EqualFold(task.TaskType, "local_agent") && task.OutputFile != "" {
+		return s.history.ReadTranscriptLinkMessagesForOwner(owner, task.OutputFile, workspacePath, task.SessionKey, agent)
+	}
+	if id := subagentTaskTranscriptSessionID(task); id != "" {
+		return s.history.ForOwner(owner).ReadTranscriptSessionMessages(workspacePath, id, task.SessionKey, agent)
+	}
+	return nil, nil
 }
 
 func subagentToolRunsFromMessages(

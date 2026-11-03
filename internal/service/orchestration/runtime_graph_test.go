@@ -28,18 +28,24 @@ type runtimeGraphRepositoryFake struct {
 	graphRootRoundID string
 }
 
-type runtimeGraphSubagentHistoryProviderFunc func(
-	context.Context,
-	string,
-	string,
-) ([]RuntimeGraphSubagentToolHistory, error)
+func (f *runtimeGraphRepositoryFake) FindCurrentManaged(ctx context.Context, owner, session string) (*protocol.Execution, error) {
+	if f.snapshot == nil || f.snapshot.Plan == nil || len(f.snapshot.WorkItems) == 0 {
+		return nil, nil
+	}
+	return f.FindCurrent(ctx, owner, session)
+}
 
-func (provider runtimeGraphSubagentHistoryProviderFunc) ListRuntimeGraphSubagentToolHistory(
-	ctx context.Context,
-	ownerUserID string,
-	sessionKey string,
-) ([]RuntimeGraphSubagentToolHistory, error) {
-	return provider(ctx, ownerUserID, sessionKey)
+func (f *runtimeGraphRepositoryFake) FindLatestManaged(ctx context.Context, owner, session string) (*protocol.Execution, error) {
+	return f.FindCurrentManaged(ctx, owner, session)
+}
+
+func (f *runtimeGraphRepositoryFake) GetWorkGraphState(ctx context.Context, id string) (*protocol.ExecutionSnapshot, protocol.ExecutionWorkGraphHistory, error) {
+	snapshot, err := f.GetSnapshot(ctx, id)
+	return snapshot, protocol.ExecutionWorkGraphHistory{}, err
+}
+
+func (f *runtimeGraphRepositoryFake) GetWorkGraphRuntimeGraph(ctx context.Context, owner, session, execution, round string) (protocol.ExecutionRuntimeGraph, error) {
+	return f.GetRuntimeGraph(ctx, owner, session, execution, round)
 }
 
 func graphNodeByID(
@@ -412,6 +418,10 @@ func TestRuntimeGraphObservesBridgeToolLifecycleWithoutModelStatusCall(t *testin
 	}
 	if repository.finishedStatus != protocol.ExecutionRuntimeNodeInterrupted {
 		t.Fatalf("finished status = %q, want interrupted", repository.finishedStatus)
+	}
+	terminal := repository.nodes[len(repository.nodes)-1]
+	if terminal.ErrorSummary != "round interrupted" {
+		t.Fatalf("Agent failure summary missing: %+v", terminal)
 	}
 }
 
@@ -1413,28 +1423,7 @@ func TestRuntimeGraphRecoversHistoricalSubagentToolsWithoutPersistingContent(t *
 	t.Parallel()
 
 	now := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
-	service := NewService(&runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}})
-	service.SetRuntimeGraphSubagentToolHistoryProvider(runtimeGraphSubagentHistoryProviderFunc(
-		func(_ context.Context, ownerUserID string, sessionKey string) ([]RuntimeGraphSubagentToolHistory, error) {
-			if ownerUserID != "owner-1" || sessionKey != "session-1" {
-				t.Fatalf("history scope = %q/%q", ownerUserID, sessionKey)
-			}
-			return []RuntimeGraphSubagentToolHistory{{
-				ParentToolUseID: "spawn-tool-1",
-				TaskID:          "task-1",
-				AgentID:         "child-1",
-				ToolUseID:       "read-1",
-				Name:            "Read",
-				Status:          "succeeded",
-				StartedAt:       now.Add(time.Second).UnixMilli(),
-				FinishedAt:      now.Add(2 * time.Second).UnixMilli(),
-			}}, nil
-		},
-	))
-	graph := service.mergeRuntimeGraphSubagentToolHistory(
-		context.Background(),
-		"owner-1",
-		"session-1",
+	graph := RecoverRuntimeGraphHistory("owner-1", "session-1",
 		protocol.ExecutionRuntimeGraph{
 			GraphID:   "graph-1",
 			NodeTotal: 1,
@@ -1456,6 +1445,11 @@ func TestRuntimeGraphRecoversHistoricalSubagentToolsWithoutPersistingContent(t *
 				UpdatedAt:      now,
 			}},
 		},
+		nil, []RuntimeGraphSubagentToolHistory{{
+			ParentToolUseID: "spawn-tool-1", TaskID: "task-1", AgentID: "child-1",
+			ToolUseID: "read-1", Name: "Read", Status: "succeeded",
+			StartedAt: now.Add(time.Second).UnixMilli(), FinishedAt: now.Add(2 * time.Second).UnixMilli(),
+		}},
 	)
 	if len(graph.Nodes) != 2 || len(graph.Edges) != 1 || graph.NodeTotal != 2 || graph.EdgeTotal != 1 {
 		t.Fatalf("history graph = %+v", graph)
@@ -1747,6 +1741,17 @@ func TestRuntimeGraphAssignmentBoundaryRequiresManagedTransportIdentity(t *testi
 		node protocol.ExecutionRuntimeNodeRun
 		want string
 	}{
+		{
+			name: "typed batch assignment",
+			node: protocol.ExecutionRuntimeNodeRun{
+				Name: "nexus.command",
+				Metadata: map[string]any{
+					runtimeGraphCommandTransportMetadataKey: true,
+					runtimeGraphCommandOperationMetadataKey: "assign_work_batch",
+				},
+			},
+			want: "assign_work_batch",
+		},
 		{
 			name: "typed CLI takeover",
 			node: protocol.ExecutionRuntimeNodeRun{
@@ -2523,5 +2528,22 @@ func TestAuditExecutionAlignmentRejectsIncompleteReportBeforeGraphWrite(t *testi
 	}
 	if result.Outcome != MutationRejected || len(repository.nodes) != 0 || len(repository.edges) != 0 {
 		t.Fatalf("result=%+v nodes=%+v edges=%+v", result, repository.nodes, repository.edges)
+	}
+}
+
+func TestRuntimeInvalidationSkipsConversationButKeepsEveryManagedRuntimeUpdate(t *testing.T) {
+	service := NewService(&runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}})
+	sink := &capturingExecutionInvalidationSink{}
+	service.SetExecutionInvalidationSink(sink)
+	actor := ActorContext{OwnerUserID: "owner", SessionKey: "session"}
+	service.invalidateActor(context.Background(), actor)
+	if len(sink.invalidations) != 0 {
+		t.Fatal("ordinary conversation invalidated a historical WorkGraph")
+	}
+	actor.ExecutionID = "execution"
+	service.invalidateActor(context.Background(), actor)
+	service.invalidateActor(context.Background(), actor)
+	if len(sink.invalidations) != 2 || sink.invalidations[0].Version != 0 {
+		t.Fatal("runtime changes were lost to a responsibility-version fence")
 	}
 }

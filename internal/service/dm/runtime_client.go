@@ -99,6 +99,7 @@ func (s *Service) ensureClient(
 	scopedPolicyActive := false
 	if s.scopedSessionPolicy != nil {
 		scopedPolicy, scopedPolicyActive, err = s.scopedSessionPolicy.RuntimeEditorPolicy(
+			ctx,
 			agentValue.OwnerUserID,
 			sessionKey,
 		)

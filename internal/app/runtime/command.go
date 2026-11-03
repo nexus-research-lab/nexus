@@ -1,5 +1,5 @@
 // INPUT: 可信 runtime round、Nexus 内建工具组、Goal/Execution/Automation services、可信 Subagent control 与 runtime permission context。
-// OUTPUT: 单一 round-scoped nexus MCP server、精确 contract、确认前校验的语义调用结果与 typed mutation receipt。
+// OUTPUT: 单一 round-scoped nexus MCP server、语义结果与 typed mutation receipt，并注入只读调用诊断。
 // POS: Nexus 内建工具的唯一 server 装配点；身份、责任、preview、Plan Mode 与真人确认均由宿主固定。
 package runtime
 
@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -53,6 +54,7 @@ func CombineToolBuilders(builders ...ToolBuilder) ToolBuilder {
 // NewServerBuilder 构建每个 round 唯一的 Nexus MCP server。
 func NewServerBuilder(
 	cfg config.Config,
+	logger *slog.Logger,
 	agents AgentResolver,
 	automation *automationsvc.Service,
 	goals goalcontract.Service,
@@ -66,6 +68,7 @@ func NewServerBuilder(
 		commandTool, ok, err := buildNexusCommandMCPTool(
 			ctx,
 			cfg,
+			logger,
 			agents,
 			automation,
 			goals,
@@ -165,6 +168,7 @@ func isolatedWorkGraphMCPRound(sourceContextType string) bool {
 func buildNexusCommandMCPTool(
 	ctx context.Context,
 	cfg config.Config,
+	logger *slog.Logger,
 	agents AgentResolver,
 	automation *automationsvc.Service,
 	goals goalcontract.Service,
@@ -246,7 +250,7 @@ func buildNexusCommandMCPTool(
 			request,
 			workflowServices...,
 		)
-	}), true, nil
+	}, command.NewDiagnostics(logger, actor)), true, nil
 }
 
 func normalizedAutomationRunContext(value *protocol.AutomationRunContext) *protocol.AutomationRunContext {
@@ -558,7 +562,7 @@ func HandleExecutionCommand(
 			return nil, errors.New("WorkGraph editor command service 尚未装配")
 		}
 		editorService, ok := workflowServices[0].(executioncontract.WorkflowEditorService)
-		if !ok || !editorService.RuntimeEditorActive(actor.OwnerUserID, actor.SessionKey) {
+		if !ok || !editorService.RuntimeEditorActive(ctx, actor.OwnerUserID, actor.SessionKey) {
 			return nil, errors.New("当前 round 没有有效的 WorkGraph editor command identity")
 		}
 		sctx := executioncontract.Context{

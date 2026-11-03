@@ -46,7 +46,6 @@ type workflowEditorRecord struct {
 	displayAfterUnixMilli int64
 	preview               protocol.WorkGraphWorkflowPreview
 	versions              []protocol.WorkGraphWorkflowPreviewVersion
-	unavailableSlashNames []string
 	expiresAt             time.Time
 }
 
@@ -71,18 +70,28 @@ func (s *Service) StartMetadataEditor(
 		return nil, err
 	}
 
-	s.previewMu.Lock()
-	s.cleanupExpiredPreviews(s.now().UTC())
-	previewRecord, ok := s.previews[previewCacheKey(ownerUserID, request.PreviewID)]
-	existingEditorID := ""
+	var previewRecord workflowPreviewRecord
 	var existingEditor workflowEditorRecord
-	if existingKey := s.editorByPreview[previewCacheKey(ownerUserID, request.PreviewID)]; existingKey != "" {
-		if existing, exists := s.editors[existingKey]; exists && existing.sourceSessionKey == request.SourceSessionKey {
-			existingEditorID = editorIDFromCacheKey(existingKey)
-			existingEditor = cloneEditorRecord(existing)
+	existingEditorID := ""
+	ok := false
+	if _, durable := s.repository.(DraftRepository); durable {
+		if loadedDraft != nil {
+			previewRecord, ok = previewRecordFromDraft(*loadedDraft), true
+			existingEditorID = loadedDraft.EditorID
+			existingEditor = editorRecordFromDraft(*loadedDraft)
 		}
+	} else {
+		s.previewMu.Lock()
+		s.cleanupExpiredPreviews(s.now().UTC())
+		previewRecord, ok = s.previews[previewCacheKey(ownerUserID, request.PreviewID)]
+		if existingKey := s.editorByPreview[previewCacheKey(ownerUserID, request.PreviewID)]; existingKey != "" {
+			if existing, exists := s.editors[existingKey]; exists && existing.sourceSessionKey == request.SourceSessionKey {
+				existingEditorID = editorIDFromCacheKey(existingKey)
+				existingEditor = cloneEditorRecord(existing)
+			}
+		}
+		s.previewMu.Unlock()
 	}
-	s.previewMu.Unlock()
 	if !ok || previewRecord.ownerUserID != ownerUserID || previewRecord.preview.SourceSessionKey != request.SourceSessionKey {
 		return nil, ErrNotFound
 	}
@@ -115,13 +124,12 @@ func (s *Service) StartMetadataEditor(
 			if err != nil {
 				return nil, fmt.Errorf("%w: Draft head revision changed", ErrInvalidInput)
 			}
-			s.hydrateDraft(*loadedDraft)
 			preview = cloneWorkflowPreview(loadedDraft.Preview)
 		}
 	}
 	if existingEditorID != "" {
 		if loadedDraft != nil {
-			current, _, getErr := s.getEditorRecord(ownerUserID, request.SourceSessionKey, existingEditorID)
+			current, _, getErr := s.getEditorRecord(ctx, ownerUserID, request.SourceSessionKey, existingEditorID)
 			if getErr != nil {
 				return nil, getErr
 			}
@@ -150,10 +158,6 @@ func (s *Service) StartMetadataEditor(
 	}
 	if previewRecord.sourceAgentID == "" {
 		return nil, fmt.Errorf("%w: source Execution has no coordinator Agent", ErrInvalidInput)
-	}
-	workflows, err := s.repository.List(ctx, ownerUserID)
-	if err != nil {
-		return nil, err
 	}
 	editorAgentID := previewRecord.sourceAgentID
 	if s.agents != nil {
@@ -211,15 +215,8 @@ func (s *Service) StartMetadataEditor(
 		displayAfterUnixMilli: displayAfter,
 		preview:               preview,
 		versions:              versions,
-		unavailableSlashNames: unavailableWorkflowSlashNames(workflows),
 		expiresAt:             expiresAt,
 	}
-	s.previewMu.Lock()
-	editorKey := previewCacheKey(ownerUserID, editorID)
-	s.editors[editorKey] = record
-	s.editorBySession[record.sessionKey] = editorKey
-	s.editorByPreview[previewCacheKey(ownerUserID, request.PreviewID)] = editorKey
-	s.previewMu.Unlock()
 	if drafts, supported := s.repository.(DraftRepository); supported {
 		draft, bindErr := drafts.BindDraftEditor(
 			ctx, ownerUserID, request.PreviewID, editorID, editorAgentID,
@@ -228,24 +225,32 @@ func (s *Service) StartMetadataEditor(
 		if bindErr != nil {
 			return nil, bindErr
 		}
-		if draft != nil {
-			s.hydrateDraft(*draft)
-			s.previewMu.Lock()
-			record = s.editors[editorKey]
-			record.unavailableSlashNames = unavailableWorkflowSlashNames(workflows)
-			s.editors[editorKey] = record
-			s.previewMu.Unlock()
+		if draft == nil {
+			return nil, ErrNotFound
 		}
+		if draft.EditorID != editorID {
+			if err := s.editorSessions.DeleteWorkGraphEditorSession(ctx, record.sessionKey); err != nil {
+				return nil, err
+			}
+		}
+		return editorSession(draft.EditorID, editorRecordFromDraft(*draft)), nil
 	}
+	s.previewMu.Lock()
+	editorKey := previewCacheKey(ownerUserID, editorID)
+	s.editors[editorKey] = record
+	s.editorBySession[record.sessionKey] = editorKey
+	s.editorByPreview[previewCacheKey(ownerUserID, request.PreviewID)] = editorKey
+	s.previewMu.Unlock()
 	return editorSession(editorID, record), nil
 }
 
 // GetMetadataEditor 返回隐藏专用 DM 的当前选中草图和不可变版本目录；消息仍由普通 Session API/WS 读取。
 func (s *Service) GetMetadataEditor(
+	ctx context.Context,
 	ownerUserID string,
 	request protocol.GetWorkGraphWorkflowEditorRequest,
 ) (*protocol.WorkGraphWorkflowEditorSession, error) {
-	record, editorID, err := s.getEditorRecord(ownerUserID, request.SourceSessionKey, request.EditorID)
+	record, editorID, err := s.getEditorRecord(ctx, ownerUserID, request.SourceSessionKey, request.EditorID)
 	if err != nil {
 		return nil, err
 	}
@@ -254,6 +259,7 @@ func (s *Service) GetMetadataEditor(
 
 // RuntimeEditorPolicy 为 exact 隐藏编辑 Session 提供完整当前草图与唯一允许的 Skill + 结构化命令路径。
 func (s *Service) RuntimeEditorPolicy(
+	ctx context.Context,
 	ownerUserID string,
 	sessionKey string,
 ) (protocol.ScopedSessionRuntimePolicy, bool, error) {
@@ -262,22 +268,22 @@ func (s *Service) RuntimeEditorPolicy(
 	if s == nil || ownerUserID == "" || sessionKey == "" {
 		return protocol.ScopedSessionRuntimePolicy{}, false, nil
 	}
-	if err := s.loadDraftByEditorSession(ownerUserID, sessionKey); err != nil {
+	record, _, err := s.editorRecordBySession(ctx, ownerUserID, sessionKey)
+	if errors.Is(err, ErrNotFound) {
+		return protocol.ScopedSessionRuntimePolicy{}, false, nil
+	}
+	if err != nil {
 		return protocol.ScopedSessionRuntimePolicy{}, false, err
 	}
-	s.previewMu.Lock()
-	defer s.previewMu.Unlock()
-	s.cleanupExpiredPreviews(s.now().UTC())
-	key := s.editorBySession[sessionKey]
-	record, ok := s.editors[key]
-	if !ok || record.ownerUserID != ownerUserID || record.sessionKey != sessionKey {
-		return protocol.ScopedSessionRuntimePolicy{}, false, nil
+	workflows, err := s.repository.List(ctx, ownerUserID)
+	if err != nil {
+		return protocol.ScopedSessionRuntimePolicy{}, false, err
 	}
 	payload, err := json.Marshal(editorRevisionRequest(record.revision, record.preview))
 	if err != nil {
 		return protocol.ScopedSessionRuntimePolicy{}, false, err
 	}
-	unavailableNames, err := json.Marshal(record.unavailableSlashNames)
+	unavailableNames, err := json.Marshal(unavailableWorkflowSlashNames(workflows))
 	if err != nil {
 		return protocol.ScopedSessionRuntimePolicy{}, false, err
 	}
@@ -315,21 +321,14 @@ unavailable_slash_names：%s`, languageRule, record.revision, record.selectedRev
 }
 
 // RuntimeEditorActive 判断 exact owner/session 是否仍拥有未过期的草图修改授权。
-func (s *Service) RuntimeEditorActive(ownerUserID string, sessionKey string) bool {
+func (s *Service) RuntimeEditorActive(ctx context.Context, ownerUserID string, sessionKey string) bool {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	sessionKey = strings.TrimSpace(sessionKey)
 	if s == nil || ownerUserID == "" || sessionKey == "" {
 		return false
 	}
-	if err := s.loadDraftByEditorSession(ownerUserID, sessionKey); err != nil {
-		return false
-	}
-	s.previewMu.Lock()
-	defer s.previewMu.Unlock()
-	s.cleanupExpiredPreviews(s.now().UTC())
-	key := s.editorBySession[sessionKey]
-	record, ok := s.editors[key]
-	return ok && record.ownerUserID == ownerUserID && record.sessionKey == sessionKey
+	_, _, err := s.editorRecordBySession(ctx, ownerUserID, sessionKey)
+	return err == nil
 }
 
 // ReviseEditorPreview 接收受限 Execution CLI 的完整草图提交，并以 revision CAS 追加 durable 版本。
@@ -344,14 +343,11 @@ func (s *Service) ReviseEditorPreview(
 	if ownerUserID == "" || sessionKey == "" || request.Revision <= 0 {
 		return nil, fmt.Errorf("%w: editor mutation scope is incomplete", ErrInvalidInput)
 	}
-	s.previewMu.Lock()
-	s.cleanupExpiredPreviews(s.now().UTC())
-	key := s.editorBySession[sessionKey]
-	record, ok := s.editors[key]
-	s.previewMu.Unlock()
-	if !ok || record.ownerUserID != ownerUserID || record.sessionKey != sessionKey {
-		return nil, ErrNotFound
+	record, editorID, err := s.editorRecordBySession(ctx, ownerUserID, sessionKey)
+	if err != nil {
+		return nil, err
 	}
+	key := previewCacheKey(ownerUserID, editorID)
 	if record.revision != request.Revision {
 		return nil, fmt.Errorf("%w: editor revision changed", ErrInvalidInput)
 	}
@@ -378,14 +374,6 @@ func (s *Service) ReviseEditorPreview(
 			return nil, fmt.Errorf("%w: /%s", ErrNameConflict, next.SlashName)
 		}
 	}
-	s.previewMu.Lock()
-	s.cleanupExpiredPreviews(s.now().UTC())
-	record, ok = s.editors[key]
-	if !ok || record.revision != request.Revision || record.sessionKey != sessionKey {
-		s.previewMu.Unlock()
-		return nil, fmt.Errorf("%w: editor revision changed", ErrInvalidInput)
-	}
-	s.previewMu.Unlock()
 	now := s.now().UTC()
 	if drafts, supported := s.repository.(DraftRepository); supported {
 		draft, appendErr := drafts.AppendDraftVersion(
@@ -395,9 +383,8 @@ func (s *Service) ReviseEditorPreview(
 		if appendErr != nil {
 			return nil, fmt.Errorf("%w: editor revision changed", ErrInvalidInput)
 		}
-		s.hydrateDraft(*draft)
 		// Return this committed revision, not a cache snapshot that concurrent
-		// editor reads can replace after hydrateDraft releases its lock.
+		// reads may otherwise replace with another committed revision.
 		record.preview = cloneWorkflowPreview(draft.Preview)
 		record.revision = draft.HeadRevision
 		record.selectedRevision = draft.SelectedRevision
@@ -420,7 +407,6 @@ func (s *Service) ReviseEditorPreview(
 		s.editors[key] = record
 		s.previewMu.Unlock()
 	}
-	editorID := editorIDFromCacheKey(key)
 	return editorSession(editorID, record), nil
 }
 
@@ -431,6 +417,7 @@ func (s *Service) SelectMetadataEditorVersion(
 	request protocol.SelectWorkGraphWorkflowEditorVersionRequest,
 ) (*protocol.WorkGraphWorkflowEditorSession, error) {
 	record, editorID, err := s.getEditorRecord(
+		ctx,
 		ownerUserID,
 		request.SourceSessionKey,
 		request.EditorID,
@@ -449,12 +436,7 @@ func (s *Service) SelectMetadataEditorVersion(
 		if selectErr != nil {
 			return nil, fmt.Errorf("%w: selected editor version is unavailable", ErrInvalidInput)
 		}
-		s.hydrateDraft(*draft)
-		updated, _, getErr := s.getEditorRecord(ownerUserID, request.SourceSessionKey, request.EditorID)
-		if getErr != nil {
-			return nil, getErr
-		}
-		return editorSession(editorID, updated), nil
+		return editorSession(editorID, editorRecordFromDraft(*draft)), nil
 	}
 	selected, ok := previewVersion(record.versions, request.SelectedRevision)
 	if !ok {
@@ -480,25 +462,20 @@ func (s *Service) SelectEditorVersionBySession(
 ) (*protocol.WorkGraphWorkflowEditorSession, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	sessionKey = strings.TrimSpace(sessionKey)
-	if err := s.loadDraftByEditorSession(ownerUserID, sessionKey); err != nil {
+	record, editorID, err := s.editorRecordBySession(ctx, ownerUserID, sessionKey)
+	if err != nil {
 		return nil, err
-	}
-	s.previewMu.Lock()
-	key := s.editorBySession[sessionKey]
-	record, ok := s.editors[key]
-	s.previewMu.Unlock()
-	if !ok || record.ownerUserID != ownerUserID {
-		return nil, ErrNotFound
 	}
 	return s.SelectMetadataEditorVersion(ctx, ownerUserID, protocol.SelectWorkGraphWorkflowEditorVersionRequest{
 		SourceSessionKey: record.sourceSessionKey,
-		EditorID:         editorIDFromCacheKey(key), Revision: headRevision,
+		EditorID:         editorID, Revision: headRevision,
 		SelectedRevision: selectedRevision,
 	})
 }
 
 // ApplyMetadataEditor 把 exact editor 选中版本投影回当前 UI preview；不会改写源 Execution 或源聊天。
 func (s *Service) ApplyMetadataEditor(
+	ctx context.Context,
 	ownerUserID string,
 	request protocol.ApplyWorkGraphWorkflowEditorRequest,
 ) (*protocol.WorkGraphWorkflowPreview, error) {
@@ -508,9 +485,18 @@ func (s *Service) ApplyMetadataEditor(
 	if ownerUserID == "" || request.SourceSessionKey == "" || request.EditorID == "" || request.Revision <= 0 {
 		return nil, fmt.Errorf("%w: editor apply request is incomplete", ErrInvalidInput)
 	}
-	// Read the durable selection before applying; the cache may predate another window.
-	if _, _, err := s.getEditorRecord(ownerUserID, request.SourceSessionKey, request.EditorID); err != nil {
+	// Apply exactly the durable selection returned by this request.
+	current, _, err := s.getEditorRecord(ctx, ownerUserID, request.SourceSessionKey, request.EditorID)
+	if err != nil {
 		return nil, err
+	}
+	if _, durable := s.repository.(DraftRepository); durable {
+		if current.revision != request.Revision || current.selectedRevision != request.SelectedRevision {
+			return nil, ErrRevisionConflict
+		}
+		result := cloneWorkflowPreview(current.preview)
+		result.HeadRevision, result.SelectedRevision = current.revision, current.selectedRevision
+		return &result, nil
 	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
@@ -542,7 +528,7 @@ func (s *Service) CloseMetadataEditor(
 	sourceSessionKey string,
 	editorID string,
 ) (bool, error) {
-	record, normalizedEditorID, err := s.getEditorRecord(ownerUserID, sourceSessionKey, editorID)
+	record, normalizedEditorID, err := s.getEditorRecord(ctx, ownerUserID, sourceSessionKey, editorID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return false, nil
@@ -555,6 +541,12 @@ func (s *Service) CloseMetadataEditor(
 	if err = s.editorSessions.DeleteWorkGraphEditorSession(ctx, record.sessionKey); err != nil {
 		return false, err
 	}
+	if drafts, durable := s.repository.(DraftRepository); durable {
+		if err = drafts.ClearDraftEditor(ctx, ownerUserID, record.previewID, normalizedEditorID); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
 	s.previewMu.Lock()
 	delete(s.editorBySession, record.sessionKey)
 	delete(s.editorByPreview, previewCacheKey(strings.TrimSpace(ownerUserID), record.previewID))
@@ -563,7 +555,7 @@ func (s *Service) CloseMetadataEditor(
 	return true, nil
 }
 
-func (s *Service) getEditorRecord(ownerUserID string, sourceSessionKey string, editorID string) (workflowEditorRecord, string, error) {
+func (s *Service) getEditorRecord(ctx context.Context, ownerUserID string, sourceSessionKey string, editorID string) (workflowEditorRecord, string, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	sourceSessionKey = strings.TrimSpace(sourceSessionKey)
 	editorID = strings.TrimSpace(editorID)
@@ -571,17 +563,17 @@ func (s *Service) getEditorRecord(ownerUserID string, sourceSessionKey string, e
 		return workflowEditorRecord{}, "", fmt.Errorf("%w: editor scope is incomplete", ErrInvalidInput)
 	}
 	if repository, ok := s.repository.(DraftRepository); ok {
-		draft, err := repository.GetDraftByEditorID(context.Background(), ownerUserID, editorID)
+		draft, err := repository.GetDraftByEditorID(ctx, ownerUserID, editorID)
 		if err != nil {
 			return workflowEditorRecord{}, "", err
 		}
 		if draft == nil || draft.SourceSessionKey != sourceSessionKey {
 			return workflowEditorRecord{}, "", ErrNotFound
 		}
-		if err = s.renewDraftLease(context.Background(), repository, draft); err != nil {
+		if err = s.renewDraftLease(ctx, repository, draft); err != nil {
 			return workflowEditorRecord{}, "", err
 		}
-		s.hydrateDraft(*draft)
+		return editorRecordFromDraft(*draft), editorID, nil
 	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
@@ -612,7 +604,6 @@ func editorSession(editorID string, record workflowEditorRecord) *protocol.WorkG
 func cloneEditorRecord(record workflowEditorRecord) workflowEditorRecord {
 	record.preview = cloneWorkflowPreview(record.preview)
 	record.versions = cloneWorkflowPreviewVersions(record.versions)
-	record.unavailableSlashNames = slices.Clone(record.unavailableSlashNames)
 	return record
 }
 

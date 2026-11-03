@@ -341,6 +341,7 @@ export const enConversationMessages = {
   "execution.workflow_delete_title": "Delete this WorkGraph command?",
   "execution.workflow_delete_message": "{command} will be removed from every session command catalog. Historical WorkGraphs are unchanged.",
   "execution.surface_partial": "The work graph omits some display-worthy runtime facts; {nodes} runtime nodes and {edges} runtime edges belong on the canvas",
+  "execution.surface_history_pending": "Historical runtime records are awaiting migration",
   "execution.surface_partial_short": "Partial",
   "execution.surface_stale": "Showing the last successfully synchronized work graph",
   "execution.surface_stale_at": "Showing the last successfully synchronized work graph ({time})",

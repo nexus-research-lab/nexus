@@ -1,6 +1,6 @@
 # 恢复、对齐与 Goal bridge
 
-只在调用 `block_work`、`resume_work`、`audit_execution_alignment`、`promote_execution_to_goal`，或处理入口错误、Execution/Goal 收口时读取本文件。字段与枚举以 fresh exact contract 为准。
+只在调用 `block_work`、`resume_work`、`audit_execution_alignment`、`promote_execution_to_goal`，或处理入口错误、Execution/Goal 收口时读取本文件。Execution 字段与枚举以本轮已返回/内联的 exact contract 为准；缺失时再查询，Goal 仍按 goal-manager 协议。
 
 ## 固定 inspect 入口与调用纠正
 
@@ -25,7 +25,7 @@ automation、外部 IM 和普通 internal round 仍然按各自 source policy �
 因此，DM continuation 的正常调用顺序仍是：
 
 1. `execution` `action=inspect` 读取当前 Execution context。
-2. 读取当前 operation 的 fresh contract；schema 中的 locator 只能来自 inspect 或 typed receipt。
+2. 优先使用错误回执携带的当前 schema，或本轮可见的 exact contract；缺失时再查询。locator 只能来自 inspect 或 typed receipt。
 3. 按 contract 调用 `assign_work`、`submit_work` 或 `review_work`。
 
 模型不应把 owner、Agent、session、Goal、revision、Execution 或 round identity 填进

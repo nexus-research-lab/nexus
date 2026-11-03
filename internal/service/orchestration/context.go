@@ -1010,6 +1010,7 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
+			"assign_work_batch",
 			"submit_work",
 			"review_work",
 			"block_work",
@@ -1038,6 +1039,7 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
+			"assign_work_batch",
 			"submit_work",
 			"review_work",
 			"block_work",
@@ -1064,6 +1066,7 @@ func renderActionBoundary(
 			forbidden,
 			"execute_work_in_plan_mode",
 			"assign_work",
+			"assign_work_batch",
 			"submit_work",
 			"review_work",
 			"block_work",
@@ -1092,6 +1095,7 @@ func renderActionBoundary(
 		setAvailability("plan_execution", availability.canRevisePlan || transientCoordinator)
 		setAvailability("abandon_execution", transientCoordinator)
 		setAvailability("assign_work", availability.hasReadyWork)
+		setAvailability("assign_work_batch", availability.hasReadyWork && !options.WorkBound && !options.ReviewBound)
 		setAvailability("submit_work", availability.hasOwnedSubmittableAssignment)
 		setAvailability("review_work", availability.hasPendingReview)
 		setAvailability("block_work", availability.hasBlockableWork)
@@ -1119,6 +1123,7 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
+			"assign_work_batch",
 			"take_over_work",
 			"promote_execution_to_goal",
 			"mutate_shared_plan",
@@ -1132,6 +1137,7 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
+			"assign_work_batch",
 			"submit_work",
 			"review_work",
 			"block_work",

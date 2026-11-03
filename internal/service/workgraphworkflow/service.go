@@ -89,6 +89,7 @@ type DraftRepository interface {
 	AppendDraftVersion(context.Context, string, string, int64, protocol.WorkGraphWorkflowPreview, time.Time, time.Time) (*protocol.WorkGraphWorkflowDraft, error)
 	SelectDraftVersion(context.Context, string, string, int64, int64, time.Time) (*protocol.WorkGraphWorkflowDraft, error)
 	BindDraftEditor(context.Context, string, string, string, string, string, int64, time.Time) (*protocol.WorkGraphWorkflowDraft, error)
+	ClearDraftEditor(context.Context, string, string, string) error
 	SetDraftSaveState(context.Context, string, string, bool, string, int64, time.Time) error
 }
 
@@ -827,9 +828,7 @@ func (s *Service) storePreview(
 			CreatedAt: now,
 			UpdatedAt: now,
 		})
-		if err != nil {
-			return err
-		}
+		return err
 	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
@@ -845,8 +844,15 @@ func (s *Service) storePreview(
 }
 
 func (s *Service) getPreview(ctx context.Context, ownerUserID string, sessionKey string, previewID string) (protocol.WorkGraphWorkflowPreview, error) {
-	if _, err := s.loadDraftByID(ctx, ownerUserID, previewID); err != nil {
-		return protocol.WorkGraphWorkflowPreview{}, err
+	if _, durable := s.repository.(DraftRepository); durable {
+		draft, err := s.loadDraftByID(ctx, ownerUserID, previewID)
+		if err != nil {
+			return protocol.WorkGraphWorkflowPreview{}, err
+		}
+		if draft == nil || draft.SourceSessionKey != sessionKey {
+			return protocol.WorkGraphWorkflowPreview{}, ErrNotFound
+		}
+		return cloneWorkflowPreview(draft.Preview), nil
 	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()

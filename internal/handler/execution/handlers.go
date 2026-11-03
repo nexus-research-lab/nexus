@@ -25,7 +25,7 @@ type executionViewer interface {
 }
 
 type executionHistoryViewer interface {
-	ListHistoryViews(context.Context, string, string, int) ([]protocol.ExecutionView, error)
+	ListHistorySummaries(context.Context, string, string, int) ([]protocol.ExecutionSummary, error)
 }
 
 type workflowManager interface {
@@ -50,8 +50,8 @@ type workflowSlashNameChecker interface {
 
 type workflowMetadataEditor interface {
 	StartMetadataEditor(context.Context, string, protocol.StartWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowEditorSession, error)
-	GetMetadataEditor(string, protocol.GetWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowEditorSession, error)
-	ApplyMetadataEditor(string, protocol.ApplyWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowPreview, error)
+	GetMetadataEditor(context.Context, string, protocol.GetWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowEditorSession, error)
+	ApplyMetadataEditor(context.Context, string, protocol.ApplyWorkGraphWorkflowEditorRequest) (*protocol.WorkGraphWorkflowPreview, error)
 	SelectMetadataEditorVersion(context.Context, string, protocol.SelectWorkGraphWorkflowEditorVersionRequest) (*protocol.WorkGraphWorkflowEditorSession, error)
 	CloseMetadataEditor(context.Context, string, string, string) (bool, error)
 }
@@ -114,7 +114,7 @@ func (h *Handlers) HandleListExecutionHistory(
 		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "Execution 历史服务不可用")
 		return
 	}
-	views, err := history.ListHistoryViews(
+	views, err := history.ListHistorySummaries(
 		request.Context(),
 		authsvc.OwnerUserID(request.Context()),
 		sessionKey,
@@ -329,7 +329,7 @@ func (h *Handlers) HandleGetWorkGraphWorkflowEditor(writer http.ResponseWriter, 
 		SourceSessionKey: request.URL.Query().Get("source_session_key"),
 		EditorID:         strings.TrimSpace(chi.URLParam(request, "editor_id")),
 	}
-	session, err := editor.GetMetadataEditor(authsvc.OwnerUserID(request.Context()), payload)
+	session, err := editor.GetMetadataEditor(request.Context(), authsvc.OwnerUserID(request.Context()), payload)
 	if err != nil {
 		h.writeWorkflowEditorError(writer, err)
 		return
@@ -359,7 +359,7 @@ func (h *Handlers) HandleApplyWorkGraphWorkflowEditor(writer http.ResponseWriter
 		return
 	}
 	payload.EditorID = strings.TrimSpace(chi.URLParam(request, "editor_id"))
-	preview, err := editor.ApplyMetadataEditor(authsvc.OwnerUserID(request.Context()), payload)
+	preview, err := editor.ApplyMetadataEditor(request.Context(), authsvc.OwnerUserID(request.Context()), payload)
 	if err != nil {
 		h.writeApplyWorkflowEditorError(writer, request, err)
 		return

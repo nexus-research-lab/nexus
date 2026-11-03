@@ -6,7 +6,7 @@
 //
 //   - repository.go：沉淀 aggregate 的跨方言事务写入、按 owner/name 读取与删除。
 //
-//   - draft_repository.go：按 exact source 去重的 Draft、不可变完整版本、head/selected revision、隐藏编辑 Session 绑定与保存状态。
+//   - draft_repository.go：同一快照内读取 Draft/不可变版本、写事务内返回 head/selected 回执、按 exact source 去重、隐藏编辑 Session 绑定/撤销与保存状态。
 //
 //   - draft_save.go：草图版本和命名图同事务保存，head/selected/saved identity 与 aggregate version CAS 隔离迟到请求。
 //

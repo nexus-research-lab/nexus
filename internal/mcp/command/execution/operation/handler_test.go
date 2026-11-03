@@ -24,6 +24,7 @@ type fakeExecutionService struct {
 	materialize   func(orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) orchestration.MutationResult
 	abandon       func(orchestration.AbandonExecutionInput) orchestration.MutationResult
 	assign        func(orchestration.AssignWorkInput) orchestration.MutationResult
+	assignBatch   func(orchestration.AssignWorkBatchInput) orchestration.MutationResult
 	submit        func(orchestration.SubmitWorkInput) orchestration.MutationResult
 	review        func(orchestration.ReviewWorkInput) orchestration.MutationResult
 	block         func(orchestration.BlockWorkInput) orchestration.MutationResult
@@ -168,6 +169,10 @@ func (s *fakeExecutionService) AbandonExecution(_ context.Context, _ orchestrati
 
 func (s *fakeExecutionService) AssignWork(_ context.Context, _ orchestration.ActorContext, input orchestration.AssignWorkInput) (orchestration.MutationResult, error) {
 	return s.assign(input), nil
+}
+
+func (s *fakeExecutionService) AssignWorkBatch(_ context.Context, _ orchestration.ActorContext, input orchestration.AssignWorkBatchInput) (orchestration.MutationResult, error) {
+	return s.assignBatch(input), nil
 }
 
 func (s *fakeExecutionService) SubmitWork(_ context.Context, _ orchestration.ActorContext, input orchestration.SubmitWorkInput) (orchestration.MutationResult, error) {

@@ -190,10 +190,14 @@ func (r *Repository) ListManaged(
 	sessionKey string,
 	limit int,
 ) ([]protocol.Execution, error) {
+	return r.listManaged(ctx, r.db, ownerUserID, sessionKey, limit)
+}
+
+func (r *Repository) listManaged(ctx context.Context, queryer sqlQueryer, ownerUserID, sessionKey string, limit int) ([]protocol.Execution, error) {
 	if limit <= 0 || limit > 50 {
 		limit = 20
 	}
-	rows, err := r.db.QueryContext(ctx, r.executionSelect()+`
+	rows, err := queryer.QueryContext(ctx, r.executionSelect()+`
 WHERE executions.owner_user_id = `+r.bind(1)+`
   AND executions.session_key = `+r.bind(2)+`
   AND EXISTS (

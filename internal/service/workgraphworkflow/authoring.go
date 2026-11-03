@@ -12,7 +12,7 @@ import (
 )
 
 type executionHistoryViewer interface {
-	ListHistoryViews(context.Context, string, string, int) ([]protocol.ExecutionView, error)
+	ListHistorySummaries(context.Context, string, string, int) ([]protocol.ExecutionSummary, error)
 }
 
 // PreviewSavedWorkflow 按命名图身份恢复 Draft；历史同源命令各有独立草稿，不挪用提取草稿或伪造已保存标记。
@@ -48,7 +48,6 @@ func (s *Service) PreviewSavedWorkflow(
 		if err = s.renewDraftLease(ctx, drafts, existing); err != nil {
 			return nil, err
 		}
-		s.hydrateDraft(*existing)
 		preview := cloneWorkflowPreview(existing.Preview)
 		return &preview, nil
 	}
@@ -84,7 +83,6 @@ func (s *Service) PreviewSavedWorkflow(
 	if err != nil {
 		return nil, err
 	}
-	s.hydrateDraft(*created)
 	result := cloneWorkflowPreview(created.Preview)
 	return &result, nil
 }
@@ -102,7 +100,7 @@ func (s *Service) InspectLibrary(
 	}
 	result := &protocol.WorkGraphWorkflowLibrary{}
 	if history, ok := s.executions.(executionHistoryViewer); ok {
-		views, err := history.ListHistoryViews(ctx, ownerUserID, sourceSessionKey, 40)
+		views, err := history.ListHistorySummaries(ctx, ownerUserID, sourceSessionKey, 40)
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +110,7 @@ func (s *Service) InspectLibrary(
 			}
 			result.Sources = append(result.Sources, protocol.WorkGraphWorkflowSourceSummary{
 				ExecutionID: view.ID, Status: view.Status, Objective: view.Objective,
-				NodeCount: len(view.WorkItems), UpdatedAt: view.UpdatedAt,
+				NodeCount: view.WorkItemCount, UpdatedAt: view.UpdatedAt,
 			})
 		}
 	}
@@ -186,7 +184,6 @@ func (s *Service) ReviseDraftPreview(
 	if err != nil {
 		return nil, fmt.Errorf("%w: Draft head revision changed", ErrInvalidInput)
 	}
-	s.hydrateDraft(*updated)
 	return cloneWorkflowDraft(updated), nil
 }
 
@@ -217,7 +214,6 @@ func (s *Service) SelectDraftRevision(
 	if err != nil {
 		return nil, fmt.Errorf("%w: selected Draft version is unavailable", ErrInvalidInput)
 	}
-	s.hydrateDraft(*updated)
 	return cloneWorkflowDraft(updated), nil
 }
 

@@ -352,6 +352,28 @@ func TestReadSubagentTaskThreadUsesIndependentAgentTranscript(t *testing.T) {
 	}
 }
 
+func TestMigrationDoesNotTreatMissingChildTranscriptAsCompleted(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	owner := "owner-history-backfill"
+	workspace := filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, owner), "host-agent")
+	if err := os.MkdirAll(workspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: owner, Role: authctx.RoleOwner})
+	service := &Service{history: workspacestore.NewAgentHistoryStore(appfs.UsersRoot())}
+	for _, task := range []SubagentTask{
+		{TranscriptPath: filepath.Join(workspace, "missing.jsonl")},
+		{TaskType: "local_agent", OutputFile: filepath.Join(workspace, "missing-output")},
+		{AgentID: "agent-100a6a9587387094a687c45764874d8c"},
+	} {
+		task.SessionKey, task.HostAgentID = "agent:host-agent:ws:dm:conversation-1", "host-agent"
+		if _, err := service.readSubagentTaskThreadForMigration(ctx, task, workspace); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("missing migration source was not retryable: task=%+v err=%v", task, err)
+		}
+	}
+}
+
 func TestSubagentToolRunsFromMessagesKeepsOnlyLifecycleIdentity(t *testing.T) {
 	t.Parallel()
 

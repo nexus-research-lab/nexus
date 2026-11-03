@@ -180,6 +180,7 @@ type ExecutionGraphEdgeView struct {
 // runtime total / truncated 仅描述 visibility != detail 的主图运行投影；节点
 // 检查器内的 detail 历史不占主图配额，也不触发 partial。
 type ExecutionGraphView struct {
+	HistoryPending        bool                     `json:"history_pending,omitempty"`
 	Nodes                 []ExecutionGraphNodeView `json:"nodes,omitempty"`
 	Edges                 []ExecutionGraphEdgeView `json:"edges,omitempty"`
 	RuntimeNodeTotal      int                      `json:"runtime_node_total"`
@@ -241,6 +242,18 @@ type ExecutionWorkItemView struct {
 	Submission         *ExecutionSubmissionView    `json:"submission,omitempty"`
 	Acceptance         *ExecutionAcceptanceView    `json:"acceptance,omitempty"`
 	UpdatedAt          time.Time                   `json:"updated_at"`
+}
+
+// ExecutionSummary 是历史目录条目；运行图与责任历史只在选中后按 ID 读取。
+type ExecutionSummary struct {
+	ID            string          `json:"id"`
+	SessionKey    string          `json:"session_key"`
+	Objective     string          `json:"objective"`
+	Status        ExecutionStatus `json:"status"`
+	Version       int64           `json:"version"`
+	WorkItemCount int             `json:"work_item_count"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
 // ExecutionView 是 DM/Room 共用的当前或最近一次 WorkGraph 展示快照。

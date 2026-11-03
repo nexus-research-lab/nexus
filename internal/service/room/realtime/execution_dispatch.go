@@ -120,7 +120,7 @@ func (s *Service) DeliverExecutionDispatch(
 		return receipt, orchestrationsvc.PermanentExecutionDispatchDelivery(err)
 	}
 	handoffID := "execution_dispatch_" + delivery.Binding.DispatchID
-	content := renderExecutionDispatchInstruction(delivery)
+	content := renderExecutionDispatchInstruction(delivery, s.executionSubmissionContract)
 	accepted, existingReceipt, err := s.ensureExecutionDispatchHandoff(
 		delivery,
 		handoffID,
@@ -419,7 +419,12 @@ func validateExecutionDispatchDelivery(delivery orchestrationsvc.ExecutionDispat
 	return nil
 }
 
-func renderExecutionDispatchInstruction(delivery orchestrationsvc.ExecutionDispatchDelivery) string {
+// SetExecutionSubmissionContract injects the parser-owned schema without a service-to-MCP dependency.
+func (s *Service) SetExecutionSubmissionContract(schema string) {
+	s.executionSubmissionContract = schema
+}
+
+func renderExecutionDispatchInstruction(delivery orchestrationsvc.ExecutionDispatchDelivery, submissionContract string) string {
 	binding := delivery.Binding
 	var output strings.Builder
 	fmt.Fprintf(
@@ -475,6 +480,11 @@ func renderExecutionDispatchInstruction(delivery orchestrationsvc.ExecutionDispa
 		"\n\n[instruction]\n%s",
 		strings.TrimSpace(delivery.Instruction),
 	)
+	if submissionContract != "" {
+		output.WriteString("\n\n[submission_contract]\nAfter completing this assignment, call nexus.command with domain=execution, action=invoke, operation=submit_work. Supply a unique 8-128 character ASCII request_id at the tool top level; reuse it only for the same intent. Inside this trusted WorkBinding omit identity fields. input must match this schema; evidence and result_refs are arrays of strings. Never invent result/content/deliverable_file aliases.\n")
+		output.WriteString(submissionContract)
+		output.WriteString("\nThis is the current input_schema; reuse it without a contract lookup. The current trusted WorkBinding and allowed_actions still decide authority.")
+	}
 	return output.String()
 }
 

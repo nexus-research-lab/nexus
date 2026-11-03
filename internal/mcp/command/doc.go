@@ -3,9 +3,10 @@
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
 // 成员:
-//   - contract.go / input_schema.go：领域请求、contract、operation、result 与字段类型、字符长度、数值及数组上下界校验。
+//   - contract.go / input_schema.go：领域请求、contract、operation、result 与按稳定顺序汇总字段错误并附相同 input_schema 的输入校验。
 //   - actor.go：模型不能覆盖的 physical-round Actor capability。
-//   - tool.go：单一 nexus MCP server 中 command 工具的 schema、request_id 格式与条件必填说明、纠错和回执适配；非对象 JSON 结果在结构面包装为 result 字段，文本面保留原值。
+//   - tool.go：单一 nexus MCP server 中 command 工具的 schema、本轮 Execution schema 复用提示、request_id 格式与条件必填说明、纠错和回执适配；非对象 JSON 结果在结构面包装为 result 字段，文本面保留原值。
+//   - diagnostics.go：独立的调用 start/finish 日志、注册操作标签、结果分类与哈希关联；不写正文，不参与 mutation receipt 或重放。
 //   - subagent/：子任务 contract、同轮去重与宿主原生控制回连。
 //   - goal/：Goal 服务窄契约与固定语义操作。
 //   - execution/：Execution/WorkGraph 服务窄契约与固定语义操作。

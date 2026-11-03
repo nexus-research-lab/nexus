@@ -418,7 +418,7 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	if sessions.created[0].AgentID != "agent-main" || editor.AgentID != "agent-main" {
 		t.Fatalf("hidden editor request = %#v", sessions.created[0])
 	}
-	policy, active, err := service.RuntimeEditorPolicy("owner-a", editor.SessionKey)
+	policy, active, err := service.RuntimeEditorPolicy(context.Background(), "owner-a", editor.SessionKey)
 	if err != nil || !active {
 		t.Fatalf("editor runtime policy unavailable: active=%v err=%v", active, err)
 	}
@@ -465,7 +465,7 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	}); err == nil || !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("stale revision error = %v", err)
 	}
-	if _, err = service.ApplyMetadataEditor("owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
+	if _, err = service.ApplyMetadataEditor(context.Background(), "owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
 		SourceSessionKey: "session-a", EditorID: editor.EditorID, Revision: 1,
 	}); err == nil || !errors.Is(err, ErrRevisionConflict) {
 		t.Fatalf("stale apply error = %v", err)
@@ -476,7 +476,7 @@ func TestMetadataEditorAppliesValidatedGraphRevisionAndDiscardsTransientSession(
 	if err != nil || len(unchanged.Nodes) != 3 {
 		t.Fatalf("stale apply changed preview = %#v, err=%v", unchanged, err)
 	}
-	applied, err := service.ApplyMetadataEditor("owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
+	applied, err := service.ApplyMetadataEditor(context.Background(), "owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
 		SourceSessionKey: "session-a", EditorID: editor.EditorID, Revision: revised.Revision, SelectedRevision: revised.SelectedRevision,
 	})
 	if err != nil || len(applied.Nodes) != 4 || applied.Nodes[3].LogicalKey != "publish" {

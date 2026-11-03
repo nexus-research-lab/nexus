@@ -283,7 +283,7 @@ type titleScheduler interface {
 }
 
 type scopedSessionRuntimePolicyProvider interface {
-	RuntimeEditorPolicy(string, string) (protocol.ScopedSessionRuntimePolicy, bool, error)
+	RuntimeEditorPolicy(context.Context, string, string) (protocol.ScopedSessionRuntimePolicy, bool, error)
 }
 
 type goalContextProvider interface {

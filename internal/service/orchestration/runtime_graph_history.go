@@ -1,10 +1,9 @@
-// INPUT: 已持久化 Runtime Graph、当前 owner/session 与受限 Subagent task/ToolRun provider。
-// OUTPUT: 为旧执行补齐 exact Subagent 与其 child Tool 节点的只读、脱敏运行图副本。
-// POS: Runtime Graph 兼容投影层；不改写历史库，不从 prompt/output 猜测节点。
+// INPUT: 已持久化 Runtime Graph、当前 owner/session 与迁移读取的受限 Subagent task/ToolRun。
+// OUTPUT: 为版本化迁移补齐 exact Subagent 与其 child Tool 节点的脱敏运行图副本。
+// POS: Runtime Graph 历史迁移的纯投影；普通视图不调用，不从 prompt/output 猜测节点。
 package orchestration
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -40,42 +39,20 @@ type RuntimeGraphSubagentTaskHistory struct {
 	UpdatedAt      int64
 }
 
-// RuntimeGraphSubagentToolHistoryProvider 在消费侧提供受限历史；实现不得返回
-// prompt、Tool input、Tool output 或未经脱敏的 result。
-type RuntimeGraphSubagentToolHistoryProvider interface {
-	ListRuntimeGraphSubagentToolHistory(
-		context.Context,
-		string,
-		string,
-	) ([]RuntimeGraphSubagentToolHistory, error)
-}
-
-// RuntimeGraphSubagentTaskHistoryProvider 是旧执行的 task identity/status
-// 兼容端口；只有实现同时提供该能力时才恢复 Subagent，保持注入向后兼容。
-type RuntimeGraphSubagentTaskHistoryProvider interface {
-	ListRuntimeGraphSubagentTaskHistory(
-		context.Context,
-		string,
-		string,
-	) ([]RuntimeGraphSubagentTaskHistory, error)
-}
-
-// SetRuntimeGraphSubagentToolHistoryProvider 注入旧执行的只读 transcript 兼容投影。
-func (s *Service) SetRuntimeGraphSubagentToolHistoryProvider(
-	provider RuntimeGraphSubagentToolHistoryProvider,
-) {
-	s.subagentToolHistory = provider
-}
-
-func (s *Service) mergeRuntimeGraphSubagentToolHistory(
-	ctx context.Context,
-	ownerUserID string,
-	sessionKey string,
-	graph protocol.ExecutionRuntimeGraph,
-) protocol.ExecutionRuntimeGraph {
-	if s == nil || s.subagentToolHistory == nil || len(graph.Nodes) == 0 {
-		return graph
+// RuntimeGraphNeedsHistoryBackfill avoids reading transcripts for graphs that
+// contain no exact Subagent launch identity.
+func RuntimeGraphNeedsHistoryBackfill(graph protocol.ExecutionRuntimeGraph) bool {
+	for _, node := range graph.Nodes {
+		if node.Kind == protocol.ExecutionRuntimeNodeSubagent || (node.Kind == protocol.ExecutionRuntimeNodeTool && runtimeGraphCanonicalToolLeaf(node.Name) == "agent") {
+			return true
+		}
 	}
+	return false
+}
+
+// RecoverRuntimeGraphHistory is a pure migration projection. Callers persist only
+// missing identities and never use it as a fallback on normal view reads.
+func RecoverRuntimeGraphHistory(ownerUserID, sessionKey string, graph protocol.ExecutionRuntimeGraph, tasks []RuntimeGraphSubagentTaskHistory, history []RuntimeGraphSubagentToolHistory) protocol.ExecutionRuntimeGraph {
 	subagentByLaunchToolUseID := make(map[string]protocol.ExecutionRuntimeNodeRun)
 	existingToolUseID := make(map[string]struct{})
 	agentNodeByRound := make(map[string]protocol.ExecutionRuntimeNodeRun)
@@ -109,33 +86,7 @@ func (s *Service) mergeRuntimeGraphSubagentToolHistory(
 	if len(subagentByLaunchToolUseID) == 0 {
 		return graph
 	}
-	if provider, ok := s.subagentToolHistory.(RuntimeGraphSubagentTaskHistoryProvider); ok {
-		tasks, taskErr := provider.ListRuntimeGraphSubagentTaskHistory(
-			ctx,
-			ownerUserID,
-			sessionKey,
-		)
-		if taskErr == nil {
-			graph = recoverRuntimeGraphSubagentTasks(
-				graph,
-				tasks,
-				subagentByLaunchToolUseID,
-				agentNodeByRound,
-				ownerUserID,
-				sessionKey,
-			)
-		}
-	}
-	history, err := s.subagentToolHistory.ListRuntimeGraphSubagentToolHistory(
-		ctx,
-		ownerUserID,
-		sessionKey,
-	)
-	if err != nil {
-		// WorkGraph 历史兼容读取保持 fail-open；权威 Execution/Runtime Graph
-		// 不能因为 transcript 已清理或暂时不可读而变成 500。
-		return graph
-	}
+	graph = recoverRuntimeGraphSubagentTasks(graph, tasks, subagentByLaunchToolUseID, agentNodeByRound, ownerUserID, sessionKey)
 	for _, item := range history {
 		parent, exists := subagentByLaunchToolUseID[strings.TrimSpace(item.ParentToolUseID)]
 		toolUseID := strings.TrimSpace(item.ToolUseID)

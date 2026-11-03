@@ -542,14 +542,14 @@ test("WorkGraph layout reflows without treating containment as dependency", asyn
   const addedLayout = buildExecutionGraphLayout(branched);
   assert.equal(addedLayout.nodes.length, 5);
   assert.deepEqual(
-    addedLayout.edges.map((edge) => `${edge.sourceId}->${edge.targetId}`),
+    addedLayout.edges.map((edge) => `${edge.sourceId}->${edge.targetId}`).sort(),
     [
       "research->build",
       "build->attempt-child",
       "research->review",
       "build->integrate",
       "review->integrate",
-    ],
+    ].sort(),
   );
   assert.notEqual(
     addedLayout.nodes.find((node) => node.node.id === "build").x,
@@ -565,7 +565,7 @@ test("WorkGraph layout reflows without treating containment as dependency", asyn
       group: port.groupId,
       role: port.role,
       side: port.side,
-    })),
+    })).sort((left, right) => left.role.localeCompare(right.role)),
     [
       {
         edges: ["dependency:research:build"],
@@ -579,7 +579,7 @@ test("WorkGraph layout reflows without treating containment as dependency", asyn
         role: "source",
         side: "bottom",
       },
-    ],
+    ].sort((left, right) => left.role.localeCompare(right.role)),
     "cross-subgraph edges attach to stable frame ports instead of the core node",
   );
   const buildFrame = addedLayout.groups.find((group) => group.id === "build");
@@ -1086,8 +1086,8 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
   );
   const retriedLayout = buildExecutionGraphLayout(retriedExecution);
   assert.deepEqual(
-    retriedLayout.edges.map((edge) => edge.kind),
-    ["invoke", "loop_back", "invoke", "retry"],
+    retriedLayout.edges.map((edge) => edge.kind).sort(),
+    ["invoke", "loop_back", "invoke", "retry"].sort(),
   );
   assert.deepEqual(
     retriedLayout.edges.map((edge) => edge.paired),
@@ -1385,7 +1385,7 @@ test("Lead review gate is a visible node and changes-requested is a back edge", 
     layout.nodes.find((node) => node.node.kind === "gate").node.agent_id,
     "lead",
   );
-  assert.deepEqual(layout.edges.map((edge) => edge.kind), ["review", "loop_back"]);
+  assert.deepEqual(layout.edges.map((edge) => edge.kind).sort(), ["review", "loop_back"].sort());
   assert.ok(
     layout.nodes.find((node) => node.node.kind === "gate").y
       > layout.nodes.find((node) => node.node.kind === "agent").y,
@@ -1520,7 +1520,7 @@ test("Objective alignment gate reports evidence without choosing the Agent route
     "changes_requested",
   );
   const layout = buildExecutionGraphLayout(alignment);
-  assert.deepEqual(layout.edges.map((edge) => edge.kind), ["guard", "loop_back"]);
+  assert.deepEqual(layout.edges.map((edge) => edge.kind).sort(), ["guard", "loop_back"].sort());
   assert.ok(
     layout.nodes.find((node) => node.node.kind === "gate").y
       > layout.nodes.find((node) => node.node.kind === "agent").y,
@@ -1636,17 +1636,17 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     buildExecutionGraphLayout(searchable).edges,
     ["build", "attempt-child"],
   );
-  assert.deepEqual([...groupTrace.nodeIds], [
+  assert.deepEqual([...groupTrace.nodeIds].sort(), [
     "build",
     "attempt-child",
     "research",
     "integrate",
-  ]);
-  assert.deepEqual([...groupTrace.edgeIds], [
+  ].sort());
+  assert.deepEqual([...groupTrace.edgeIds].sort(), [
     "dependency:research:build",
     "spawn:build:attempt-child",
     "dependency:build:integrate",
-  ]);
+  ].sort());
   const collapsedLayout = buildExecutionGraphLayout(
     searchable,
     700,
@@ -1720,4 +1720,55 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
   assert.equal(resolveExecutionWorkspaceReference("reports/result.md"), "reports/result.md");
   assert.equal(resolveExecutionWorkspaceReference("../outside.txt"), null);
   assert.equal(resolveExecutionWorkspaceReference("https://example.com/result"), null);
+});
+
+test("geometry cache reuses routes, refreshes facts, and invalidates structural changes", async () => {
+  const { createExecutionGraphLayoutCache, buildExecutionGraphLayout } = await import("./execution-workgraph-layout.ts");
+  const cached = createExecutionGraphLayoutCache();
+  const first = cached(execution, 800);
+  const refreshed = structuredClone(execution);
+  refreshed.graph.nodes[0].lifecycle_status = "failed";
+  refreshed.graph.nodes[0].error_summary = "provider unavailable";
+  refreshed.work_items[0].objective = "Updated objective";
+  refreshed.graph.edges[0].summary = "Updated evidence";
+  const second = cached(refreshed, 800);
+  assert.equal(second.groups, first.groups);
+  assert.equal(second.ports, first.ports);
+  assert.equal(second.junctions, first.junctions);
+  assert.equal(second.nodes[0].node, refreshed.graph.nodes[0]);
+  assert.equal(second.nodes[0].item, refreshed.work_items[0]);
+  assert.deepEqual(second, buildExecutionGraphLayout(refreshed, 800));
+  for (const [view, width, hidden, presentation] of [
+    [refreshed, 400, new Set(), "icon"],
+    [refreshed, 800, new Set(["attempt-child"]), "icon"],
+    [refreshed, 800, new Set(), "summary"],
+    [{ ...refreshed, graph: { ...refreshed.graph, edges: refreshed.graph.edges.slice(1) } }, 800, new Set(), "icon"],
+  ]) {
+    assert.deepEqual(cached(view, width, hidden, presentation), buildExecutionGraphLayout(view, width, hidden, presentation));
+  }
+});
+
+test("edge permutations preserve geometry and seeded graph routes avoid unrelated nodes", async () => {
+  const { buildExecutionGraphLayout } = await import("./execution-workgraph-layout.ts");
+  let seed = 739391;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
+  for (let sample = 0; sample < 16; sample += 1) {
+    const nodes = Array.from({ length: 8 }, (_, index) => ({ id: `n${index}`, kind: index % 2 ? "tool" : "agent", visibility: index % 2 ? "nested" : "primary", position: index, work_item_id: `w${index >> 1}`, parent_node_id: index % 2 ? `n${index - 1}` : undefined }));
+    const edges = nodes.filter((_, index) => index % 2).map(node => ({ id: `invoke:${node.id}`, kind: "invoke", source_node_id: node.parent_node_id, target_node_id: node.id }));
+    for (let a = 0; a < 4; a += 1) for (let b = a + 1; b < 4; b += 1) {
+      if (random() < 0.6) edges.push({ id: `dep:${a}:${b}`, kind: "dependency", source_node_id: `n${a * 2}`, target_node_id: `n${b * 2}` });
+    }
+    const view = { ...execution, graph: { nodes, edges } };
+    const baseline = buildExecutionGraphLayout(view, 720);
+    const shuffled = [...edges];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    assert.deepEqual(buildExecutionGraphLayout({ ...view, graph: { nodes, edges: shuffled } }, 720), baseline);
+    for (const edge of baseline.edges) for (const node of baseline.nodes) {
+      if (node.node.id !== edge.sourceId && node.node.id !== edge.targetId) {
+        assert.equal(orthogonalPathCrossesNode(edge.path, node), false, `${sample}: ${edge.id} crosses ${node.node.id}`);
+      }
+    }
+  }
 });

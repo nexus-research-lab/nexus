@@ -35,8 +35,8 @@
 // source transcript, runtime or delivery history.
 //
 // 成员清单：
-//   - registry.go / schema.go / adapter.go：operation 注册、严格输入协议与共用可靠性适配。
-//   - plan.go / work.go：Plan 两阶段提交与 Assignment/Submission/Review 生命周期。
+//   - registry.go / schema.go / adapter.go：operation 注册、严格输入协议（SubmitWorkInputSchema / ReviewWorkInputSchema 供 app 注入 Room 派发）与共用可靠性适配。
+//   - plan.go / work.go：Plan 两阶段提交、单项/原子批量 Assignment 与 Submission/Review 生命周期。
 //   - goal.go / workflow.go：Execution-Goal 边界与 WorkGraph authoring/edit/save。
 //   - read.go / abandon.go：权威读取与无 successor 的 transient Execution 放弃。
 //

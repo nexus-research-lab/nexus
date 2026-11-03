@@ -1,17 +1,35 @@
 // INPUT: Operation.InputSchema 的 portable JSON Schema 子集，以及 MCP/CLI 解码后的 JSON 输入。
-// OUTPUT: 在领域 handler 前完成 required/type/enum/pattern/string-length/numeric-boundary/closed-object/array-boundary 校验的稳定错误。
+// OUTPUT: 在领域 handler 前一次返回所有字段错误；路径与字段说明按稳定顺序排列，不回显输入值。
 // POS: Goal 与 Execution command 共用的模型输入边界；复刻原生 MCP provider 的 schema 前置约束。
 package command
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
+
+// OperationInputError carries the same schema used by validation and contract.
+// It contains no supplied field values and proves that the handler was not called.
+type OperationInputError struct {
+	Operation string
+	Schema    map[string]any
+	Cause     error
+}
+
+func (e *OperationInputError) Error() string {
+	schema, _ := json.Marshal(e.Schema)
+	return fmt.Sprintf("%s input %v\nThis request was not executed. Correct all listed fields using input_schema: %s", e.Operation, e.Cause, schema)
+}
+
+func (e *OperationInputError) Unwrap() error { return e.Cause }
 
 // ValidateInput validates the portable schema dialect emitted by runtime
 // command operations. Domain handlers remain responsible for stateful and
@@ -34,44 +52,49 @@ func validateSchemaValue(path string, value any, schema map[string]any) error {
 			return fmt.Errorf("at %s must be an object", path)
 		}
 		properties, _ := schema["properties"].(map[string]any)
+		var issues []error
 		for _, required := range schemaStrings(schema["required"]) {
 			if _, exists := object[required]; !exists {
-				return fmt.Errorf("at %s.%s is required", path, required)
+				issues = append(issues, fmt.Errorf("at %s.%s is required", path, required))
 			}
 		}
 		if closed, declared := schema["additionalProperties"].(bool); declared && !closed {
-			for name := range object {
+			for _, name := range slices.Sorted(maps.Keys(object)) {
 				if _, known := properties[name]; !known {
-					return fmt.Errorf("at %s.%s is not allowed", path, name)
+					issues = append(issues, fmt.Errorf("at %s.%s is not allowed", path, name))
 				}
 			}
 		}
-		for name, childValue := range object {
+		for _, name := range slices.Sorted(maps.Keys(object)) {
+			childValue := object[name]
 			childSchema, ok := properties[name].(map[string]any)
 			if !ok {
 				continue
 			}
 			if err := validateSchemaValue(path+"."+name, childValue, childSchema); err != nil {
-				return err
+				issues = append(issues, err)
 			}
 		}
+		return errors.Join(issues...)
 	case "array":
 		array, ok := schemaArray(value)
 		if !ok {
 			return fmt.Errorf("at %s must be an array", path)
 		}
+		var issues []error
 		if maximum, ok := schemaInteger(schema["maxItems"]); ok && len(array) > maximum {
-			return fmt.Errorf("at %s must contain at most %d items", path, maximum)
+			issues = append(issues, fmt.Errorf("at %s must contain at most %d items", path, maximum))
 		}
 		if minimum, ok := schemaInteger(schema["minItems"]); ok && len(array) < minimum {
-			return fmt.Errorf("at %s must contain at least %d items", path, minimum)
+			issues = append(issues, fmt.Errorf("at %s must contain at least %d items", path, minimum))
 		}
 		itemSchema, _ := schema["items"].(map[string]any)
 		for index, item := range array {
 			if err := validateSchemaValue(fmt.Sprintf("%s[%d]", path, index), item, itemSchema); err != nil {
-				return err
+				issues = append(issues, err)
 			}
 		}
+		return errors.Join(issues...)
 	case "string":
 		text, ok := value.(string)
 		if !ok {

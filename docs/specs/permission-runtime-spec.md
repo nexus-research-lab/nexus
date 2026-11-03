@@ -78,6 +78,13 @@ Room 中必须区分：
 - 无权轮次必须保留工具定义，并在 service 真相源 fail closed。
 - `ToolSearch` 只是默认关闭的 schema 传递优化，不参与挂载或鉴权。
 
+### 6.1 命令诊断与业务回执
+
+- 宿主装配的 `nexus.command` 在进入命令 Handler 后记录独立的 start/finish 诊断，包括输入拒绝、返回错误、取消、超时及显式业务 outcome。尚未到达 Handler 的传输失败不在其覆盖范围。
+- 诊断只记录固定标签、注册操作名、哈希身份和宿主时长；不记录输入/产物正文、原始身份或错误正文。未识别的操作、结果与原因保留为 unknown/other，不猜测成功。
+- 日志为 best effort，缺少 finish 不证明失败或成功，两个事件都缺失的调用不可计数；诊断写失败不能改变命令结果。它不参与授权、typed mutation receipt、Goal progress、幂等或恢复决策。
+- 宿主处理时长不等于模型或端到端耗时，重复请求观察不等于副作用被重复执行；没有单工具 token 证据时必须留空。采集和离线汇总入口见 [测试体系](../testing/test-system.md#命令调用诊断)。
+
 ## 7. 禁止项
 
 - runtime client 直接持有 sender。

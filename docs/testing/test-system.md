@@ -17,11 +17,23 @@ Vitest 统一加载业务 TS 模块；迁移来的 MJS 用例直接 import，并
 
 ## 数据库与升级
 
-`go test ./internal/storage -run TestDatabaseIntegration -count=1` 总是执行 SQLite；
+`go test ./internal/storage -run 'Test(Database|WorkGraph.*)Integration' -count=1 -timeout=3m` 总是执行 SQLite；
 设置 `NEXUS_TEST_POSTGRES_URL` 后，同一套迁移、Room owner/CAS、Goal JSON/时间/CAS/事件失败回滚、
 Execution 幂等事件用例也在 PostgreSQL 执行。每次创建独立 schema，并在清理阶段删除。
 变量缺失时仅 PostgreSQL 子测试跳过；配置存在但连接或迁移失败必须报错。
 后端 CI 使用 PostgreSQL 17 service，显式设置变量，不允许该分支跳过。
+
+WorkGraph 集成用例还覆盖批量派发在后续审计 INSERT 失败时的整批回滚、同请求并发重放、
+不同请求竞争同一 Execution revision、Draft revision/编辑绑定竞争、精确撤销，以及历史摘要和
+Runtime Graph 详情窗口。并发调用使用两个独立数据库连接池，不靠单个 SQLite 连接池串行化。
+升级用例先迁移到 158 并写入合成 WorkGraph，再升级到当前版本，检查冻结回填范围、失败回滚、
+重试幂等和不覆盖较新的运行事实。用例不运行真实 provider，也不读取安装版数据库。
+
+使用已有专用测试 PostgreSQL 时显式设置 `NEXUS_TEST_POSTGRES_URL`（URL 格式）；
+账号须能创建/删除 schema。也可使用 `initdb` + `pg_ctl` 创建仅监听临时 Unix socket 的本地实例，
+用 `postgresql:///postgres?host=/absolute/temporary/socket&port=55483` 连接，结束后停止该实例。
+不要将测试连接指向安装版或其他业务数据库。运行日志必须确认 PostgreSQL 子测试确实执行，
+未配置变量时的整体 PASS 不等于 PostgreSQL 验收通过。
 
 现有 SQLite 专项测试继续保留。双驱动集成套件覆盖共用仓储边界，不代表所有
 SQLite 专项用例都适用于 PostgreSQL；例如 SQLite PRAGMA 与历史编号修复有自己的测试。
@@ -29,6 +41,51 @@ SQLite 专项用例都适用于 PostgreSQL；例如 SQLite PRAGMA 与历史编�
 `go test ./cmd/nexus-server -run TestPreviousReleaseDatabaseUpgrade -count=1`
 使用冻结的 v0.2.5 合成数据快照，经真实启动迁移函数升级，校验数据与重复启动。
 来源和重建方法见 `cmd/nexus-server/testdata/README.md`。不读取已安装 App 的数据。
+
+## 命令调用诊断
+
+在隔离开发实例上设置 `LOG_FORMAT=json`，日志级别为 `info` 或 `debug`，从配置的 `LOG_PATH`
+收集 JSON 行。`nexus.command.call` 的 start/finish 通过随机 `call_id` 配对，request hash
+在同 owner/session/agent/domain 内可跨 round 关联；round hash 区分物理轮次。上述 hash 只用于诊断。
+命令入口诊断不包含输入、产物、错误正文或原始身份；同一应用日志中的其他事件不属于该承诺。
+
+```sh
+go run ./scripts/workgraph-command-report \
+  --label 'local-synthetic-batch' \
+  --environment 'synthetic commands; macOS arm64; no provider' \
+  /absolute/path/commands.jsonl > /absolute/path/report.json
+```
+
+支持传多个未压缩日志文件。汇总按 domain/action/operation/status/outcome/reason 分组，报告样本数、
+重复请求观察和宿主时长的均值、p50/p95（nearest-rank）；重复日志行不会重复计数。
+缺少 finish、记录相互冲突、缺少 outcome 或时长时保留 unknown/null；同时报告格式错误、
+未知 schema、缺少 start 和缺失字段。两个事件都丢失的调用无法计数，日志不是 durable receipt。
+目前精确操作标签来自 Goal/Execution registry；其他领域及到达 registry 前被拒绝的请求可能显示 unknown。
+
+`host_duration_ms` 包括入口处理、start 日志、领域调用与结果序列化，不含模型生成/网络或 finish 日志写入；
+它不能替代端到端时长。单工具 token 固定留空，需另外保存真实 provider/round usage。
+重复请求观察不能用来推断业务副作用被重放。完整合同见 [权限与 MCP 规范](../specs/permission-runtime-spec.md#61-命令诊断与业务回执)。
+
+采集器和离线入口检查：
+
+```sh
+go test ./internal/mcp/command ./scripts/workgraph-command-report -count=1
+go test ./internal/mcp/command -run '^$' -bench '^BenchmarkCommandDiagnostics$' -benchmem -benchtime=200ms -count=3
+```
+
+后一个基准只比较内存内命令包装层与写入 `io.Discard` 的 JSON 诊断编码，不包含数据库、文件日志
+I/O、真实模型或 token；它用于检查诊断自身成本，不能证明 WorkGraph 端到端收益。
+
+真实优化对照需要固定源码版本/工作树快照、模型/provider、预算和输入数据，并单独保存每轮原始 usage：
+
+| 场景 | 对照 | 相同的正确性要求 |
+| --- | --- | --- |
+| 8 个独立 Ready Work Items | 单项 `assign_work` 与 `assign_work_batch` | 相同显式 owner、Attempt、outbox 和最终责任；不得把未来依赖项提前派发 |
+| 一次交付及审核 | 重复读取 contract/context 与复用已提供的准确 schema/context | 同一 Plan/binding；动态权限仍在调用时复核 |
+| 字段错误后纠正 | 无效输入 → 纠正 → 有效请求 | 无效请求没有写入；新结果需 domain receipt 证明 |
+
+每份报告注明样本量、失败/unknown、日志缺失、预热条件、数据库和端到端墙钟时间。
+合成结果只验采集/统计；真实模型没有运行时，不填 token 节省比例。
 
 ## 真实后端冒烟
 

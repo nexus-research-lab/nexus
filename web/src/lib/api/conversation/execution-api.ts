@@ -5,7 +5,7 @@
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
-import type { ExecutionView } from "@/types/conversation/execution";
+import type { ExecutionSummary, ExecutionView } from "@/types/conversation/execution";
 import type {
   WorkGraphWorkflow,
   WorkGraphWorkflowEditorSession,
@@ -105,12 +105,12 @@ export async function selectWorkGraphWorkflowEditorVersionApi(
 export async function getExecutionHistoryApi(
   sessionKey: string,
   limit = 40,
-): Promise<ExecutionView[]> {
+): Promise<ExecutionSummary[]> {
   const query = new URLSearchParams({
     session_key: sessionKey,
     limit: String(limit),
   });
-  return requestApi<ExecutionView[]>(
+  return requestApi<ExecutionSummary[]>(
     `${AGENT_API_BASE_URL}/executions/history?${query.toString()}`,
     { method: "GET" },
   );

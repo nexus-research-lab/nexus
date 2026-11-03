@@ -161,11 +161,11 @@ func (s *Service) applyRuntimeCommandReceipt(
 		}
 		applyRuntimeExecutionSegment(node.Metadata, segment)
 		node.Metadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryAssign
-	} else if actor.ScopeKind == protocol.ExecutionScopeDM && receipt.Operation == "assign_work" {
+	} else if actor.ScopeKind == protocol.ExecutionScopeDM && (receipt.Operation == "assign_work" || receipt.Operation == "assign_work_batch") {
 		clearRuntimeExecutionSegment(node.Metadata)
 		node.Metadata[runtimeGraphSegmentBoundaryKey] = runtimeGraphSegmentBoundaryUnresolved
 	}
-	if err := repository.UpsertRuntimeGraphNode(ctx, node); err != nil {
+	if err := repository.UpsertRuntimeGraphNode(ctx, PrepareRuntimeGraphRead(node)); err != nil {
 		return err
 	}
 	if matchedCandidate {

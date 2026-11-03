@@ -27,39 +27,55 @@ func TestDatabaseIntegration(t *testing.T) {
 	for _, driver := range []string{"sqlite", "postgres"} {
 		t.Run(driver, func(t *testing.T) {
 			cfg := integrationDatabase(t, driver)
-			db, err := storage.OpenMigrationDB(cfg)
-			if err != nil {
-				t.Fatal(err)
-			}
-			migrations := filepath.Join("..", "..", "db", "migrations", driver)
-			dialect := goose.DialectSQLite3
-			if driver == "postgres" {
-				dialect = goose.DialectPostgres
-			}
-			provider, err := goose.NewProvider(dialect, db, os.DirFS(migrations))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err = provider.Up(t.Context()); err != nil {
-				t.Fatal(err)
-			}
-			if results, err := provider.Up(t.Context()); err != nil || len(results) != 0 {
-				t.Fatalf("migration replay: %v, %v", results, err)
-			}
-			if err = db.Close(); err != nil {
-				t.Fatal(err)
-			}
-			db, err = storage.OpenDB(cfg)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _ = db.Close() })
+			migrateIntegrationDatabase(t, cfg, 0)
+			db := openIntegrationDatabase(t, cfg)
 			t.Run("room_owner_and_revision", func(t *testing.T) { checkRoomIsolation(t, db, driver) })
 			t.Run("goal_cas_and_json", func(t *testing.T) { checkGoalCAS(t, db, cfg) })
 			t.Run("goal_event_rollback", func(t *testing.T) { checkGoalRollback(t, db, cfg) })
 			t.Run("execution_replay", func(t *testing.T) { checkExecutionReplay(t, db, driver) })
 		})
 	}
+}
+
+// A positive target freezes an old release; zero applies the current chain and
+// verifies that another startup has no migrations left to apply.
+func migrateIntegrationDatabase(t *testing.T, cfg config.Config, target int64) {
+	t.Helper()
+	db, err := storage.OpenMigrationDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	dialect := goose.DialectSQLite3
+	if cfg.DatabaseDriver == "postgres" {
+		dialect = goose.DialectPostgres
+	}
+	provider, err := goose.NewProvider(dialect, db, os.DirFS(filepath.Join("..", "..", "db", "migrations", cfg.DatabaseDriver)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target > 0 {
+		if _, err = provider.UpTo(t.Context(), target); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	if _, err = provider.Up(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if results, err := provider.Up(t.Context()); err != nil || len(results) != 0 {
+		t.Fatalf("migration replay: %v, %v", results, err)
+	}
+}
+
+func openIntegrationDatabase(t *testing.T, cfg config.Config) *sql.DB {
+	t.Helper()
+	db, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
 }
 
 func integrationDatabase(t *testing.T, driver string) config.Config {

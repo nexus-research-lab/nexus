@@ -1,5 +1,5 @@
 // INPUT: provider-neutral Runtime NodeRun / EdgeRun 与 owner/session 查询边界。
-// OUTPUT: 幂等 upsert、物理 round 的单 Execution 绑定、内部观测用有界运行图，以及可见性投影前的完整 WorkGraph 运行事实。
+// OUTPUT: 幂等 upsert、物理 round 的单 Execution 绑定、内部观测用有界运行图，以及保留候选主图并裁剪普通详情的 WorkGraph 运行事实。
 // POS: Execution Orchestration Repository 中不参与 command CAS 的观测事实存储。
 package orchestration
 
@@ -20,7 +20,7 @@ SELECT node_run_id, graph_id, owner_user_id, session_key, execution_id,
        runtime_round_id, agent_round_id, agent_id, name, description,
        status, failed, result_summary, error_code, error_summary,
        summary_truncated, duration_ms, started_at, updated_at, finished_at,
-       metadata_json
+       metadata_json, workgraph_read_class, recovery_key
 FROM runtime_graph_node_runs`
 
 // UpsertRuntimeGraphNode 幂等推进一个 runtime NodeRun；终态不会被迟到的 started
@@ -29,6 +29,10 @@ func (r *Repository) UpsertRuntimeGraphNode(
 	ctx context.Context,
 	item protocol.ExecutionRuntimeNodeRun,
 ) error {
+	return r.writeRuntimeGraphNode(ctx, r.db, item, true)
+}
+
+func (r *Repository) writeRuntimeGraphNode(ctx context.Context, executor sqlExecutor, item protocol.ExecutionRuntimeNodeRun, update bool) error {
 	if err := validateRuntimeGraphNode(item); err != nil {
 		return err
 	}
@@ -36,22 +40,9 @@ func (r *Repository) UpsertRuntimeGraphNode(
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `
-INSERT INTO runtime_graph_node_runs (
-    node_run_id, graph_id, owner_user_id, session_key, execution_id,
-    node_kind, subject_id, parent_subject_id, root_round_id,
-    runtime_round_id, agent_round_id, agent_id, name, description,
-    status, failed, result_summary, error_code, error_summary,
-    summary_truncated, duration_ms, started_at, updated_at, finished_at,
-    metadata_json
-) VALUES (`+
-		r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+
-		r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+
-		r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+
-		r.bind(15)+`, `+r.bind(16)+`, `+r.bind(17)+`, `+r.bind(18)+`, `+r.bind(19)+`, `+
-		r.bind(20)+`, `+r.bind(21)+`, `+r.bind(22)+`, `+r.bind(23)+`, `+r.bind(24)+`, `+r.jsonBind(25)+`
-)
-ON CONFLICT (node_run_id) DO UPDATE SET
+	conflict := "ON CONFLICT (node_run_id) DO NOTHING"
+	if update {
+		conflict = `ON CONFLICT (node_run_id) DO UPDATE SET
     execution_id = COALESCE(runtime_graph_node_runs.execution_id, excluded.execution_id),
     parent_subject_id = COALESCE(NULLIF(excluded.parent_subject_id, ''), runtime_graph_node_runs.parent_subject_id),
     agent_id = COALESCE(NULLIF(excluded.agent_id, ''), runtime_graph_node_runs.agent_id),
@@ -81,7 +72,26 @@ ON CONFLICT (node_run_id) DO UPDATE SET
         ELSE runtime_graph_node_runs.updated_at
     END,
     finished_at = COALESCE(runtime_graph_node_runs.finished_at, excluded.finished_at),
-    metadata_json = excluded.metadata_json`,
+    metadata_json = excluded.metadata_json,
+    workgraph_read_class = CASE WHEN runtime_graph_node_runs.updated_at > excluded.updated_at THEN runtime_graph_node_runs.workgraph_read_class ELSE excluded.workgraph_read_class END,
+    recovery_key = CASE WHEN runtime_graph_node_runs.updated_at > excluded.updated_at THEN runtime_graph_node_runs.recovery_key ELSE excluded.recovery_key END`
+	}
+	_, err = executor.ExecContext(ctx, `
+INSERT INTO runtime_graph_node_runs (
+    node_run_id, graph_id, owner_user_id, session_key, execution_id,
+    node_kind, subject_id, parent_subject_id, root_round_id,
+    runtime_round_id, agent_round_id, agent_id, name, description,
+    status, failed, result_summary, error_code, error_summary,
+    summary_truncated, duration_ms, started_at, updated_at, finished_at,
+    metadata_json, workgraph_read_class, recovery_key
+) VALUES (`+
+		r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+
+		r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+
+		r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+
+		r.bind(15)+`, `+r.bind(16)+`, `+r.bind(17)+`, `+r.bind(18)+`, `+r.bind(19)+`, `+
+		r.bind(20)+`, `+r.bind(21)+`, `+r.bind(22)+`, `+r.bind(23)+`, `+r.bind(24)+`, `+r.jsonBind(25)+`, `+r.bind(26)+`, `+r.bind(27)+`
+)
+`+conflict,
 		item.ID,
 		item.GraphID,
 		item.OwnerUserID,
@@ -106,7 +116,7 @@ ON CONFLICT (node_run_id) DO UPDATE SET
 		r.timestamp(item.StartedAt),
 		r.timestamp(item.UpdatedAt),
 		nullTime(item.FinishedAt),
-		metadataJSON,
+		metadataJSON, item.WorkGraphReadClass, item.RecoveryKey,
 	)
 	return err
 }
@@ -212,10 +222,14 @@ func (r *Repository) UpsertRuntimeGraphEdge(
 	ctx context.Context,
 	item protocol.ExecutionRuntimeEdgeRun,
 ) error {
+	return r.writeRuntimeGraphEdge(ctx, r.db, item)
+}
+
+func (r *Repository) writeRuntimeGraphEdge(ctx context.Context, executor sqlExecutor, item protocol.ExecutionRuntimeEdgeRun) error {
 	if err := validateRuntimeGraphEdge(item); err != nil {
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `
+	_, err := executor.ExecContext(ctx, `
 INSERT INTO runtime_graph_edge_runs (
     edge_run_id, graph_id, owner_user_id, session_key,
     source_node_run_id, target_node_run_id, edge_kind, created_at
@@ -342,11 +356,11 @@ func (r *Repository) GetRuntimeGraph(
 		sessionKey,
 		executionID,
 		executionRootRoundID,
-		true,
+		true, false,
 	)
 }
 
-// GetWorkGraphRuntimeGraph 返回完整的当前 Execution 运行事实，由 service 在产品
+// GetWorkGraphRuntimeGraph 返回候选画布事实与独立详情窗口，由 service 在产品
 // 可见性判定完成后应用 WorkGraph 节点与连线上限。隐藏 detail 事实因此不会挤占
 // 主图窗口，也不会使公共 WorkGraph 被误标为 partial。
 func (r *Repository) GetWorkGraphRuntimeGraph(
@@ -356,14 +370,18 @@ func (r *Repository) GetWorkGraphRuntimeGraph(
 	executionID string,
 	executionRootRoundID string,
 ) (protocol.ExecutionRuntimeGraph, error) {
-	return r.getRuntimeGraph(
+	result, err := r.getRuntimeGraph(
 		ctx,
 		ownerUserID,
 		sessionKey,
 		executionID,
 		executionRootRoundID,
-		false,
+		false, true,
 	)
+	if err == nil && executionID != "" {
+		err = r.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM runtime_graph_history_backfills WHERE execution_id = "+r.bind(1)+" AND completed_at IS NULL)", executionID).Scan(&result.HistoryPending)
+	}
+	return result, err
 }
 
 func (r *Repository) getRuntimeGraph(
@@ -373,6 +391,7 @@ func (r *Repository) getRuntimeGraph(
 	executionID string,
 	executionRootRoundID string,
 	bounded bool,
+	workGraph bool,
 ) (protocol.ExecutionRuntimeGraph, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -421,6 +440,9 @@ ORDER BY updated_at DESC, started_at DESC, node_run_id DESC`,
 	)
 	if bounded {
 		query += fmt.Sprintf("\nLIMIT %d", protocol.ExecutionRuntimeGraphNodeProjectionLimit)
+	}
+	if workGraph {
+		query = r.workGraphRuntimeReadQuery(condition)
 	}
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -695,7 +717,7 @@ func scanRuntimeGraphNode(
 		&item.StartedAt,
 		&item.UpdatedAt,
 		&finishedAt,
-		&metadataJSON,
+		&metadataJSON, &item.WorkGraphReadClass, &item.RecoveryKey,
 	)
 	if err != nil {
 		return protocol.ExecutionRuntimeNodeRun{}, err

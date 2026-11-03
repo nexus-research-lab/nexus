@@ -5,19 +5,17 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { getExecutionHistoryApi } from "@/lib/api/conversation/execution-api";
 import { UnauthorizedError } from "@/lib/api/core/http-error";
-import type { ExecutionView } from "@/types/conversation/execution";
+import type { ExecutionSummary } from "@/types/conversation/execution";
 import { useWorkGraphHistoryResource } from "./use-workgraph-history-resource";
 vi.mock("@/lib/api/conversation/execution-api", () => ({ getExecutionHistoryApi: vi.fn() }));
-const snapshot: ExecutionView[] = [{
-  id: "history-a", session_key: "a", scope_kind: "dm", objective: "History",
+const snapshot: ExecutionSummary[] = [{
+  id: "history-a", session_key: "a", objective: "History",
   status: "active", version: 1, created_at: "2026-11-02T00:00:00Z", updated_at: "2026-11-02T00:00:00Z",
-  progress: { total: 0, required: 0, accepted: 0, running: 0, blocked: 0, submitted: 0,
-    ready: 0, waiting: 0, changes_requested: 0, failed: 0, cancelled: 0 },
-  graph: { runtime_node_total: 0, runtime_edge_total: 0, runtime_nodes_truncated: false, runtime_edges_truncated: false },
+  work_item_count: 0,
 }];
 beforeEach(() => vi.resetAllMocks());
 it("rejects late history after a session change and loads only while enabled", async () => {
-  let finish!: (items: ExecutionView[]) => void;
+  let finish!: (items: ExecutionSummary[]) => void;
   vi.mocked(getExecutionHistoryApi).mockReturnValueOnce(new Promise(resolve => { finish = resolve; })).mockResolvedValue([]);
   const hook = renderHook(({ session, enabled }) => useWorkGraphHistoryResource(session, enabled), { initialProps: { session: "a", enabled: true } });
   hook.rerender({ session: "b", enabled: false });

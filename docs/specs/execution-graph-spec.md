@@ -84,6 +84,12 @@ Runtime Graph 来自 provider-neutral runtime lifecycle 和 Nexus round boundary
 - 当前结构化 command 或历史 CLI transport 都必须先具有 exact managed command metadata 才能作为该边界。
 - 这是封闭因果区间校验，不是“找最近时间”；任一侧多解时不得恢复执行段。
 
+**历史 Subagent 回填**
+
+- SQL 00160 固定升级前的 Execution 集合；启动时由 `internal/migration` 按 owner/session 读取 canonical transcript，一次恢复 exact launch/task/ToolUse identity；普通视图不再回读 transcript。
+- 回填仅插入缺失身份，已有 runtime 事实不得被旧 transcript 覆盖；读取分类按未变化的行回填，完成标记与写入同事务提交。新 Execution 不加入这份升级账本。
+- 每个失败项独立保留待重试状态，不阻断其他图；读取错误不能标记完成。未完成项返回 `graph.history_pending=true`，界面说明历史记录尚未完成迁移；它与主图窗口截断、读取 stale 分别呈现。
+
 ## 4. Runtime Graph 数据模型
 
 ### 4.1 NodeRun kind
@@ -137,6 +143,7 @@ Task、Goal、Plan、Work Item、Message 和 Artifact 都不是 node kind。Task
 - 只有本应进入主图的节点或边超出窗口时，read model 才通过 total 与 truncated 字段表示部分投影；不能把截断结果伪装成完整图。
 - 节点检查器使用独立的最近 256 条 `detail` 历史窗口；它不属于主图完整性承诺，不改变 `runtime_*_total`，也不触发 partial。
 - 完整 durable 事实始终保留在存储层。
+- 写入时保存保守的读取分类；SQL 只裁剪已证明是普通成功 detail 叶子的旧历史。失败/运行中节点、ownership 父节点、后到 Artifact、控制边端点及同直接 owner 下失败后的最后一次成功仍保留，最终可见性和主图精确 total 由 service 统一计算。候选主图仍完整读取，不以原始 NodeRun LIMIT 代替产品投影窗口。
 
 ## 5. ExecutionGraphView 只读模型
 
@@ -241,7 +248,7 @@ Subagent 子树遵守同一规则，并可额外保留少量 direct supporting T
 
 **历史读取**
 
-- `GET /executions/history?session_key=<exact>&limit=<bounded>`：只返回同一认证 owner、同一 exact session 的 managed ExecutionView 列表；每项复用单图读取的同一 transaction 与安全投影。
+- `GET /executions/history?session_key=<exact>&limit=<bounded>`：只返回同一认证 owner、同一 exact session 的 managed ExecutionSummary 目录（identity、目标、状态、版本、当前 Plan 节点数、时间）；不读取每张图的 Snapshot、Runtime Graph 或 transcript。前端选择一项后再读取其 exact view。
 - `GET /executions/{execution_id}?session_key=<exact>`：在相同 owner/session 边界内读取一张 exact managed ExecutionView，供草图来源对照。
 - 跨 owner/session identity 必须失败关闭；不能用消息文本、标题或时间邻近猜 source Execution。
 
@@ -369,3 +376,9 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 
 - 不提供通用 Execution 图写入 API；Draft mutation 只改 owner/session-scoped 草图版本，命名工作图保存不修改源图或当前运行图。
 - 不把 Runtime Graph 当作模型必须遵循的固定脚本。
+
+### 9.7 刷新与几何复用
+
+普通对话 runtime 事件没有 managed Execution identity 时，不发送 WorkGraph 失效通知；创建、绑定、重绑与责任 mutation 仍走各自的显式失效出口。Runtime 事实不增加 Execution CAS version，因此不得仅凭 version 相同忽略运行更新。
+
+每个 Canvas 只缓存一份由 Execution identity、可见拓扑、规范化宽度和节点密度确定的几何。边输入顺序不改变几何；状态、摘要和产物变化复用坐标/路径，但始终重新绑定当前节点、Work Item 和边对象。折叠、拓扑或宽度变化重新布局。

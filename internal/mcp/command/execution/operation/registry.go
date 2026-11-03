@@ -22,6 +22,7 @@ func BuildAll(
 		planExecution(svc, sctx),
 		abandonExecution(svc, sctx),
 		assignWork(svc, sctx),
+		assignWorkBatch(svc, sctx),
 		submitWork(svc, sctx),
 		reviewWork(svc, sctx),
 		blockWork(svc, sctx),

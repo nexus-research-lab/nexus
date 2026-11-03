@@ -163,7 +163,8 @@ func TestExecutionDispatchInstructionCarriesCompleteWorkBinding(t *testing.T) {
 	if err := validateExecutionDispatchDelivery(delivery); err != nil {
 		t.Fatal(err)
 	}
-	instruction := renderExecutionDispatchInstruction(delivery)
+	submissionSchema := `{"type":"object","required":["result_summary"],"properties":{"result_summary":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}}}`
+	instruction := renderExecutionDispatchInstruction(delivery, submissionSchema)
 	for _, expected := range []string{
 		"execution_id: execution-1",
 		"plan_id: plan-1",
@@ -178,6 +179,10 @@ func TestExecutionDispatchInstructionCarriesCompleteWorkBinding(t *testing.T) {
 		`result_summary: "Verified upstream evidence"`,
 		`- "artifact://upstream-result"`,
 		"Deliver the evidence set.",
+		"operation=submit_work",
+		"request_id at the tool top level",
+		"[submission_contract]",
+		submissionSchema,
 	} {
 		if !strings.Contains(instruction, expected) {
 			t.Fatalf("structured instruction missing %q:\n%s", expected, instruction)
@@ -220,7 +225,7 @@ func TestExecutionDispatchHandoffIsDurableAndIdempotentBeforeSQLAck(t *testing.T
 	accepted, _, err := service.ensureExecutionDispatchHandoff(
 		delivery,
 		handoffID,
-		renderExecutionDispatchInstruction(delivery),
+		renderExecutionDispatchInstruction(delivery, ""),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +258,7 @@ func TestExecutionDispatchHandoffIsDurableAndIdempotentBeforeSQLAck(t *testing.T
 	accepted, receipt, err := service.ensureExecutionDispatchHandoff(
 		delivery,
 		handoffID,
-		renderExecutionDispatchInstruction(delivery),
+		renderExecutionDispatchInstruction(delivery, ""),
 	)
 	if err != nil {
 		t.Fatal(err)

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- WorkGraph 命令增加独立的开始/结束诊断和离线汇总入口，可统计输入失败、重复请求观察及宿主耗时；正文不进入诊断，缺失结果保留未知，不改变业务回执或恢复行为。
+
 - Windows 桌面沙箱：受限 nxs 会话由随包签名的 Rust `nxs-mxc.exe`（固定版本 Microsoft mxc-sdk 的 MXC ProcessContainer）执行，用户无需安装 Rust 或 MXC。需要 Windows 11 24H2（build 26100.9278）或更新版本并以普通用户运行；组件缺失、系统 API 不可用或以管理员权限运行时受限会话直接拒绝，不回退为无沙箱执行。完全访问不下发沙箱设置；受限 Claude 会话在 Windows 上直接拒绝。
 - Windows 受限会话与 macOS 使用同一套 nxs 合同（含严格 MCP 配置与 MCP 网络 / headers helper / stdio 约束），使用原生 PowerShell；沙箱临时目录位于工作区之外，工具启动前恢复可写的 TEMP/TMP，普通命令失败不影响同一会话的其他调用。
 - “检查沙箱支持”与会话启动失败时给出可操作的说明（组件缺失、管理员权限、系统不支持），并提示可在“设置 › 沙箱”关闭沙箱后重新发起会话及其代价。
@@ -20,11 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- WorkGraph 复用本轮已提供的上下文与操作 schema，Room 审核派发也内联准确协议；多项已就绪责任可通过 `assign_work_batch` 一次原子派发，任一项失败整批回滚，重复请求不会重复派发。
+
 - macOS 桌面沙箱对齐 Codex 的无状态模型：每条命令独立套用 Seatbelt 策略，删除宿主 scratch 租约、监督启动记录、策略回执、启动崩溃恢复与随包 `nexus-runtime-bootstrap` helper，“设置 › 沙箱”不再有残留资源回收入口。App 启动不再依赖沙箱恢复。升级后自动删除旧版留下的沙箱记录表、`app/processes` 与带租约标记的 scratch 目录；清理失败只记日志、下次启动重试，不阻止 App 启动。
 - macOS 开启沙箱后，命令在沙箱内失败时可以通过一次性审批改为沙箱外执行（此前只能切换到完全访问）。
 - Windows 关闭窗口时先询问“最小化到托盘”或“退出”；退出时后端先排空运行时再结束其 Job，后端以原子方式加入桌面壳持有的 kill-on-close Job，单实例锁保持到清理完成；按保存的进程身份回收旧后端，不再按进程名扫描结束同名进程。
 
 ### Fixed
+
+- WorkGraph 历史目录改为摘要，选中后才读取完整图；普通对话不再触发历史工作图重读，状态刷新复用未变化的画布几何。
+- 旧 Subagent transcript 改为版本化、可重试的一次性回填，读取失败明确标记历史迁移待完成；长执行在 SQL 层裁剪普通成功详情，保留失败、恢复、控制关系和产物。
+- 工作图命令一次返回全部字段错误及准确 schema，Room 派发内联交付协议；Agent 失败记录脱敏错误摘要。
+- 工作图草稿和编辑器直接读取数据库，修复重启、多窗口与取消请求时的缓存依赖；写入回执对应本次事务，保留唯一编辑会话与明确的授权撤销。
 
 - 修复 PostgreSQL 历史迁移中过程块被拆分执行的问题，恢复新库初始化与跨版本升级。
 

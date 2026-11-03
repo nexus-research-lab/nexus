@@ -6,7 +6,6 @@
 //   - recovery.go：把 orchestration 恢复请求路由到 DM/Room 的持久队列。
 //   - command_context.go：从可信 runtime identity 构造 Execution command context。
 //   - cancellation.go：把 durable cancellation 路由到 Room slot 或精确 runtime round。
-//   - subagent_history.go：把 Session 历史投影为 Runtime Graph 只读事实。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 ../doc.go（L2）
 package execution

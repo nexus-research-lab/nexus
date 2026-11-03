@@ -1,6 +1,6 @@
 // INPUT: Ready Work Item 的 Assignment、可选 Dispatch/root Attempt 与 takeover command。
 // OUTPUT: 同事务 current owner、outbox、pending execution 与审计事件。
-// POS: WorkGraph responsibility 到 Room/runtime 投递的原子边界。
+// POS: WorkGraph responsibility 到 Room/runtime 投递的原子边界；批量命令共用同一链校验与插入阶段。
 package orchestration
 
 import (
@@ -29,34 +29,39 @@ func (r *Repository) Assign(ctx context.Context, command AssignCommand) (*protoc
 	if mutation.replayed {
 		return r.finishMutation(ctx, mutation, command.Meta, protocol.ExecutionEvent{})
 	}
-	if err = r.validateAssignmentTarget(ctx, mutation.tx, assignment, true); err != nil {
+	command.Assignment = assignment
+	event, err := r.insertAssignmentChain(ctx, mutation.tx, command)
+	if err != nil {
 		r.abortMutation(mutation)
 		return nil, err
+	}
+	return r.finishMutation(ctx, mutation, command.Meta, event)
+}
+
+func (r *Repository) insertAssignmentChain(ctx context.Context, tx *sql.Tx, command AssignCommand) (protocol.ExecutionEvent, error) {
+	assignment := command.Assignment
+	if err := r.validateAssignmentTarget(ctx, tx, assignment, true); err != nil {
+		return protocol.ExecutionEvent{}, err
 	}
 	dispatch, err := r.normalizeDispatch(command.Dispatch, assignment, command.Meta, r.currentTime())
 	if err != nil {
-		r.abortMutation(mutation)
-		return nil, err
+		return protocol.ExecutionEvent{}, err
 	}
 	rootAttempt, err := normalizeRootAttempt(command.RootAttempt, assignment, dispatch, r.currentTime())
 	if err != nil {
-		r.abortMutation(mutation)
-		return nil, err
+		return protocol.ExecutionEvent{}, err
 	}
-	if err = r.insertAssignment(ctx, mutation.tx, assignment); err != nil {
-		r.abortMutation(mutation)
-		return nil, err
+	if err = r.insertAssignment(ctx, tx, assignment); err != nil {
+		return protocol.ExecutionEvent{}, err
 	}
 	if dispatch != nil {
-		if err = r.insertDispatch(ctx, mutation.tx, *dispatch); err != nil {
-			r.abortMutation(mutation)
-			return nil, err
+		if err = r.insertDispatch(ctx, tx, *dispatch); err != nil {
+			return protocol.ExecutionEvent{}, err
 		}
 	}
 	if rootAttempt != nil {
-		if err = r.insertAttempt(ctx, mutation.tx, *rootAttempt); err != nil {
-			r.abortMutation(mutation)
-			return nil, err
+		if err = r.insertAttempt(ctx, tx, *rootAttempt); err != nil {
+			return protocol.ExecutionEvent{}, err
 		}
 	}
 	event := protocol.ExecutionEvent{
@@ -74,7 +79,7 @@ func (r *Repository) Assign(ctx context.Context, command AssignCommand) (*protoc
 	if rootAttempt != nil {
 		event.AttemptID = rootAttempt.ID
 	}
-	return r.finishMutation(ctx, mutation, command.Meta, event)
+	return event, nil
 }
 
 // Takeover 原子释放 current Assignment，终止其活动投递/执行并创建 replacement。

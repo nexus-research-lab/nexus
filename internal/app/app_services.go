@@ -1,11 +1,12 @@
 // INPUT: 应用配置、数据库与基础服务依赖。
-// OUTPUT: 完整 AppServices 依赖图、可选 Team Relay client、跨域 runtime 装配及先运行时后数据库的退出顺序。
+// OUTPUT: AppServices 依赖图、跨域 runtime/Room schema 与基础命令诊断 logger 装配，以及先运行时后数据库的退出顺序。
 // POS: HTTP 与 CLI 共用的服务装配根；不持有 HTTP server。
 package app
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	appworkgraph "github.com/nexus-research-lab/nexus/internal/app/workgraph"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	executionoperation "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation"
 	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -174,9 +176,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		workgraphworkflowstore.NewRepository(cfg, db),
 		orchestrationService,
 	)
-	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
-		appexecution.NewSubagentToolHistory(core.Session),
-	)
+
 	explicitGoalCoordinator := goalexecution.NewExplicitExecutionCoordinator(goalService, orchestrationService)
 	goalService.SetObjectiveRetargetCoordinator(explicitGoalCoordinator)
 	orchestrationService.SetExplicitGoalBindingGateway(explicitGoalCoordinator)
@@ -321,6 +321,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	ingressService.SetRuntimePermissionContext(permission)
 	channelRouter.SetIngress(ingressService)
 	roomRealtime := roomrealtime.NewService(cfg, core.Room, core.Agent, runtimeManager, permission)
+	submissionSchema, _ := json.Marshal(executionoperation.SubmitWorkInputSchema())
+	roomRealtime.SetExecutionSubmissionContract(string(submissionSchema))
+	reviewSchema, _ := json.Marshal(executionoperation.ReviewWorkInputSchema())
+	roomRealtime.SetExecutionReviewContract(string(reviewSchema))
 	ingressService.SetRoomRealtime(roomRealtime)
 	roomRealtime.SetReplyPreviewRepository(newRoomRepository(cfg, db))
 	roomRealtime.SetLogger(logger.With("component", "room"))
@@ -470,6 +474,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	)
 	nexusMCPBuilder := appruntime.NewServerBuilder(
 		cfg,
+		logger,
 		core.Agent,
 		automationService,
 		explicitGoalCoordinator,

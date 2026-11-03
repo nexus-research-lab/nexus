@@ -338,6 +338,7 @@ export const zhConversationMessages = {
   "execution.workflow_delete_title": "删除这个工作图命令？",
   "execution.workflow_delete_message": "{command} 将从所有 Session 的命令目录中移除，历史工作图不会删除。",
   "execution.surface_partial": "工作图未展示全部应显示的运行事实；应进入主图的运行节点共 {nodes} 个、运行连线 {edges} 条",
+  "execution.surface_history_pending": "历史运行记录尚未完成迁移",
   "execution.surface_partial_short": "部分",
   "execution.surface_stale": "当前显示的是上次成功同步的工作图",
   "execution.surface_stale_at": "当前显示的是上次成功同步的工作图（{time}）",

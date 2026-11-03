@@ -1,6 +1,6 @@
 // INPUT: Assignment、Submission、Acceptance、Block 与 Takeover 的模型语义 intent 及宿主签发的 exact responsibility binding。
 // OUTPUT: 稳定工具契约与使用最新 snapshot revision、稳定 command id 的统一 MutationResult。
-// POS: Work Item 协作生命周期的六个模型入口；Attempt bookkeeping 由服务自动完成。
+// POS: Work Item 协作生命周期与原子批量派发入口；Attempt bookkeeping 由服务自动完成。
 package operation
 
 import (
@@ -54,6 +54,40 @@ func assignWork(svc contract.Service, sctx contract.Context) command.Operation {
 	}
 }
 
+func assignWorkBatch(svc contract.Service, sctx contract.Context) command.Operation {
+	const operationName = "assign_work_batch"
+	return command.Operation{
+		Name: operationName,
+		Description: "Assign several ready Work Items in one atomic coordinator command. Reuses assign_work authority, target and readiness rules. " +
+			"In an unbound Room conversation, enter coordination with execution action=inspect first. Supply each owner and optional reviewer explicitly. " +
+			"At most one self assignment, last in the list; after commit the Room actor enters that exact work lane. " +
+			"An invalid item rejects the entire batch. Reuse the same request_id only for the exact same input after reconciling an unknown result. " +
+			"Same-Agent Room assignments remain a serial queue; future dependency transitions are not automatically scheduled.",
+		SearchHint:  "assign batch ready work room dispatch responsibility",
+		InputSchema: assignWorkBatchSchema(),
+		Annotations: &command.OperationAnnotations{IdempotentHint: true},
+		ContextHandler: func(ctx context.Context, input map[string]any, callContext *command.CallContext) (command.Result, error) {
+			var parsed assignWorkBatchInput
+			if err := decodeInput(input, &parsed); err != nil {
+				return transportErrorResult(err), nil
+			}
+			actor := sctx.Actor()
+			snapshot, commandID, rejected := mutationEnvelope(ctx, svc, sctx, actor, parsed.ExecutionID, operationName, input, callContext)
+			if rejected != nil {
+				return *rejected, nil
+			}
+			response, err := svc.AssignWorkBatch(ctx, actor, orchestration.AssignWorkBatchInput{
+				ExecutionID: snapshot.Execution.ID, SnapshotRevision: snapshot.Execution.Version,
+				CommandID: commandID, Assignments: parsed.Assignments,
+			})
+			if err == nil && applyMutationResponsibilityAuthority(sctx, response) {
+				actor = sctx.Actor()
+			}
+			return serviceMutation(ctx, svc, actor, response, err), nil
+		},
+	}
+}
+
 func submitWork(svc contract.Service, sctx contract.Context) command.Operation {
 	const operationName = "submit_work"
 	return command.Operation{
@@ -64,7 +98,7 @@ func submitWork(svc contract.Service, sctx contract.Context) command.Operation {
 			"An unbound Room conversational round does not gain mutation authority from explicit identifiers: the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact host-issued WorkBinding. " +
 			"The backend correlates the Attempt and routes review; downstream hard dependencies remain locked until Acceptance.",
 		SearchHint:  "submit work deliverable evidence assignment",
-		InputSchema: submitWorkSchema(),
+		InputSchema: SubmitWorkInputSchema(),
 		Annotations: &command.OperationAnnotations{IdempotentHint: true},
 		ContextHandler: func(ctx context.Context, input map[string]any, callContext *command.CallContext) (command.Result, error) {
 			var parsed submitWorkInput
@@ -112,7 +146,7 @@ func reviewWork(svc contract.Service, sctx contract.Context) command.Operation {
 			"An unbound Room conversational round does not gain mutation authority from explicit identifiers: the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact host-issued ReviewBinding or permitted self-review WorkBinding. " +
 			"Accepted requires a passing result for every acceptance criterion and is the only decision that unlocks downstream hard dependencies.",
 		SearchHint:  "review accept reject changes requested criteria",
-		InputSchema: reviewWorkSchema(),
+		InputSchema: ReviewWorkInputSchema(),
 		Annotations: &command.OperationAnnotations{IdempotentHint: true},
 		ContextHandler: func(ctx context.Context, input map[string]any, callContext *command.CallContext) (command.Result, error) {
 			var parsed reviewWorkInput

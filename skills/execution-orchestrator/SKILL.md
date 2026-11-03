@@ -11,7 +11,7 @@ Execution 管理当前责任交付；Goal 管理跨轮目标。按需独立选�
 
 1. substantial execution 前先判断直接执行、局部 Task、Subagent、WorkGraph、Room Assignment、Gate/Loop 或 Goal 中哪些结构真的降低风险；简单原子任务直接完成。
    子任务使用 `nexus.command/subagent`，按下方参考操作；不要求先创建工作图。
-2. 执行当前任务的责任图时，先调用宿主提供的 `nexus.command`：
+2. 执行当前任务的责任图时，优先消费本轮已注入的 `nexus_execution_context` 或最新回执；它已给出 exact binding、lane 和 allowed_actions 时不重复 inspect。缺失上下文、提示 refresh_required，或 Room coordinator 需要显式进入 coordination 时，调用宿主提供的 `nexus.command`：
 
    ```json
    {"domain":"execution","action":"inspect"}
@@ -20,13 +20,13 @@ Execution 管理当前责任交付；Goal 管理跨轮目标。按需独立选�
    明确读取同一可信 scope 的历史图时才传 `input.execution_id`。
    inspect 不回放成功工具历史；恢复优先使用交付、验收与产物证据，避免重做。
    查询、提取、编辑、选择或保存模板草图则直接走 WorkGraph authoring 参考；这些操作不要求 active Execution，也不先运行 execution inspect。
-3. 执行图从 `data.execution_context` XML 的 `<allowed_actions>`、lane 和 binding 判断权限；模板草图使用 authoring 目录。mutation 前读取 fresh exact contract：
+3. 执行图从 `data.execution_context` XML 的 `<allowed_actions>`、lane 和 binding 判断权限；模板草图使用 authoring 目录。mutation 优先复用本轮已返回或宿主指令内联的 exact operation input_schema；每次 mutation 不必再次查合同。只有 schema 缺失、上下文压缩后不可见或输入校验报告协议变化时才读取：
 
    ```json
    {"domain":"execution","action":"contract","operation":"<operation>"}
    ```
 
-   字段、identity、authority 和 revision 以本轮 contract 为准。
+   schema 只描述字段，不能缓存 authority。身份、权限、revision 以最新宿主 context 为准，服务端每次重新校验；切换会话或进入新 physical round 后重新消费该轮注入的合同。
 4. 业务输入是 `additionalProperties=false` 的 closed object，直接放在工具的 `input` 字段中。只提交 fresh `input_schema.properties` 中属于当前意图的字段；opaque locator 来自 inspect/receipt，不从标题或正文猜。相同语义重试复用 `request_id`，operation、目标或输入变化时换新 ID。
 5. 先检查 `is_error`；Execution 操作再按 operation 解读 `data.outcome`：`applied` 表示已应用；`no_op` 无新增变更，结合 message 区分重放与 Plan Mode 校验；prepare 成功为 `prepared`，草图提取为 `ready`，版本选择为 `selected`。`rejected`/`superseded` 不能当成功。`next_actions` 是建议，不授权，始终服从同一结果里的最新 lane、binding 和 `allowed_actions`。
 

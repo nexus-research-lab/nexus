@@ -12,8 +12,8 @@
 //     predecessor/successor、Plan revision 与 DAG 校验。
 //   - plan_document*.go / plan_proposal*.go / plan_materialization.go：严格 Plan
 //     document、非权威 sealed proposal、跨 round exact binding、原子 materialization 与重启恢复。
-//   - command_plan.go / command_assignment.go / command_submission.go / command_review.go /
-//     command_control.go：按计划、分配与接管、提交、审核、阻塞与恢复及完成聚合命令和专用输入；
+//   - command_plan.go / command_assignment.go / command_assignment_batch.go / command_submission.go / command_review.go /
+//     command_control.go：按计划、单项/原子批量分配与接管、提交、审核、阻塞与恢复及完成聚合命令；批量复用分配规则并从 durable receipt 恢复精确 self binding；
 //     commands.go 保留共享授权、引用解析、失败根 Attempt 的协调者接管建议与结果投影，不改变原子命令和事务边界。
 //   - runtimehook/：DM 与 Room 共用的 SDK hook 及运行观察适配；宿主提供可信 actor，适配器统一观察超时和失败日志。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go /
@@ -33,6 +33,8 @@
 //   - invalidation.go / result.go：owner/session 只读投影失效 port、宿主消费的
 //     responsibility advancement receipt，以及 final Acceptance 到 Goal completion audit
 //     的跨 domain 稳定 mutation outcome/next-action envelope。
+//   - repository_contract.go：生产 SQL repository 的消费侧编译期接口检查。
+//   - runtime_graph_history.go：仅供版本化迁移使用的 exact Subagent 历史纯投影；普通 view 不读取 transcript。
 //   - prompt.go / prompt_policy.md：DM、Room 与 Goal continuation 共用执行提示。
 //
 // 主要暴露接口：NewService 与 Service 的 Ensure/Get*/Read*/RuntimeContext、Plan、work、

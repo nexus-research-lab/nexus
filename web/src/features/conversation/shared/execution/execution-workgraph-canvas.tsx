@@ -62,7 +62,7 @@ import {
   WORK_ITEM_STATUS_LABEL_KEY,
 } from "./execution-process-model";
 import {
-  buildExecutionGraphLayout,
+  createExecutionGraphLayoutCache,
   type ExecutionGraphNodePresentation,
 } from "./execution-workgraph-layout";
 import { ExecutionWorkGraphControls } from "./execution-workgraph-controls";
@@ -228,14 +228,15 @@ export function ExecutionWorkGraphCanvas({
     () => projectExecutionGraphCollapse(execution, collapsedNodeIds),
     [collapsedNodeIds, execution],
   );
+  const layoutForTopology = useMemo(() => createExecutionGraphLayoutCache(), []);
   const layout = useMemo(
-    () => buildExecutionGraphLayout(
+    () => layoutForTopology(
       execution,
       viewportSize.width || undefined,
       collapse.hiddenNodeIds,
       nodePresentation,
     ),
-    [collapse.hiddenNodeIds, execution, nodePresentation, viewportSize.width],
+    [collapse.hiddenNodeIds, execution, layoutForTopology, nodePresentation, viewportSize.width],
   );
   const searchResultIds = useMemo(
     () => searchExecutionGraphNodes(execution, query),

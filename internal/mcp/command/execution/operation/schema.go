@@ -1,5 +1,5 @@
 // INPUT: 模型语义字段、execution domain enums 与稳定的条件 locator 契约。
-// OUTPUT: Plan 两阶段工具严格区分外层 Goal binding 与内层 document scalar，work/review 工具静态表达 binding 默认与 action=inspect 协调入口，其余工具保留有界集合；全部隐藏 identity/fencing/idempotency。
+// OUTPUT: 单 Execution 原子派发批次与共享 submit/review schema；Plan 两阶段工具严格区分外层 Goal binding 与内层 document scalar，work/review 工具静态表达 binding 默认与 action=inspect 协调入口，其余工具保留有界集合；全部隐藏 identity/fencing/idempotency。
 // POS: Execution command 的模型调用协议。
 package operation
 
@@ -59,6 +59,11 @@ type assignWorkInput struct {
 	Reason          string                         `json:"reason,omitempty"`
 	Instruction     string                         `json:"instruction,omitempty"`
 	DispatchKind    protocol.ExecutionDispatchKind `json:"dispatch_kind,omitempty"`
+}
+
+type assignWorkBatchInput struct {
+	ExecutionID string                              `json:"execution_id,omitempty"`
+	Assignments []orchestration.AssignmentBatchItem `json:"assignments"`
 }
 
 type submitWorkInput struct {
@@ -353,7 +358,20 @@ func assignWorkSchema() map[string]any {
 	return objectSchema(properties, "target_agent_id")
 }
 
-func submitWorkSchema() map[string]any {
+func assignWorkBatchSchema() map[string]any {
+	item := assignWorkSchema()
+	delete(item["properties"].(map[string]any), "execution_id")
+	properties := executionReferenceProperties()
+	properties["assignments"] = map[string]any{
+		"type": "array", "minItems": 1, "maxItems": protocol.ExecutionProjectionCollectionLimit, "items": item,
+		"description": "Ready Work Items in one current Execution. Each must be unique. At most one self assignment, placed last. All assignments commit together or none do.",
+	}
+	return objectSchema(properties, "assignments")
+}
+
+// SubmitWorkInputSchema is also injected into structured Room assignments by app.
+// The prompt and the command validator therefore share one field contract.
+func SubmitWorkInputSchema() map[string]any {
 	properties := trustedWorkReferenceProperties()
 	properties["assignment_id"] = stringProperty("Optional current Assignment id; it never replaces the required Work Item locator in an unbound DM call or grants Room mutation authority. Omit inside an exact trusted WorkBinding to use its Assignment. Otherwise the backend selects the current Assignment for the explicit Work Item; any explicit value must match.")
 	properties["result_summary"] = stringProperty("Concise description of the delivered result.")
@@ -362,7 +380,8 @@ func submitWorkSchema() map[string]any {
 	return objectSchema(properties, "result_summary")
 }
 
-func reviewWorkSchema() map[string]any {
+// ReviewWorkInputSchema is shared by the validator and the host's review dispatch.
+func ReviewWorkInputSchema() map[string]any {
 	properties := workReferenceProperties()
 	properties["work_item_id"] = stringProperty("Conditional review locator. Only an exact trusted ReviewBinding, or a permitted self-review exact trusted WorkBinding, permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish either binding. An explicit value must match. In an unbound DM call, provide at least one of submission_id, work_item_id, or logical_key, and all supplied locators must identify the same Work Item. In an unbound Room conversational round, explicit locators do not grant mutation authority; the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact trusted ReviewBinding or permitted self-review WorkBinding.")
 	properties["logical_key"] = stringProperty("Conditional stable review locator. Only an exact trusted ReviewBinding, or a permitted self-review exact trusted WorkBinding, permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish either binding. An explicit value must match. In an unbound DM call, provide at least one of submission_id, work_item_id, or logical_key, and all supplied locators must identify the same Work Item. In an unbound Room conversational round, explicit locators do not grant mutation authority; the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact trusted ReviewBinding or permitted self-review WorkBinding.")

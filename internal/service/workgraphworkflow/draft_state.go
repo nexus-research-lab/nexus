@@ -1,5 +1,5 @@
-// INPUT: durable Draft repository 或进程内 preview/editor cache。
-// OUTPUT: 同一 source Execution 复用、按 preview/session 查询、可续期空闲 lease、版本目录与 cache 恢复。
+// INPUT: 生产 durable Draft repository，或仅测试替身使用的进程内记录。
+// OUTPUT: 同一 source Execution 复用、按 preview/session 直接查询、可续期空闲 lease 与请求内版本快照。
 // POS: HTTP、对话 CLI 与隐藏编辑 Session 共用的 WorkGraph Draft 读取投影。
 package workgraphworkflow
 
@@ -25,7 +25,6 @@ func (s *Service) findReusableDraft(
 		if err = s.renewDraftLease(ctx, drafts, draft); err != nil {
 			return nil, err
 		}
-		s.hydrateDraft(*draft)
 		return cloneWorkflowDraft(draft), nil
 	}
 	s.previewMu.Lock()
@@ -62,26 +61,36 @@ func (s *Service) loadDraftByID(
 		if err = s.renewDraftLease(ctx, drafts, draft); err != nil {
 			return nil, err
 		}
-		s.hydrateDraft(*draft)
 		return cloneWorkflowDraft(draft), nil
 	}
 	return nil, nil
 }
 
-func (s *Service) loadDraftByEditorSession(ownerUserID string, sessionKey string) error {
-	drafts, ok := s.repository.(DraftRepository)
-	if !ok {
-		return nil
+// editorRecordBySession resolves a fresh snapshot; a missing durable row must
+// never resurrect an old process-local editor authority.
+func (s *Service) editorRecordBySession(ctx context.Context, ownerUserID, sessionKey string) (workflowEditorRecord, string, error) {
+	if drafts, ok := s.repository.(DraftRepository); ok {
+		draft, err := drafts.GetDraftByEditorSession(ctx, ownerUserID, sessionKey)
+		if err != nil {
+			return workflowEditorRecord{}, "", err
+		}
+		if draft == nil {
+			return workflowEditorRecord{}, "", ErrNotFound
+		}
+		if err = s.renewDraftLease(ctx, drafts, draft); err != nil {
+			return workflowEditorRecord{}, "", err
+		}
+		return editorRecordFromDraft(*draft), draft.EditorID, nil
 	}
-	draft, err := drafts.GetDraftByEditorSession(context.Background(), ownerUserID, sessionKey)
-	if err != nil || draft == nil {
-		return err
+	s.previewMu.Lock()
+	defer s.previewMu.Unlock()
+	s.cleanupExpiredPreviews(s.now().UTC())
+	key := s.editorBySession[sessionKey]
+	record, ok := s.editors[key]
+	if !ok || record.ownerUserID != ownerUserID || record.sessionKey != sessionKey {
+		return workflowEditorRecord{}, "", ErrNotFound
 	}
-	if err = s.renewDraftLease(context.Background(), drafts, draft); err != nil {
-		return err
-	}
-	s.hydrateDraft(*draft)
-	return nil
+	return cloneEditorRecord(record), editorIDFromCacheKey(key), nil
 }
 
 func (s *Service) renewDraftLease(
@@ -113,23 +122,17 @@ func (s *Service) renewDraftLease(
 	return nil
 }
 
-func (s *Service) hydrateDraft(draft protocol.WorkGraphWorkflowDraft) {
-	if strings.TrimSpace(draft.PreviewID) == "" || strings.TrimSpace(draft.OwnerUserID) == "" {
-		return
-	}
-	previewRecord := workflowPreviewRecord{
+func previewRecordFromDraft(draft protocol.WorkGraphWorkflowDraft) workflowPreviewRecord {
+	return workflowPreviewRecord{
 		ownerUserID: draft.OwnerUserID, preview: cloneWorkflowPreview(draft.Preview),
 		sourceAgentID: draft.SourceAgentID, sourceConversationID: draft.SourceConversationID,
 		outputLanguage: draft.OutputLanguage, saveScheduled: draft.SaveScheduled,
 		savedWorkflowID: draft.SavedWorkflowID, savedRevision: draft.SavedRevision,
 	}
-	s.previewMu.Lock()
-	defer s.previewMu.Unlock()
-	s.previews[previewCacheKey(draft.OwnerUserID, draft.PreviewID)] = previewRecord
-	if draft.EditorID == "" || draft.EditorSessionKey == "" || draft.EditorAgentID == "" {
-		return
-	}
-	record := workflowEditorRecord{
+}
+
+func editorRecordFromDraft(draft protocol.WorkGraphWorkflowDraft) workflowEditorRecord {
+	return workflowEditorRecord{
 		ownerUserID: draft.OwnerUserID, sourceSessionKey: draft.SourceSessionKey,
 		previewID: draft.PreviewID, language: draft.OutputLanguage,
 		revision: draft.HeadRevision, selectedRevision: draft.SelectedRevision,
@@ -137,13 +140,6 @@ func (s *Service) hydrateDraft(draft protocol.WorkGraphWorkflowDraft) {
 		displayAfterUnixMilli: draft.EditorDisplayAfter, preview: cloneWorkflowPreview(draft.Preview),
 		versions: cloneWorkflowPreviewVersions(draft.Versions), expiresAt: draft.ExpiresAt,
 	}
-	key := previewCacheKey(draft.OwnerUserID, draft.EditorID)
-	if existing, ok := s.editors[key]; ok {
-		record.unavailableSlashNames = append([]string(nil), existing.unavailableSlashNames...)
-	}
-	s.editors[key] = record
-	s.editorBySession[draft.EditorSessionKey] = key
-	s.editorByPreview[previewCacheKey(draft.OwnerUserID, draft.PreviewID)] = key
 }
 
 // ListDrafts 返回 exact Session 中已提取草图的紧凑目录，支持一个对话多张 WorkGraph。
@@ -167,7 +163,6 @@ func (s *Service) ListDrafts(
 			if err = s.renewDraftLease(ctx, drafts, &items[index]); err != nil {
 				return nil, err
 			}
-			s.hydrateDraft(items[index])
 			result = append(result, draftSummary(items[index]))
 		}
 		return result, nil

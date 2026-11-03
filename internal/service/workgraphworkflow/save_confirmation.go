@@ -171,17 +171,6 @@ func (s *Service) persistDraft(ctx context.Context, draft protocol.WorkGraphWork
 		}
 		return nil, err
 	}
-	if preview.SlashName != draft.Preview.SlashName || preview.Title != draft.Preview.Title || preview.Description != draft.Preview.Description {
-		draft.HeadRevision++
-		draft.SelectedRevision = draft.HeadRevision
-		draft.Versions = append(draft.Versions, protocol.WorkGraphWorkflowPreviewVersion{
-			Revision: draft.HeadRevision, Preview: cloneWorkflowPreview(preview), CreatedAt: now,
-		})
-	}
-	draft.Preview = cloneWorkflowPreview(preview)
-	draft.SavedWorkflowID, draft.SavedRevision, draft.SaveScheduled = saved.ID, draft.SelectedRevision, false
-	draft.UpdatedAt = now
-	s.hydrateDraft(draft)
 	if changed && s.onChanged != nil {
 		s.onChanged(ctx, draft.OwnerUserID)
 	}

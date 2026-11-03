@@ -9,7 +9,7 @@
 //   - mutation.go / runtime_settings.go / model.go / util.go：增删改、目录隐藏 Session option、Session Connector/模型/思考强度/权限设置提交与后台 runtime 预备通知、模型、辅助。
 //   - recovery.go：持久 tombstone 的启动/周期恢复，同时重放任务停用与跨域引用清理。
 //   - runtime.go / context_usage.go / subagent_task.go / subagent_tool_run.go / workspace.go：运行时、
-//     Session 元数据上下文快照恢复、父会话可见子任务生命周期、独立 transcript 聚合及脱敏 ToolRun 历史投影、workspace。
+//     Session 元数据上下文快照恢复、父会话可见子任务生命周期、独立 transcript 聚合及仅供迁移的完整脱敏 ToolRun 历史读取、workspace。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package session

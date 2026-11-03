@@ -1,5 +1,5 @@
 // INPUT: physical round 的可信宿主上下文、命令尝试与 typed mutation result。
-// OUTPUT: 内置 MCP 共享上下文、父 runtime 子任务控制、失败计数及可按 sequence 单调消费的 mutation receipt。
+// OUTPUT: 内置 MCP 共享上下文、父 runtime 子任务控制、失败计数及可按 sequence 消费的单项/批量 mutation receipt。
 // POS: runtime 与结构化 command、Goal usage/continuation 之间的宿主事实桥；禁止从模型文本推断。
 package mcp
 
@@ -166,7 +166,7 @@ func (r CommandReceipt) CountsAsGoalProgress() bool {
 			return false
 		}
 		switch strings.TrimSpace(r.Operation) {
-		case ExecutionOperationPlan, "abandon_execution", "assign_work", "submit_work",
+		case ExecutionOperationPlan, "abandon_execution", "assign_work", "assign_work_batch", "submit_work",
 			"review_work", "block_work", "resume_work", "take_over_work",
 			"audit_execution_alignment":
 			return true

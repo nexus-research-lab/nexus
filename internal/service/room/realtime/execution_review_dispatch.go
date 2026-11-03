@@ -1,5 +1,5 @@
-// INPUT: claimed ExecutionReviewDispatch、trusted review binding 与 Room context。
-// OUTPUT: 不依赖 @ 文本的 reviewer durable handoff/queue 投递。
+// INPUT: claimed ExecutionReviewDispatch、trusted review binding、app 注入的 parser schema 与 Room context。
+// OUTPUT: 内联 exact review schema、但不从正文授予权限的 reviewer durable handoff/queue 投递。
 // POS: Submission review return 的 Room 数据面；不创建 worker Assignment 或 reviewer Attempt。
 package realtime
 
@@ -54,7 +54,7 @@ func (s *Service) DeliverExecutionReviewDispatch(
 		return receipt, err
 	}
 	handoffID := "execution_review_dispatch_" + delivery.Binding.ReviewDispatchID
-	content := renderExecutionReviewDispatchInstruction(delivery)
+	content := renderExecutionReviewDispatchInstruction(delivery, s.executionReviewContract)
 	accepted, existingReceipt, err := s.ensureExecutionReviewDispatchHandoff(
 		delivery,
 		handoffID,
@@ -326,11 +326,17 @@ func validateExecutionReviewDispatchDelivery(
 	return nil
 }
 
+// SetExecutionReviewContract injects the parser-owned schema; services never depend on MCP.
+func (s *Service) SetExecutionReviewContract(schema string) {
+	s.executionReviewContract = schema
+}
+
 func renderExecutionReviewDispatchInstruction(
 	delivery orchestrationsvc.ExecutionReviewDispatchDelivery,
+	reviewContract string,
 ) string {
 	binding := delivery.Binding
-	return fmt.Sprintf(
+	instruction := fmt.Sprintf(
 		"[Nexus structured review return]\n"+
 			"execution_id: %s\nplan_id: %s\nwork_item_id: %s\nspec_id: %s\n"+
 			"assignment_id: %s\nsubmission_id: %s\nreview_dispatch_id: %s\n"+
@@ -347,6 +353,10 @@ func renderExecutionReviewDispatchInstruction(
 		binding.TargetAgentID,
 		strings.TrimSpace(delivery.Instruction),
 	)
+	if reviewContract != "" {
+		instruction += "\n\n[review_contract]\nCall nexus.command with domain=execution, action=invoke, operation=review_work and a stable top-level request_id. This is the current input_schema; reuse it without a contract lookup. Authority still comes only from the current trusted ReviewBinding and allowed_actions.\n" + reviewContract
+	}
+	return instruction
 }
 
 func executionIDFromReviewBinding(

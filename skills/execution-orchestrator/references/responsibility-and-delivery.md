@@ -1,6 +1,6 @@
 # Responsibility 与交付
 
-只在调用 `assign_work`、`submit_work`、`review_work` 或 `take_over_work` 时读取本文件。字段、枚举、长度和数组上限只认 fresh exact contract；这里保留 binding、locator 与状态转换规则。
+只在调用 `assign_work`、`assign_work_batch`、`submit_work`、`review_work` 或 `take_over_work` 时读取本文件。字段、枚举、长度和数组上限只认当前 exact contract：本轮已返回或宿主内联的 schema 可直接复用，缺失/不可见/校验提示变化时才查 contract。权限仍以最新 binding 和 allowed_actions 为准。
 
 ## Locator 与 authority
 
@@ -14,7 +14,8 @@
 - 只由最新 context 的 coordinator 调用，定位 active Plan 中 Ready、没有 current Assignment 的 Work Item。`target_agent_id` 必填；显式选择 `strategy=self|room_member`。
 - `self` 的 target 必须是当前 actor，不能携带 Room dispatch。Room coordinator 的 self Assignment applied 会在同一 physical round 安装 exact WorkBinding，并把 lane 切到 work。
 - `room_member` 只用于 Room Execution，target 不能是当前 actor；`dispatch_kind` 只能按 contract 选择 directed/public，`return_to_agent_id` 决定 selected reviewer。`instruction` 只补充 handoff，不替换 immutable deliverable 与 acceptance criteria。
-- coordinator 先串行分派当前 Ready 的其他成员责任，最后再 self assign。每次 mutation 后消费最新 context；进入 work lane 后不能继续分派兄弟节点或修改 Plan。
+- 多项 Ready 责任已确定 owner 时，优先使用 `assign_work_batch` 一次提交，按当前 schema 的集合上限分批；单项仍可 `assign_work`。每项明确选择 owner/reviewer，不把未 Ready 节点放进批次，不猜测后续派发政策。
+- 批量内 Work Item 不重复，最多一个 self 且排在最后；整批成功后才进入 self 的 work lane。任一项失败则整批未应用，修正意图后换新 request_id；结果未知先对账，不能直接换 ID 重派。逐项调用时串行消费最新回执；进入 work lane 后不能继续分派兄弟节点或修改 Plan。
 
 ## submit_work
 

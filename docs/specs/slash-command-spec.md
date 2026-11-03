@@ -162,6 +162,9 @@ Composer 计划模式：
 - 输入是完整 source logical-key、父子层级和依赖；默认保留宿主标记的结构关键节点，主要抽象具体任务语义。
 - Draft 按 owner/session/source Execution 唯一并存入数据库，不进入命令目录；再次请求同一 source 直接恢复。
 - 每次修改保存不可变完整版本；`head_revision` 做 CAS，`selected_revision` 表达用户偏好。
+- 生产 Draft/Editor 读取直接消费数据库快照，不依赖先前请求填充进程内状态；已删除的持久记录不得回退为内存授权。请求取消贯穿读写；名称占用每次从当前目录派生，最终并发唯一性仍由数据库保证。
+- Draft 头部与不可变版本目录在同一读取快照内返回；追加、选择及 Editor 绑定的回执在写事务内读取，提交后不再读取可能由另一请求更新的 revision/selection。
+- 并发打开同一 Draft 只认最先持久绑定的 Editor；后来的打开请求复用该 identity 并清理自身未采用的隐藏 Session。显式丢弃 Editor 后撤销其持久绑定，旧 Session 不得恢复修改授权。
 - 一个 Session 有多张 WorkGraph 时，通过 exact `execution_id`/`preview_id` 区分。
 
 ### 编辑

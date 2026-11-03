@@ -273,7 +273,7 @@ func (s *Service) runtimeExecutionSegmentFromChangedRefs(
 
 func runtimeGraphAssignmentBoundaryOperation(operation string) bool {
 	switch strings.TrimSpace(operation) {
-	case "assign_work", "take_over_work":
+	case "assign_work", "assign_work_batch", "take_over_work":
 		return true
 	default:
 		return false

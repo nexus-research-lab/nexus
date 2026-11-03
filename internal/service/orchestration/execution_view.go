@@ -13,25 +13,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-type latestExecutionRepository interface {
-	FindLatest(context.Context, string, string) (*protocol.Execution, error)
-}
-
 type managedExecutionViewRepository interface {
 	FindCurrentManaged(context.Context, string, string) (*protocol.Execution, error)
 	FindLatestManaged(context.Context, string, string) (*protocol.Execution, error)
 }
 
 type managedExecutionHistoryRepository interface {
-	ListManaged(context.Context, string, string, int) ([]protocol.Execution, error)
-}
-
-type workGraphAttemptRepository interface {
-	ListWorkGraphChildAttempts(context.Context, string) ([]protocol.WorkAttempt, error)
-}
-
-type workGraphHistoryRepository interface {
-	ListWorkGraphHistory(context.Context, string) (protocol.ExecutionWorkGraphHistory, error)
+	ListManagedSummaries(context.Context, string, string, int) ([]protocol.ExecutionSummary, error)
 }
 
 type workGraphStateRepository interface {
@@ -58,31 +46,16 @@ func (s *Service) GetLatestView(
 	if s.repository == nil {
 		return nil, fmt.Errorf("orchestration repository is nil")
 	}
-	var (
-		execution       *protocol.Execution
-		err             error
-		managedSelector bool
-	)
-	if managedRepository, ok := s.repository.(managedExecutionViewRepository); ok {
-		managedSelector = true
-		execution, err = managedRepository.FindCurrentManaged(ctx, ownerUserID, sessionKey)
-		if err == nil && execution == nil {
-			execution, err = managedRepository.FindLatestManaged(ctx, ownerUserID, sessionKey)
-		}
-	} else {
-		execution, err = s.repository.FindCurrent(ctx, ownerUserID, sessionKey)
+	repository, ok := s.repository.(managedExecutionViewRepository)
+	if !ok {
+		return nil, fmt.Errorf("managed Execution view repository is unavailable")
+	}
+	execution, err := repository.FindCurrentManaged(ctx, ownerUserID, sessionKey)
+	if err == nil && execution == nil {
+		execution, err = repository.FindLatestManaged(ctx, ownerUserID, sessionKey)
 	}
 	if err != nil {
 		return nil, err
-	}
-	if execution == nil && !managedSelector {
-		latestRepository, ok := s.repository.(latestExecutionRepository)
-		if ok {
-			execution, err = latestRepository.FindLatest(ctx, ownerUserID, sessionKey)
-			if err != nil {
-				return nil, err
-			}
-		}
 	}
 	if execution == nil {
 		return nil, nil
@@ -116,13 +89,13 @@ func (s *Service) GetView(
 	return s.getViewForExecution(ctx, ownerUserID, sessionKey, execution)
 }
 
-// ListHistoryViews 返回当前 session 最近的 managed WorkGraph 历史。
-func (s *Service) ListHistoryViews(
+// ListHistorySummaries 返回当前 session 最近的 managed WorkGraph 目录，不读取运行历史。
+func (s *Service) ListHistorySummaries(
 	ctx context.Context,
 	ownerUserID string,
 	sessionKey string,
 	limit int,
-) ([]protocol.ExecutionView, error) {
+) ([]protocol.ExecutionSummary, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	sessionKey = strings.TrimSpace(sessionKey)
 	if ownerUserID == "" || sessionKey == "" {
@@ -130,28 +103,9 @@ func (s *Service) ListHistoryViews(
 	}
 	repository, ok := s.repository.(managedExecutionHistoryRepository)
 	if !ok {
-		return []protocol.ExecutionView{}, nil
+		return nil, fmt.Errorf("managed Execution history repository is unavailable")
 	}
-	executions, err := repository.ListManaged(ctx, ownerUserID, sessionKey, limit)
-	if err != nil {
-		return nil, err
-	}
-	views := make([]protocol.ExecutionView, 0, len(executions))
-	for index := range executions {
-		view, viewErr := s.getViewForExecution(
-			ctx,
-			ownerUserID,
-			sessionKey,
-			&executions[index],
-		)
-		if viewErr != nil {
-			return nil, viewErr
-		}
-		if view != nil {
-			views = append(views, *view)
-		}
-	}
-	return views, nil
+	return repository.ListManagedSummaries(ctx, ownerUserID, sessionKey, limit)
 }
 
 func (s *Service) getViewForExecution(
@@ -160,18 +114,11 @@ func (s *Service) getViewForExecution(
 	sessionKey string,
 	execution *protocol.Execution,
 ) (*protocol.ExecutionView, error) {
-	var workGraphHistory *protocol.ExecutionWorkGraphHistory
-	var snapshot *protocol.ExecutionSnapshot
-	var err error
-	if repository, ok := s.repository.(workGraphStateRepository); ok {
-		stateSnapshot, history, stateErr := repository.GetWorkGraphState(ctx, execution.ID)
-		snapshot, err = stateSnapshot, stateErr
-		if stateErr == nil && stateSnapshot != nil && stateSnapshot.Plan != nil {
-			workGraphHistory = &history
-		}
-	} else {
-		snapshot, err = s.repository.GetSnapshot(ctx, execution.ID)
+	repository, ok := s.repository.(workGraphStateRepository)
+	if !ok {
+		return nil, fmt.Errorf("consistent WorkGraph state repository is unavailable")
 	}
+	snapshot, history, err := repository.GetWorkGraphState(ctx, execution.ID)
 	if err != nil || snapshot == nil {
 		return nil, err
 	}
@@ -182,95 +129,20 @@ func (s *Service) getViewForExecution(
 	if snapshot.Plan == nil || len(snapshot.WorkItems) == 0 {
 		return nil, nil
 	}
-	if snapshot.Plan != nil && workGraphHistory == nil {
-		if repository, ok := s.repository.(workGraphHistoryRepository); ok {
-			history, historyErr := repository.ListWorkGraphHistory(ctx, snapshot.Plan.ID)
-			if historyErr != nil {
-				return nil, historyErr
-			}
-			workGraphHistory = &history
-		} else if repository, ok := s.repository.(workGraphAttemptRepository); ok {
-			childAttempts, historyErr := repository.ListWorkGraphChildAttempts(ctx, snapshot.Plan.ID)
-			if historyErr != nil {
-				return nil, historyErr
-			}
-			snapshot = snapshotWithWorkGraphChildAttempts(snapshot, childAttempts)
-		}
-	}
-	result := projectExecutionView(snapshot, workGraphHistory)
+	result := projectExecutionView(snapshot, &history)
 	if result == nil {
 		return nil, nil
 	}
-	if repository, ok := s.repository.(runtimeGraphRepository); ok {
-		var runtimeGraph protocol.ExecutionRuntimeGraph
-		var graphErr error
-		if workGraphRepository, available := s.repository.(workGraphRuntimeRepository); available {
-			runtimeGraph, graphErr = workGraphRepository.GetWorkGraphRuntimeGraph(
-				ctx,
-				ownerUserID,
-				sessionKey,
-				execution.ID,
-				execution.RootRoundID,
-			)
-		} else {
-			runtimeGraph, graphErr = repository.GetRuntimeGraph(
-				ctx,
-				ownerUserID,
-				sessionKey,
-				execution.ID,
-				execution.RootRoundID,
-			)
-		}
-		if graphErr != nil {
-			return nil, graphErr
-		}
-		runtimeGraph = s.mergeRuntimeGraphSubagentToolHistory(
-			ctx,
-			ownerUserID,
-			sessionKey,
-			runtimeGraph,
-		)
-		mergeExecutionRuntimeGraph(result, runtimeGraph)
+	runtimeRepository, ok := s.repository.(workGraphRuntimeRepository)
+	if !ok {
+		return nil, fmt.Errorf("WorkGraph runtime repository is unavailable")
 	}
+	runtimeGraph, err := runtimeRepository.GetWorkGraphRuntimeGraph(ctx, ownerUserID, sessionKey, execution.ID, execution.RootRoundID)
+	if err != nil {
+		return nil, err
+	}
+	mergeExecutionRuntimeGraph(result, runtimeGraph)
 	return result, nil
-}
-
-func snapshotWithWorkGraphChildAttempts(
-	snapshot *protocol.ExecutionSnapshot,
-	childAttempts []protocol.WorkAttempt,
-) *protocol.ExecutionSnapshot {
-	if snapshot == nil || snapshot.Plan == nil || len(childAttempts) == 0 {
-		return snapshot
-	}
-	result := *snapshot
-	result.Attempts = slices.Clone(snapshot.Attempts)
-	seen := make(map[string]struct{}, len(result.Attempts)+len(childAttempts))
-	for _, attempt := range result.Attempts {
-		seen[attempt.ID] = struct{}{}
-	}
-	for _, attempt := range childAttempts {
-		if strings.TrimSpace(attempt.ID) == "" ||
-			strings.TrimSpace(attempt.ParentAttemptID) == "" ||
-			attempt.ExecutionID != snapshot.Execution.ID ||
-			attempt.PlanID != snapshot.Plan.ID {
-			continue
-		}
-		if _, duplicate := seen[attempt.ID]; duplicate {
-			continue
-		}
-		seen[attempt.ID] = struct{}{}
-		result.Attempts = append(result.Attempts, attempt)
-	}
-	slices.SortFunc(result.Attempts, func(left, right protocol.WorkAttempt) int {
-		if order := strings.Compare(left.WorkItemID, right.WorkItemID); order != 0 {
-			return order
-		}
-		if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
-			return order
-		}
-		return strings.Compare(left.ID, right.ID)
-	})
-	return &result
 }
 
 // ProjectExecutionView 把权威 snapshot 投影成稳定且安全的 UI 读取模型。

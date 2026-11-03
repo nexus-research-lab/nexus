@@ -1,5 +1,5 @@
 // INPUT: 宿主绑定的 physical-round Actor 与 Goal/Execution/Automation/Subagent 领域分发函数。
-// OUTPUT: 带 request_id 格式与使用说明的 nexus.command 工具、对象化结构结果、纠错结果与宿主可信 typed receipt。
+// OUTPUT: nexus.command 工具、对象化结果、可信 typed receipt，以及独立于业务回执的可选调用诊断。
 // POS: 模型工具协议与 Nexus 领域 command adapter 之间的唯一 MCP 边界。
 package command
 
@@ -18,10 +18,12 @@ const ToolName = "command"
 
 const requestIDCorrection = "request_id 必须在工具顶层提供，为 8-128 位 ASCII 字母、数字、点、下划线、冒号或连字符；例如 submit-work-20260910-001（每个新意图生成唯一 ID，不要固定复用示例）。本次请求未执行，请补齐或修正 ID 后再调用，不要重复原错误参数；已通过校验的同一意图重试保持原 ID，结果未知时先对账。"
 
+var errInvalidRequestID = errors.New(requestIDCorrection)
+
 // ValidateRequestID 在任何副作用之前验证请求身份，并返回统一纠错说明。
 func ValidateRequestID(value string) error {
 	if !ValidRequestID(value) {
-		return errors.New(requestIDCorrection)
+		return errInvalidRequestID
 	}
 	return nil
 }
@@ -30,31 +32,46 @@ func ValidateRequestID(value string) error {
 type Handler func(context.Context, Request) (any, error)
 
 // NewTool 构建统一 nexus server 中的 command 工具定义。
-func NewTool(handler Handler) sdktool.Tool {
+func NewTool(handler Handler, diagnostics ...*Diagnostics) sdktool.Tool {
 	inputSchema := inputSchema()
+	var diagnostic *Diagnostics
+	if len(diagnostics) > 0 {
+		diagnostic = diagnostics[0]
+	}
 	return sdktool.Tool{
 		Name: ToolName,
 		Description: "调用 Nexus 托管的 Goal、Execution、Automation 或 Subagent 命令。" +
-			"先用 contract 获取操作目录和精确输入 schema，再用 inspect/invoke 或 plan/apply 执行。",
+			"用 contract 获取操作目录和精确输入 schema，再按对应 domain 使用 inspect/invoke 或 plan/apply；Execution 本轮已返回或宿主内联的 exact schema 可直接复用，权限仍以最新 binding 和 allowed_actions 为准。",
 		SearchHint:  "nexus goal execution automation subagent contract inspect invoke plan apply 目标 执行 自动化",
 		AlwaysLoad:  true,
 		InputSchema: inputSchema,
 		Annotations: &sdktool.ToolAnnotations{Destructive: true},
-		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
+		Handler: func(ctx context.Context, input map[string]any) (output sdktool.ToolResult, toolErr error) {
+			ctx, call := diagnostic.start(ctx, input)
+			returned := false
+			defer func() { call.finish(ctx, output, returned) }()
 			if err := ValidateInput(inputSchema, input); err != nil {
-				if strings.HasPrefix(err.Error(), "at $.request_id ") {
+				observeDiagnosticError(ctx, "invalid_envelope", err)
+				returned = true
+				if strings.Contains(err.Error(), "at $.request_id ") {
 					return errorResult(fmt.Errorf("%w。%s", err, requestIDCorrection)), nil
 				}
 				return errorResult(err), nil
 			}
 			if handler == nil {
+				observeDiagnosticError(ctx, "handler_unavailable", nil)
+				returned = true
 				return errorResult(errors.New("Nexus command handler 尚未装配")), nil
 			}
 			result, err := handler(ctx, requestFromInput(input))
 			if err != nil {
+				observeDiagnosticError(ctx, "handler_error", err)
+				returned = true
 				return errorResult(err), nil
 			}
-			return toolResult(result), nil
+			output = toolResult(result)
+			returned = true
+			return output, nil
 		},
 	}
 }
@@ -72,7 +89,7 @@ func inputSchema() map[string]any {
 					ActionContract, ActionInspect, ActionInvoke, ActionPlan, ActionApply,
 				},
 			},
-			"operation": map[string]any{"type": "string", "description": "使用 contract 返回的精确 operation；contract 可指定它以读取精确 input_schema。goal/execution/subagent 的固定 inspect 必须省略。"},
+			"operation": map[string]any{"type": "string", "description": "使用宿主提供或 contract 返回的精确 operation；contract 可指定它以读取精确 input_schema。goal/execution/subagent 的固定 inspect 必须省略。"},
 			"input":     map[string]any{"type": "object", "additionalProperties": true},
 			"request_id": map[string]any{
 				"type": "string", "minLength": 8, "maxLength": 128,
@@ -130,9 +147,16 @@ func errorResult(err error) sdktool.ToolResult {
 	if err != nil && strings.TrimSpace(err.Error()) != "" {
 		message = err.Error()
 	}
+	structured := map[string]any{"error": message}
+	var invalid *OperationInputError
+	if errors.As(err, &invalid) {
+		structured["operation"] = invalid.Operation
+		structured["input_schema"] = invalid.Schema
+		structured["executed"] = false
+	}
 	return sdktool.ToolResult{
 		Content:           []map[string]any{{"type": "text", "text": message}},
-		StructuredContent: map[string]any{"error": message},
+		StructuredContent: structured,
 		IsError:           true,
 	}
 }
@@ -146,6 +170,7 @@ func HandleSemantic(
 	operations []Operation,
 	request Request,
 ) (any, error) {
+	observeSemanticOperation(ctx, request, inspectOperation, operations)
 	action := strings.ToLower(strings.TrimSpace(request.Action))
 	switch action {
 	case ActionContract:

@@ -16,6 +16,9 @@ func TestReceiptGoalProgressRequiresAppliedTypedMutationAndExactBinding(t *testi
 		{name: "Goal missing outcome", receipt: CommandReceipt{Domain: CommandDomainGoal, Operation: GoalOperationRetarget}},
 		{name: "Goal rejected", receipt: CommandReceipt{Domain: CommandDomainGoal, Operation: GoalOperationUpdate, Outcome: string(protocol.MutationResultRejected)}},
 		{name: "Execution applied and bound", receipt: CommandReceipt{Domain: CommandDomainExecution, Operation: "submit_work", Outcome: string(protocol.MutationResultApplied), GoalBound: true}, want: true},
+		{name: "Assignment batch applied and bound", receipt: CommandReceipt{Domain: CommandDomainExecution, Operation: "assign_work_batch", Outcome: string(protocol.MutationResultApplied), GoalBound: true}, want: true},
+		{name: "Assignment batch replay", receipt: CommandReceipt{Domain: CommandDomainExecution, Operation: "assign_work_batch", Outcome: string(protocol.MutationResultNoOp), GoalBound: true}},
+		{name: "Assignment batch without Goal", receipt: CommandReceipt{Domain: CommandDomainExecution, Operation: "assign_work_batch", Outcome: string(protocol.MutationResultApplied)}},
 		{name: "Execution applied but unbound", receipt: CommandReceipt{Domain: CommandDomainExecution, Operation: "submit_work", Outcome: string(protocol.MutationResultApplied)}},
 		{name: "Execution prepare is read only", receipt: CommandReceipt{Domain: CommandDomainExecution, Operation: "prepare_plan_execution", Outcome: string(protocol.MutationResultApplied), GoalBound: true}},
 	}

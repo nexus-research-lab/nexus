@@ -26,6 +26,7 @@ type Service interface {
 	MaterializePlanExecution(context.Context, orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) (orchestration.MutationResult, error)
 	AbandonExecution(context.Context, orchestration.ActorContext, orchestration.AbandonExecutionInput) (orchestration.MutationResult, error)
 	AssignWork(context.Context, orchestration.ActorContext, orchestration.AssignWorkInput) (orchestration.MutationResult, error)
+	AssignWorkBatch(context.Context, orchestration.ActorContext, orchestration.AssignWorkBatchInput) (orchestration.MutationResult, error)
 	SubmitWork(context.Context, orchestration.ActorContext, orchestration.SubmitWorkInput) (orchestration.MutationResult, error)
 	ReviewWork(context.Context, orchestration.ActorContext, orchestration.ReviewWorkInput) (orchestration.MutationResult, error)
 	BlockWork(context.Context, orchestration.ActorContext, orchestration.BlockWorkInput) (orchestration.MutationResult, error)
@@ -67,7 +68,7 @@ type WorkflowAuthoringService interface {
 // WorkflowEditorService 是隐藏专用 DM 中唯一可写的草图 revision/selection 边界。
 // owner 与 editor Session identity 只来自 runtime capability，不进入模型输入。
 type WorkflowEditorService interface {
-	RuntimeEditorActive(string, string) bool
+	RuntimeEditorActive(context.Context, string, string) bool
 	ReviseEditorPreview(
 		context.Context,
 		string,

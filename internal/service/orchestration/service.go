@@ -106,7 +106,6 @@ type Service struct {
 	planProposals          PlanProposalRepository
 	goalConfirmations      GoalConfirmationRepository
 	completionAudits       CompletionAuditRepository
-	subagentToolHistory    RuntimeGraphSubagentToolHistoryProvider
 	goalPromotionGateway   GoalPromotionGateway
 	explicitGoalGateway    ExplicitGoalBindingGateway
 	assignmentTargets      AssignmentTargetAuthorizer

@@ -21,6 +21,7 @@ func mergeExecutionRuntimeGraph(
 		return
 	}
 	view.Graph.RuntimeNodeTotal = 0
+	view.Graph.HistoryPending = runtimeGraph.HistoryPending
 	view.Graph.RuntimeEdgeTotal = 0
 	view.Graph.RuntimeNodesTruncated = false
 	view.Graph.RuntimeEdgesTruncated = false

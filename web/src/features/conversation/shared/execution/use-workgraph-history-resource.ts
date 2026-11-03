@@ -10,11 +10,11 @@ import { useCallback, useEffect, useRef } from "react";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { getExecutionHistoryApi } from "@/lib/api/conversation/execution-api";
 import { getErrorMessage, getResourceFailure } from "@/lib/error-message";
-import type { ExecutionView } from "@/types/conversation/execution";
+import type { ExecutionSummary } from "@/types/conversation/execution";
 
 export interface WorkGraphHistoryResource {
   error: string | null;
-  history: ExecutionView[];
+  history: ExecutionSummary[];
   isLoading: boolean;
   isStale: boolean;
   refresh: () => void;
@@ -24,7 +24,7 @@ export function useWorkGraphHistoryResource(
   sessionKey: string | null,
   enabled: boolean,
 ): WorkGraphHistoryResource {
-  const [history, setHistory] = useResettableState<ExecutionView[]>([], sessionKey);
+  const [history, setHistory] = useResettableState<ExecutionSummary[]>([], sessionKey);
   const [error, setError] = useResettableState<string | null>(null, sessionKey);
   const [isLoading, setLoading] = useResettableState(false, sessionKey);
   const requestRef = useRef(0);

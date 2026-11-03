@@ -262,7 +262,7 @@ func (s *Service) ObserveRuntimeMessage(
 			FinishedAt:       finishedAt,
 			Metadata:         metadata,
 		}
-		if err = repository.UpsertRuntimeGraphNode(ctx, nodeRun); err != nil {
+		if err = repository.UpsertRuntimeGraphNode(ctx, PrepareRuntimeGraphRead(nodeRun)); err != nil {
 			return err
 		}
 		runtimeNodeByID[nodeID] = nodeRun
@@ -429,29 +429,32 @@ func (s *Service) FinishRuntimeRound(
 	status := normalizeRuntimeGraphTerminalStatus(terminalStatus, failureReason)
 	descriptor := runtimeAgentNodeDescriptor(actor)
 	description := descriptor.Description
-	if reason := strings.TrimSpace(failureReason); reason != "" {
-		description = reason
+	failureReason, summaryTruncated := compactRuntimeGraphSummary(failureReason)
+	if failureReason != "" {
+		description = failureReason
 	}
 	if err = repository.UpsertRuntimeGraphNode(ctx, protocol.ExecutionRuntimeNodeRun{
-		ID:             runtimeGraphNodeID(identity, protocol.ExecutionRuntimeNodeAgent, identity.AgentRoundID),
-		GraphID:        identity.GraphID,
-		OwnerUserID:    identity.OwnerUserID,
-		SessionKey:     identity.SessionKey,
-		ExecutionID:    identity.ExecutionID,
-		Kind:           protocol.ExecutionRuntimeNodeAgent,
-		SubjectID:      identity.AgentRoundID,
-		RootRoundID:    identity.RootRoundID,
-		RuntimeRoundID: identity.RuntimeRoundID,
-		AgentRoundID:   identity.AgentRoundID,
-		AgentID:        identity.AgentID,
-		Name:           descriptor.Name,
-		Description:    description,
-		Status:         status,
-		Failed:         status == protocol.ExecutionRuntimeNodeFailed,
-		StartedAt:      now,
-		UpdatedAt:      now,
-		FinishedAt:     &now,
-		Metadata:       descriptor.Metadata,
+		ID:               runtimeGraphNodeID(identity, protocol.ExecutionRuntimeNodeAgent, identity.AgentRoundID),
+		GraphID:          identity.GraphID,
+		OwnerUserID:      identity.OwnerUserID,
+		SessionKey:       identity.SessionKey,
+		ExecutionID:      identity.ExecutionID,
+		Kind:             protocol.ExecutionRuntimeNodeAgent,
+		SubjectID:        identity.AgentRoundID,
+		RootRoundID:      identity.RootRoundID,
+		RuntimeRoundID:   identity.RuntimeRoundID,
+		AgentRoundID:     identity.AgentRoundID,
+		AgentID:          identity.AgentID,
+		Name:             descriptor.Name,
+		Description:      description,
+		Status:           status,
+		Failed:           status == protocol.ExecutionRuntimeNodeFailed,
+		ErrorSummary:     failureReason,
+		SummaryTruncated: summaryTruncated,
+		StartedAt:        now,
+		UpdatedAt:        now,
+		FinishedAt:       &now,
+		Metadata:         descriptor.Metadata,
 	}); err != nil {
 		return err
 	}

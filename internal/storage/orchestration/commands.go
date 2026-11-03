@@ -121,6 +121,16 @@ type AssignCommand struct {
 	Meta                     CommandMeta
 }
 
+// AssignBatchCommand commits all ready assignments, outbox entries and attempts
+// under one Execution CAS. RequestDigest binds the receipt to the exact intent.
+type AssignBatchCommand struct {
+	ExecutionID              string
+	ExpectedExecutionVersion int64
+	RequestDigest            string
+	Assignments              []AssignCommand
+	Meta                     CommandMeta
+}
+
 // StartAttemptCommand 创建一个 running Attempt，或把已有 pending Attempt 原子激活。
 type StartAttemptCommand struct {
 	ExpectedExecutionVersion  int64

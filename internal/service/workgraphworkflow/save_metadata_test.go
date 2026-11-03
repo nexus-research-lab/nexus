@@ -9,6 +9,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -72,7 +73,7 @@ func TestSaveDialogMetadataSurvivesReopeningEditor(t *testing.T) {
 	if err != nil || plainReopen.Revision != reopened.Revision || plainReopen.Preview.SlashName != request.SlashName {
 		t.Fatalf("plain reopen changed saved editor metadata: %#v, err=%v", plainReopen, err)
 	}
-	applied, err := service.ApplyMetadataEditor("owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
+	applied, err := service.ApplyMetadataEditor(context.Background(), "owner-a", protocol.ApplyWorkGraphWorkflowEditorRequest{
 		SourceSessionKey: "session-a", EditorID: reopened.EditorID, Revision: reopened.Revision, SelectedRevision: reopened.SelectedRevision,
 	})
 	if err != nil {
@@ -336,14 +337,14 @@ func TestEditorApplyAndConfirmSaveFenceBothHeadAndSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := protocol.ApplyWorkGraphWorkflowEditorRequest{SourceSessionKey: "session-a", EditorID: editor.EditorID, Revision: 1, SelectedRevision: 1}
-	if _, err = s.ApplyMetadataEditor("owner-a", request); !errors.Is(err, ErrRevisionConflict) {
+	if _, err = s.ApplyMetadataEditor(context.Background(), "owner-a", request); !errors.Is(err, ErrRevisionConflict) {
 		t.Fatalf("stale cached editor applied: %v", err)
 	}
 	if _, err = repository.SelectDraftVersion(ctx, "owner-a", preview.PreviewID, 2, 1, s.now()); err != nil {
 		t.Fatal(err)
 	}
 	request.Revision, request.SelectedRevision = 2, 2
-	if _, err = s.ApplyMetadataEditor("owner-a", request); !errors.Is(err, ErrRevisionConflict) {
+	if _, err = s.ApplyMetadataEditor(context.Background(), "owner-a", request); !errors.Is(err, ErrRevisionConflict) {
 		t.Fatalf("changed selection applied: %v", err)
 	}
 	if _, err = s.ConfirmSave(ctx, "owner-a", protocol.ConfirmWorkGraphWorkflowSaveRequest{
@@ -352,7 +353,7 @@ func TestEditorApplyAndConfirmSaveFenceBothHeadAndSelection(t *testing.T) {
 		t.Fatalf("invisible selected graph saved: %v", err)
 	}
 	request.SelectedRevision = 1
-	applied, err := s.ApplyMetadataEditor("owner-a", request)
+	applied, err := s.ApplyMetadataEditor(context.Background(), "owner-a", request)
 	if err != nil || applied.HeadRevision != 2 || applied.SelectedRevision != 1 || applied.SlashName != preview.SlashName {
 		t.Fatalf("exact old version apply: %#v %v", applied, err)
 	}
@@ -380,7 +381,7 @@ func TestEditorRevisionReceiptRemainsExactDuringConcurrentReads(t *testing.T) {
 				case <-stop:
 					return
 				default:
-					if _, readErr := s.GetMetadataEditor("owner-a", request); readErr != nil {
+					if _, readErr := s.GetMetadataEditor(context.Background(), "owner-a", request); readErr != nil {
 						errorsFound <- readErr
 						return
 					}
@@ -397,7 +398,7 @@ func TestEditorRevisionReceiptRemainsExactDuringConcurrentReads(t *testing.T) {
 		}
 	}()
 	for index := range 12 {
-		current, readErr := s.GetMetadataEditor("owner-a", request)
+		current, readErr := s.GetMetadataEditor(context.Background(), "owner-a", request)
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
@@ -410,5 +411,61 @@ func TestEditorRevisionReceiptRemainsExactDuringConcurrentReads(t *testing.T) {
 		if next.Revision != revision.Revision+1 || next.Preview.Title != revision.Title {
 			t.Fatalf("revision receipt regressed during concurrent reads: %#v", next)
 		}
+	}
+}
+
+func TestDurableEditorWorksWithoutProcessCacheAndHonorsRequestCancellation(t *testing.T) {
+	original, repository, preview := newDurableMetadataTestService(t)
+	ctx := context.Background()
+	editor, err := original.StartMetadataEditor(ctx, "owner-a", protocol.StartWorkGraphWorkflowEditorRequest{PreviewID: preview.PreviewID, SourceSessionKey: "session-a", OutputLanguage: "zh"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted := NewService(repository, nil)
+	revision := editorRevisionRequest(editor.Revision, editor.Preview)
+	revision.Title = "重启后的修改"
+	next, err := restarted.ReviseEditorPreview(ctx, "owner-a", editor.SessionKey, revision)
+	if err != nil || next.Revision != editor.Revision+1 || next.Preview.Title != revision.Title {
+		t.Fatalf("direct mutation required cache priming: %+v %v", next, err)
+	}
+	// A second process must see the committed revision without stale cache authority.
+	current, err := original.GetMetadataEditor(ctx, "owner-a", protocol.GetWorkGraphWorkflowEditorRequest{SourceSessionKey: "session-a", EditorID: editor.EditorID})
+	if err != nil || current.Revision != next.Revision {
+		t.Fatalf("stale editor view: %+v %v", current, err)
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := restarted.GetMetadataEditor(cancelled, "owner-a", protocol.GetWorkGraphWorkflowEditorRequest{SourceSessionKey: "session-a", EditorID: editor.EditorID}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("request cancellation lost: %v", err)
+	}
+	if restarted.RuntimeEditorActive(cancelled, "owner-a", editor.SessionKey) {
+		t.Fatal("cancelled request granted editor authority")
+	}
+}
+
+func TestEditorPolicyReadsLiveCatalogAndDiscardRevokesDurableAuthority(t *testing.T) {
+	s, repository, preview := newDurableMetadataTestService(t)
+	ctx := context.Background()
+	editor, err := s.StartMetadataEditor(ctx, "owner-a", protocol.StartWorkGraphWorkflowEditorRequest{PreviewID: preview.PreviewID, SourceSessionKey: "session-a", OutputLanguage: "zh"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	competing, err := repository.BindDraftEditor(ctx, "owner-a", preview.PreviewID, "another-editor", "other-agent", "other-session", 0, s.now())
+	if err != nil || competing.EditorID != editor.EditorID {
+		t.Fatalf("concurrent opener replaced canonical editor: %+v %v", competing, err)
+	}
+	if _, err = s.SavePreview(ctx, "owner-a", protocol.SaveWorkGraphWorkflowRequest{CommandID: "new-catalog-entry", SourceSessionKey: "session-a", PreviewID: preview.PreviewID}); err != nil {
+		t.Fatal(err)
+	}
+	restarted := NewService(repository, nil)
+	policy, active, err := restarted.RuntimeEditorPolicy(ctx, "owner-a", editor.SessionKey)
+	if err != nil || !active || !strings.Contains(policy.SystemPrompt, `"`+preview.SlashName+`"`) {
+		t.Fatalf("live name catalog missing: %+v %v", policy, err)
+	}
+	if closed, err := s.CloseMetadataEditor(ctx, "owner-a", "session-a", editor.EditorID); err != nil || !closed {
+		t.Fatalf("close=%v err=%v", closed, err)
+	}
+	if restarted.RuntimeEditorActive(ctx, "owner-a", editor.SessionKey) {
+		t.Fatal("discarded editor authority revived from durable row")
 	}
 }

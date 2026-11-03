@@ -22,7 +22,7 @@ type workflowEditorCommandService struct {
 	request    protocol.ReviseWorkGraphWorkflowPreviewRequest
 }
 
-func (s *workflowEditorCommandService) RuntimeEditorActive(owner, sessionKey string) bool {
+func (s *workflowEditorCommandService) RuntimeEditorActive(_ context.Context, owner, sessionKey string) bool {
 	return s.active && owner == "owner-a" && sessionKey == "editor-session-a"
 }
 

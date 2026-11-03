@@ -1,5 +1,5 @@
 // INPUT: Room 服务依赖、runtime 事件、owner-scoped Slash expander 与实时会话请求。
-// OUTPUT: Room round、动态 Workflow、队列和共享事件的进程内编排状态。
+// OUTPUT: Room round、动态 Workflow、队列、共享事件与 app 注入的 work/review 字段合同。
 // POS: Room 实时服务装配与共享状态定义。
 package realtime
 
@@ -158,6 +158,9 @@ type Service struct {
 	factory            roomClientFactory
 	broadcaster        RoomBroadcaster
 	titles             roomTitleScheduler
+	// executionSubmissionContract is the command parser's schema, injected by app.
+	executionSubmissionContract string
+	executionReviewContract     string
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
 	goalUsageRetryBaseDelay time.Duration

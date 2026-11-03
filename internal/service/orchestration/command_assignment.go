@@ -1,4 +1,4 @@
-// INPUT: 责任分配、接管与 Attempt 选择。
+// INPUT: 责任分配、接管与 Attempt 选择；Ready/target/chain 阶段供批量派发共用。
 // OUTPUT: 原子命令结果与后续责任动作。
 // POS: Orchestration 命令的业务阶段，复用同包授权、版本栅栏与结果投影。
 package orchestration
@@ -80,20 +80,46 @@ func (s *Service) AssignWork(
 			assignment.ID,
 		), nextActions(snapshot, actor)), nil
 	}
+	command, buildErr := s.prepareReadyAssignment(ctx, actor, snapshot, work, spec, input)
+	if buildErr != nil {
+		return RejectedResult(snapshot, buildErr, nextActions(snapshot, actor)), nil
+	}
+	assignment, dispatch, attempt := command.Assignment, command.Dispatch, command.RootAttempt
+	updated, assignErr := s.repository.Assign(ctx, command)
+	if assignErr != nil {
+		return s.storageMutationResult(snapshot, assignErr, nextActions(snapshot, actor))
+	}
+	changed := []string{
+		"assignment:" + assignment.ID,
+		"attempt:" + attempt.ID,
+	}
+	if dispatch != nil {
+		changed = append(changed, "dispatch:"+dispatch.ID)
+	}
+	result := AppliedResult(updated, changed, nextActions(updated, actor))
+	return withRoomSelfWorkBindingReceipt(actor, result, work.ID), nil
+}
+
+// prepareReadyAssignment shares readiness, target authorization and chain creation
+// between one-item and atomic batch commands. Current ownership is checked by callers.
+func (s *Service) prepareReadyAssignment(
+	ctx context.Context, actor ActorContext, snapshot *protocol.ExecutionSnapshot,
+	work protocol.WorkItem, spec protocol.WorkItemSpec, input AssignWorkInput,
+) (orchestrationstore.AssignCommand, error) {
 	if !slices.Contains(snapshot.ReadyWorkItemIDs, work.ID) {
-		return RejectedResult(snapshot, newDomainError(
+		return orchestrationstore.AssignCommand{}, newDomainError(
 			ErrorCodeDependencyNotAccepted,
 			"Work Item is not ready; inspect hard dependencies and lifecycle state",
 			work.LogicalKey,
 			"",
-		), nextActions(snapshot, actor)), nil
+		)
 	}
 	target := strings.TrimSpace(input.TargetAgentID)
 	if target == "" {
-		return RejectedResult(snapshot, domainError(
+		return orchestrationstore.AssignCommand{}, domainError(
 			ErrorCodeInvalidInput,
 			"target_agent_id is required",
-		), nil), nil
+		)
 	}
 	assignment, dispatch, attempt, buildErr := s.buildAssignmentChain(
 		actor,
@@ -110,30 +136,16 @@ func (s *Service) AssignWork(
 		input.CommandID,
 	)
 	if buildErr != nil {
-		return RejectedResult(snapshot, buildErr, nil), nil
+		return orchestrationstore.AssignCommand{}, buildErr
 	}
 	if targetErr := s.authorizeAssignmentTarget(ctx, actor, snapshot, assignment, dispatch); targetErr != nil {
-		return RejectedResult(snapshot, targetErr, nextActions(snapshot, actor)), nil
+		return orchestrationstore.AssignCommand{}, targetErr
 	}
-	updated, assignErr := s.repository.Assign(ctx, orchestrationstore.AssignCommand{
+	return orchestrationstore.AssignCommand{
 		ExpectedExecutionVersion: input.SnapshotRevision,
-		Assignment:               assignment,
-		Dispatch:                 dispatch,
-		RootAttempt:              &attempt,
-		Meta:                     s.commandMeta(actor, input.CommandID, "assign"),
-	})
-	if assignErr != nil {
-		return s.storageMutationResult(snapshot, assignErr, nextActions(snapshot, actor))
-	}
-	changed := []string{
-		"assignment:" + assignment.ID,
-		"attempt:" + attempt.ID,
-	}
-	if dispatch != nil {
-		changed = append(changed, "dispatch:"+dispatch.ID)
-	}
-	result := AppliedResult(updated, changed, nextActions(updated, actor))
-	return withRoomSelfWorkBindingReceipt(actor, result, work.ID), nil
+		Assignment:               assignment, Dispatch: dispatch, RootAttempt: &attempt,
+		Meta: s.commandMeta(actor, input.CommandID, "assign"),
+	}, nil
 }
 
 func matchingRoomSelfAssignmentRequest(

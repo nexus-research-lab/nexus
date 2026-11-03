@@ -1,13 +1,12 @@
-// INPUT: Server services, runtime managers, root lifecycle context、durable completion/Goal confirmation/subagent deadline 与 orchestration dispatch state。
-// OUTPUT: 启动并监管 event/deadline 驱动的 completion audit、Goal binding、Plan proposal、child Attempt、lease 与 dispatch coordinator。
-// POS: 后台 coordinator 的应用生命周期边界；业务顺序、claim 和 retry 留在 service。
+// INPUT: Server services, runtime managers, root lifecycle context、WorkGraph 历史回填账本与 durable orchestration state。
+// OUTPUT: 可取消的一次性历史回填，随后启动并监管 event/deadline 驱动的业务 coordinator。
+// POS: 迁移与后台 coordinator 的应用生命周期边界；历史恢复留在 migration，业务 claim 和 retry 留在 service。
 package server
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"net"
 	"net/http"
 	"os"
@@ -15,8 +14,10 @@ import (
 	"time"
 
 	appgoal "github.com/nexus-research-lab/nexus/internal/app/goal"
+	"github.com/nexus-research-lab/nexus/internal/migration"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
@@ -104,6 +105,15 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 }
 
 func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
+	if s.services != nil && s.services.DB != nil && s.services.Core != nil {
+		if err := migration.RunWorkGraphHistoryBackfill(ctx, s.config, s.services.DB, s.services.Core.Session, s.api.BaseLogger()); err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			s.api.BaseLogger().Warn("WorkGraph historical backfill incomplete; retry on next startup", "err", err)
+		}
+	}
+
 	var stops []func()
 	stopAll := func() {
 		for i := len(stops) - 1; i >= 0; i-- {

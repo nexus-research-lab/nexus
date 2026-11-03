@@ -1,5 +1,5 @@
 // INPUT: owner/source-scoped WorkGraph Draft、不可变完整草图版本与 revision CAS。
-// OUTPUT: 跨重启可恢复的 Draft、可续期空闲 lease、编辑 Session 绑定、版本选择和保存状态。
+// OUTPUT: 同一快照内的 Draft/版本、写入事务内的精确回执、可续期 lease、编辑 Session 绑定和保存状态。
 // POS: 临时草图生命周期的关系数据库真相源；命名 WorkGraph aggregate 仍由 repository.go 持久化。
 package workgraphworkflow
 
@@ -63,10 +63,7 @@ INSERT INTO workgraph_workflow_draft_versions (
 	if err != nil {
 		return nil, err
 	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return r.GetDraftByID(ctx, draft.OwnerUserID, draft.PreviewID)
+	return r.commitDraft(ctx, tx, draft.OwnerUserID, draft.PreviewID)
 }
 
 // GetDraftByID 按 owner + preview_id 读取 Draft 和全部不可变版本。
@@ -75,19 +72,8 @@ func (r *Repository) GetDraftByID(
 	ownerUserID string,
 	previewID string,
 ) (*protocol.WorkGraphWorkflowDraft, error) {
-	draft, err := scanDraft(r.db.QueryRowContext(ctx, r.draftSelect()+`
-WHERE owner_user_id = `+r.bind(1)+` AND preview_id = `+r.bind(2),
-		strings.TrimSpace(ownerUserID), strings.TrimSpace(previewID)))
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err = r.loadDraftVersions(ctx, &draft); err != nil {
-		return nil, err
-	}
-	return &draft, nil
+	return r.readDraft(ctx, `WHERE owner_user_id = `+r.bind(1)+` AND preview_id = `+r.bind(2),
+		strings.TrimSpace(ownerUserID), strings.TrimSpace(previewID))
 }
 
 // GetDraftBySource 保证同一 owner/session/execution 只需提取一次。
@@ -97,21 +83,10 @@ func (r *Repository) GetDraftBySource(
 	sourceSessionKey string,
 	sourceExecutionID string,
 ) (*protocol.WorkGraphWorkflowDraft, error) {
-	draft, err := scanDraft(r.db.QueryRowContext(ctx, r.draftSelect()+`
-WHERE owner_user_id = `+r.bind(1)+`
+	return r.readDraft(ctx, `WHERE owner_user_id = `+r.bind(1)+`
   AND source_session_key = `+r.bind(2)+`
   AND source_execution_id = `+r.bind(3)+` AND origin_workflow_id = ''`,
-		strings.TrimSpace(ownerUserID), strings.TrimSpace(sourceSessionKey), strings.TrimSpace(sourceExecutionID)))
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err = r.loadDraftVersions(ctx, &draft); err != nil {
-		return nil, err
-	}
-	return &draft, nil
+		strings.TrimSpace(ownerUserID), strings.TrimSpace(sourceSessionKey), strings.TrimSpace(sourceExecutionID))
 }
 
 // GetDraftByEditorSession 恢复隐藏编辑 Session 的 round-scoped policy。
@@ -120,19 +95,8 @@ func (r *Repository) GetDraftByEditorSession(
 	ownerUserID string,
 	editorSessionKey string,
 ) (*protocol.WorkGraphWorkflowDraft, error) {
-	draft, err := scanDraft(r.db.QueryRowContext(ctx, r.draftSelect()+`
-WHERE owner_user_id = `+r.bind(1)+` AND editor_session_key = `+r.bind(2),
-		strings.TrimSpace(ownerUserID), strings.TrimSpace(editorSessionKey)))
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err = r.loadDraftVersions(ctx, &draft); err != nil {
-		return nil, err
-	}
-	return &draft, nil
+	return r.readDraft(ctx, `WHERE owner_user_id = `+r.bind(1)+` AND editor_session_key = `+r.bind(2),
+		strings.TrimSpace(ownerUserID), strings.TrimSpace(editorSessionKey))
 }
 
 // GetDraftBySavedWorkflowID 从能力目录恢复命名图关联的 Draft。
@@ -141,35 +105,52 @@ func (r *Repository) GetDraftBySavedWorkflowID(
 	ownerUserID string,
 	workflowID string,
 ) (*protocol.WorkGraphWorkflowDraft, error) {
-	draft, err := scanDraft(r.db.QueryRowContext(ctx, r.draftSelect()+`
-WHERE owner_user_id = `+r.bind(1)+` AND saved_workflow_id = `+r.bind(2),
-		strings.TrimSpace(ownerUserID), strings.TrimSpace(workflowID)))
+	return r.readDraft(ctx, `WHERE owner_user_id = `+r.bind(1)+` AND saved_workflow_id = `+r.bind(2),
+		strings.TrimSpace(ownerUserID), strings.TrimSpace(workflowID))
+}
+
+// GetDraftByEditorID 让打开中的编辑器在重启或另一窗口修改后读取数据库当前版本。
+func (r *Repository) GetDraftByEditorID(ctx context.Context, ownerUserID, editorID string) (*protocol.WorkGraphWorkflowDraft, error) {
+	return r.readDraft(ctx, `WHERE owner_user_id = `+r.bind(1)+` AND editor_id = `+r.bind(2),
+		strings.TrimSpace(ownerUserID), strings.TrimSpace(editorID))
+}
+
+// readDraft keeps the mutable head and its immutable versions in one snapshot.
+func (r *Repository) readDraft(ctx context.Context, where string, args ...any) (*protocol.WorkGraphWorkflowDraft, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	draft, err := r.getDraft(ctx, tx, where, args...)
+	if err != nil {
+		return nil, err
+	}
+	return draft, tx.Commit()
+}
+
+func (r *Repository) getDraft(ctx context.Context, tx *sql.Tx, where string, args ...any) (*protocol.WorkGraphWorkflowDraft, error) {
+	draft, err := scanDraft(tx.QueryRowContext(ctx, r.draftSelect()+"\n"+where, args...))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	if err = r.loadDraftVersions(ctx, &draft); err != nil {
+	if err = r.loadDraftVersions(ctx, tx, &draft); err != nil {
 		return nil, err
 	}
 	return &draft, nil
 }
 
-// GetDraftByEditorID 让打开中的编辑器在重启或另一窗口修改后读取数据库当前版本。
-func (r *Repository) GetDraftByEditorID(ctx context.Context, ownerUserID, editorID string) (*protocol.WorkGraphWorkflowDraft, error) {
-	draft, err := scanDraft(r.db.QueryRowContext(ctx, r.draftSelect()+`
-WHERE owner_user_id = `+r.bind(1)+` AND editor_id = `+r.bind(2), strings.TrimSpace(ownerUserID), strings.TrimSpace(editorID)))
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
+// Read the receipt before releasing the write lock; a concurrent writer must
+// never replace this operation's committed head or selection in its response.
+func (r *Repository) commitDraft(ctx context.Context, tx *sql.Tx, owner, preview string) (*protocol.WorkGraphWorkflowDraft, error) {
+	draft, err := r.getDraft(ctx, tx, `WHERE owner_user_id = `+r.bind(1)+` AND preview_id = `+r.bind(2), owner, preview)
 	if err != nil {
 		return nil, err
 	}
-	if err = r.loadDraftVersions(ctx, &draft); err != nil {
-		return nil, err
-	}
-	return &draft, nil
+	return draft, tx.Commit()
 }
 
 // ListDrafts 返回 exact source Session 下的 Draft 目录。
@@ -178,7 +159,12 @@ func (r *Repository) ListDrafts(
 	ownerUserID string,
 	sourceSessionKey string,
 ) ([]protocol.WorkGraphWorkflowDraft, error) {
-	rows, err := r.db.QueryContext(ctx, r.draftSelect()+`
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	rows, err := tx.QueryContext(ctx, r.draftSelect()+`
 WHERE owner_user_id = `+r.bind(1)+` AND source_session_key = `+r.bind(2)+`
 ORDER BY updated_at DESC, preview_id ASC`,
 		strings.TrimSpace(ownerUserID), strings.TrimSpace(sourceSessionKey))
@@ -202,11 +188,11 @@ ORDER BY updated_at DESC, preview_id ASC`,
 		return nil, err
 	}
 	for index := range items {
-		if err = r.loadDraftVersions(ctx, &items[index]); err != nil {
+		if err = r.loadDraftVersions(ctx, tx, &items[index]); err != nil {
 			return nil, err
 		}
 	}
-	return items, nil
+	return items, tx.Commit()
 }
 
 // AppendDraftVersion 以 head revision CAS 追加不可变版本并选中它。
@@ -257,10 +243,7 @@ INSERT INTO workgraph_workflow_draft_versions (
 	if err != nil {
 		return nil, err
 	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
-	}
-	return r.GetDraftByID(ctx, ownerUserID, previewID)
+	return r.commitDraft(ctx, tx, strings.TrimSpace(ownerUserID), strings.TrimSpace(previewID))
 }
 
 // SelectDraftVersion 只改变当前选择，不重写或复制既有版本。
@@ -272,8 +255,13 @@ func (r *Repository) SelectDraftVersion(
 	selectedRevision int64,
 	updatedAt time.Time,
 ) (*protocol.WorkGraphWorkflowDraft, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
 	var exists int
-	err := r.db.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 SELECT 1 FROM workgraph_workflow_draft_versions
 WHERE preview_id = `+r.bind(1)+` AND revision = `+r.bind(2),
 		strings.TrimSpace(previewID), selectedRevision).Scan(&exists)
@@ -283,7 +271,7 @@ WHERE preview_id = `+r.bind(1)+` AND revision = `+r.bind(2),
 	if err != nil {
 		return nil, err
 	}
-	result, err := r.db.ExecContext(ctx, `
+	result, err := tx.ExecContext(ctx, `
 UPDATE workgraph_workflow_drafts
 SET selected_revision = `+r.bind(1)+`, updated_at = `+r.bind(2)+`
 WHERE owner_user_id = `+r.bind(3)+` AND preview_id = `+r.bind(4)+`
@@ -301,7 +289,7 @@ WHERE owner_user_id = `+r.bind(3)+` AND preview_id = `+r.bind(4)+`
 	if affected != 1 {
 		return nil, errors.New("WorkGraph Draft revision changed")
 	}
-	return r.GetDraftByID(ctx, ownerUserID, previewID)
+	return r.commitDraft(ctx, tx, strings.TrimSpace(ownerUserID), strings.TrimSpace(previewID))
 }
 
 // BindDraftEditor 持久化隐藏编辑 Session，使关闭页面或宿主重启后仍能恢复同一对话。
@@ -315,12 +303,18 @@ func (r *Repository) BindDraftEditor(
 	displayAfterUnixMilli int64,
 	updatedAt time.Time,
 ) (*protocol.WorkGraphWorkflowDraft, error) {
-	result, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, `
 UPDATE workgraph_workflow_drafts
 SET editor_id = `+r.bind(1)+`, editor_agent_id = `+r.bind(2)+`,
     editor_session_key = `+r.bind(3)+`, editor_display_after_unix_milli = `+r.bind(4)+`,
     updated_at = `+r.bind(5)+`
-WHERE owner_user_id = `+r.bind(6)+` AND preview_id = `+r.bind(7),
+WHERE owner_user_id = `+r.bind(6)+` AND preview_id = `+r.bind(7)+`
+  AND (editor_id IS NULL OR editor_id = '')`,
 		strings.TrimSpace(editorID), strings.TrimSpace(editorAgentID),
 		strings.TrimSpace(editorSessionKey), displayAfterUnixMilli, r.timestamp(updatedAt),
 		strings.TrimSpace(ownerUserID), strings.TrimSpace(previewID),
@@ -328,14 +322,16 @@ WHERE owner_user_id = `+r.bind(6)+` AND preview_id = `+r.bind(7),
 	if err != nil {
 		return nil, err
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return nil, err
-	}
-	if affected != 1 {
-		return nil, errors.New("WorkGraph Draft not found")
-	}
-	return r.GetDraftByID(ctx, ownerUserID, previewID)
+	// Concurrent openers share the first committed editor identity.
+	return r.commitDraft(ctx, tx, strings.TrimSpace(ownerUserID), strings.TrimSpace(previewID))
+}
+
+// ClearDraftEditor revokes only the exact editor that was explicitly discarded.
+func (r *Repository) ClearDraftEditor(ctx context.Context, owner, preview, editor string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE workgraph_workflow_drafts
+SET editor_id = '', editor_agent_id = '', editor_session_key = '', editor_display_after_unix_milli = 0
+WHERE owner_user_id = `+r.bind(1)+` AND preview_id = `+r.bind(2)+` AND editor_id = `+r.bind(3), owner, preview, editor)
+	return err
 }
 
 // RenewDraftLease keeps a durable Draft reopenable while it remains in active use.
@@ -388,12 +384,13 @@ WHERE owner_user_id = `+r.bind(5)+` AND preview_id = `+r.bind(6),
 
 func (r *Repository) loadDraftVersions(
 	ctx context.Context,
+	tx *sql.Tx,
 	draft *protocol.WorkGraphWorkflowDraft,
 ) error {
 	if draft == nil {
 		return nil
 	}
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := tx.QueryContext(ctx, `
 SELECT revision, `+r.dialect.JSONText("preview_json")+`, created_at
 FROM workgraph_workflow_draft_versions
 WHERE preview_id = `+r.bind(1)+`

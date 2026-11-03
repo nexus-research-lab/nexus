@@ -21,7 +21,7 @@ Lead 应从任务实际结构判断是否需要持久成员责任，而不是检
 
 ### Coordinator 分派顺序与 lane 转移
 
-- 在 coordination lane 中，先把当前已 Ready、希望由其他 Room 成员拥有的独立责任逐个 `assign_work`；每个 Assignment 都会改变 snapshot revision，所以 command 必须串行，每次以 mutation 返回的最新 `execution_context` 继续，不并行发出多个责任 mutation。
+- 在 coordination lane 中，多个当前 Ready 且 owner 已确定的责任优先用 `assign_work_batch` 一次派发；单项使用 `assign_work`。批量内可有一个排在最后的 self。不同批次或逐项 mutation 仍串行，每次消费返回的最新 `execution_context`，不并行发出竞争同一 revision 的责任 mutation。
 - 若 Lead 也要承担一个当前 Ready 的 Work Item，将 self Assignment 放在上述成员分派之后。它不只是写入图：宿主会在同一 physical round 签发 exact WorkBinding，将 Lead 从 coordination lane 切到只对该 Work Item 有权的 work lane。此时先前分派的成员可以与 Lead 真实并行，Lead 也可在自己的责任内启动 Subagent。
 - work/review lane 中只消费 exact binding 和当前 `allowed_actions`。不得因 Lead/coordinator 身份、旧 context 或 `next_actions` 建议去分派兄弟 Work Item、修改 Plan 或接管他人责任，也不通过显式 locator、`@` 或伪造 binding 绕过。
 - 完成当前责任后调用 `submit_work`；如果 Lead 同时是 selected reviewer，再在该 binding 允许时 `review_work`。只有最新 context 明确投影 `lane=coordination` 后才继续分派、replan、takeover 或其他协调动作；外部 reviewer 尚未完成时，Submission 等待是已交付责任，不是另一条协调权限。

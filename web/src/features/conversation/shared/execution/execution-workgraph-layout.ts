@@ -1,7 +1,7 @@
 /**
  * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度、节点展示密度与纯 UI 隐藏节点集合。
  * OUTPUT: 主责任图自上而下展开；节点图标与摘要卡片共享矩形避让和固定端口；稳定交叉最小化只在确实减少交叉时调整主层顺序；子图内部普通边按层间走廊分配轨道，跨子图边改从边框代理端口连接、把所有子图安全外扩区作为硬障碍并保留按需展示的精确节点短引线；所有箭头按最终接近方向对准目标边并保留可见间距；真正成环的控制回连继续在所属子图框内避让节点并合流到共享 U 形正交总线。
- * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的无状态树形投影；只为一级 Agent/Gate 的完整运行树绘制外框，Subagent 层级只由树线表达，不再嵌套子图框。
+ * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的树形几何投影；每个画布可复用单份拓扑几何，运行事实始终绑定最新快照。
  */
 import type {
   ExecutionGraphEdgeKind,
@@ -212,6 +212,50 @@ interface ExecutionOwnershipTree {
   children: ExecutionOwnershipTree[];
   node: ExecutionGraphNodeView;
   width: number;
+}
+
+// Geometry depends on topology and fixed node dimensions, never run status or
+// inspector text. Keep one entry per canvas; rebind all facts on a cache hit.
+export function createExecutionGraphLayoutCache() {
+  let previousKey: string | null = null;
+  let geometry: ExecutionGraphLayout | null = null;
+  return (
+    execution: ExecutionView,
+    availableWidth?: number,
+    hiddenNodeIds: ReadonlySet<string> = new Set(),
+    nodePresentation: ExecutionGraphNodePresentation = "icon",
+  ): ExecutionGraphLayout => {
+    const nodes = orderedExecutionGraphNodes(execution).filter(
+      (node) => !hiddenNodeIds.has(node.id),
+    );
+    const edges = executionGraphEdges(execution, nodes);
+    const key = JSON.stringify([
+      execution.id,
+      normalizeAvailableWidth(availableWidth),
+      nodePresentation,
+      nodes.map((node) => [
+        node.id, node.kind, node.visibility, node.position,
+        node.parent_node_id, node.work_item_id, node.agent_id, node.agent_round_id,
+      ]),
+      edges.map((edge) => [edge.id, edge.kind, edge.source_node_id, edge.target_node_id]),
+    ]);
+    if (key !== previousKey || geometry === null) {
+      geometry = buildExecutionGraphLayout(execution, availableWidth, hiddenNodeIds, nodePresentation);
+      previousKey = key;
+      return geometry;
+    }
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
+    const itemById = new Map(orderedExecutionItems(execution).map((item) => [item.id, item]));
+    return {
+      ...geometry,
+      nodes: geometry.nodes.map((layout) => {
+        const node = nodeById.get(layout.node.id)!;
+        return { ...layout, node, item: itemById.get(node.work_item_id) ?? null };
+      }),
+      edges: geometry.edges.map((layout) => ({ ...layout, edge: edgeById.get(layout.id)! })),
+    };
+  };
 }
 
 export function buildExecutionGraphLayout(
@@ -534,7 +578,12 @@ function executionGraphEdges(
     });
     incomingNodeIds.add(node.id);
   }
-  return filtered;
+  return filtered.sort((left, right) => (
+    left.id.localeCompare(right.id)
+    || left.kind.localeCompare(right.kind)
+    || left.source_node_id.localeCompare(right.source_node_id)
+    || left.target_node_id.localeCompare(right.target_node_id)
+  ));
 }
 
 function resolveVisibleParentNodeId(

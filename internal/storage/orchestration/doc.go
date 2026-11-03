@@ -13,14 +13,15 @@
 //     confirmed CAS 与跨进程扫描。
 //   - completion_audit.go：与 accepted Review 同事务的 completion receipt、
 //     Complete 同事务终结、CAS defer/discard 与跨进程扫描。
-//   - assignment.go / attempt.go / submission.go / state.go：责任、执行、交付、验收
+//   - assignment.go / assignment_batch.go / attempt.go / submission.go / state.go：责任、单 CAS 批量责任/outbox 与 intent receipt、执行、交付、验收
 //     和 Block/Resume/Takeover。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go：work、review 与
 //     physical cancellation outbox。
 //   - background_deadline.go：三类 outbox、Subagent reconciliation 与三类 saga 的
 //     最早 durable deadline 聚合读面；只负责 timer 索引，不 claim 或改写业务状态。
 //   - subagent_reconciliation.go：child Attempt 的 parent-exit deadline 与上次进程未落 deadline orphan 对账。
-//   - runtime_graph*.go：Agent/Tool/Subagent/Gate NodeRun、EdgeRun 与 Artifact ref。
+//   - runtime_graph*.go：Agent/Tool/Subagent/Gate NodeRun、EdgeRun 与 Artifact ref；详情 SQL 窗口与 insert-only 历史回填事务。
+//   - execution_summary.go：managed 历史元信息与当前 Plan 节点数的批量目录查询。
 //   - query.go / scan.go / workgraph.go：Snapshot SQL 投影、跨同一 Execution 的 Plan revision 且与 Snapshot 同一 read transaction 的 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史，以及 managed WorkGraph 读取。
 //
 // 主要暴露接口：NewRepository/NewSQLRepository 与 Repository 的事务 command、

@@ -6,12 +6,12 @@
 
 - `/workgraph <request>` 只为当前请求启用 WorkGraph 协作，不创建或更新命名图。
 - `/<command> <request>` 可以是 Nexus 只读内置 WorkGraph 模板，也可以是用户已保存的 WorkGraph 命令。两者都只提供抽象责任节点和依赖模板；每次调用仍创建新的 Execution、Plan、Work Item 和运行身份。内置模板没有 source Execution，不进入 Draft 编辑或删除链路。
-- UI 标题栏和普通对话都是同一 WorkGraph Draft 能力的入口。UI 可由宿主直接调用 authoring service；普通对话必须先读取 fresh `inspect_workgraph_library` contract 并调用该 operation，不能凭 transcript、记忆或数量描述推断历史图。返回值会同时列出当前 Session 的 completed source、Draft、只读内置模板和 owner 命名图，因此一个会话有多张图时必须使用 exact `execution_id` / `preview_id`；用户明确询问“自己保存的”图时排除 `built_in=true` 项。
+- UI 标题栏和普通对话都是同一 WorkGraph Draft 能力的入口。UI 可由宿主直接调用 authoring service；普通对话必须使用当前 `inspect_workgraph_library` contract 并调用该 operation；本轮已提供的 schema 可复用，不能凭 transcript、记忆或数量描述推断历史图。返回值会同时列出当前 Session 的 completed source、Draft、只读内置模板和 owner 命名图，因此一个会话有多张图时必须使用 exact `execution_id` / `preview_id`；用户明确询问“自己保存的”图时排除 `built_in=true` 项。
 - 提取只接受当前 Session 的 completed source Execution。调用 `extract_workgraph_preview` 时，宿主会先按 owner/session/source 查找可恢复 Draft；已有 Draft 直接返回，不重复模型提取。首次提取把完整 source logical-key、父子层级和依赖交给抽象模型，强制保留 required/terminal、拓扑引用、验证/复核和协作边界等关键节点，主要抽象节点内的具体任务语义；只有不影响任何结构语义的非关键孤立节点才可省略，无法确定时保留。`slash_name` 默认用不冲突的短单词，只有准确单词均冲突时才用两个短词。
 - Draft 按 source Execution 唯一并跨页面恢复。每次修改追加不可变版本；`head_revision` 是并发 CAS，`selected_revision` 是用户当前偏好版本。选择旧版本不删除新版本，下一次修改从 selected 内容继续但仍提交 fresh head revision。模型不得把“选择 v1”解释成重写一份近似 v1。
 - 草图编辑统一由 owner 的 Nexus 主智能体承载在隐藏专用 DM 中。它不进入主智能体普通 DM 目录，不继承来源 DM/Room transcript、连接器或权限；来源只通过完整 Draft 与 source WorkGraph 事实提供。关闭 UI 不删除该 Session，再次打开继续同一对话。该 Session 的草图操作只开放 `revise_workgraph_preview` 和 `select_workgraph_preview_revision`，另有 Skill 加载与必要的用户提问能力。
 - UI 确认保存已生成草图时，宿主直接在数据库事务内保存命名图与 Draft 保存标记，不再启动后台模型 round。表单只提供 exact `preview_id` 和可选命令名、标题、描述，完整图结构由服务端读取；只改元信息同样直接保存。保存不得重新读取源图、重选节点或重写草图。普通对话中的明确保存继续通过 `save_workgraph_preview` 进入同一事务边界。
-- 用户在普通对话中明确要求保存当前 Draft 时，不需要再创建 UI round：读取 `save_workgraph_preview` fresh contract，以 exact preview_id 直接保存 selected version。保存前必须已经向用户展示或概述当前 Draft 且本轮存在明确保存意图；“看看”“比较”“先改一下”不构成保存确认。
+- 用户在普通对话中明确要求保存当前 Draft 时，不需要再创建 UI round：使用本轮已提供的 `save_workgraph_preview` exact contract，缺失时再读取，以 exact preview_id 直接保存 selected version。保存前必须已经向用户展示或概述当前 Draft 且本轮存在明确保存意图；“看看”“比较”“先改一下”不构成保存确认。
 - 普通 DM/Room 中，成功的 `extract_workgraph_preview`、`get_workgraph_preview`、`revise_workgraph_preview`、`select_workgraph_preview_revision` 和 `save_workgraph_preview` 会由宿主把最后一份完整图自动渲染为当前回复里的草图卡片；卡片可按需打开“来源图 / 当前草图”对照。这是回答“草图在哪看、是否已更新、怎么对照”时使用的界面事实，不是每次回复都要重复的固定话术。不要复述完整节点 JSON，或假装自己另外绘制了界面；没有 applied/ready/selected 成功结果时不得声称卡片已更新。
 - 已保存工作图从能力页“继续编辑”时必须恢复其原 Draft、selected revision 和隐藏编辑 Session；若历史数据尚无 Draft，则从该命名图建立一次可继续编辑的初始版本。再次保存更新同一个命名 WorkGraph 并追加聚合版本，不重复抽取、不创建同名副本。
 - 历史内部保存 round 的思考摘要、过程状态、工具调用说明和结束文本必须使用简体中文；只有命令、Skill 名称和标识符保留原始形式，禁止输出英文叙述。
@@ -30,9 +30,9 @@
 
 不要先运行 `execution inspect`；WorkGraph library 能力在当前没有 active Execution 时也可用。
 
-1. 读取 `action=contract, operation=inspect_workgraph_library` 后，用 `action=invoke, operation=inspect_workgraph_library`、新的 `request_id` 和 `input={}` 调用。它不是固定 inspect 入口；`get_workgraph_preview` 同样走 invoke，不能按名称前缀改成 action=inspect。如果用户没有指明是哪张图，只有返回目录中目标唯一时才能继续；否则列出紧凑候选让用户选择。
-2. 如果目标、范围或关键交付仍有会改变草图的缺口，先按“信息补充与草图检查门槛”提问；没有目标 Draft 且用户要求沉淀 completed source 时，再读取 `extract_workgraph_preview` contract，提交 exact `source_execution_id` 和界面语言。已有同源 Draft 会直接恢复。
-3. 首次提取成功后进入草图检查门槛。用户要求修改时，先调用 `get_workgraph_preview` 读取 selected 完整图、head revision 和版本目录；再读取 `revise_workgraph_preview` contract 并提交完整草图。保留用户未要求改变的字段，不能只提交 diff。修改成功后重新进入草图检查门槛。
+1. 本轮未提供 schema 时先读取 `action=contract, operation=inspect_workgraph_library`，再用 `action=invoke, operation=inspect_workgraph_library`、新的 `request_id` 和 `input={}` 调用。它不是固定 inspect 入口；`get_workgraph_preview` 同样走 invoke，不能按名称前缀改成 action=inspect。如果用户没有指明是哪张图，只有返回目录中目标唯一时才能继续；否则列出紧凑候选让用户选择。
+2. 如果目标、范围或关键交付仍有会改变草图的缺口，先按“信息补充与草图检查门槛”提问；没有目标 Draft 且用户要求沉淀 completed source 时，再使用 `extract_workgraph_preview` contract（本轮缺失时读取），提交 exact `source_execution_id` 和界面语言。已有同源 Draft 会直接恢复。
+3. 首次提取成功后进入草图检查门槛。用户要求修改时，先调用 `get_workgraph_preview` 读取 selected 完整图、head revision 和版本目录；再使用 `revise_workgraph_preview` contract（本轮缺失时读取）并提交完整草图。保留用户未要求改变的字段，不能只提交 diff。修改成功后重新进入草图检查门槛。
 4. 用户明确选择旧版本时调用 `select_workgraph_preview_revision`，提交 exact preview_id、head revision 和 selected revision。选择成功后把所选版本作为当前可见草图请用户检查；不要继续修改，除非用户同时明确要求。
 5. 只有用户在当前草图显示后明确确认保存，才读取并调用 `save_workgraph_preview`。只有 applied receipt 才表示保存成功；回复当前用户即可，不向任何来源会话或其他 Session 补发结果。
 
@@ -43,7 +43,7 @@
 仅处理升级前已启动的宿主内部 `workgraph_distillation` round。其生成的 `preview_id` 必须明确表示用户已看过并选择保存的草图；不要从历史消息、标题、时间或 Execution id 猜 preview。宿主通过 Draft 和命名图版本栅栏拒绝迟到保存覆盖新版本。
 
 1. 不运行 `execution inspect`，不读取源图，不分析 key/collaboration，也不修改已确认的命令名或语义。预览和用户确认已经完成这些工作；宿主会按 owner、当前 Session、有效期严格校验。
-2. 读取 fresh contract；只有目录实际列出该 operation 且 schema 只要求 `preview_id` 才继续：
+2. 复用本轮可见的 exact contract，缺失时再查询；只有目录实际列出该 operation 且 schema 只要求 `preview_id` 才继续：
 
    ```json
    {"domain":"execution","action":"contract","operation":"distill_workgraph"}
@@ -62,7 +62,7 @@
 宿主明确说明当前是 WorkGraph 草图编辑 Session 时，这是由 Nexus 主智能体承载、可恢复但不进入普通 DM 目录的受限模式：
 
 1. 只响应用户对当前草图的修改或提问，不执行草图任务，不读 workspace，也不调用 `nexus.command` 之外的 MCP。
-2. 用户的修改要求缺少会实质改变 Draft 的信息时，先用 `AskUserQuestion` 补齐；不运行 `execution inspect`。信息充分后，修改前读取 fresh `revise_workgraph_preview` contract；版本选择前读取 fresh `select_workgraph_preview_revision` contract。
+2. 用户的修改要求缺少会实质改变 Draft 的信息时，先用 `AskUserQuestion` 补齐；不运行 `execution inspect`。信息充分后，修改或选择版本前分别使用 `revise_workgraph_preview` / `select_workgraph_preview_revision` exact contract；本轮未提供时才查询。
 3. 按 contract 的结构化输入规则提交带当前 head revision 的完整草图；保留所有未被用户要求改变的字段，不能只提交 diff。当前内容是 selected revision，用户切回旧版本后必须从它继续。
 4. 修改用 `revise_workgraph_preview`，选择既有版本用 `select_workgraph_preview_revision`，都通过 `nexus.command` 的 `execution/invoke` 调用；不得把版本选择重做成一次修改。服务端会校验 owner/editor Session、revision CAS、命令冲突、节点类型、父子结构、DAG、key 主路径与 terminal 交付。
 5. applied/selected 后右侧预览实时刷新，简要说明改动或所选版本即可；用户继续补充时继续编辑，不强制要求每轮确认。最终应用与保存由用户在可见界面完成。冲突或过期时说明需要基于最新预览重试，不得转用普通 Execution operation。

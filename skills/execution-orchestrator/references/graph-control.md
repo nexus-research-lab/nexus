@@ -30,7 +30,7 @@ Plan Document 的精确字段、枚举和条件必填项只有一个真相源：
 ## Plan lifecycle operation
 
 - `prepare_plan_execution` 的输入只包含完整 `plan_document` 和可选外层 `goal_binding`。成功后 proposal identity 与 digest 由宿主持有；不要保存或重建它们，也不要重发 YAML。
-- `plan_execution` 的 input 写入 `{}`。宿主只提交当前 exact durable binding；普通 validation/revision 错误回到 fresh inspect/contract，不靠添加隐藏 identity 字段修复。
+- `plan_execution` 的 input 写入 `{}`。宿主只提交当前 exact durable binding；普通 validation 错误使用返回的 schema 修正；revision 错误刷新 inspect，缺失 schema 时才查 contract，不靠添加隐藏 identity 字段修复。
 - `abandon_execution` 只由 current coordinator 对 current transient、Goal-free Execution 使用，提交 exact `execution_id` 与用户明确停止该 objective、且不创建 successor 的具体 `reason`。Goal-bound Execution 不走 abandon；Plan Mode 只验证提议，不产生 mutation。
 
 下面只是一个最小 create 示例，不是第二份 schema：

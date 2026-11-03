@@ -174,6 +174,7 @@ export interface ExecutionGraphEdgeView {
 }
 
 export interface ExecutionGraphView {
+  history_pending?: boolean;
   nodes?: ExecutionGraphNodeView[];
   edges?: ExecutionGraphEdgeView[];
   runtime_node_total: number;
@@ -268,4 +269,16 @@ export interface ExecutionView {
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
+}
+
+/** Lightweight history entry; load the selected graph separately. */
+export interface ExecutionSummary {
+  id: string;
+  session_key: string;
+  objective: string;
+  status: ExecutionStatus;
+  version: number;
+  work_item_count: number;
+  created_at: string;
+  updated_at: string;
 }

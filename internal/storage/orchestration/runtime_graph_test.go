@@ -430,3 +430,118 @@ func TestRepositoryBindsExactRuntimeRoundToSingleExecution(t *testing.T) {
 		t.Fatalf("conflicting bind rewrote exact round: %+v", graph.Nodes)
 	}
 }
+
+func TestWorkGraphReadWindowsDetailWithoutLosingLatePromotions(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	root := protocol.ExecutionRuntimeNodeRun{ID: "root", GraphID: "graph", OwnerUserID: "owner", SessionKey: "session", ExecutionID: "exec", Kind: protocol.ExecutionRuntimeNodeAgent, SubjectID: "round", RootRoundID: "round", RuntimeRoundID: "round", AgentRoundID: "round", AgentID: "agent", Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now}
+	if err := repository.UpsertRuntimeGraphNode(ctx, root); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 600 {
+		node := root
+		node.ID, node.SubjectID = fmt.Sprintf("tool-%03d", i), fmt.Sprintf("use-%03d", i)
+		node.Kind, node.Name, node.ParentSubjectID = protocol.ExecutionRuntimeNodeTool, "Read", root.SubjectID
+		node.WorkGraphReadClass = "detail"
+		node.StartedAt, node.UpdatedAt = now.Add(time.Duration(i)*time.Second), now.Add(time.Duration(i)*time.Second)
+		if i < 4 {
+			node.RecoveryKey = "read-group"
+		}
+		if i == 0 {
+			node.Status = protocol.ExecutionRuntimeNodeFailed
+		}
+		if err := repository.UpsertRuntimeGraphNode(ctx, node); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Both arrive after the node was classified as ordinary successful detail.
+	if err := repository.UpsertRuntimeGraphEdge(ctx, protocol.ExecutionRuntimeEdgeRun{ID: "retry", GraphID: root.GraphID, OwnerUserID: root.OwnerUserID, SessionKey: root.SessionKey, SourceNodeID: "tool-010", TargetNodeID: "tool-011", Kind: protocol.ExecutionRuntimeEdgeRetry, CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	artifact := protocol.WorkspaceFileArtifactBlock{ID: "file", Type: protocol.ContentBlockTypeWorkspaceFileArtifact, Path: "output/result.md", SourceToolUseID: "use-012", WorkspaceAgentID: root.AgentID}
+	if err := repository.UpsertRuntimeGraphArtifact(ctx, protocol.ExecutionRuntimeArtifactRef{ID: "artifact", GraphID: root.GraphID, OwnerUserID: root.OwnerUserID, SessionKey: root.SessionKey, RootRoundID: root.RootRoundID, AgentRoundID: root.AgentRoundID, ToolUseID: artifact.SourceToolUseID, Artifact: artifact, CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	graph, err := repository.GetWorkGraphRuntimeGraph(ctx, root.OwnerUserID, root.SessionKey, root.ExecutionID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, node := range graph.Nodes {
+		ids[node.ID] = true
+	}
+	for _, id := range []string{"root", "tool-000", "tool-003", "tool-010", "tool-011", "tool-012", "tool-599"} {
+		if !ids[id] {
+			t.Fatalf("important runtime fact omitted: %s", id)
+		}
+	}
+	if ids["tool-001"] || ids["tool-100"] || len(graph.Nodes) != 256+6 {
+		t.Fatalf("detail window = %d nodes", len(graph.Nodes))
+	}
+	if graph.NodesTruncated || graph.EdgesTruncated {
+		t.Fatal("detail pruning incorrectly marked canvas partial")
+	}
+}
+
+func TestHistoryBackfillIsAtomicInsertOnlyAndNewExecutionsStayOutsideBacklog(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	snapshot, err := repository.Create(ctx, createTestCommand("backfill"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := snapshot.Execution
+	pending, err := repository.ListRuntimeHistoryBackfills(ctx, protocol.Execution{}, 32)
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("new execution joined upgrade backlog: %+v %v", pending, err)
+	}
+	if _, err = repository.db.ExecContext(ctx, "INSERT INTO runtime_graph_history_backfills(execution_id) VALUES (?)", e.ID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	node := protocol.ExecutionRuntimeNodeRun{ID: "backfill-node", GraphID: "graph", OwnerUserID: e.OwnerUserID, SessionKey: e.SessionKey, ExecutionID: e.ID, Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "use", RootRoundID: "round", RuntimeRoundID: "round", AgentRoundID: "round", Name: "Read", Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now}
+	invalid := node
+	invalid.ID = "invalid"
+	invalid.OwnerUserID = "another-owner"
+	if err = repository.CompleteRuntimeHistoryBackfill(ctx, e, protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{node, invalid}}); err == nil {
+		t.Fatal("scope mismatch committed")
+	}
+	graph, err := repository.GetWorkGraphRuntimeGraph(ctx, e.OwnerUserID, e.SessionKey, e.ID, "")
+	if err != nil || len(graph.Nodes) != 0 || !graph.HistoryPending {
+		t.Fatalf("failed migration committed a prefix: %+v %v", graph, err)
+	}
+	live := node
+	live.ResultSummary = "newer durable fact"
+	live.UpdatedAt = now.Add(time.Second)
+	if err = repository.UpsertRuntimeGraphNode(ctx, live); err != nil {
+		t.Fatal(err)
+	}
+	if err = repository.CompleteRuntimeHistoryBackfill(ctx, e, protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{node}}); err != nil {
+		t.Fatal(err)
+	}
+	graph, err = repository.GetWorkGraphRuntimeGraph(ctx, e.OwnerUserID, e.SessionKey, e.ID, "")
+	if err != nil || graph.HistoryPending || graph.Nodes[0].ResultSummary != live.ResultSummary {
+		t.Fatalf("backfill overwrote live data or failed to close: %+v %v", graph, err)
+	}
+}
+
+func TestManagedHistorySummaryCountsOnlyActivePlanAndEnforcesScope(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	snapshot, err := repository.Create(ctx, createTestCommand("summary"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repository.WritePlan(ctx, testPlanCommand("summary", 1, "summary", "", 1)); err != nil {
+		t.Fatal(err)
+	}
+	summaries, err := repository.ListManagedSummaries(ctx, snapshot.Execution.OwnerUserID, snapshot.Execution.SessionKey, 40)
+	if err != nil || len(summaries) != 1 || summaries[0].WorkItemCount != 2 {
+		t.Fatalf("summaries=%+v err=%v", summaries, err)
+	}
+	summaries, err = repository.ListManagedSummaries(ctx, "another-owner", snapshot.Execution.SessionKey, 40)
+	if err != nil || len(summaries) != 0 {
+		t.Fatalf("history scope leaked: %+v %v", summaries, err)
+	}
+}
