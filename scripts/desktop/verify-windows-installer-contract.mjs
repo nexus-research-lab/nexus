@@ -36,9 +36,15 @@ const sidecarSupervisorSource = read(
 
 const applicationMutex = capture(
   coordinatorSource,
-  /MutexName\s*=\s*@"([^"]+)"/,
+  /MutexName\s*=\s*AppVersionInfo\.IsPreview\s*\?\s*@"[^"]+"\s*:\s*@"([^"]+)"/,
   "application mutex",
 );
+const previewMutex = capture(
+  coordinatorSource,
+  /MutexName\s*=\s*AppVersionInfo\.IsPreview\s*\?\s*@"([^"]+)"/,
+  "preview mutex",
+);
+assert.notEqual(previewMutex, applicationMutex, "Preview and production mutexes must differ");
 const applicationExitArgument = capture(
   protocolSource,
   /ExitCommandArgument\s*=\s*"([^"]+)"/,
