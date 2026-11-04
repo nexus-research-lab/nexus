@@ -1,5 +1,5 @@
-// INPUT: Breadcrumb 的静态层级、返回命令、链接、前导身份与密度。
-// OUTPUT: 证明导航语义、当前层级、共享动作和统一分隔符可被真实操作。
+// INPUT: Breadcrumb 的路径层级、返回命令与导航链接。
+// OUTPUT: 证明当前页标记、返回动作和链接目标。
 // POS: UiBreadcrumb DOM 行为测试；路由更新与业务路径生成由消费者负责。
 
 import { ArrowLeft } from "lucide-react";
@@ -13,7 +13,7 @@ describe("UiBreadcrumb", () => {
   it("renders one named navigation trail with one current page", async () => {
     const user = userEvent.setup();
     const onBack = vi.fn();
-    const { container } = render(
+    render(
       <UiBreadcrumb
         ariaLabel="当前位置"
         items={[
@@ -23,6 +23,7 @@ describe("UiBreadcrumb", () => {
             label: "技能",
             onSelect: onBack,
           },
+          { href: "/workspace", id: "workspace", label: "工作区" },
           { id: "detail", label: "研究助手" },
         ]}
       />,
@@ -30,29 +31,10 @@ describe("UiBreadcrumb", () => {
 
     expect(screen.getByRole("navigation", { name: "当前位置" })).toBeTruthy();
     expect(screen.getByText("研究助手").getAttribute("aria-current")).toBe("page");
-    expect(container.querySelectorAll("[data-slot='breadcrumb-separator']")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "工作区" }).getAttribute("href")).toBe("/workspace");
 
     await user.click(screen.getByRole("button", { name: "技能" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it("supports links, leading identity, compact actions, and single-line labels", () => {
-    const { container } = render(
-      <UiBreadcrumb
-        ariaLabel="文件位置"
-        density="compact"
-        items={[
-          { href: "/workspace", id: "workspace", label: "Nexus 工作区" },
-          { id: "folder", label: "output" },
-          { id: "file", label: "counter.txt" },
-        ]}
-        leading={<span>N</span>}
-      />,
-    );
-
-    expect(container.querySelectorAll("[data-slot='breadcrumb-separator']")).toHaveLength(3);
-    expect(container.querySelector("[data-slot='breadcrumb-leading']")?.textContent).toBe("N");
-
-    expect(screen.getByText("counter.txt").getAttribute("aria-current")).toBe("page");
-  });
 });

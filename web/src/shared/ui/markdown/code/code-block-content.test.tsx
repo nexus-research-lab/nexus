@@ -1,6 +1,6 @@
-// INPUT: Code content and clipboard success/failure.
-// OUTPUT: Copy uses exact source text and reports only successful completion.
-// POS: Markdown copy action behavior, with rendering and clipboard transport isolated.
+// INPUT: Code content, keyboard navigation and clipboard success/failure.
+// OUTPUT: Named code groups lead directly to copying exact source and report only success.
+// POS: Markdown code interaction including its shell, with rendering and clipboard transport isolated.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -11,18 +11,26 @@ vi.mock("@/shared/lib/browser/clipboard", () => ({ writeTextToClipboard: mocks.w
 vi.mock("@/shared/theme/theme-context", () => ({ useTheme: () => ({ theme: "light" }) }));
 vi.mock("react-syntax-highlighter", () => ({ PrismAsyncLight: ({ children }: { children: string }) => <pre>{children}</pre> }));
 beforeEach(() => { mocks.write.mockReset(); });
-it.each([true, false])("copies exact code and projects success=%s", async (success) => {
+it.each([{ success: true, language: "javascript" }, { success: false, language: "" }])("copies exact code with keyboard and projects success=$success", async ({ success, language }) => {
   mocks.write.mockResolvedValue(success);
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   const user = userEvent.setup();
   const value = "const greeting = '你好';\n";
-  render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
-    <CodeBlockContent language="javascript" value={value} />
+  render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key, params) => key === "markdown.code.group" ? `${params?.language} 代码` : key }}>
+    <button>Before</button>
+    <CodeBlockContent language={language} value={value} />
+    <button>After</button>
   </I18N_CONTEXT.Provider>);
+  expect(screen.getByRole("group", { name: `${language || "text"} 代码` })).toBeTruthy();
   const button = screen.getByRole("button", { name: "markdown.code.copy" });
-  await user.click(button);
+  screen.getByRole("button", { name: "Before" }).focus();
+  await user.tab();
+  expect(document.activeElement).toBe(button);
+  await user.keyboard("{Enter}");
   expect(mocks.write).toHaveBeenCalledExactlyOnceWith(value);
   expect(button.getAttribute("aria-label")).toBe(success ? "markdown.code.copied" : "markdown.code.copy");
   expect(button.getAttribute("type")).toBe("button");
+  await user.tab();
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "After" }));
   error.mockRestore();
 });

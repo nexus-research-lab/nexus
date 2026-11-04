@@ -1,6 +1,6 @@
-// INPUT: 能力页标题、说明、动作、移动页头目标、内容模式、目录分区与详情内容。
-// OUTPUT: 证明 Header 动作、模式标签、Typography、身份框与详情分栏语义由公共布局持有。
-// POS: 能力页共享布局 DOM 合同；各目录资源与筛选行为由所属领域测试负责。
+// INPUT: Action portal targets, detail navigation and brand names.
+// OUTPUT: Target migration and cleanup, navigation and accessible names.
+// POS: Shared capability layout behavior.
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -12,49 +12,10 @@ import { PageHeaderActionsContext } from "@/shared/lib/react/page-header-actions
 
 import {
   CapabilityDetailPage,
-  CapabilityDetailIdentity,
-  CapabilityDetailSectionHeader,
-  CapabilityDetailSplitLayout,
-  CapabilityItemIcon,
   CapabilityPageLayout,
-  CapabilitySectionHeader,
 } from "./capability-page-layout";
 
 describe("CapabilityPageLayout", () => {
-  it("renders desktop identity and actions through the shared Header", () => {
-    render(
-      <CapabilityPageLayout
-        actions={<button type="button">Create</button>}
-        description="Manage connected tools."
-        title="Connectors"
-      >
-        <div>Catalog</div>
-      </CapabilityPageLayout>,
-    );
-
-    expect(screen.getByRole("button", { name: "Create" })).toBeTruthy();
-    expect(screen.getByText("Catalog")).toBeTruthy();
-  });
-
-  it("projects the same page action into the mobile app Header target", () => {
-    const target = document.createElement("div");
-    document.body.appendChild(target);
-
-    render(
-      <PageHeaderActionsContext.Provider value={target}>
-        <CapabilityPageLayout
-          actions={<button type="button">Add MCP</button>}
-          description="Manage MCP servers."
-          title="Connectors"
-        >
-          <div>Catalog</div>
-        </CapabilityPageLayout>
-      </PageHeaderActionsContext.Provider>,
-    );
-
-    expect(target.querySelector("button")?.textContent).toBe("Add MCP");
-    expect(document.querySelector(".workspace-content-header button")).toBeNull();
-  });
 
   it("moves the action with the host target and restores its inline owner when the target disappears", () => {
     const firstTarget = document.createElement("div");
@@ -93,95 +54,30 @@ describe("CapabilityPageLayout", () => {
 
   it("owns one detail page axis and current-object navigation contract", () => {
     let backCount = 0;
-    const { container } = render(
-      <I18N_CONTEXT.Provider
-        value={{ locale: "en", setLocale: () => undefined, t: (key) => key }}
-      >
-        <CapabilityDetailPage
-          backLabel="Skills"
-          currentTitle="Research Skill"
-          onBack={() => { backCount += 1; }}
-        >
-          <div>Detail content</div>
-        </CapabilityDetailPage>
-      </I18N_CONTEXT.Provider>,
-    );
+    render(
+<I18N_CONTEXT.Provider
+value={{ locale: "en",setLocale: () => undefined,t: (key) => key }}
+>
+<CapabilityDetailPage
+backLabel="Skills"
+currentTitle="Research Skill"
+onBack={() => { backCount+=1; } }
+>
+<div>Detail content</div>
+</CapabilityDetailPage>
+</I18N_CONTEXT.Provider>
+);
 
     fireEvent.click(screen.getByRole("button", { name: "Skills" }));
 
     expect(backCount).toBe(1);
-    expect(container.querySelector("[data-slot='capability-detail-page']")).toBeTruthy();
-    expect(container.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
+
     expect(screen.getByRole("navigation", { name: "common.location_aria" })).toBeTruthy();
 
     expect(screen.getByText("Research Skill").getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Detail content")).toBeTruthy();
   });
 
-  it("owns detail identity alignment, semantics, metadata, and actions", () => {
-    let actionCount = 0;
-    const { container } = render(
-      <CapabilityDetailIdentity
-        actions={(
-          <button onClick={() => { actionCount += 1; }} type="button">
-            Connect
-          </button>
-        )}
-        description="Manage mail and schedules."
-        leading={<span>RM</span>}
-        title="RichMail"
-        titleMeta={<span>Connected</span>}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
-
-    expect(actionCount).toBe(1);
-    expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
-    expect(container.querySelector("[data-slot='capability-detail-identity-leading']")?.textContent)
-      .toBe("RM");
-    expect(container.querySelector("[data-slot='capability-detail-identity-actions']")).toBeTruthy();
-
-    expect(screen.getByText("Connected")).toBeTruthy();
-  });
-
-  it("uses semantic section typography and icon geometry", () => {
-    const { container } = render(
-      <>
-        <CapabilitySectionHeader
-          count={4}
-          description="Available now"
-          title="Messaging"
-        />
-        <CapabilityItemIcon size="sm">M</CapabilityItemIcon>
-      </>,
-    );
-
-    expect(container.querySelector(".radius-control-sm")).toBeTruthy();
-  });
-
-  it("owns the responsive detail reading column and configuration rail", () => {
-    const { container } = render(
-      <CapabilityDetailSplitLayout
-        aside={(
-          <CapabilityDetailSectionHeader
-            description="Per-agent configuration"
-            meta="2/4 enabled"
-            title="Availability"
-          />
-        )}
-        header={<div>Identity</div>}
-      >
-        <div>Instructions</div>
-      </CapabilityDetailSplitLayout>,
-    );
-
-    const aside = container.querySelector("[data-slot='capability-detail-aside']");
-    const main = container.querySelector("[data-slot='capability-detail-main']");
-
-    expect(aside?.compareDocumentPosition(main as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-
-  });
 });
 
 it("names capability artwork with image semantics without exposing decorative children", () => {

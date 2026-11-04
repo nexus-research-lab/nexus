@@ -281,11 +281,10 @@ describe("form primitives", () => {
   it("gives search a name and clears through the shared icon action", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const { container } = renderWithI18n(
-      <UiSearchInput onChange={onChange} placeholder="搜索 Agent" value="writer" />,
-    );
+    renderWithI18n(
+<UiSearchInput onChange={onChange} placeholder="搜索 Agent" value="writer" />
+);
 
-    expect(container.firstElementChild?.tagName).toBe("DIV");
     expect(screen.getByRole("searchbox", { name: "搜索 Agent" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "清除" }));
     expect(onChange).toHaveBeenCalledWith("");

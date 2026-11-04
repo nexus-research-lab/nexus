@@ -1,5 +1,5 @@
 // INPUT: 全局反馈事实、关闭/恢复动作与消息生命周期变化。
-// OUTPUT: 证明反馈使用语义 surface/layer、正确播报、单一动作和重置后的自动收起。
+// OUTPUT: 证明反馈恢复与关闭动作独立、正确播报和重置后的自动收起。
 // POS: Feedback primitives DOM 行为测试；业务失败分类与请求重试仍由 feature 决定。
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -46,6 +46,7 @@ describe("FeedbackBanner", () => {
       </FeedbackTestProvider>,
     );
 
+    expect(screen.getByRole("alert")).toBeTruthy();
     expect(screen.getByText("当前列表不可用")).toBeTruthy();
     expect(screen.queryByText("请重新加载")).toBeNull();
 
@@ -60,30 +61,22 @@ describe("FeedbackBanner", () => {
     const onDismiss = vi.fn();
     const view = render(
       <FeedbackTestProvider>
-        <FeedbackBanner message="第一条消息" onDismiss={onDismiss} title="已保存" tone="info" />
+        <FeedbackBannerViewport item={{ message: "第一条消息", onDismiss, title: "已保存", tone: "info" }} />
       </FeedbackTestProvider>,
     );
 
     act(() => vi.advanceTimersByTime(3000));
     view.rerender(
       <FeedbackTestProvider>
-        <FeedbackBanner message="第二条消息" onDismiss={onDismiss} title="已同步" tone="info" />
+        <FeedbackBannerViewport item={{ message: "第二条消息", onDismiss, title: "已同步", tone: "info" }} />
       </FeedbackTestProvider>,
     );
     act(() => vi.advanceTimersByTime(4999));
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(1));
     expect(onDismiss).toHaveBeenCalledOnce();
-  });
-
-  it("places the floating viewport on its named layer", () => {
-    render(
-<FeedbackTestProvider>
-<FeedbackBannerViewport
-item={{ message: "设置已经保存",title: "已保存",tone: "success" }} />
-</FeedbackTestProvider>
-);
-
     expect(screen.getByRole("status")).toBeTruthy();
+    view.rerender(<FeedbackTestProvider><FeedbackBannerViewport item={null} /></FeedbackTestProvider>);
+    expect(screen.queryByRole("status")).toBeNull();
   });
 });

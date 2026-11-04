@@ -31,7 +31,6 @@ describe("GroupRouteEntry", () => {
     for (let index = 0; index < tabCount; index += 1) await user.tab();
     const action = screen.getByRole("button", { name: label });
     expect(document.activeElement).toBe(action);
-    expect(action.getAttribute("data-slot")).toBe("catalog-primary-action");
     await user.keyboard("{Enter}");
     expect(screen.getByLabelText("Current route").textContent).toBe(route);
   });

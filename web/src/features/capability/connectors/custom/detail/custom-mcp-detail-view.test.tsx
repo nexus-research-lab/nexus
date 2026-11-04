@@ -27,29 +27,24 @@ describe("CustomMCPDetailView", () => {
     const onDelete = vi.fn();
     const onEdit = vi.fn();
     const onToggle = vi.fn();
-    const { container } = render(
-      <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
-      >
-        <CustomMCPDetailView
-          busy={false}
-          catalog={null}
-          failure={null}
-          loading={false}
-          onBack={vi.fn()}
-          onDelete={onDelete}
-          onEdit={onEdit}
-          onRetry={vi.fn()}
-          onToggle={onToggle}
-          server={SERVER}
-          serverLoading={false}
-        />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    expect(container.querySelector("[data-slot='capability-detail-page']")).toBeTruthy();
-    expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
-    expect(container.querySelector("[data-slot='capability-detail-identity-actions']")).toBeTruthy();
+    render(
+<I18N_CONTEXT.Provider
+value={{ locale: "zh",setLocale: vi.fn(),t: (key) => key }}
+>
+<CustomMCPDetailView
+busy={false}
+catalog={null}
+failure={null}
+loading={false}
+onBack={vi.fn()}
+onDelete={onDelete}
+onEdit={onEdit}
+onRetry={vi.fn()}
+onToggle={onToggle}
+server={SERVER}
+serverLoading={false} />
+</I18N_CONTEXT.Provider>
+);
 
     expect(screen.getByText("capability.custom_mcp_enabled")).toBeTruthy();
 

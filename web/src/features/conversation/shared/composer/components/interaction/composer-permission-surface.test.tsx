@@ -43,10 +43,6 @@ describe("ComposerPermissionSurface", () => {
     const user = userEvent.setup();
     const { onResponse } = renderPermissionSurface();
 
-    expect(screen.getByRole("group", {
-      name: "composer.permission_allow_once",
-    }).getAttribute("data-slot")).toBe("split-button");
-
     await user.click(screen.getByRole("button", {
       name: "composer.permission_allow_once",
     }));

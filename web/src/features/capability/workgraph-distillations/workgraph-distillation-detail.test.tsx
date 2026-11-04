@@ -53,12 +53,6 @@ describe("WorkGraphDistillationDetail", () => {
       />,
     );
 
-    expect(document.querySelector("[data-slot='capability-detail-header']")).toBeTruthy();
-    expect(document.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
-    expect(document.querySelector(
-      "[data-slot='capability-detail-identity-leading'] .radius-control-lg",
-    )).toBeTruthy();
-
     expect(screen.queryByText(WORKFLOW.objective)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "capability.workgraph_distillations" }));

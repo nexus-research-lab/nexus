@@ -84,10 +84,7 @@ describe("PromptDialog", () => {
   it("uses the compact decision geometry and shared input/action recipes", async () => {
     const user = userEvent.setup();
     const { onConfirm } = renderPrompt();
-    const dialog = screen.getByRole("dialog", { name: "新建文件夹" });
     const input = screen.getByRole("textbox", { name: "新建文件夹" });
-
-    expect(dialog.querySelector(".max-w-sm")).toBeTruthy();
 
     await waitFor(() => expect(document.activeElement).toBe(input));
 

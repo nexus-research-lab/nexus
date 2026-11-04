@@ -52,8 +52,9 @@ describe("UiSelectMenu", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("opens a named listbox, selects an option with its badge, and returns focus", async () => {
+  it("opens a named listbox without submitting, selects an option and returns focus", async () => {
     const user = userEvent.setup();
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
 
     function Harness() {
       const [value, setValue] = useState("alpha");
@@ -71,11 +72,16 @@ describe("UiSelectMenu", () => {
       );
     }
 
-    render(<Harness />);
+    render(<form onSubmit={onSubmit}><Harness /></form>);
     const trigger = screen.getByRole("button", { name: "选择模型" });
+    expect(trigger.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.hasAttribute("aria-controls")).toBe(false);
+    await user.tab();
+    expect(document.activeElement).toBe(trigger);
     await user.click(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("listbox", { name: "选择模型" })).toBeTruthy();
+    expect(trigger.getAttribute("aria-controls")).toBe(screen.getByRole("listbox", { name: "选择模型" }).id);
     expect((screen.getByRole("option", { name: "Beta" }) as HTMLButtonElement).disabled).toBe(true);
 
     await user.click(screen.getByRole("option", { name: "Gamma Room" }));
@@ -83,6 +89,8 @@ describe("UiSelectMenu", () => {
     expect(trigger.textContent).toContain("Gamma");
     expect(trigger.textContent).toContain("Room");
     expect(document.activeElement).toBe(trigger);
+    expect(trigger.hasAttribute("aria-controls")).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it.each(["composing", "legacy-ime", "handled"] as const)("ignores %s trigger keys while preserving normal selection and toggling", async (mode) => {
@@ -175,6 +183,9 @@ describe("UiSelectMenu", () => {
     expect(screen.queryByRole("listbox", { name: "保存中的模型" })).toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(trigger.getAttribute("aria-controls")).toBeNull();
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+    await user.click(trigger);
+    expect(screen.queryByRole("listbox")).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
 
     view.rerender(

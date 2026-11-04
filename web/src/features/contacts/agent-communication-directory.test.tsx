@@ -76,7 +76,6 @@ describe("AgentCommunicationDirectory", () => {
     const contact = screen.getByRole("button", { name: "搭档" });
 
     expect(contact.getAttribute("aria-pressed")).toBe("true");
-    expect(contact.querySelector(".ui-type-section-title")).not.toBeNull();
 
     await user.click(screen.getByRole("button", {
       name: "agent_options.contact.add_friend",

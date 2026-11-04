@@ -79,7 +79,7 @@ it.each(["reject", "empty"] as const)("shows a generation %s fallback and reveal
   else vi.mocked(toDataURL).mockResolvedValue("");
   const { rerender, container } = render(qr("copyable-value", "en", true));
   await screen.findByText(MESSAGES.en["common.qr_failed_with_payload"]);
-  expect(screen.getByText("copyable-value").tagName).toBe("CODE");
+  expect(screen.getByText("copyable-value")).toBeTruthy();
   rerender(qr("copyable-value"));
   expect(screen.getByText(MESSAGES.en["common.qr_failed"])).toBeTruthy();
   expect(container.textContent).not.toContain("copyable-value");

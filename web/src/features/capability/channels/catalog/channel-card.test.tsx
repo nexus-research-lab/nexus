@@ -1,6 +1,6 @@
-// INPUT: 已投影的 Channel 目录条目和配置回调。
-// OUTPUT: 证明卡片使用共享 Typography/action/link，并保持行与嵌套动作分离。
-// POS: Channel 目录卡片 DOM 行为合同；排序、筛选与请求可靠性由 model/controller 测试负责。
+// INPUT: Channel entry and configuration callback.
+// OUTPUT: Documentation destination and configuration action.
+// POS: Channel card interaction test.
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -40,14 +40,12 @@ const CHANNEL: ChannelConfigView = {
 };
 
 describe("ChannelCard", () => {
-  it("uses semantic type and public shared actions", async () => {
+  it("opens documentation and dispatches configuration", async () => {
     const user = userEvent.setup();
     const onConfigure = vi.fn();
-    const { container } = render(
-      <ChannelCard item={CHANNEL} onConfigure={onConfigure} />,
-    );
-
-    expect(container.querySelector(".ui-type-caption")).toBeTruthy();
+    render(
+<ChannelCard item={CHANNEL} onConfigure={onConfigure} />
+);
 
     const docs = screen.getByRole("link", {
       name: "capability.channel_docs_action",

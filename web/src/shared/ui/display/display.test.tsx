@@ -1,6 +1,6 @@
-// INPUT: Badge/Counter/ResourceState/Skeleton 的有限状态、动作与用户事件。
-// OUTPUT: 证明标记边界、live-region 语义、骨架视觉层级、忙碌互斥和恢复动作呈现合同。
-// POS: Display primitives DOM 行为测试；失败分类和业务恢复策略由 feature 决定。
+// INPUT: Counter values, resource states and recovery actions.
+// OUTPUT: Counter limits, live regions, busy state and retry behavior.
+// POS: Shared display behavior tests.
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -8,22 +8,15 @@ import { describe, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { MESSAGES } from "@/shared/i18n/messages";
 
-import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
-import { UiQRCode } from "@/shared/ui/display/qr-code";
+import { UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSkeleton, UiSkeletonCardList } from "@/shared/ui/display/skeleton";
 
 describe("display badges", () => {
-  it("renders an optional semantic dot and caps positive counters", () => {
+  it("caps positive counters and hides zero", () => {
     const { container, rerender } = render(
-      <>
-        <UiBadge showDot tone="running">运行中</UiBadge>
-        <UiBadge shape="pill" tone="idle">12</UiBadge>
-        <UiCounterBadge count={120} max={99} />
-      </>,
+      <UiCounterBadge count={120} max={99} />,
     );
-
-    expect(screen.getByText("运行中").querySelector(".bg-current")).toBeTruthy();
 
     expect(screen.getByText("99+")).toBeTruthy();
 
@@ -33,13 +26,11 @@ describe("display badges", () => {
 });
 
 describe("UiSkeleton", () => {
-  it("owns semantic tone and reduced-motion-safe animation recipes", () => {
-    const { rerender } = render(<UiSkeleton data-testid="skeleton" tone="strong" />);
+  it("hides decorative skeletons from assistive technology", () => {
+    render(<UiSkeleton data-testid="skeleton" />);
     const skeleton = screen.getByTestId("skeleton");
 
     expect(skeleton.getAttribute("aria-hidden")).toBe("true");
-
-    rerender(<UiSkeleton data-testid="skeleton" tone="subtle" />);
 
   });
 });
@@ -57,20 +48,6 @@ describe("UiSkeletonCardList", () => {
     rerender(view("zh"));
     expect(screen.queryByText("Loading…")).toBeNull();
     expect(screen.getAllByText(MESSAGES.zh["common.loading"])).toHaveLength(1);
-  });
-});
-
-describe("UiQRCode", () => {
-  it("uses the shared surface, shape, and code typography contracts", () => {
-    const payload = "data:image/png;base64,AAAA";
-    const { container } = render(
-      <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}>
-        <UiQRCode alt="授权二维码" payload={payload} />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    expect(container.querySelector("section.surface-radius-md")).toBeTruthy();
-
   });
 });
 

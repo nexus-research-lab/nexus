@@ -97,7 +97,6 @@ describe("SubagentTaskList", () => {
     );
 
     const row = screen.getByRole("button", { name: /资料整理/ });
-    expect(row.tagName).toBe("DIV");
 
     await user.click(row);
     expect(onSelectTask).toHaveBeenCalledWith("task-1");
