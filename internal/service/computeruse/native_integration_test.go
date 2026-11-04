@@ -41,7 +41,7 @@ func TestPackagedCUANativeActionLoop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if computer["runtime_version"] != "0.2.0-rc.5" || computer["observe_after"] != true {
+	if computer["runtime_version"] != pinnedCUAVersion || computer["observe_after"] != true {
 		t.Fatal("packaged runtime version/capabilities do not match pinned SDK")
 	}
 	approved := false

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin the Computer Use SDK and runtime to v0.2.0 with matching macOS and Windows release archive digests.
+
 - Retry paused, interrupted and failed WorkGraph tasks from their nodes. Redo submitted tasks with a confirmed downstream impact preview, preserving history and waiting for fresh upstream acceptance before redispatch.
 
 - Raise chat density: DM replies drop the repeated agent avatar/name row, Room identities use a 24px inline avatar, user message actions float below the bubble on hover-capable desktops instead of reserving an invisible row, round and footer spacing are tightened, the default reading line height moves from 1.7 to 1.6, and narrow columns respect the personal line-height preference. A short question and answer now takes about 134px instead of 229px.

@@ -75,7 +75,7 @@ Windows 桌面宿主通过私有、当前用户限定的 named pipe 向自家 CU
 `ASFW_ANY`、模拟输入或线程输入队列绑定。OS 拒绝传递时仍由 Runtime 的原生聚焦与
 实际前台窗口回读决定结果；此通道不授予目标、动作或会话权限，也不解除用户接管。
 
-固定的 `v0.2.0-rc.5` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
+固定的 `v0.2.0` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
 每次动作沿用最近 `observe` 的截图、AX 和 `application_scene` 选项，让一次动作请求
 返回新的观察；新的 guard 替换已消耗的旧 guard。场景观察仅包含锚点显示器上的同一应用。
 Runtime 有界稳定等待不证明业务完成，必要时仍执行 `verify_state`。
