@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-04
+
+- Pin Bridge v0.1.35 and bundled nxs v0.1.38 across desktop platforms, including the Windows MXC helper and matching SDK validation revision.
+
 - Pin the Computer Use SDK and runtime to v0.2.0 with matching macOS and Windows release archive digests.
 
 - Retry paused, interrupted and failed WorkGraph tasks from their nodes. Redo submitted tasks with a confirmed downstream impact preview, preserving history and waiting for fresh upstream acceptance before redispatch.

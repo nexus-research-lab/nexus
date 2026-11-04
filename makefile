@@ -9,7 +9,7 @@ export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 endif
 
-TAG ?= 0.2.6
+TAG ?= 0.2.7
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 CONTROL_PORT ?= 8020
@@ -38,7 +38,7 @@ NXS_DEV_BINARY_NAME := nxs
 ifeq ($(NXS_DEV_GOOS),windows)
 NXS_DEV_BINARY_NAME := nxs.exe
 endif
-NEXUS_NXS_RUNTIME_RELEASE ?= nxs-stable
+NEXUS_NXS_RUNTIME_RELEASE ?= nxs-v0.1.38
 HOST_DATA_DIR ?= ./data
 NEXUS_NXS_RUNTIME_RELEASE_CMD = sh scripts/resolve-nxs-runtime-release.sh "$(NEXUS_NXS_RUNTIME_RELEASE)"
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))

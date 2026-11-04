@@ -9,7 +9,7 @@ const os = require("os");
 const path = require("path");
 const zlib = require("zlib");
 
-const DEFAULT_RELEASE = "nxs-stable";
+const DEFAULT_RELEASE = "nxs-v0.1.38";
 const DEFAULT_REPO = "nexus-research-lab/nexus-agent-sdk-bridge";
 const USER_AGENT = "nexus-desktop-nxs-fetcher";
 const DOWNLOAD_ATTEMPTS = 4;
@@ -153,7 +153,7 @@ function normalizeRelease(value) {
     return DEFAULT_RELEASE;
   }
   if (trimmed === "stable") {
-    return DEFAULT_RELEASE;
+    return "nxs-stable";
   }
   if (trimmed.startsWith("nxs-")) {
     return trimmed;

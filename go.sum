@@ -61,6 +61,8 @@ github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOF
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260928040950-c994b197e010 h1:PyU1PlK2VlevRfzhlOHD0fIEBNQvxOz+RGC5fyqt6FA=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260928040950-c994b197e010/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.35 h1:3v81Ref97TJ26nzZ7Jr9PvQ/Jkytwf1MwZSxYS3Cwb0=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.35/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261020065623-52bbc5884427 h1:8Wv5i9FvoFAOIBeVSCpzjYhJmlKbvTFotvBBuCMyDCk=
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261020065623-52bbc5884427/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261103021413-236fb583ddcf h1:t+ptPQlVqoNb49LMbnzrK3MkW2erSOWtVt48Ev6ZoOs=

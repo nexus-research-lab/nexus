@@ -43,7 +43,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
-      NEXUS_DESKTOP_NXS_RELEASE: "nxs-stable"
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.38"
 
     steps:
       - name: Checkout
@@ -198,7 +198,7 @@ jobs:
     runs-on: windows-latest
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
-      NEXUS_DESKTOP_NXS_RELEASE: "nxs-stable"
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.38"
 
     steps:
       - name: Checkout
@@ -315,34 +315,9 @@ jobs:
           $nxsPath = Join-Path $cacheDir "nxs.exe"
           $ripgrepPath = Join-Path $cacheDir "rg.exe"
           New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath --ripgrep-output $ripgrepPath --skip-mxc
+          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath --ripgrep-output $ripgrepPath
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to download nxs runtime"
-          }
-          "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
-
-      - name: Checkout pinned Windows sandbox SDK
-        uses: actions/checkout@v6
-        with:
-          repository: nexus-research-lab/nexus-agent-sdk-go
-          token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
-          ref: fed1bf3c01e949a7964c9a1bd60568c0a0ceb2c5
-          path: ${{ runner.temp }}\nexus-agent-sdk-go
-          fetch-depth: 1
-          persist-credentials: false
-
-      - uses: dtolnay/rust-toolchain@1.99.1
-
-      - name: Build pinned Windows nxs runtime
-        shell: pwsh
-        run: |
-          $sdkDir = Join-Path "${{ runner.temp }}" "nexus-agent-sdk-go"
-          $nxsPath = Join-Path "${{ runner.temp }}\windows-runtime-cache" "nxs.exe"
-          & (Join-Path $sdkDir "native/nxs-mxc/build.ps1") -Architecture amd64 -OutputDirectory (Split-Path -Parent $nxsPath)
-          $env:GOWORK = "off"
-          go -C $sdkDir build -mod=readonly -trimpath -o $nxsPath ./cmd/nxs
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to build pinned nxs runtime from fed1bf3c"
           }
           "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
 

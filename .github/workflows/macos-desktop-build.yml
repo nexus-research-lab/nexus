@@ -63,7 +63,7 @@ jobs:
 
       - name: Fetch paired nxs runtime
         env:
-          NEXUS_DESKTOP_NXS_RELEASE: "nxs-stable"
+          NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.38"
           NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
         run: |
           node scripts/desktop/fetch-nxs-runtime.js \
