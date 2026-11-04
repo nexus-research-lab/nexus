@@ -106,6 +106,8 @@ winget install Anthropic.ClaudeCode
 
 macOS 源码调试直接运行 `make app-run`；桌面本地主体不依赖 Control。
 
+macOS Apple Silicon 和 Windows x64 桌面端可在设置中启用「电脑操控（CUA）」。Nexus 安装固定的 v0.2.0 Runtime，并校验发布包摘要。[接入指南](docs/guides/computer-use.md)。
+
 ### 服务端部署
 
 #### Docker 部署
