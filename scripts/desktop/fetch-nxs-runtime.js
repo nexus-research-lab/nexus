@@ -9,7 +9,7 @@ const os = require("os");
 const path = require("path");
 const zlib = require("zlib");
 
-const DEFAULT_RELEASE = "nxs-v0.1.38";
+const DEFAULT_RELEASE = "nxs-v0.2.7";
 const DEFAULT_REPO = "nexus-research-lab/nexus-agent-sdk-bridge";
 const USER_AGENT = "nexus-desktop-nxs-fetcher";
 const DOWNLOAD_ATTEMPTS = 4;

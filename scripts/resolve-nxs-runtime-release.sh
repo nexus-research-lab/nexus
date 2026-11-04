@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-raw_release="${1:-${NEXUS_NXS_RUNTIME_RELEASE:-nxs-v0.1.38}}"
+raw_release="${1:-${NEXUS_NXS_RUNTIME_RELEASE:-nxs-v0.2.7}}"
 case "${raw_release}" in
   "" | "stable" | "nxs-stable")
     release="nxs-stable"

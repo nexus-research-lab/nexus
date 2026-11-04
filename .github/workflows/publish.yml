@@ -43,7 +43,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
-      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.38"
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.2.7"
 
     steps:
       - name: Checkout
@@ -198,7 +198,7 @@ jobs:
     runs-on: windows-latest
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
-      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.38"
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.2.7"
 
     steps:
       - name: Checkout
