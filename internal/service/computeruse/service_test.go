@@ -79,6 +79,7 @@ type fakeClient struct {
 func (c *fakeClient) GetCapabilities(context.Context, time.Duration) (nexuscua.DriverCapabilities, error) {
 	return nexuscua.DriverCapabilities{
 		ProtocolVersion: nexuscua.ProtocolVersion,
+		RuntimeVersion:  pinnedCUAVersion,
 		ObserveAfter:    c.observeAfter,
 		ActionLimits:    nexuscua.ActionLimits{MaxSessionTTLSeconds: 3600},
 		Platform:        nexuscua.PlatformMacOS,

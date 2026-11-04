@@ -31,7 +31,6 @@ import (
 )
 
 const (
-	defaultCUAReleaseAPIURL = "https://api.github.com/repos/nexus-research-lab/nexus-cua/releases/latest"
 	maxReleaseMetadataBytes = 4 << 20
 	maxArchiveBytes         = 512 << 20
 	maxArchiveMembers       = 2048
@@ -69,11 +68,16 @@ type CUAInstallResult struct {
 	Architecture string
 }
 
+// CUAInstallerOptions configures one installer. ExpectedVersion and
+// ArchiveSHA256 default to the source-reviewed pin; AllowUnaccepted is a
+// development escape hatch that also bypasses both pins.
 type CUAInstallerOptions struct {
 	Root            string
 	ReleaseAPIURL   string
 	Client          *http.Client
 	AllowUnaccepted bool
+	ExpectedVersion string
+	ArchiveSHA256   map[string]string
 }
 
 type CUAInstaller struct {
@@ -82,13 +86,15 @@ type CUAInstaller struct {
 	releaseAPIURL   string
 	client          *http.Client
 	allowUnaccepted bool
+	expectedVersion string
+	archiveSHA256   map[string]string
 }
 
 func NewCUAInstaller(cfg config.Config) *CUAInstaller {
 	root := cuaStateRoot(cfg)
 	releaseURL := strings.TrimSpace(os.Getenv("NEXUS_CUA_RELEASE_API_URL"))
 	if releaseURL == "" {
-		releaseURL = defaultCUAReleaseAPIURL
+		releaseURL = pinnedCUAReleaseAPIURL()
 	}
 	return NewCUAInstallerWithOptions(CUAInstallerOptions{
 		Root:            root,
@@ -105,17 +111,27 @@ func NewCUAInstallerWithOptions(options CUAInstallerOptions) *CUAInstaller {
 	}
 	releaseURL := strings.TrimSpace(options.ReleaseAPIURL)
 	if releaseURL == "" {
-		releaseURL = defaultCUAReleaseAPIURL
+		releaseURL = pinnedCUAReleaseAPIURL()
 	}
 	client := options.Client
 	if client == nil {
 		client = &http.Client{Timeout: maxDownloadTimeout}
+	}
+	expectedVersion := normalizeCUAVersion(options.ExpectedVersion)
+	if expectedVersion == "" {
+		expectedVersion = pinnedCUAVersion
+	}
+	archiveSHA256 := options.ArchiveSHA256
+	if archiveSHA256 == nil {
+		archiveSHA256 = pinnedCUAArchiveSHA256
 	}
 	return &CUAInstaller{
 		root:            filepath.Clean(root),
 		releaseAPIURL:   releaseURL,
 		client:          client,
 		allowUnaccepted: options.AllowUnaccepted,
+		expectedVersion: expectedVersion,
+		archiveSHA256:   archiveSHA256,
 	}
 }
 
@@ -218,6 +234,17 @@ func (i *CUAInstaller) Install(ctx context.Context) (CUAInstallResult, error) {
 	}
 	if !strings.EqualFold(actual, checksum) {
 		return CUAInstallResult{}, fmt.Errorf("%w: expected=%s actual=%s", ErrCUAChecksumMismatch, checksum, actual)
+	}
+	// The release's own checksum only proves transport integrity. Accepted
+	// installs must also match the digest reviewed in source.
+	if !i.allowUnaccepted {
+		pinned, ok := i.archiveSHA256[archiveAsset.Name]
+		if !ok {
+			return CUAInstallResult{}, fmt.Errorf("%w: %s 没有源码固定的 digest", ErrCUAReleaseRejected, archiveAsset.Name)
+		}
+		if !strings.EqualFold(actual, pinned) {
+			return CUAInstallResult{}, fmt.Errorf("%w: pinned=%s actual=%s", ErrCUAChecksumMismatch, pinned, actual)
+		}
 	}
 
 	staging, err := os.MkdirTemp(i.root, ".staging-")
@@ -384,8 +411,12 @@ func (i *CUAInstaller) fetchRelease(ctx context.Context) (githubRelease, error) 
 	if err := json.Unmarshal(data, &release); err != nil {
 		return githubRelease{}, err
 	}
-	if release.Draft || release.Prerelease || normalizeCUAVersion(release.TagName) == "" {
+	version := normalizeCUAVersion(release.TagName)
+	if release.Draft || release.Prerelease || version == "" {
 		return githubRelease{}, ErrCUAReleaseRejected
+	}
+	if !i.allowUnaccepted && version != i.expectedVersion {
+		return githubRelease{}, fmt.Errorf("%w: release=%s pinned=%s", ErrCUAReleaseRejected, version, i.expectedVersion)
 	}
 	return release, nil
 }
@@ -735,11 +766,22 @@ func extractArchiveEntries(destination, tag string, allowUnaccepted bool, next f
 }
 
 func validateCUAManifest(manifest cuaManifest, tag, binaryPath string, allowUnaccepted bool) error {
-	if manifest.Contract != "nexus.cua.release-candidate.v1" || strings.ToLower(manifest.Platform) != currentCUAPlatform() {
+	if strings.ToLower(manifest.Platform) != currentCUAPlatform() {
 		return ErrCUAReleaseRejected
 	}
-	if !allowUnaccepted && manifest.ReleaseState != "release_accepted" {
-		return fmt.Errorf("%w: release_state=%s", ErrCUAReleaseRejected, manifest.ReleaseState)
+	switch manifest.Contract {
+	case "nexus.cua.release.v1":
+		// Published by the nexus-cua release pipeline. Acceptance is the
+		// archive digest pinned in pin.go, checked before extraction.
+		if !allowUnaccepted && manifest.ReleaseState != "published" {
+			return fmt.Errorf("%w: release_state=%s", ErrCUAReleaseRejected, manifest.ReleaseState)
+		}
+	case "nexus.cua.release-candidate.v1":
+		if !allowUnaccepted && manifest.ReleaseState != "release_accepted" {
+			return fmt.Errorf("%w: release_state=%s", ErrCUAReleaseRejected, manifest.ReleaseState)
+		}
+	default:
+		return ErrCUAReleaseRejected
 	}
 	if normalizeCUAVersion(manifest.Version) == "" || normalizeCUAVersion(tag) != normalizeCUAVersion(manifest.Version) {
 		return ErrCUAReleaseRejected

@@ -16,7 +16,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -52,9 +54,11 @@ func TestCUAInstallerDownloadsVerifiesAndPersistsRelease(t *testing.T) {
 	defer server.Close()
 
 	installer := NewCUAInstallerWithOptions(CUAInstallerOptions{
-		Root:          t.TempDir(),
-		ReleaseAPIURL: server.URL + "/latest",
-		Client:        server.Client(),
+		Root:            t.TempDir(),
+		ReleaseAPIURL:   server.URL + "/latest",
+		Client:          server.Client(),
+		ExpectedVersion: "0.1.0",
+		ArchiveSHA256:   map[string]string{archiveName: hex.EncodeToString(digest[:])},
 	})
 	result, err := installer.Install(context.Background())
 	if err != nil {
@@ -118,6 +122,63 @@ func TestCUAInstallerRejectsChecksumMismatch(t *testing.T) {
 	}
 	if installer.InstalledBinaryPath() != "" {
 		t.Fatal("checksum failure left an installed binary")
+	}
+}
+
+func TestPinnedCUAVersionMatchesGoModule(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := regexp.MustCompile(`(?m)^\s*github\.com/nexus-research-lab/nexus-cua/sdk/go\s+v(\S+)`).FindSubmatch(data)
+	if match == nil {
+		t.Fatal("go.mod does not require the nexus-cua Go SDK")
+	}
+	if string(match[1]) != pinnedCUAVersion {
+		t.Fatalf("pinnedCUAVersion = %q, go.mod SDK = %q; bump them together", pinnedCUAVersion, match[1])
+	}
+	for name, digest := range pinnedCUAArchiveSHA256 {
+		if !strings.Contains(name, "-"+pinnedCUAVersion+"-") || !sha256Pattern.MatchString(digest) {
+			t.Fatalf("pinned archive %q does not belong to %s or has an invalid digest", name, pinnedCUAVersion)
+		}
+	}
+	if !strings.HasSuffix(pinnedCUAReleaseAPIURL(), "/releases/tags/v"+pinnedCUAVersion) {
+		t.Fatalf("default release URL is not tag-pinned: %s", pinnedCUAReleaseAPIURL())
+	}
+}
+
+func TestCUAInstallerRejectsUnpinnedReleaseOrArchive(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("native desktop installer requires macOS or Windows")
+	}
+	archiveName := "nexus-cua-v0.1.0-" + currentCUAPlatform() + "-" + currentCUAArchitecture() + ".tar.gz"
+	archive := makeCUATarGz(t, []byte("nexuscua"), "release_accepted")
+	checksum := sha256Hex(archive) + "  " + archiveName + "\n"
+	server := newCUAReleaseServer(t, archiveName, archive, checksum)
+	defer server.Close()
+	for _, test := range []struct {
+		name    string
+		version string
+		digests map[string]string
+		want    error
+	}{
+		{"different release version", "0.2.0", map[string]string{archiveName: sha256Hex(archive)}, ErrCUAReleaseRejected},
+		{"archive without pinned digest", "0.1.0", map[string]string{}, ErrCUAReleaseRejected},
+		{"archive digest differs from pin", "0.1.0", map[string]string{archiveName: fmt.Sprintf("%064x", 1)}, ErrCUAChecksumMismatch},
+	} {
+		installer := NewCUAInstallerWithOptions(CUAInstallerOptions{
+			Root:            t.TempDir(),
+			ReleaseAPIURL:   server.URL + "/latest",
+			Client:          server.Client(),
+			ExpectedVersion: test.version,
+			ArchiveSHA256:   test.digests,
+		})
+		if _, err := installer.Install(context.Background()); !errors.Is(err, test.want) {
+			t.Fatalf("%s: Install error = %v, want %v", test.name, err, test.want)
+		}
+		if installer.InstalledBinaryPath() != "" {
+			t.Fatalf("%s: rejected release left an installed binary", test.name)
+		}
 	}
 }
 
@@ -307,5 +368,33 @@ func TestConfiguredCUAEnablementSurvivesRestart(t *testing.T) {
 	}
 	if NewService(cfg).Enabled() {
 		t.Fatal("disabled configured runtime was enabled on restart")
+	}
+}
+
+func TestCUAPipelineManifestContract(t *testing.T) {
+	binary := filepath.Join(t.TempDir(), currentCUABinaryName())
+	if err := os.WriteFile(binary, []byte("runtime"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := cuaManifest{
+		Contract: "nexus.cua.release.v1", ReleaseState: "published", Version: "0.2.0",
+		Protocol: "nexus.cua.v1", Platform: currentCUAPlatform(), Architecture: currentCUAArchitecture(),
+		Files: map[string]struct {
+			Path   string `json:"path"`
+			SHA256 string `json:"sha256"`
+		}{"runtime": {Path: currentCUABinaryName(), SHA256: sha256Hex([]byte("runtime"))}},
+	}
+	if err := validateCUAManifest(manifest, "v0.2.0", binary, false); err != nil {
+		t.Fatalf("published pipeline manifest rejected: %v", err)
+	}
+	for _, state := range []string{"prerelease", "release_accepted", ""} {
+		manifest.ReleaseState = state
+		if err := validateCUAManifest(manifest, "v0.2.0", binary, false); !errors.Is(err, ErrCUAReleaseRejected) {
+			t.Fatalf("pipeline manifest with release_state=%q accepted: %v", state, err)
+		}
+	}
+	manifest.ReleaseState, manifest.Contract = "published", "nexus.cua.testing-preview.v1"
+	if err := validateCUAManifest(manifest, "v0.2.0", binary, false); !errors.Is(err, ErrCUAReleaseRejected) {
+		t.Fatalf("unknown manifest contract accepted: %v", err)
 	}
 }

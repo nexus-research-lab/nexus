@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Install only the SDK-pinned nexus-cua release and archive digests instead of `releases/latest`, accept the nexus-cua `nexus.cua.release.v1` pipeline manifest, and reject a sidecar whose `runtime_version` differs from the pin.
+
 - Deliver Windows screenshots across equivalent native path spellings using directory-confined reads.
 
 - Expose Windows Computer Use settings, recognize native executables, verify Windows release packages, and retain bundled-runtime enablement across restarts.

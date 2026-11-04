@@ -2,6 +2,7 @@ package computeruse
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -59,4 +60,33 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Exit(m.Run())
+}
+
+type versionedClient struct {
+	fakeClient
+	runtimeVersion string
+}
+
+func (c *versionedClient) GetCapabilities(ctx context.Context, timeout time.Duration) (nexuscua.DriverCapabilities, error) {
+	capabilities, err := c.fakeClient.GetCapabilities(ctx, timeout)
+	capabilities.RuntimeVersion = c.runtimeVersion
+	return capabilities, err
+}
+
+func TestReadinessRejectsUnpinnedRuntimeVersion(t *testing.T) {
+	client := &versionedClient{runtimeVersion: "0.1.0"}
+	started := time.Now()
+	if err := waitUntilReady(context.Background(), client, pinnedCUAVersion); !errors.Is(err, ErrRuntimeVersionMismatch) {
+		t.Fatalf("waitUntilReady error = %v, want runtime version mismatch", err)
+	}
+	if time.Since(started) > readinessTimeout/2 {
+		t.Fatal("version mismatch waited for the readiness timeout instead of failing fast")
+	}
+	if err := waitUntilReady(context.Background(), client, ""); err != nil {
+		t.Fatalf("unpinned development readiness failed: %v", err)
+	}
+	client.runtimeVersion = pinnedCUAVersion
+	if err := waitUntilReady(context.Background(), client, pinnedCUAVersion); err != nil {
+		t.Fatalf("pinned runtime readiness failed: %v", err)
+	}
 }

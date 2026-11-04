@@ -8,8 +8,8 @@ Nexus 通过 pinned 的 `nexus-cua` SDK/sidecar 使用原生桌面能力。模�
 ## 1. 常规启用（设置页）
 
 在 macOS 桌面端打开 设置 → 电脑操控（CUA）开关。未安装时，Nexus 会从
-`nexus-research-lab/nexus-cua` 的 GitHub latest Release 下载 macOS 安装包，完成
-SHA256 与 manifest 双重校验后安装到状态根的 `computer-use/versions/` 下，再启用并
+`nexus-research-lab/nexus-cua` 下载与内置 SDK 同版本的 GitHub Release 安装包，完成
+源码固定 SHA256、Release checksum 与 manifest 校验后安装到状态根的 `computer-use/versions/` 下，再启用并
 自动检查系统权限。启用但 Screen Recording / Accessibility / Input Control 任一未授予时，
 按设置页引导前往 系统设置 → 隐私与安全性 完成授权，然后「重新检查权限」。
 

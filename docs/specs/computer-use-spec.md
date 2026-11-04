@@ -105,11 +105,16 @@ Input Control 同时需要事件派发和 Input Monitoring，桌面引导补充�
 
 ## 分发与安装
 
-- 安装源固定为 `github.com/nexus-research-lab/nexus-cua` 的 latest Release；
-  `NEXUS_CUA_RELEASE_API_URL` 仅用于测试覆盖。
+- 安装源固定为 `github.com/nexus-research-lab/nexus-cua` 的 `v<pinnedCUAVersion>`
+  Release（`internal/service/computeruse/pin.go`），必须与 `go.mod` 中的 SDK 版本一致，
+  测试强制两者同步；`NEXUS_CUA_RELEASE_API_URL` 仅用于测试覆盖。
+- 归档除匹配 Release 自带 `.sha256` 外，还必须匹配 `pin.go` 中源码固定的 SHA-256；
+  升级 SDK 时从该 Release 的 `SHA256SUMS` 同步更新。
+- Sidecar 就绪时 `runtime_version` 必须等于固定版本，不一致立即失败而非等待超时。
 - Release 必须为正式版（非 draft、非 prerelease），tag 为合法 semver；
-  归档内 manifest 合同为 `nexus.cua.release-candidate.v1`，且 `release_state=release_accepted`。
-  `NEXUS_CUA_ALLOW_UNACCEPTED_RELEASE=1` 只允许开发环境放行未验收候选。
+  归档内 manifest 合同为 nexus-cua 发布流水线的 `nexus.cua.release.v1`（`release_state=published`，
+  以 `pin.go` 中的固定 digest 作为验收），或旧的 `nexus.cua.release-candidate.v1`（`release_state=release_accepted`）。
+  `NEXUS_CUA_ALLOW_UNACCEPTED_RELEASE=1` 只允许开发环境放行未验收候选，同时跳过版本与 digest 固定。
 - 安装包必须附带 `<archive>.sha256`；归档整体 SHA256 与 manifest 内 runtime 文件 SHA256
   双重校验通过后才落盘。归档拒绝符号链接、路径穿越、超限成员与多重 manifest/runtime。
 - 安装产物原子落位到 `<CUA 状态根>/versions/<version>-<architecture>/nexuscua`，Windows 使用 `nexuscua.exe`。
@@ -144,7 +149,7 @@ Input Control 同时需要事件派发和 Input Monitoring，桌面引导补充�
 | 端点 | 语义 |
 | --- | --- |
 | `GET /` | 安装/启用状态、版本、来源；不含权限探测 |
-| `POST /install` | 同步下载、校验并安装 latest Release |
+| `POST /install` | 同步下载、校验并安装固定版本 Release |
 | `POST /enable` `POST /disable` | 显式启用/关闭；未安装时启用返回 409 |
 | `POST /permissions/check` | 必要时拉起 sidecar 并返回 Screen Capture / Accessibility / Input Control 状态 |
 

@@ -38,13 +38,14 @@ const (
 )
 
 var (
-	ErrDisabled        = errors.New("Computer Use 未启用")
-	ErrRoundClosed     = errors.New("Computer Use round 已关闭")
-	ErrNoTarget        = errors.New("Computer Use 尚未选择目标应用")
-	ErrNoObservation   = errors.New("Computer Use 尚未取得可用于动作的最新 observation")
-	ErrOwnerConflict   = errors.New("Computer Use 当前 sidecar 已绑定其他 owner")
-	ErrNotReady        = errors.New("Computer Use sidecar 尚未就绪")
-	ErrMutationPending = errors.New("Computer Use 存在待对账 mutation，请先复用原 request_id")
+	ErrDisabled               = errors.New("Computer Use 未启用")
+	ErrRoundClosed            = errors.New("Computer Use round 已关闭")
+	ErrNoTarget               = errors.New("Computer Use 尚未选择目标应用")
+	ErrNoObservation          = errors.New("Computer Use 尚未取得可用于动作的最新 observation")
+	ErrOwnerConflict          = errors.New("Computer Use 当前 sidecar 已绑定其他 owner")
+	ErrNotReady               = errors.New("Computer Use sidecar 尚未就绪")
+	ErrRuntimeVersionMismatch = errors.New("Computer Use runtime 版本与 Nexus 固定版本不一致")
+	ErrMutationPending        = errors.New("Computer Use 存在待对账 mutation，请先复用原 request_id")
 )
 
 // Client 是 Nexus 使用的最小 typed CUA client 面；不把 generic wire command
@@ -124,7 +125,7 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 	}
 }
 
-// Install downloads and verifies the latest nexus-cua GitHub Release, then
+// Install downloads and verifies the SDK-pinned nexus-cua GitHub Release, then
 // switches future sidecar epochs to the new binary. Installation never turns
 // Computer Use on by itself; the settings toggle remains an explicit action.
 func (s *Service) Install(ctx context.Context) (CUAInstallationStatus, error) {
@@ -1381,6 +1382,9 @@ type ProcessSupervisor struct {
 	client     Client
 	factory    Factory
 	logger     *slog.Logger
+	// runtimeVersion is the only runtime_version accepted at readiness; empty
+	// accepts any version for explicit unaccepted development runtimes.
+	runtimeVersion string
 }
 
 type managedProcess struct {
@@ -1447,8 +1451,18 @@ func NewProcessSupervisorWithBinaryPath(cfg config.Config, binaryPath string) *P
 		factory: func(value nexuscua.Config) (Client, error) {
 			return nexuscua.NewClient(value)
 		},
-		logger: slog.Default(),
+		logger:         slog.Default(),
+		runtimeVersion: expectedRuntimeVersion(),
 	}
+}
+
+// expectedRuntimeVersion keeps the sidecar on the SDK-pinned runtime. The
+// unaccepted-release escape hatch also admits development runtimes.
+func expectedRuntimeVersion() string {
+	if os.Getenv("NEXUS_CUA_ALLOW_UNACCEPTED_RELEASE") == "1" {
+		return ""
+	}
+	return pinnedCUAVersion
 }
 
 func (s *ProcessSupervisor) SetLogger(logger *slog.Logger) {
@@ -1513,7 +1527,7 @@ func (s *ProcessSupervisor) Start(ctx context.Context) (Client, error) {
 		s.mu.Unlock()
 		return nil, errors.New("Computer Use binary path 未配置")
 	}
-	stateRoot, binaryPath, factory := s.stateRoot, s.binaryPath, s.factory
+	stateRoot, binaryPath, factory, runtimeVersion := s.stateRoot, s.binaryPath, s.factory, s.runtimeVersion
 	s.mu.Unlock()
 	if !filepath.IsAbs(binaryPath) {
 		return nil, errors.New("Computer Use binary path 必须是绝对路径")
@@ -1585,7 +1599,7 @@ func (s *ProcessSupervisor) Start(ctx context.Context) (Client, error) {
 		_ = s.stopManagedProcessWithTimeout(process, 2*time.Second)
 		return nil, err
 	}
-	if err := waitUntilReady(ctx, client); err != nil {
+	if err := waitUntilReady(ctx, client, runtimeVersion); err != nil {
 		_ = s.stopManagedProcessWithTimeout(process, 2*time.Second)
 		return nil, err
 	}
@@ -1618,7 +1632,7 @@ func (s *ProcessSupervisor) Restart(ctx context.Context) (Client, error) {
 	return s.Start(ctx)
 }
 
-func waitUntilReady(ctx context.Context, client Client) error {
+func waitUntilReady(ctx context.Context, client Client, runtimeVersion string) error {
 	deadline := time.Now().Add(readinessTimeout)
 	for time.Now().Before(deadline) {
 		if err := ctx.Err(); err != nil {
@@ -1628,6 +1642,11 @@ func waitUntilReady(ctx context.Context, client Client) error {
 		capabilities, err := client.GetCapabilities(probeCtx, 500*time.Millisecond)
 		cancel()
 		if err == nil && capabilities.ProtocolVersion == protocolVersion {
+			// A responsive runtime with the wrong version will not change by
+			// retrying; fail now instead of waiting out the readiness timeout.
+			if runtimeVersion != "" && capabilities.RuntimeVersion != runtimeVersion {
+				return fmt.Errorf("%w: runtime=%q pinned=%q", ErrRuntimeVersionMismatch, capabilities.RuntimeVersion, runtimeVersion)
+			}
 			return nil
 		}
 		select {
