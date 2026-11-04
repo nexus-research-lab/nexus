@@ -113,6 +113,9 @@ func (r *Round) LaunchApplication(ctx context.Context, requestID string, input n
 			return nil, errors.New("启动应用身份已变化，请重新发现并授权")
 		}
 		var request *nexuscua.LaunchRequest
+		if input.AllowForegroundActivation {
+			r.prepareForeground(ctx)
+		}
 		output, request, err = client.LaunchApplication(ctx, input, defaultCommandTimeout)
 		var uncertain *nexuscua.LaunchIndeterminateError
 		if errors.As(err, &uncertain) && request != nil {

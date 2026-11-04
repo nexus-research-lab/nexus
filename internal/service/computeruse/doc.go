@@ -20,4 +20,7 @@
 // granting authority; filtered launch catalogs retain only returned opaque refs.
 // authority.go defines approved target scope and deadlines; launch.go owns
 // launch discovery, approval and reconciliation without granting input authority.
+// foreground*.go transfer Windows OS foreground eligibility through the native
+// host's private pipe only for its live owned CUA child, after mutation approval.
+// This best-effort handoff neither changes grants nor bypasses native readback.
 package computeruse

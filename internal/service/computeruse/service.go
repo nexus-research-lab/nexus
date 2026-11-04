@@ -942,6 +942,7 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 			return ActionResult{}, err
 		}
 	}
+	r.prepareForeground(ctx)
 	output, actionRequest, err := r.client.PerformAction(ctx, nexuscua.PerformActionInput{
 		SessionID: sessionID, WindowRef: windowRef, ObservationID: observationID, Action: action, ObserveAfter: after,
 	}, defaultCommandTimeout)

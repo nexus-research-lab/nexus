@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Hand Windows foreground eligibility from the native Nexus host to its owned CUA child over a private, bounded pipe. Validate the backend caller and child process identity; retain runtime authority checks and native foreground readback.
+
 - Filter Computer Use app discovery by name or application id to avoid catalog pagination, and clarify recovery after stale observations or an app starting concurrently.
 
 - Expose discovery window state in Computer Use observations, distinguish Stage Manager thumbnails from minimized windows, and bound recovery of unknown mutation results.

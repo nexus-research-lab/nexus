@@ -14,13 +14,14 @@ import (
 )
 
 type fakeSupervisor struct {
-	client      *fakeClient
-	next        *fakeClient
-	artifact    string
-	starts      int
-	stops       int
-	restarts    int
-	restartNext bool
+	client          *fakeClient
+	next            *fakeClient
+	artifact        string
+	starts          int
+	stops           int
+	restarts        int
+	restartNext     bool
+	foregroundCalls int
 }
 
 func (s *fakeSupervisor) Start(context.Context) (Client, error) {
@@ -52,6 +53,8 @@ func (s *fakeSupervisor) Restart(context.Context) (Client, error) {
 }
 
 func (s *fakeSupervisor) ArtifactRoot() string { return s.artifact }
+
+func (s *fakeSupervisor) prepareForeground(context.Context) { s.foregroundCalls++ }
 
 type fakeClient struct {
 	windows        []nexuscua.WindowSummary
@@ -467,7 +470,7 @@ func TestActionViewPreservesEffectEvidenceAndForegroundRestoration(t *testing.T)
 }
 
 func TestPerformActionWithApprovalSkipsApprovalOnReconcile(t *testing.T) {
-	service, client, _ := newFakeService(t)
+	service, client, supervisor := newFakeService(t)
 	round := prepareRound(t, service)
 	approvals := 0
 	approve := func() error {
@@ -483,7 +486,7 @@ func TestPerformActionWithApprovalSkipsApprovalOnReconcile(t *testing.T) {
 	if _, err := round.PerformActionWithApproval(context.Background(), "action-20261013-callback", ActionInput{Kind: "click_point", X: 9, Y: 9}, approve); err != nil {
 		t.Fatal(err)
 	}
-	if approvals != 1 || client.performCalls != 1 || client.reconcileCalls != 0 {
+	if approvals != 1 || supervisor.foregroundCalls != 1 || client.performCalls != 1 || client.reconcileCalls != 0 {
 		t.Fatalf("completed callback/dispatch = %d/%d/%d, want 1/1/0", approvals, client.performCalls, client.reconcileCalls)
 	}
 	if _, err := round.Observe(context.Background(), ObserveInput{}); err != nil {
@@ -497,7 +500,7 @@ func TestPerformActionWithApprovalSkipsApprovalOnReconcile(t *testing.T) {
 	if _, err := round.PerformActionWithApproval(context.Background(), "action-20261013-pending-callback", ActionInput{Kind: "click_point", X: 3, Y: 4}, approve); err != nil {
 		t.Fatal(err)
 	}
-	if approvals != 2 || client.performCalls != 2 || client.reconcileCalls != 1 {
+	if approvals != 2 || supervisor.foregroundCalls != 2 || client.performCalls != 2 || client.reconcileCalls != 1 {
 		t.Fatalf("pending callback/dispatch = %d/%d/%d, want 2/2/1", approvals, client.performCalls, client.reconcileCalls)
 	}
 }
@@ -727,5 +730,15 @@ func TestUserTakeoverLatchesUntilNewApprovedTarget(t *testing.T) {
 	}
 	if round.UserActive() || approvals != 1 {
 		t.Fatal("fresh host grant did not reset takeover")
+	}
+}
+
+func TestForegroundHandoffDoesNotRunBeforeApproval(t *testing.T) {
+	service, client, supervisor := newFakeService(t)
+	round := prepareRound(t, service)
+	denied := errors.New("denied by host")
+	_, err := round.PerformActionWithApproval(context.Background(), "denied-handoff", ActionInput{Kind: "focus_window"}, func() error { return denied })
+	if !errors.Is(err, denied) || supervisor.foregroundCalls != 0 || client.performCalls != 0 {
+		t.Fatalf("denied mutation granted foreground or dispatched: err=%v handoffs=%d dispatch=%d", err, supervisor.foregroundCalls, client.performCalls)
 	}
 }

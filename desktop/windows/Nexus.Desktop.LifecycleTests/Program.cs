@@ -137,6 +137,22 @@ string root = Path.Combine(Path.GetTempPath(), "Nexus lifecycle " + Guid.NewGuid
 Directory.CreateDirectory(root);
 try
 {
+    using (Process parent = Process.GetCurrentProcess())
+    using (Process child = Process.Start(Self("leaf"))!)
+    {
+        try
+        {
+            if (!ComputerUseForegroundBroker.IsOwnedChild(parent, child)
+                || ComputerUseForegroundBroker.IsOwnedChild(child, parent)
+                || ComputerUseForegroundBroker.IsOwnedChild(parent, parent))
+                throw new Exception("Foreground handoff accepted a non-child or rejected an owned live child");
+        }
+        finally { child.Kill(); await ExpectExited(child); }
+        if (ComputerUseForegroundBroker.IsOwnedChild(parent, child))
+            throw new Exception("Foreground handoff accepted an exited child");
+    }
+    Console.WriteLine("PASS native foreground child identity and exit rejection");
+
     var launch = Self("echo");
     launch.Environment["NEXUS_LIFECYCLE_TEST"] = "unicode 环境 and spaces";
     using (var owned = SidecarProcessLifetime.Start(launch))
