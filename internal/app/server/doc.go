@@ -12,7 +12,7 @@
 //   - realtime_invalidation.go / configuration_notifier.go：Session、conversation 标题、定时任务、Agent 与 Room 配置变更到 websocket 实时投影的统一失效通知装配。
 //   - channel_external_session.go：外部通道会话到 WebSocket 的通知适配。
 //   - team_node.go：装配本机授权路由及随宿主启停的 Node 消费器，复用 Agent 目录、数据库、凭据密钥和 Room runtime；本机授权不代理到远程宿主。
-//   - directory_watch.go：装配跨进程目录版本观察器，向全局订阅发送无资源身份的目录失效信号并在关闭时等待退出。
+//   - directory_watch.go：装配跨进程目录版本观察器，跳过宿主即时通知已覆盖的版本，向全局订阅发送无资源身份的目录失效信号并在关闭时等待退出。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 // 核心启动配置 handler 绑定宿主 ProjectPermission 服务，投影 ACL 可用性。

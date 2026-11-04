@@ -16,7 +16,8 @@
 //     Codex app-server Goal RPC、并发/绑定冲突的稳定 server-error reason_code、授权成功后的 owner/thread 双重隔离订阅注册与事件广播。
 //   - execution_invalidation.go：只把 orchestration 成功 mutation 投影为 owner/session 双重隔离的 WorkGraph 失效事件。
 //   - app_event_subscription.go / room_subscription_registry.go / workspace_*.go：
-//     全局目录订阅先注册再推送核对信号，覆盖首屏和重连空窗。
+//     全局目录订阅先注册再推送带版本的核对信号，覆盖首屏和重连空窗。
+//   - directory_version.go：即时目录通知发出前记录已覆盖的已提交版本，供跨进程观察器跳过；发送观察器的带版本通知与订阅核对。
 //     房间、工作区、事件订阅的引用状态转换与 runtime 快照广播；workspace 终态
 //     正文快照可携带与 HTTP 文件读取一致的内容 revision。
 //   - live_workspace.go：实时工作区推送。

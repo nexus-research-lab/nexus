@@ -1,6 +1,6 @@
 /**
  * INPUT: 全局 Room 订阅目录、完成消息与删除事件回调。
- * OUTPUT: 可重连的单 WebSocket 完成事件流、Room 活动态、目录本地增量与失效对账信号。
+ * OUTPUT: 可重连的单 WebSocket 完成事件流、Room 活动态、目录本地增量与带版本的失效对账信号。
  * POS: Home 全局聊天通知的协议边界；未读/删除状态由上层回调处理。
  */
 import { useCallback, useEffect, useRef } from "react";
@@ -48,7 +48,7 @@ export function useChatNotificationSocket({
   roomIdsKey,
 }: UseChatNotificationSocketOptions): void {
   const roomSeqCursorRef = useRef<Record<string, number>>({});
-  const hasConnectedRef = useRef(false);
+  const connectionCountRef = useRef(0);
   const directoryIndexRef = useRef(directoryIndex);
   directoryIndexRef.current = directoryIndex;
   const handleMessage = useCallback((rawMessage: unknown) => {
@@ -91,8 +91,15 @@ export function useChatNotificationSocket({
           readString(event.data, "session_key") ?? "",
         );
       }
+      if (readString(event.data, "reason") === DIRECTORY_SUBSCRIBED_REASON) {
+        // 首连核对可按版本跳过已加载的首屏目录；重连期间可能错过不带版本的即时事件，必须重读。
+        notifyRoomDirectoryUpdated(
+          connectionCountRef.current > 1 ? undefined : readDirectoryRevision(event),
+        );
+        return;
+      }
       refreshAgentDirectory(event);
-      notifyRoomDirectoryUpdated();
+      notifyRoomDirectoryUpdated(readDirectoryRevision(event));
       return;
     }
     syncRoomActivity(event, directoryIndexRef.current);
@@ -145,11 +152,11 @@ export function useChatNotificationSocket({
     if (state !== "connected") {
       return;
     }
-    if (hasConnectedRef.current) {
-      // 重连期间可能错过全局目录事件，连接恢复后只补刷一次。
-      notifyRoomDirectoryUpdated();
+    connectionCountRef.current += 1;
+    if (connectionCountRef.current > 1) {
+      // 目录由服务端订阅核对补齐；Agent 列表不在核对范围内，重连后只补读一次。
+      void useAgentStore.getState().load_agents_from_server();
     }
-    hasConnectedRef.current = true;
   }, [state]);
 
   useEffect(() => {
@@ -172,6 +179,13 @@ export function useChatNotificationSocket({
       }
     };
   }, [roomIdsKey, send, state]);
+}
+
+const DIRECTORY_SUBSCRIBED_REASON = "app_events_subscribed";
+
+function readDirectoryRevision(event: EventMessage): number | undefined {
+  const revision = event.data.directory_revision;
+  return typeof revision === "number" && Number.isFinite(revision) ? revision : undefined;
 }
 
 function refreshAgentDirectory(event: EventMessage): void {

@@ -19,7 +19,8 @@
 - Room 订阅只由排序后的 Room ID 内容键驱动，目录对象换引用不得触发重订阅。
 - WebSocket 重放依靠消息 ID 在 Store 中去重；活动窗口内的当前目标只清除未读，不弹系统通知。
 - 共享 WebSocket 层在每次挂载捕获 auth owner generation；scope reset 后旧订阅即使尚未 cleanup，也不得更新 Room 活动态、未读、目录失效或浏览器通知。owner reset 同步清空全部瞬时 Room 活动态。
-- WebSocket 重连成功必须令共享聊天目录失效一次，补偿断线期间可能丢失的全局目录事件；不得恢复固定间隔的全量目录轮询。
+- WebSocket 重连成功必须令共享聊天目录无条件失效一次，补偿断线期间可能丢失的全局目录事件：目录失效由服务端订阅核对 `app_events_subscribed` 触发（重连时忽略其版本），本地连接恢复只补读一次 Agent 列表；首连核对按 `directory_revision` 跳过已加载的首屏目录。不得恢复固定间隔的全量目录轮询。
+- 带 `directory_revision` 的目录失效交给目录 Store 按版本去重；只有 `agent_` 前缀原因才重读 Agent 列表。
 - 通知目标优先级固定为 Room Conversation、Room、Session；Session 活动目标不得回退匹配同 Room 的其他通知。
 - 浏览器权限失败不得影响站内未读记录。
 - 聊天行仍只按 `roomId` 输出状态，但执行态必须在容器内部按精确 Conversation/Session source 隔离后取并集；DM `session_status` 与 Room 全局 `active_sources` 负责重连恢复，任何空快照或终态只能清理自己的 source。root round 终态负责清理该 source 的执行槽，单个 Agent slot 终态不得熄灭仍在执行的其他 slot，权限 resolved 只清理对应请求。

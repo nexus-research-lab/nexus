@@ -52,6 +52,7 @@ type Handler struct {
 	roomSubs               *roomSubscriptionRegistry
 	workspaceSubs          *workspaceSubscriptionRegistry
 	appEventSubs           *appEventSubscriptionRegistry
+	directoryCoverage      roompkg.DirectoryCoverage
 	goalRPCSubs            *appServerGoalRPCRegistry
 	executionInvalidations *executionInvalidationRegistry
 	channelAuthorization   *channelAuthorizationTransport

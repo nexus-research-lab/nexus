@@ -63,9 +63,7 @@ func (h *Handler) handleSubscribeAppEvents(ctx context.Context, sender *handlers
 	}
 	h.appEventSubs.Subscribe(sender)
 	// 先注册再核对，补齐首屏读取与订阅建立之间以及重连期间的目录变化。
-	_ = sender.SendEvent(ctx, protocol.NewEvent(protocol.EventTypeDirectoryChanged, map[string]any{
-		"reason": "agent_room_directory_changed",
-	}))
+	h.sendDirectorySubscriptionReconcile(ctx, sender)
 }
 
 func (h *Handler) handleUnsubscribeAppEvents(sender *handlershared.WebSocketSender) {

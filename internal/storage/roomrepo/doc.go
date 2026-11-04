@@ -11,7 +11,7 @@
 // SQLRepository 根据 driver 选择 SQLDialect，不在上层复制 SQLite/PostgreSQL 门面。
 // messages 表仅保留 legacy import 与删除引用兼容；当前 Room/DM 历史位于 owner-scoped ledger，服务读模型不能把 COUNT(messages) 当作唯一实时真相。
 // MemberAgents 只用于 Room 读模型；realtime 启动 physical round 时必须从 Agent service 批量重新水合权威 runtime 配置。
-//   - directory_revision.go：读取目录 mutation 同事务推进的单行版本，供宿主观察独立 CLI 写入。
+//   - directory_revision.go：读取目录 mutation 提交时推进的单行目录/Agent 版本，供宿主观察独立 CLI 写入并为 bootstrap 标注版本。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package roomrepo

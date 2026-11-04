@@ -1,6 +1,6 @@
 /**
  * INPUT: 可取消的 Launcher bootstrap loader、目录本地增量、刷新/订阅与 owner reset 命令。
- * OUTPUT: 区分首次失败、合法空目录和 stale 数据，并隔离旧 owner 响应及晚到 HTTP 快照的单飞状态机。
+ * OUTPUT: 区分首次失败、合法空目录和 stale 数据，并隔离旧 owner 响应及晚到 HTTP 快照、按目录版本跳过重复读取的单飞状态机。
  * POS: Home 目录的纯状态与竞态边界；不订阅浏览器事件，也不拥有 React 生命周期。
  */
 import type {
@@ -55,7 +55,8 @@ export interface HomeDirectoryStore {
   getLastSuccessfulRefreshAt: () => number;
   getSnapshot: () => HomeDirectorySnapshot;
   hasActiveRequest: () => boolean;
-  refresh: () => void;
+  /** 传入目录版本时，已加载或在途结果不早于该版本则不再发起读取。 */
+  refresh: (directoryRevision?: number) => void;
   resetOwnerScope: () => void;
   subscribe: (listener: DirectoryListener) => () => void;
 }
@@ -79,6 +80,9 @@ export function createHomeDirectoryStore({
   let activeRequest: ActiveDirectoryRequest | null = null;
   let lastSuccessfulRefreshAt = 0;
   let refreshQueued = false;
+  // undefined 表示排队的刷新必须无条件执行；数值表示只需覆盖到该目录版本。
+  let queuedDirectoryRevision: number | undefined;
+  let loadedDirectoryRevision = Number.NEGATIVE_INFINITY;
   let snapshot = createInitialSnapshot();
   let revision = 0;
   let acceptedRevision = 0;
@@ -97,6 +101,7 @@ export function createHomeDirectoryStore({
   const cancelActiveRequest = () => {
     const request = activeRequest;
     refreshQueued = false;
+    queuedDirectoryRevision = undefined;
     if (!request) {
       return;
     }
@@ -111,6 +116,7 @@ export function createHomeDirectoryStore({
     if (requestRevision < acceptedRevision) return snapshot;
     acceptedRevision = requestRevision;
     lastSuccessfulRefreshAt = Date.now();
+    loadedDirectoryRevision = payload.directory_revision ?? Number.NEGATIVE_INFINITY;
     const nextSnapshot: HomeDirectorySnapshot = {
       agents: payload.agents,
       conversations: payload.conversations,
@@ -144,11 +150,21 @@ export function createHomeDirectoryStore({
     patches.clear();
     revision = 0;
     acceptedRevision = 0;
+    loadedDirectoryRevision = Number.NEGATIVE_INFINITY;
     replaceSnapshot(createInitialSnapshot());
   };
 
-  const refresh = () => {
+  const refresh = (directoryRevision?: number) => {
+    if (directoryRevision !== undefined && loadedDirectoryRevision >= directoryRevision) {
+      return;
+    }
     if (activeRequest) {
+      // 在途请求的版本未知，排队等它完成后再按版本判定是否仍需重读。
+      queuedDirectoryRevision = !refreshQueued
+        ? directoryRevision
+        : queuedDirectoryRevision === undefined || directoryRevision === undefined
+          ? undefined
+          : Math.max(queuedDirectoryRevision, directoryRevision);
       refreshQueued = true;
       return;
     }
@@ -186,8 +202,10 @@ export function createHomeDirectoryStore({
         if (activeRequest === request) {
           activeRequest = null;
           if (refreshQueued) {
+            const queuedRevision = queuedDirectoryRevision;
             refreshQueued = false;
-            refresh();
+            queuedDirectoryRevision = undefined;
+            refresh(queuedRevision);
           }
         }
       });

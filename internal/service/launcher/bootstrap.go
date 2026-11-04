@@ -1,5 +1,5 @@
 // INPUT: Agent/Room 持久摘要、只读 Session metadata 目录与 SQLite 短摘要。
-// OUTPUT: 保持 wire 兼容的 Launcher 首屏 agents、rooms 与 conversations 摘要。
+// OUTPUT: 保持 wire 兼容的 Launcher 首屏 agents、rooms 与 conversations 摘要，以及读取前的目录版本。
 // POS: Launcher 首屏投影；回复预览不读取历史页，按 Room 聚合最新有效正文，单个历史失败不得阻断目录。
 package launcher
 
@@ -28,6 +28,11 @@ func (s *Service) Bootstrap(ctx context.Context) (_ BootstrapResponse, err error
 			)
 		}
 	}()
+	// 先取版本再读目录：快照内容不早于该版本，读取失败只放弃去重标注。
+	var directoryRevision *int64
+	if version, versionErr := s.roomService.DirectoryVersion(ctx); versionErr == nil {
+		directoryRevision = &version.Directory
+	}
 	agentsStartedAt := time.Now()
 	agents, err := s.agentService.ListAgentRecords(ctx)
 	if err != nil {
@@ -119,9 +124,10 @@ func (s *Service) Bootstrap(ctx context.Context) (_ BootstrapResponse, err error
 	}
 
 	return BootstrapResponse{
-		Agents:        agentItems,
-		Rooms:         roomItems,
-		Conversations: conversationItems,
+		Agents:            agentItems,
+		Rooms:             roomItems,
+		Conversations:     conversationItems,
+		DirectoryRevision: directoryRevision,
 	}, nil
 }
 

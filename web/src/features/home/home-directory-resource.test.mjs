@@ -268,3 +268,29 @@ test("room preview is shared but source activity and newer reconciliations stay 
   store.acceptAuthoritativePayload(payload, oldRevision);
   assert.equal(store.getSnapshot().conversations[0].last_reply_preview, "authoritative");
 });
+
+test("versioned invalidation skips directories already loaded at or after that revision", async () => {
+  const requests = [];
+  const store = createHomeDirectoryStore({ load: () => { const request = deferred(); requests.push(request); return request.promise; }, reportError: assert.fail });
+  store.refresh();
+  // 首屏请求在途时到达的订阅核对排队，响应已覆盖该版本则不再重读。
+  store.refresh(5);
+  requests[0].resolve({ ...directoryPayload("first"), directory_revision: 5 });
+  await flushPromises();
+  assert.equal(requests.length, 1);
+  store.refresh(5);
+  assert.equal(requests.length, 1);
+  store.refresh(6);
+  assert.equal(requests.length, 2);
+  // 在途期间版本化与无版本失效合并后必须无条件重读。
+  store.refresh(6);
+  store.refresh();
+  requests[1].resolve({ ...directoryPayload("second"), directory_revision: 6 });
+  await flushPromises();
+  assert.equal(requests.length, 3);
+  requests[2].resolve(directoryPayload("legacy"));
+  await flushPromises();
+  // 未标注版本的快照不能用于跳过后续版本化失效。
+  store.refresh(1);
+  assert.equal(requests.length, 4);
+});

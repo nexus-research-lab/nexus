@@ -73,4 +73,6 @@ type BootstrapResponse struct {
 	Agents        []BootstrapAgent        `json:"agents"`
 	Rooms         []BootstrapRoom         `json:"rooms"`
 	Conversations []BootstrapConversation `json:"conversations"`
+	// DirectoryRevision 在读取目录前取得，客户端据此跳过不晚于本快照的目录失效通知。
+	DirectoryRevision *int64 `json:"directory_revision,omitempty"`
 }

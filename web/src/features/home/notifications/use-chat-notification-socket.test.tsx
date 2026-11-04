@@ -7,12 +7,12 @@ import { extractAssistantReplyPreview } from "@/features/conversation/shared/mes
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { buildChatNotificationDirectoryIndex } from "./chat-notification-directory";
 import { useChatNotificationSocket } from "./use-chat-notification-socket";
-const socket = vi.hoisted(() => ({ onMessage: (_value: unknown) => {}, refresh: vi.fn(), agents: vi.fn(), update: vi.fn(() => true) }));
-vi.mock("@/lib/websocket", () => ({ useAppEventSubscription: vi.fn(), useWebSocket: (options: { onMessage: (value: unknown) => void }) => { socket.onMessage = options.onMessage; return { send: vi.fn(), state: "disconnected" }; } }));
+const socket = vi.hoisted(() => ({ onMessage: (_value: unknown) => {}, refresh: vi.fn(), agents: vi.fn(), update: vi.fn(() => true), state: "disconnected" }));
+vi.mock("@/lib/websocket", () => ({ useAppEventSubscription: vi.fn(), useWebSocket: (options: { onMessage: (value: unknown) => void }) => { socket.onMessage = options.onMessage; return { send: vi.fn(), state: socket.state }; } }));
 vi.mock("@/store/agent", () => ({ useAgentStore: { getState: () => ({ load_agents_from_server: socket.agents }) } }));
 vi.mock("@/lib/conversation/room-directory-events", () => ({ notifyRoomDirectoryUpdated: socket.refresh }));
 vi.mock("../home-directory-resource", () => ({ applyHomeDirectoryRoomUpdate: socket.update }));
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); socket.state = "disconnected"; });
 const event = { protocol_version: 1, room_id: "room-1", conversation_id: "conv-1", session_key: "session", timestamp: 1, event_type: "message", delivery_mode: "durable", data: { agent_id: "", message_id: "user-1", round_id: "round-1", role: "user", content: "Hello", timestamp: 1 } };
 function setup(roomType: "dm" | "room" = "dm") {
   const completed = vi.fn();
@@ -63,9 +63,30 @@ it("resolves deleted sessions from directory event data", () => {
   expect(socket.refresh).toHaveBeenCalledTimes(1);
 });
 
-it("refreshes a new group and agent metadata from global invalidation without a Room subscription", () => {
+const directoryEvent = (data: Record<string, unknown>) => ({ protocol_version: 1, timestamp: 2, event_type: "directory_changed", data });
+it("refreshes a cross-process group change by revision and reloads agents only for agent changes", () => {
   setup();
-  act(() => socket.onMessage({ protocol_version: 1, timestamp: 2, event_type: "directory_changed", data: { reason: "agent_room_directory_changed" } }));
-  expect(socket.refresh).toHaveBeenCalledOnce();
+  act(() => socket.onMessage(directoryEvent({ reason: "directory_revision_changed", directory_revision: 7 })));
+  expect(socket.refresh).toHaveBeenLastCalledWith(7);
+  expect(socket.agents).not.toHaveBeenCalled();
+  act(() => socket.onMessage(directoryEvent({ reason: "agent_directory_revision_changed", directory_revision: 8 })));
+  expect(socket.refresh).toHaveBeenLastCalledWith(8);
   expect(socket.agents).toHaveBeenCalledOnce();
+});
+it("lets the first subscription reconcile skip by revision but forces a full reload after reconnect", () => {
+  socket.state = "connected";
+  const directoryIndex = buildChatNotificationDirectoryIndex({ agents: [], rooms: [], conversations: [] });
+  const { rerender } = renderHook(() => useChatNotificationSocket({ directoryIndex, roomIdsKey: "", onCompletedMessage: vi.fn() }));
+  act(() => socket.onMessage(directoryEvent({ reason: "app_events_subscribed", directory_revision: 3 })));
+  expect(socket.refresh).toHaveBeenLastCalledWith(3);
+  expect(socket.agents).not.toHaveBeenCalled();
+  socket.state = "disconnected";
+  rerender();
+  socket.state = "connected";
+  rerender();
+  // 重连后目录交给服务端核对，本地只补读 Agent 列表。
+  expect(socket.agents).toHaveBeenCalledOnce();
+  expect(socket.refresh).toHaveBeenCalledOnce();
+  act(() => socket.onMessage(directoryEvent({ reason: "app_events_subscribed", directory_revision: 3 })));
+  expect(socket.refresh).toHaveBeenLastCalledWith(undefined);
 });

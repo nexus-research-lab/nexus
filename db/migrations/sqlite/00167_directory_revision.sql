@@ -1,10 +1,12 @@
 -- +goose Up
--- A committed scalar revision lets the server observe writes from standalone nexusctl processes.
+-- Committed scalar revisions let the server observe writes from standalone nexusctl processes.
+-- agent_revision also advances for Agent/Profile display changes, so clients reload the Agent list only when needed.
 CREATE TABLE directory_revision (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    revision BIGINT NOT NULL
+    revision BIGINT NOT NULL,
+    agent_revision BIGINT NOT NULL
 );
-INSERT INTO directory_revision (id, revision) VALUES (1, 0);
+INSERT INTO directory_revision (id, revision, agent_revision) VALUES (1, 0, 0);
 
 -- +goose StatementBegin
 CREATE TRIGGER directory_revision_rooms_insert AFTER INSERT ON rooms
@@ -74,7 +76,7 @@ END;
 -- +goose StatementBegin
 CREATE TRIGGER directory_revision_agents_insert AFTER INSERT ON agents
 BEGIN
-    UPDATE directory_revision SET revision = revision + 1 WHERE id = 1;
+    UPDATE directory_revision SET revision = revision + 1, agent_revision = agent_revision + 1 WHERE id = 1;
 END;
 -- +goose StatementEnd
 
@@ -82,21 +84,21 @@ END;
 CREATE TRIGGER directory_revision_agents_update AFTER UPDATE OF name, description, avatar, status ON agents
 WHEN OLD.name IS NOT NEW.name OR OLD.description IS NOT NEW.description OR OLD.avatar IS NOT NEW.avatar OR OLD.status IS NOT NEW.status
 BEGIN
-    UPDATE directory_revision SET revision = revision + 1 WHERE id = 1;
+    UPDATE directory_revision SET revision = revision + 1, agent_revision = agent_revision + 1 WHERE id = 1;
 END;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
 CREATE TRIGGER directory_revision_agents_delete AFTER DELETE ON agents
 BEGIN
-    UPDATE directory_revision SET revision = revision + 1 WHERE id = 1;
+    UPDATE directory_revision SET revision = revision + 1, agent_revision = agent_revision + 1 WHERE id = 1;
 END;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
 CREATE TRIGGER directory_revision_profiles_insert AFTER INSERT ON profiles
 BEGIN
-    UPDATE directory_revision SET revision = revision + 1 WHERE id = 1;
+    UPDATE directory_revision SET revision = revision + 1, agent_revision = agent_revision + 1 WHERE id = 1;
 END;
 -- +goose StatementEnd
 
@@ -104,14 +106,14 @@ END;
 CREATE TRIGGER directory_revision_profiles_update AFTER UPDATE OF display_name, avatar_url ON profiles
 WHEN OLD.display_name IS NOT NEW.display_name OR OLD.avatar_url IS NOT NEW.avatar_url
 BEGIN
-    UPDATE directory_revision SET revision = revision + 1 WHERE id = 1;
+    UPDATE directory_revision SET revision = revision + 1, agent_revision = agent_revision + 1 WHERE id = 1;
 END;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
 CREATE TRIGGER directory_revision_profiles_delete AFTER DELETE ON profiles
 BEGIN
-    UPDATE directory_revision SET revision = revision + 1 WHERE id = 1;
+    UPDATE directory_revision SET revision = revision + 1, agent_revision = agent_revision + 1 WHERE id = 1;
 END;
 -- +goose StatementEnd
 

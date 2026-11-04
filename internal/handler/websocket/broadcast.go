@@ -57,6 +57,7 @@ func (h *Handler) BroadcastDirectoryChanged(ctx context.Context, reason string, 
 		payload[key] = value
 	}
 	payload["reason"] = strings.TrimSpace(reason)
+	h.coverDirectoryVersion(ctx, payload["reason"].(string))
 	h.appEventSubs.Broadcast(ctx, protocol.NewEvent(protocol.EventTypeDirectoryChanged, payload))
 }
 

@@ -46,8 +46,8 @@ export function applyHomeDirectoryRoomUpdate(update: DirectoryRoomUpdate): boole
   return directoryStore.applyRoomUpdate(update);
 }
 
-export function refreshHomeDirectory(): void {
-  directoryStore.refresh();
+export function refreshHomeDirectory(directoryRevision?: number): void {
+  directoryStore.refresh(directoryRevision);
 }
 
 /** 清空旧 owner 目录并中止其在途读取；现有订阅者可在新身份下立即重新加载。 */
@@ -107,15 +107,16 @@ function startDirectoryTriggers(): () => void {
       refreshHomeDirectoryIfStale();
     }
   };
+  const refreshAfterAgentMutation = () => refreshHomeDirectory();
   const unsubscribeRoomDirectory = subscribeRoomDirectoryUpdates(refreshHomeDirectory);
   window.addEventListener("focus", refreshIfVisible);
-  window.addEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshHomeDirectory);
+  window.addEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshAfterAgentMutation);
   document.addEventListener("visibilitychange", refreshIfVisible);
 
   return () => {
     unsubscribeRoomDirectory();
     window.removeEventListener("focus", refreshIfVisible);
-    window.removeEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshHomeDirectory);
+    window.removeEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshAfterAgentMutation);
     document.removeEventListener("visibilitychange", refreshIfVisible);
   };
 }

@@ -60,4 +60,6 @@ export interface LauncherBootstrapResponse {
   agents: LauncherAgentSummary[];
   rooms: LauncherRoomSummary[];
   conversations: LauncherConversationSummary[];
+  /** 服务端读取目录前的已提交版本；不晚于它的目录失效通知可跳过重读。 */
+  directory_revision?: number;
 }

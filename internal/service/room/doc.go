@@ -12,7 +12,7 @@
 //
 // 实时聊天、round、queue、协作消息和 runtime 执行位于同级 realtime 子包；
 // 它依赖本包的持久化 Service，本包不反向依赖 realtime，保持单向边界。
-//   - directory_watch.go：按单行版本合并跨进程 Room/Agent 目录失效，读取失败保留上次版本，关闭时可取消。
+//   - directory_watch.go：按单行版本合并跨进程 Room/Agent 目录失效，跳过宿主即时通知已覆盖的版本，读取失败保留上次版本，关闭时可取消。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package room

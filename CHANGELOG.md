@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Refresh chat and agent directories after standalone CLI changes using committed directory revisions and WebSocket invalidation, with reconciliation when subscriptions connect.
+- Refresh chat and agent directories after standalone CLI changes using committed directory revisions and WebSocket invalidation, with reconciliation when subscriptions connect. In-process changes already notified are not repeated, room-only changes no longer reload the Agent list, versioned invalidations skip directories already loaded, and PostgreSQL advances the revision once per transaction at commit.
 
 - Add a shared icon-only continuation action to empty DM/Room composers, including paused queues and exact recoverable WorkGraph tasks; preserve existing send/stop icons and prevent duplicate or unknown-outcome replay.
 

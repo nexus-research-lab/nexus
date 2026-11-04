@@ -169,6 +169,8 @@ Room shared 历史由两类行组成：
 
 ### 跨进程目录刷新
 
-Room、成员、Conversation 标题/草稿和 Agent/Profile 展示信息的数据库 mutation 通过触发器在同一事务内推进 `directory_revision`。宿主每秒读取这一行版本，观察到变化后向全局应用订阅发送 `directory_changed`，由客户端按当前身份重新读取共享目录。多个连续变化可以合并成一次通知，检测间隔之外还需加上 WebSocket 和目录请求耗时。独立 `nexusctl` 写入也参与同一版本协议。
+Room、成员、Conversation 标题/草稿和 Agent/Profile 展示信息的数据库 mutation 通过触发器推进 `directory_revision.revision`；Agent/Profile 变化同时推进 `agent_revision`。SQLite 写入天然串行，触发器在语句内推进；PostgreSQL 使用 `DEFERRABLE INITIALLY DEFERRED` 约束触发器，在提交时每个事务只推进一次，不在事务全程持有版本行锁。宿主每秒读取这一行版本，观察到变化后向全局应用订阅发送 `directory_changed`，由客户端按当前身份重新读取共享目录。多个连续变化可以合并成一次通知，检测间隔之外还需加上 WebSocket 和目录请求耗时。独立 `nexusctl` 写入也参与同一版本协议。
 
-通知只携带目录失效原因。数据库回滚不推进已提交版本，普通消息活动时间和无值变化的 Room 写锁不触发目录刷新。原有 HTTP/configuration 的即时通知继续生效。应用事件订阅先注册，再向该连接发送一次目录核对通知，覆盖首屏读取到订阅建立之间及重连期间的变化。后端观察器读取失败后保留上一版本重试，宿主关闭取消并等待观察器退出。
+宿主自身 mutation 的即时 `directory_changed` 在发出前读取已提交版本并记为已覆盖；客户端收到即时通知后才重读，因此观察器只补发版本高于覆盖记录的变化，同一次建群/改名不会令客户端重读两次。原因带 `agent_` 前缀的通知同时覆盖 Agent 版本；观察器仅在 Agent 版本未被覆盖时发送 `agent_directory_revision_changed`（客户端重读目录与 Agent 列表），否则发送 `directory_revision_changed`（只重读目录）。观察器以启动时版本为基线，不在启动时广播。
+
+通知只携带失效原因和 `directory_revision`，不携带资源身份。数据库回滚不推进已提交版本，普通消息活动时间和无值变化的 Room 写锁不触发目录刷新。Launcher bootstrap 在读取目录前取得版本并返回 `directory_revision`；客户端已加载或在途快照不早于通知版本时跳过重读。应用事件订阅先注册，再向该连接发送一次带版本的 `app_events_subscribed` 核对：首连可按版本跳过已加载的首屏目录，重连必须无条件重读（断线期间的即时通知不带版本，如 Session 变化），并由客户端补读一次 Agent 列表。后端观察器读取失败后保留上一版本重试，宿主关闭取消并等待观察器退出。

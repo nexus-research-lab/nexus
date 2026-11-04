@@ -1,5 +1,5 @@
 // INPUT: 两个独立 SQLite 连接上的 Room 事务、成员变更及迁移回滚。
-// OUTPUT: 另一连接仅观察已提交目录变化，普通消息活动不增加目录结构版本。
+// OUTPUT: 另一连接仅观察已提交目录变化，Room 变化不推进 Agent 版本，普通消息活动不增加目录结构版本。
 // POS: standalone CLI 与宿主共享数据库的目录通知回归。
 package roomrepo
 
@@ -13,21 +13,29 @@ import (
 func TestDirectoryRevisionAcrossConnections(t *testing.T) {
 	writer, _, writeRepo, reader := newConcurrentRoomRepositories(t)
 	ctx := context.Background()
-	read := func() int64 {
+	readVersion := func() DirectoryVersion {
 		t.Helper()
-		revision, err := reader.DirectoryRevision(ctx)
+		version, err := reader.DirectoryVersion(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return revision
+		return version
 	}
-	before := read()
+	read := func() int64 { return readVersion().Directory }
+	before := readVersion()
 	seedRoomRepositoryAgent(t, writer, "owner", "one")
 	seedRoomRepositoryAgent(t, writer, "owner", "two")
+	seeded := readVersion()
+	if seeded.Agent <= before.Agent || seeded.Directory <= before.Directory {
+		t.Fatal("agent creation did not invalidate the agent directory")
+	}
 	createRepositoryRoom(t, writeRepo, "owner", "room", "one", "one", "two")
 	created := read()
-	if created <= before {
+	if created <= seeded.Directory {
 		t.Fatal("creation did not invalidate directory")
+	}
+	if readVersion().Agent != seeded.Agent {
+		t.Fatal("room creation invalidated the agent directory")
 	}
 	tx, err := writer.BeginTx(ctx, nil)
 	if err != nil {
@@ -82,7 +90,7 @@ func TestDirectoryRevisionAcrossConnections(t *testing.T) {
 	if err := goose.Up(writer, roomrepoMigrationDir(t)); err != nil {
 		t.Fatal(err)
 	}
-	if read() != 0 {
+	if readVersion() != (DirectoryVersion{}) {
 		t.Fatal("reapplied revision baseline is not zero")
 	}
 }

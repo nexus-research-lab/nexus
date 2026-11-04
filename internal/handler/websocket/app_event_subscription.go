@@ -93,3 +93,13 @@ func (r *appEventSubscriptionRegistry) Broadcast(ctx context.Context, event prot
 	}
 	return errs
 }
+
+// Empty 报告当前是否没有全局订阅；无人接收时即时通知无需记录目录覆盖版本。
+func (r *appEventSubscriptionRegistry) Empty() bool {
+	if r == nil {
+		return true
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.subscribers) == 0
+}

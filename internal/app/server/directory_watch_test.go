@@ -1,5 +1,5 @@
 // INPUT: 独立 CLI 服务连接的建群/改名与真实 WebSocket 全局订阅。
-// OUTPUT: 未订阅新 Room 的客户端收到目录通知后可读取新群和新名称。
+// OUTPUT: 未订阅新 Room 的客户端收到目录通知后可读取新群和新名称；宿主已即时通知的变化不重复通知。
 // POS: 跨进程写入到页面 bootstrap 的应用链路回归。
 package server
 
@@ -48,8 +48,8 @@ func TestExternalRoomChangeReachesDirectorySubscriber(t *testing.T) {
 	if err := wsjson.Read(ctx, connection, &subscribed); err != nil {
 		t.Fatal(err)
 	}
-	if subscribed.EventType != protocol.EventTypeDirectoryChanged {
-		t.Fatalf("missing subscription reconciliation: %+v", subscribed)
+	if subscribed.EventType != protocol.EventTypeDirectoryChanged || subscribed.Data["directory_revision"] == nil {
+		t.Fatalf("missing versioned subscription reconciliation: %+v", subscribed)
 	}
 	// 与 nexusctl 相同的服务装配，使用独立 DB 连接且不注入 HTTP notifier。
 	agents, externalDB, err := app.NewAgentService(cfg)
@@ -106,4 +106,33 @@ func TestExternalRoomChangeReachesDirectorySubscriber(t *testing.T) {
 		t.Fatal(err)
 	}
 	awaitName(renamed)
+
+	// 宿主自身 mutation 已即时通知时，观察器不得在下一轮再补发一次。
+	inProcessName := "In-process group"
+	if _, err := server.services.Core.Room.UpdateRoom(ctx, created.Room.ID, protocol.UpdateRoomRequest{Name: &inProcessName}); err != nil {
+		t.Fatal(err)
+	}
+	server.handlers.websocket.BroadcastDirectoryChanged(ctx, "room_updated", map[string]any{"room_id": created.Room.ID})
+	// 观察器恰在提交与覆盖记录之间轮询时允许先补发一次；即时通知之后不得再重复。
+	for {
+		var immediate protocol.EventMessage
+		if err := wsjson.Read(ctx, connection, &immediate); err != nil {
+			t.Fatal(err)
+		}
+		if immediate.EventType != protocol.EventTypeDirectoryChanged {
+			continue
+		}
+		if immediate.Data["reason"] == "room_updated" {
+			break
+		}
+		if immediate.Data["reason"] != "directory_revision_changed" {
+			t.Fatalf("unexpected directory notification = %+v", immediate)
+		}
+	}
+	quietCtx, stopQuiet := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer stopQuiet()
+	var duplicate protocol.EventMessage
+	if err := wsjson.Read(quietCtx, connection, &duplicate); err == nil {
+		t.Fatalf("watcher repeated a covered in-process change: %+v", duplicate)
+	}
 }
