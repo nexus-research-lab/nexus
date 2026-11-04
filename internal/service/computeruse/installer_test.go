@@ -2,6 +2,7 @@ package computeruse
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -10,10 +11,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -37,7 +40,10 @@ func TestCUAStateRootAnchorsBesideSQLiteDatabase(t *testing.T) {
 }
 
 func TestCUAInstallerDownloadsVerifiesAndPersistsRelease(t *testing.T) {
-	archiveName := "nexus-cua-v0.1.0-macos-universal-release.tar.gz"
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("native desktop installer requires macOS or Windows")
+	}
+	archiveName := "nexus-cua-v0.1.0-" + currentCUAPlatform() + "-" + currentCUAArchitecture() + ".tar.gz"
 	binary := []byte("nexuscua-test-binary")
 	archive := makeCUATarGz(t, binary, "release_accepted")
 	digest := sha256.Sum256(archive)
@@ -54,7 +60,7 @@ func TestCUAInstallerDownloadsVerifiesAndPersistsRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Version != "0.1.0" || result.Architecture != "universal2" {
+	if result.Version != "0.1.0" || result.Architecture != currentCUAArchitecture() {
 		t.Fatalf("install result = %#v", result)
 	}
 	installed, err := os.ReadFile(result.BinaryPath)
@@ -77,10 +83,26 @@ func TestCUAInstallerDownloadsVerifiesAndPersistsRelease(t *testing.T) {
 	if !reloaded.Enabled() || reloaded.InstalledBinaryPath() == "" {
 		t.Fatal("reloaded installer lost its state")
 	}
+	if _, err := installer.Install(context.Background()); err != nil || !installer.Enabled() {
+		t.Fatalf("idempotent installation did not preserve enablement: %v", err)
+	}
+	if err := os.WriteFile(result.BinaryPath, []byte("different-runtime"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := installer.Install(context.Background()); !errors.Is(err, ErrCUAReleaseRejected) {
+		t.Fatalf("conflicting same-version installation was accepted: %v", err)
+	}
+	retained, err := os.ReadFile(result.BinaryPath)
+	if err != nil || string(retained) != "different-runtime" {
+		t.Fatalf("failed installation replaced the existing version: %v", err)
+	}
 }
 
 func TestCUAInstallerRejectsChecksumMismatch(t *testing.T) {
-	archiveName := "nexus-cua-v0.1.0-macos-universal-release.tar.gz"
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("native desktop installer requires macOS or Windows")
+	}
+	archiveName := "nexus-cua-v0.1.0-" + currentCUAPlatform() + "-" + currentCUAArchitecture() + ".tar.gz"
 	archive := makeCUATarGz(t, []byte("nexuscua"), "release_accepted")
 	server := newCUAReleaseServer(t, archiveName, archive, fmt.Sprintf("%064x  %s\n", 0, archiveName))
 	defer server.Close()
@@ -108,12 +130,12 @@ func makeCUATarGz(t *testing.T, binary []byte, releaseState string) []byte {
 		Version:        "0.1.0",
 		Protocol:       "nexus.cua.v1",
 		SourceRevision: "dacde8d",
-		Platform:       "macos",
-		Architecture:   "universal2",
+		Platform:       currentCUAPlatform(),
+		Architecture:   currentCUAArchitecture(),
 		Files: map[string]struct {
 			Path   string `json:"path"`
 			SHA256 string `json:"sha256"`
-		}{"runtime": {Path: "nexuscua", SHA256: sha256Hex(binary)}},
+		}{"runtime": {Path: currentCUABinaryName(), SHA256: sha256Hex(binary)}},
 	}
 	manifestBytes, err := json.Marshal(manifest)
 	if err != nil {
@@ -132,7 +154,7 @@ func makeCUATarGz(t *testing.T, binary []byte, releaseState string) []byte {
 		}
 	}
 	write("manifest.json", manifestBytes, 0o600)
-	write("nexuscua", binary, 0o700)
+	write(currentCUABinaryName(), binary, 0o700)
 	if err := tarWriter.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -172,4 +194,118 @@ func newCUAReleaseServer(t *testing.T, archiveName string, archive []byte, check
 func sha256Hex(value []byte) string {
 	digest := sha256.Sum256(value)
 	return hex.EncodeToString(digest[:])
+}
+
+func TestCUAAssetsMatchPlatformAndArchitecture(t *testing.T) {
+	names := []string{
+		"nexuscua-0.1.0-macos-universal2.tar.gz",
+		"nexuscua-0.1.0-windows-x86_64.zip",
+		"nexuscua-0.1.0-windows-arm64.zip",
+	}
+	var assets []githubReleaseAsset
+	for _, name := range names {
+		assets = append(assets, githubReleaseAsset{Name: name, URL: "https://example.test/" + name},
+			githubReleaseAsset{Name: name + ".sha256", URL: "https://example.test/" + name + ".sha256"})
+	}
+	for _, test := range []struct{ platform, architecture, name string }{
+		{"macos", "arm64", names[0]},
+		{"windows", "x86_64", names[1]},
+		{"windows", "arm64", names[2]},
+	} {
+		archive, _, err := selectCUAAssets(assets, test.platform, test.architecture)
+		if err != nil || archive.Name != test.name {
+			t.Fatalf("%s/%s selected %q: %v", test.platform, test.architecture, archive.Name, err)
+		}
+	}
+}
+
+func TestCUAZipIncludesBoundedLicenseInventory(t *testing.T) {
+	binary := []byte("native-runtime")
+	gzipReader, err := gzip.NewReader(bytes.NewReader(makeCUATarGz(t, binary, "release_accepted")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gzipReader.Close()
+	tarReader := tar.NewReader(gzipReader)
+	var archive bytes.Buffer
+	zipWriter := zip.NewWriter(&archive)
+	for {
+		header, err := tarReader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer, err := zipWriter.Create(header.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.Copy(writer, tarReader); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for index := range 200 {
+		writer, err := zipWriter.Create(fmt.Sprintf("licenses/dependency-%d/LICENSE.txt", index))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.Write([]byte("license notice")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zipWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "runtime.zip")
+	if err := os.WriteFile(path, archive.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest, executable, err := extractCUAArchive(path, t.TempDir(), "v0.1.0", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isExecutableRegularFile(executable) {
+		t.Fatal("extracted runtime was not recognized as executable")
+	}
+	manifest.Platform = "unsupported"
+	if err := validateCUAManifest(manifest, "v0.1.0", executable, false); !errors.Is(err, ErrCUAReleaseRejected) {
+		t.Fatalf("wrong-platform manifest was accepted: %v", err)
+	}
+	manifest.Platform = currentCUAPlatform()
+	delete(manifest.Files, "runtime")
+	if err := validateCUAManifest(manifest, "v0.1.0", executable, false); !errors.Is(err, ErrCUAReleaseRejected) {
+		t.Fatalf("manifest without a runtime digest was accepted: %v", err)
+	}
+	for _, name := range []string{"../outside", "C:relative.exe", "runtime.exe:stream"} {
+		if _, err := safeArchivePath(name); err == nil {
+			t.Fatalf("unsafe archive path accepted: %q", name)
+		}
+	}
+}
+
+func TestConfiguredCUAEnablementSurvivesRestart(t *testing.T) {
+	root := t.TempDir()
+	binary := filepath.Join(root, currentCUABinaryName())
+	if err := os.WriteFile(binary, []byte("configured-runtime"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{DatabaseURL: filepath.Join(root, "nexus.db"), ComputerUseBinaryPath: binary}
+	service := NewService(cfg)
+	if !service.InstallationStatus().Installed {
+		t.Fatal("configured runtime was not recognized")
+	}
+	if err := service.SetEnabled(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	restarted := NewService(cfg)
+	if !restarted.Enabled() {
+		t.Fatal("configured runtime enablement was lost on restart")
+	}
+	if err := restarted.SetEnabled(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if NewService(cfg).Enabled() {
+		t.Fatal("disabled configured runtime was enabled on restart")
+	}
 }

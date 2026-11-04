@@ -17,8 +17,8 @@ settings computer-use
   endpoint、token、native handle 与 artifact root 不进入 Agent input、审批事件或普通日志。
 - `internal/handler/computeruse` 只投影浏览器安全的状态与动作，不暴露私有路径。
 - `web/src/features/settings/computer-use` 只负责安装开关、状态展示与权限引导，不承载会话或动作。
-- 设置入口只在 macOS 桌面宿主显示（宿主注入 `platform=macos`）；Web 与 Windows 隐藏入口，
-  直接访问分区时重定向回常规设置。Windows 支持为未实现的 non-normative 计划。
+- 设置入口在 macOS 与 Windows 桌面宿主显示，由宿主注入的平台标识决定。
+  其他宿主直接访问分区时重定向回常规设置。
 
 ## Round 会话边界
 
@@ -112,10 +112,12 @@ Input Control 同时需要事件派发和 Input Monitoring，桌面引导补充�
   `NEXUS_CUA_ALLOW_UNACCEPTED_RELEASE=1` 只允许开发环境放行未验收候选。
 - 安装包必须附带 `<archive>.sha256`；归档整体 SHA256 与 manifest 内 runtime 文件 SHA256
   双重校验通过后才落盘。归档拒绝符号链接、路径穿越、超限成员与多重 manifest/runtime。
-- 安装产物原子落位到 `<CUA 状态根>/versions/<version>-<architecture>/nexuscua`，
+- 安装产物原子落位到 `<CUA 状态根>/versions/<version>-<architecture>/nexuscua`，Windows 使用 `nexuscua.exe`。
   状态根为 SQLite 数据库同目录下的 `computer-use/`（0700）；安装、启用与二进制路径记录在
   同目录 `state.json`。安装本身不启用能力。
-- 安装器只接受 macOS 归档，按当前 CPU 架构优先选择 arm64/x86_64、其次 universal。
+- 安装器按宿主平台选择 macOS 或 Windows 归档，并验证 manifest 平台与架构。
+  macOS 接受匹配架构或 universal，Windows 接受匹配架构。重复安装相同版本复用摘要一致的二进制，
+  同版本内容冲突会拒绝安装。归档最多包含 2048 个成员，以容纳完整的第三方许可证。
 
 本地 CUA 预览构建可设置独立 `NEXUS_DESKTOP_BUNDLE_IDENTIFIER` 和
 `NEXUS_DESKTOP_DEFAULT_STATE_ROOT`，把预览默认数据根写入 App，避免从 Finder
@@ -130,6 +132,7 @@ Input Control 同时需要事件派发和 Input Monitoring，桌面引导补充�
 - 启用状态持久化在 `state.json`；服务启动时以「环境变量启用 或 持久化启用」播种，
   且仅在存在可用二进制（已安装或 `NEXUS_COMPUTER_USE_BINARY`）时生效。
 - `NEXUS_COMPUTER_USE_BINARY` 显式指定的绝对路径优先于已安装版本，用于打包内置与开发覆盖。
+- 使用内置或显式配置二进制时，设置开关同样持久化，重启会核实二进制仍可用后恢复启用状态。
 - 关闭开关会结束当前所有 CUA round、关闭 session 并停止 sidecar；重新启用从新 epoch 开始。
 - round 关闭先禁止后续准入并向 Runtime 撤销现有 session，再等待动作互斥锁清理；不能等长按结束才发送撤销。关闭期间返回的新 session 必须立即关闭。撤销不能撤回已派发事件，原生停止能力以 Runtime 版本为准。
 - 安装新版本会停止当前 sidecar 并切换后续 epoch 使用的二进制，旧 round 的 opaque ref 全部作废。
@@ -147,6 +150,7 @@ Input Control 同时需要事件派发和 Input Monitoring，桌面引导补充�
 
 ## 权限引导
 
+- Windows 的全局权限状态为 `not_applicable`，设置页展示该状态，具体操作继续经过应用授权和系统边界校验。
 - 宿主只读取并展示系统权限事实，永不代为授予或绕过；授权必须由用户在 macOS
   系统设置中完成。
 - 设置页在启用后显示 Screen Recording、Accessibility、Input Control 三项权限状态；

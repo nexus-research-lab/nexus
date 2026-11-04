@@ -3,7 +3,7 @@ export {
   getDesktopPlatform,
   getDesktopRuntimeConfig,
   isDesktopRuntime,
-  isMacDesktopRuntime,
+  isComputerUseDesktopRuntime,
 } from "./runtime-config";
 export {
   applyDesktopRequestHeaders,

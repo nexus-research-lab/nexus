@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { zhSettingsMessages } from "@/shared/i18n/catalog/zh/settings";
@@ -13,6 +13,10 @@ vi.mock("./use-computer-use-settings-controller", () => ({
 }));
 
 const messages: Record<string, string> = zhSettingsMessages;
+
+afterEach(() => {
+  delete window.__NEXUS_DESKTOP_RUNTIME__;
+});
 
 function renderSettings() {
   return render(
@@ -73,6 +77,29 @@ it("renders CUA in its own settings page and keeps the switch action local", asy
   expect(controller.onOpenPermissions).toHaveBeenCalledExactlyOnceWith("accessibility");
   await user.click(toggle);
   expect(controller.onChange).toHaveBeenCalledExactlyOnceWith(false);
+});
+
+it("shows Windows permission status without macOS setup actions", () => {
+  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "windows" };
+  useController.mockReturnValue({
+    busy: false,
+    error: false,
+    onChange: vi.fn(),
+    onCheckPermissions: vi.fn(),
+    onOpenPermissions: vi.fn(),
+    status: {
+      installed: true,
+      enabled: true,
+      permissions: {
+        screen_capture: "not_applicable",
+        accessibility: "not_applicable",
+        input_control: "not_applicable",
+      },
+    },
+  });
+  renderSettings();
+  expect(screen.getByText("Windows 无需这些全局权限开关，操作按应用授权执行")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "开启" })).toBeNull();
 });
 
 it("shows a complete permission result without a next-step action", () => {

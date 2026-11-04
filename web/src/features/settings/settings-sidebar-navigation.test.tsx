@@ -109,7 +109,7 @@ it("keeps rail navigation unfiltered and preserves the panel search draft", asyn
   expect(screen.getByRole("status")).toBeTruthy();
 });
 
-it("电脑操控入口只在 macOS 桌面宿主显示，浏览器入口不限平台", () => {
+it("电脑操控入口在 macOS 和 Windows 桌面宿主显示", () => {
   window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "macos" };
   const macView = render(<SettingsSidebarNavigation variant="panel" />);
   expect(screen.getByRole("button", { name: "电脑操控" })).toBeTruthy();
@@ -117,7 +117,12 @@ it("电脑操控入口只在 macOS 桌面宿主显示，浏览器入口不限平
   macView.unmount();
 
   window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "windows" };
+  const windowsView = render(<SettingsSidebarNavigation variant="panel" />);
+  expect(screen.getByRole("button", { name: "电脑操控" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "浏览器" })).toBeTruthy();
+  windowsView.unmount();
+
+  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "linux" };
   render(<SettingsSidebarNavigation variant="panel" />);
   expect(screen.queryByRole("button", { name: "电脑操控" })).toBeNull();
-  expect(screen.getByRole("button", { name: "浏览器" })).toBeTruthy();
 });

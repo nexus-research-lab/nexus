@@ -1,6 +1,7 @@
 param(
   [string]$AppDir = "",
   [string]$ExecutableName = "Nexus.exe",
+  [string]$StateRoot = $env:NEXUS_DESKTOP_STATE_ROOT,
   [int]$TimeoutSeconds = 75,
   [string]$ExpectNXSRuntime = $env:NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME
 )
@@ -528,25 +529,22 @@ if ($nxsExpected) {
   }
 }
 
-$logPath = Join-Path ([Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)) ".nexus/app/logs/shell.log"
+if ([string]::IsNullOrWhiteSpace($StateRoot)) {
+  $StateRoot = Join-Path ([Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)) '.nexus'
+}
+$logPath = Join-Path $StateRoot 'app/logs/shell.log'
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $logPath) | Out-Null
 $marker = "windows_smoke_$([Guid]::NewGuid().ToString('N'))"
 Add-Content -Path $logPath -Value "[$marker] smoke_start"
 
 $previousDisableUpdateCheck = $env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK
+$previousStateRoot = $env:NEXUS_DESKTOP_STATE_ROOT
+$process = $null
 try {
   $env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK = "1"
+  $env:NEXUS_DESKTOP_STATE_ROOT = $StateRoot
   Write-Host "==> Starting $appExe"
   $process = Start-Process -FilePath $appExe -WorkingDirectory $AppDir -PassThru
-} finally {
-  if ($null -eq $previousDisableUpdateCheck) {
-    Remove-Item Env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK -ErrorAction SilentlyContinue
-  } else {
-    $env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK = $previousDisableUpdateCheck
-  }
-}
-
-try {
   Wait-Until {
     $log = Read-Log $logPath
     $markerIndex = $log.LastIndexOf("[$marker] smoke_start", [System.StringComparison]::Ordinal)
@@ -712,14 +710,27 @@ try {
   Wait-Until { return @(Find-SidecarProcess $process.Id $AppDir).Count -eq 0 } 15 "reopened sidecar cleanup"
   Write-Host "==> Window close exit and sidecar cleanup: $($exitTimer.ElapsedMilliseconds)ms"
 } finally {
-  if (-not $process.HasExited) {
+  if ($null -eq $previousDisableUpdateCheck) {
+    Remove-Item Env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK -ErrorAction SilentlyContinue
+  } else {
+    $env:NEXUS_DESKTOP_DISABLE_UPDATE_CHECK = $previousDisableUpdateCheck
+  }
+  if ($null -eq $previousStateRoot) {
+    Remove-Item Env:NEXUS_DESKTOP_STATE_ROOT -ErrorAction SilentlyContinue
+  } else {
+    $env:NEXUS_DESKTOP_STATE_ROOT = $previousStateRoot
+  }
+  if ($process -and -not $process.HasExited) {
     Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
   }
-  foreach ($sidecar in @(Find-SidecarProcess $process.Id $AppDir)) {
-    Stop-Process -Id $sidecar.ProcessId -Force -ErrorAction SilentlyContinue
+  if ($process) {
+    foreach ($sidecar in @(Find-SidecarProcess $process.Id $AppDir)) {
+      Stop-Process -Id $sidecar.ProcessId -Force -ErrorAction SilentlyContinue
+    }
   }
+  $webViewCache = Join-Path $StateRoot 'app\cache\WebView2'
   Get-CimInstance Win32_Process -Filter "Name = 'msedgewebview2.exe'" |
-    Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf("Nexus\cache\WebView2", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 } |
+    Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($webViewCache, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 

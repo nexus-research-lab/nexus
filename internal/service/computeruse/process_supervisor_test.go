@@ -14,10 +14,11 @@ import (
 
 func TestProcessSupervisorRestartsAfterChildExit(t *testing.T) {
 	root := t.TempDir()
-	binary := filepath.Join(root, "sidecar.sh")
-	if err := os.WriteFile(binary, []byte("#!/bin/sh\nsleep 0.1\nexit 1\n"), 0o700); err != nil {
+	binary, err := os.Executable()
+	if err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("NEXUS_CUA_TEST_EXIT_CHILD", "1")
 	supervisor := NewProcessSupervisor(config.Config{
 		DatabaseURL:           filepath.Join(root, "nexus.db"),
 		ComputerUseBinaryPath: binary,
@@ -50,4 +51,12 @@ func TestProcessSupervisorRestartsAfterChildExit(t *testing.T) {
 		t.Fatalf("client factory calls = %d, want two epochs", factoryCalls.Load())
 	}
 	_ = supervisor.Stop(context.Background())
+}
+
+func TestMain(m *testing.M) {
+	if os.Getenv("NEXUS_CUA_TEST_EXIT_CHILD") == "1" && len(os.Args) > 1 && os.Args[1] == "serve" {
+		time.Sleep(100 * time.Millisecond)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
 }

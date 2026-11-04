@@ -86,9 +86,9 @@ export function getDesktopPlatform(): string | null {
   return platform ? platform.toLowerCase() : null;
 }
 
-/** Computer Use 目前只交付 macOS；其余平台（含旧宿主未注入 platform）一律隐藏入口。 */
-export function isMacDesktopRuntime(): boolean {
-  return isDesktopRuntime() && getDesktopPlatform() === "macos";
+/** Computer Use settings require an identified macOS or Windows desktop host. */
+export function isComputerUseDesktopRuntime(): boolean {
+  return isDesktopRuntime() && ["macos", "windows"].includes(getDesktopPlatform() ?? "");
 }
 
 export function applyDesktopRuntimeDocumentFlags(): void {

@@ -6,6 +6,7 @@
 "use client";
 
 import { MousePointer2 } from "lucide-react";
+import { getDesktopPlatform } from "@/config/desktop-runtime";
 
 import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -54,6 +55,7 @@ export function ComputerUseSettingsSection() {
   const installed = settings.status?.installed === true;
   const enabled = settings.status?.enabled === true;
   const permissions = settings.status?.permissions;
+  const windowsDesktop = getDesktopPlatform() === "windows";
   const permissionsReady = enabled && permissions != null && PERMISSION_ROWS.every(([name]) => {
     return !permissionNeedsAction(permissions[name]);
   });
@@ -91,7 +93,7 @@ export function ComputerUseSettingsSection() {
                 <div className="mt-3 space-y-2" aria-label={t("settings.computer_use.permissions_title")}>
                   <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} role="status">
                     {permissionsReady
-                      ? t("settings.computer_use.permissions_ready")
+                      ? t(windowsDesktop ? "settings.computer_use.permissions_not_required" : "settings.computer_use.permissions_ready")
                       : t("settings.computer_use.permissions_incomplete")}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-3">
@@ -103,7 +105,7 @@ export function ComputerUseSettingsSection() {
                           <UiBadge size="xs" tone={permissionTone(value)} showDot>
                             {permissionLabel(value, t)}
                           </UiBadge>
-                          {permissionNeedsAction(value) ? (
+                          {!windowsDesktop && permissionNeedsAction(value) ? (
                             <UiButton
                               className="shrink-0"
                               disabled={settings.busy}

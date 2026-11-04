@@ -96,7 +96,8 @@ func NewService(cfg config.Config) *Service {
 		binaryPath = installer.InstalledBinaryPath()
 	}
 	enabled := cfg.ComputerUseEnabled
-	if installer.Enabled() {
+	state, _ := installer.readState()
+	if state.Enabled && isExecutableRegularFile(binaryPath) {
 		enabled = true
 	}
 	return &Service{
@@ -203,8 +204,8 @@ func (s *Service) SetEnabled(ctx context.Context, enabled bool) error {
 	if enabled && installer != nil && installer.InstalledBinaryPath() == "" && !isExecutableRegularFile(configured) {
 		return ErrCUANotInstalled
 	}
-	if installer != nil && installer.InstalledBinaryPath() != "" {
-		if err := installer.SetEnabled(enabled); err != nil {
+	if installer != nil {
+		if err := installer.setEnabledForBinary(enabled, configured); err != nil {
 			return err
 		}
 	}

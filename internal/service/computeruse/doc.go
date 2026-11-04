@@ -25,4 +25,6 @@
 // This best-effort handoff neither changes grants nor bypasses native readback.
 // Windows child startup suppresses console creation so the sidecar cannot take
 // foreground ownership away from the approving desktop host.
+// installer.go verifies platform-specific release assets and executable names,
+// preserves identical installed versions, and persists bundled-runtime enablement.
 package computeruse

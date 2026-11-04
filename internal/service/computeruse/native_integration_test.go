@@ -1,4 +1,4 @@
-// INPUT: explicit local packaged CUA binary and the owned native fixture.
+// INPUT: explicit local packaged CUA binary and the owned native fixture identity.
 // OUTPUT: bounded live evidence for the Nexus service, SDK, image and action loop.
 // POS: opt-in integration test; never runs against arbitrary applications or user state.
 package computeruse
@@ -23,7 +23,7 @@ func TestPackagedCUANativeActionLoop(t *testing.T) {
 		t.Fatal("NEXUS_CUA_TEST_BINARY must be absolute")
 	}
 	ctx := context.Background()
-	root, err := os.MkdirTemp("/tmp", "nexus-cua-live-")
+	root, err := os.MkdirTemp("", "nexus-cua-live-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,14 +41,18 @@ func TestPackagedCUANativeActionLoop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if computer["runtime_version"] != "0.2.0-rc.2" || computer["observe_after"] != true {
+	if computer["runtime_version"] != "0.2.0-rc.5" || computer["observe_after"] != true {
 		t.Fatal("packaged runtime version/capabilities do not match pinned SDK")
 	}
 	approved := false
-	_, err = round.SelectTarget(ctx, "dev.nexus.cua.native-fixture", TargetOptions{
+	fixtureID := os.Getenv("NEXUS_CUA_TEST_APPLICATION_ID")
+	if fixtureID == "" {
+		fixtureID = "dev.nexus.cua.native-fixture"
+	}
+	_, err = round.SelectTarget(ctx, fixtureID, TargetOptions{
 		Actions: []nexuscua.ActionKind{nexuscua.ActionInvokeElement}, TTLSeconds: 60,
 	}, func(grant TargetGrant) error {
-		approved = grant.Application.ApplicationID == "dev.nexus.cua.native-fixture" && !grant.AllowForegroundInput
+		approved = grant.Application.ApplicationID == fixtureID && !grant.AllowForegroundInput
 		return nil
 	})
 	if err != nil || !approved {

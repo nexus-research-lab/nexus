@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Expose Windows Computer Use settings, recognize native executables, verify Windows release packages, and retain bundled-runtime enablement across restarts.
+
 - Build Windows CUA previews with separate data, registry and instance identities, verify the pinned CUA payload, and start the sidecar without a focus-stealing console window.
 
 - Hand Windows foreground eligibility from the native Nexus host to its owned CUA child over a private, bounded pipe. Validate the backend caller and child process identity; retain runtime authority checks and native foreground readback.

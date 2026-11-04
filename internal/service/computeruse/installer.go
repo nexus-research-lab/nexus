@@ -1,8 +1,8 @@
 // INPUT: GitHub nexus-cua release metadata, archive bytes, checksum, and the
 // local Nexus state root.
-// OUTPUT: A verified macOS nexuscua binary installed atomically into a private
+// OUTPUT: A verified macOS or Windows CUA binary installed into a private
 // versioned directory, with a small durable enablement record.
-// POS: Computer Use distribution boundary; it never grants macOS permissions
+// POS: Computer Use distribution boundary; it never grants desktop permissions
 // and never downloads executable code from an unverified source.
 package computeruse
 
@@ -34,7 +34,7 @@ const (
 	defaultCUAReleaseAPIURL = "https://api.github.com/repos/nexus-research-lab/nexus-cua/releases/latest"
 	maxReleaseMetadataBytes = 4 << 20
 	maxArchiveBytes         = 512 << 20
-	maxArchiveMembers       = 128
+	maxArchiveMembers       = 2048
 	maxArchiveMemberBytes   = 256 << 20
 	maxManifestBytes        = 256 << 10
 	maxDownloadTimeout      = 15 * time.Minute
@@ -124,7 +124,7 @@ func (i *CUAInstaller) InstalledBinaryPath() string {
 	if err != nil || !state.Installed || state.Version == "" || state.Architecture == "" {
 		return ""
 	}
-	path := filepath.Join(i.root, "versions", state.Version+"-"+state.Architecture, "nexuscua")
+	path := filepath.Join(i.root, "versions", state.Version+"-"+state.Architecture, currentCUABinaryName())
 	if !isExecutableRegularFile(path) {
 		return ""
 	}
@@ -161,13 +161,17 @@ func (i *CUAInstaller) Enabled() bool {
 }
 
 func (i *CUAInstaller) SetEnabled(enabled bool) error {
+	return i.setEnabledForBinary(enabled, i.InstalledBinaryPath())
+}
+
+func (i *CUAInstaller) setEnabledForBinary(enabled bool, binaryPath string) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	state, err := i.readState()
 	if err != nil {
 		return err
 	}
-	if enabled && !state.Installed {
+	if enabled && !isExecutableRegularFile(binaryPath) {
 		return ErrCUANotInstalled
 	}
 	state.Enabled = enabled
@@ -177,8 +181,8 @@ func (i *CUAInstaller) SetEnabled(enabled bool) error {
 func (i *CUAInstaller) Install(ctx context.Context) (CUAInstallResult, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if runtime.GOOS != "darwin" {
-		return CUAInstallResult{}, fmt.Errorf("Computer Use 安装器只支持 macOS: %s", runtime.GOOS)
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		return CUAInstallResult{}, fmt.Errorf("Computer Use 安装器不支持当前平台: %s", runtime.GOOS)
 	}
 	if err := os.MkdirAll(i.root, 0o700); err != nil {
 		return CUAInstallResult{}, err
@@ -190,7 +194,7 @@ func (i *CUAInstaller) Install(ctx context.Context) (CUAInstallResult, error) {
 	if err != nil {
 		return CUAInstallResult{}, err
 	}
-	archiveAsset, checksumAsset, err := selectCUAAssets(release.Assets, currentCUAArchitecture())
+	archiveAsset, checksumAsset, err := selectCUAAssets(release.Assets, currentCUAPlatform(), currentCUAArchitecture())
 	if err != nil {
 		return CUAInstallResult{}, err
 	}
@@ -239,21 +243,22 @@ func (i *CUAInstaller) Install(ctx context.Context) (CUAInstallResult, error) {
 		return CUAInstallResult{}, err
 	}
 	defer os.RemoveAll(versionTemp)
-	installedBinary := filepath.Join(versionTemp, "nexuscua")
+	installedBinary := filepath.Join(versionTemp, currentCUABinaryName())
 	if err := copyRegularFile(binaryPath, installedBinary, 0o700); err != nil {
 		return CUAInstallResult{}, err
 	}
 	if existing, err := os.Lstat(versionRoot); err == nil {
-		if existing.Mode()&os.ModeSymlink != 0 {
-			return CUAInstallResult{}, fmt.Errorf("%w: 版本目录不能是符号链接", ErrCUAReleaseRejected)
+		if existing.Mode()&os.ModeSymlink != 0 || !existing.IsDir() {
+			return CUAInstallResult{}, fmt.Errorf("%w: 版本目录无效", ErrCUAReleaseRejected)
 		}
-		if err := os.RemoveAll(versionRoot); err != nil {
-			return CUAInstallResult{}, err
+		existingPath := filepath.Join(versionRoot, currentCUABinaryName())
+		digest, err := fileSHA256(existingPath)
+		if err != nil || !isExecutableRegularFile(existingPath) || !strings.EqualFold(digest, manifest.Files["runtime"].SHA256) {
+			return CUAInstallResult{}, fmt.Errorf("%w: 已有版本与下载内容不一致", ErrCUAReleaseRejected)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return CUAInstallResult{}, err
-	}
-	if err := os.Rename(versionTemp, versionRoot); err != nil {
+	} else if err := os.Rename(versionTemp, versionRoot); err != nil {
 		return CUAInstallResult{}, err
 	}
 	state, _ := i.readState()
@@ -268,7 +273,7 @@ func (i *CUAInstaller) Install(ctx context.Context) (CUAInstallResult, error) {
 	}
 	return CUAInstallResult{
 		Status:       i.Status(),
-		BinaryPath:   filepath.Join(versionRoot, "nexuscua"),
+		BinaryPath:   filepath.Join(versionRoot, currentCUABinaryName()),
 		Version:      version,
 		Architecture: architecture,
 	}, nil
@@ -448,7 +453,7 @@ type selectedCUAAsset struct {
 	URL  string
 }
 
-func selectCUAAssets(assets []githubReleaseAsset, architecture string) (selectedCUAAsset, selectedCUAAsset, error) {
+func selectCUAAssets(assets []githubReleaseAsset, platform, architecture string) (selectedCUAAsset, selectedCUAAsset, error) {
 	type candidate struct {
 		asset githubReleaseAsset
 		score int
@@ -456,11 +461,11 @@ func selectCUAAssets(assets []githubReleaseAsset, architecture string) (selected
 	var archives []candidate
 	for _, asset := range assets {
 		name := strings.ToLower(asset.Name)
-		if !strings.Contains(name, "macos") || !isArchiveName(name) || asset.URL == "" {
+		if !strings.Contains(name, "-"+platform+"-") || !isArchiveName(name) || asset.URL == "" {
 			continue
 		}
 		score, ok := architectureScore(name, architecture)
-		if ok {
+		if ok && (platform != "windows" || score == 3) {
 			archives = append(archives, candidate{asset: asset, score: score})
 		}
 	}
@@ -706,7 +711,7 @@ func extractArchiveEntries(destination, tag string, allowUnaccepted bool, next f
 			}
 			continue
 		}
-		if filepath.Base(path) == "nexuscua" {
+		if filepath.Base(path) == currentCUABinaryName() {
 			if binaryPath != "" {
 				return cuaManifest{}, "", errors.New("nexus-cua archive 包含多个 nexuscua")
 			}
@@ -730,7 +735,7 @@ func extractArchiveEntries(destination, tag string, allowUnaccepted bool, next f
 }
 
 func validateCUAManifest(manifest cuaManifest, tag, binaryPath string, allowUnaccepted bool) error {
-	if manifest.Contract != "nexus.cua.release-candidate.v1" || strings.ToLower(manifest.Platform) != "macos" {
+	if manifest.Contract != "nexus.cua.release-candidate.v1" || strings.ToLower(manifest.Platform) != currentCUAPlatform() {
 		return ErrCUAReleaseRejected
 	}
 	if !allowUnaccepted && manifest.ReleaseState != "release_accepted" {
@@ -739,20 +744,20 @@ func validateCUAManifest(manifest cuaManifest, tag, binaryPath string, allowUnac
 	if normalizeCUAVersion(manifest.Version) == "" || normalizeCUAVersion(tag) != normalizeCUAVersion(manifest.Version) {
 		return ErrCUAReleaseRejected
 	}
-	if _, ok := architectureScore("macos-"+manifest.Architecture, currentCUAArchitecture()); !ok {
+	architecture := normalizeCUAArchitecture(manifest.Architecture)
+	if architecture != currentCUAArchitecture() && !(currentCUAPlatform() == "macos" && architecture == "universal2") {
 		return ErrCUAReleaseRejected
 	}
-	if runtimeRecord, ok := manifest.Files["runtime"]; ok && runtimeRecord.SHA256 != "" {
-		if runtimeRecord.Path != "" && filepath.Base(runtimeRecord.Path) != "nexuscua" {
-			return ErrCUAReleaseRejected
-		}
-		digest, err := fileSHA256(binaryPath)
-		if err != nil {
-			return err
-		}
-		if !strings.EqualFold(runtimeRecord.SHA256, digest) {
-			return ErrCUAChecksumMismatch
-		}
+	runtimeRecord := manifest.Files["runtime"]
+	if !sha256Pattern.MatchString(runtimeRecord.SHA256) || filepath.Base(runtimeRecord.Path) != currentCUABinaryName() {
+		return ErrCUAReleaseRejected
+	}
+	digest, err := fileSHA256(binaryPath)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(runtimeRecord.SHA256, digest) {
+		return ErrCUAChecksumMismatch
 	}
 	return nil
 }
@@ -760,7 +765,7 @@ func validateCUAManifest(manifest cuaManifest, tag, binaryPath string, allowUnac
 func safeArchivePath(name string) (string, error) {
 	name = strings.ReplaceAll(name, "\\", "/")
 	clean := filepath.Clean(filepath.FromSlash(name))
-	if name == "" || filepath.IsAbs(clean) || clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+	if name == "" || strings.Contains(name, ":") || filepath.IsAbs(clean) || clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", errors.New("nexus-cua archive 路径无效")
 	}
 	return clean, nil
@@ -831,7 +836,27 @@ func fileSHA256(path string) (string, error) {
 
 func isExecutableRegularFile(path string) bool {
 	info, err := os.Lstat(path)
-	return err == nil && info.Mode()&os.ModeSymlink == 0 && info.Mode().IsRegular() && info.Mode()&0o111 != 0
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(filepath.Ext(path), ".exe")
+	}
+	return info.Mode()&0o111 != 0
+}
+
+func currentCUAPlatform() string {
+	if runtime.GOOS == "darwin" {
+		return "macos"
+	}
+	return runtime.GOOS
+}
+
+func currentCUABinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "nexuscua.exe"
+	}
+	return "nexuscua"
 }
 
 func normalizeCUAVersion(raw string) string {
