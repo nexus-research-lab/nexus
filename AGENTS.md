@@ -8,16 +8,19 @@
 ## Build & Validation Commands
 - `make dev`：同时启动同级 Nexus Control（8020）、Go 后端（8010）和前端（3000）
 - `make check-architecture`：检查生产导入方向与 textutil 私有副本；集成测试可继续通过 app 装配。
-- `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包
+- `make check-go`：默认 Go 门禁，检查相对上游及当前工作树变化包及受影响的调用包；测试与夹具单独变化只检查所属包，迁移变化检查存储与启动迁移入口
 - `make check-go-fresh`：对上述变化包禁用测试结果缓存
 - `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
-- `make check`：运行增量 Go 门禁、前端 lint、前端时间线行为测试、前端 typecheck
+- `make check-web`：前端 lint 与 typecheck；行为变化另跑相关文件或模块的测试
+- `make check-web-full`：显式前端全量检查、测试与生产构建；CI 使用，日常修改不默认执行
+- `make check`：运行增量 Go 门禁与前端静态检查
 - `make check-backend`：Go 后端增量校验，等价于 `make check-go`
 - `make check-normalization`：拒绝对已被证明裁剪过的值再调用 `strings.TrimSpace`（linux/darwin/windows 取交集，约 1 分钟），已并入 `make check-go-full`
 - `make install`：执行 `go mod tidy` 并安装前端依赖
 - `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox`：显式桌面沙箱基线；macOS/Windows 原生验收入口与必测项见 `docs/testing/desktop-sandbox-acceptance.md` 与 `docs/specs/desktop-sandbox-spec.md`。
 
 日常修改先跑目标包测试或 `make check-go`。Agent 不得默认执行 `go test ./...` 或 `make check-go-full`；只有发布、共享协议/基础设施变更、增量范围无法可靠判断，或用户明确要求全量时才执行。
+前端日常执行 `make check-web`，按改动选择 `pnpm --dir web test <文件或目录>`；不为每次交付重复跑全套测试或生产构建。完整入口与适用范围见 `docs/testing/test-system.md`。
 
 ## Commit Style
 Use English commit messages with an emoji prefix, for example `:sparkles: Switch to the Go default runtime path`. Keep user-visible changes reflected in `CHANGELOG.md`.

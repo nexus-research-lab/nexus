@@ -45,11 +45,11 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
           pnpm install --frozen-lockfile
-      - name: Standard lint, types, contracts, component behavior and production build
+      - name: Full lint, types, contracts, behavior tests and production build
         env:
-          # ubuntu-latest 提供 4 核；本地默认仍为 2，避免开发机并发过高。
+          # ubuntu-latest 提供 4 核；本地默认仍为 1，避免开发机并发过高。
           VITEST_MAX_WORKERS: "4"
-        run: pnpm run check:standard
+        run: pnpm run check:full
 
   frontend:
     if: ${{ always() }}

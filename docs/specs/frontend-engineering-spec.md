@@ -339,40 +339,33 @@ ESLint `nexus/file-contract` 对 `shared/ui/button`、`dialog / form / list / me
 
 ## 8. 测试合同
 
-| 层级 | 必测内容 |
-| --- | --- |
-| Token/Recipe | 语义入口存在、禁止值不再新增、主题映射完整 |
-| Primitive | DOM、真实键盘事件、焦点、ARIA、disabled 与状态组合 |
-| Entity model | mapper、selector、状态机、recovery 与 stale response fence |
-| Feature | 一次用户动作从输入到 command/result 的完整状态流 |
-| Widget | 关键组合状态、窄屏结构和资源失败降级 |
-| Page | 路由、恢复与少量主路径浏览器 smoke test |
+测试按可观察失败选择，不按文件或 UI 层级配额：状态转换、身份隔离、写入与恢复、
+草稿保留、关键用户动作和键盘可访问性。一个行为在其所有者处验证一次；消费者只测
+自己的命令与状态变化，不逐层重测共享组件的按钮、焦点或静态展示。
+
+优先扩展现有交互用例。透传壳、静态文案、装饰布局不要求独立测试文件；无需为了
+每个组件都有测试而创建 mock 树。新增测试应解释尚未覆盖的失败，纯重构不重复补测。
 
 - 禁止用源码文本、注释措辞、Tailwind class 或装饰性内联样式证明产品行为；禁止在 Node 测试中自启 Vite SSR 或手工转译 TypeScript。依赖方向、文件契约结构与禁止项由 ESLint/AST 检查，CSS token 引用使用 CSS 工具链。定位计算、滚动锁、尺寸恢复与用户主题偏好属于行为，可保留对应断言。
 - 涉及布局、Portal、碰撞和视口尺寸的 UI 必须用真实浏览器验证。
 
 ### 8.1 测试入口与命令
 
-| 入口 | 合同 |
-| --- | --- |
-| `src/**/*.test.{ts,tsx,mjs}` | 与所有者共置的 Vitest；组件使用 jsdom + Testing Library，纯逻辑与协议测试可声明 Node 环境 |
-| `scripts/*.test.mjs` | 静态工具自身行为、CSS token 与原生夹具服务检查；不另行加载业务 TypeScript |
-| `npm run test:components` | 所有共置行为测试 |
-| `npm run test:contracts` | 静态工具、token 与宿主夹具检查 |
-| `npm run test:components:all` | 显式覆盖全部 Vitest 文件 |
-| `npm test` / `npm run test:standard` | 串行覆盖 components 与 contracts |
-| `npm run check` / `check:standard` | 串行 lint、typecheck、日常测试与生产构建；不启动浏览器，不含截图或视口矩阵 |
-| `npm run test:browser` / `make test-web-browser` | 手动运行的真实浏览器流程测试，单一 Chromium 桌面项目，不进 CI 门禁 |
-| `make check-web` | 仅标准前端门禁 |
+`src/**/*.test.{ts,tsx,mjs}` 与行为所有者共置，统一使用 Vitest；组件使用 jsdom +
+Testing Library，纯逻辑与协议测试可声明 Node 环境。`scripts/*.test.mjs` 只验证静态
+工具、CSS token 与原生夹具服务，不另行加载业务 TypeScript。
 
-- Vitest 默认两个 fork worker，可用 `VITEST_MAX_WORKERS` 覆盖；CI 的 4 核 runner 固定使用 4 个。
-- 浏览器服务器固定 `browser-test` mode，避免并发开发使缓存失效。首次安装 `npx playwright install chromium`。
+日常静态检查、目标行为测试、完整检查与浏览器测试的命令及适用范围统一见
+[`test-system.md`](../testing/test-system.md#运行入口)。日常交付不强制全量测试或生产构建。
+
+- Vitest 默认一个 fork worker，可用 `VITEST_MAX_WORKERS` 覆盖；CI 固定使用 4 个。
+- 浏览器服务器固定 `browser-test` mode，避免并发开发使缓存失效。首次安装 `pnpm --dir web exec playwright install chromium`。
 - `frontend-token-contract.test.mjs` 用既有 CSS 工具链与 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS：
   - 必需引用须有声明，可选注入须有 fallback；
   - 三主题 canonical 别名不得缺失、循环或在同一声明块重复；
   - 进入 `color-mix()` 的公共控件颜色槽须解析别名并通过 DOM CSS 解析器颜色校验（拒绝把渐变当颜色）；
   - 不执行运行时表达式，不证明 DOM 继承、实际绘制或对比度；无逐文件额度。
-- `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行标准检查（`check:standard`）；失败不得靠跳过或重试消除。
+- `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行完整检查（`check:full`）；失败不得靠跳过或重试消除。
 - macOS 原生宿主（需图形会话，不进默认门禁，不替代完整业务或 Windows 检查）：
   - `make app-check-ui`：在已解锁的图形会话编译独立 QA App，复用生产窗口与 WKWebView 源码，验证 Gallery 的原生输入、浮层、焦点及隐藏恢复。
     - 应用标识、偏好、状态根、端口和优化缓存隔离；不启动产品 sidecar，不以旧安装包作当前源码证据。
@@ -429,8 +422,8 @@ Gallery 入口 `http://localhost:3000/ui-gallery.html?theme=light&locale=zh`：
 1. 先定位所有者与现有 primitive/pattern，不从页面搜索结果复制实现；
 2. 改公共视觉前列出受影响消费者，判断应改 token、recipe、primitive 还是 pattern；
 3. 业务页需要覆盖公共视觉时，先证明是新的稳定 variant，而非添加任意 class；
-4. 同步唯一规范，添加与变更层级匹配的测试（§8）；
-5. 迭代期间跑目标测试，交付前跑 `npm run check`；
+4. 同步唯一规范；尚未覆盖的行为变化按 §8 扩展测试；
+5. 跑静态检查与本次改动相关的行为测试；完整检查只在 `test-system.md` 指定的场景运行；
 6. UI 改动检查窄屏、三主题、键盘焦点和叠层关系；
 7. 用户可见变化同步 `CHANGELOG.md`。
 

@@ -32,27 +32,6 @@ resolve_base_commit() {
 	git -C "${repo_root}" rev-parse HEAD
 }
 
-append_nearest_go_package() {
-	local changed_path="$1"
-	local package_dir
-	local go_files
-
-	package_dir="$(dirname "${changed_path}")"
-	while [[ "${package_dir}" != "." && "${package_dir}" != "/" ]]; do
-		go_files=("${repo_root}/${package_dir}"/*.go)
-		if [[ -e "${go_files[0]}" ]]; then
-			printf './%s\n' "${package_dir}" >>"${package_list_path}"
-			return
-		fi
-		package_dir="$(dirname "${package_dir}")"
-	done
-
-	# 整包删除后无法从当前目录恢复归属，改跑全量避免漏掉引用方。
-	if [[ "${changed_path}" == *.go ]]; then
-		printf './...\n' >>"${package_list_path}"
-	fi
-}
-
 (cd "${repo_root}" && go run ./scripts/check-architecture)
 
 base_commit="$(resolve_base_commit)"
@@ -61,29 +40,26 @@ package_list_path="$(mktemp "${TMPDIR:-/tmp}/nexus-go-packages.XXXXXX")"
 trap 'rm -f "${changed_list_path}" "${package_list_path}"' EXIT
 
 {
-	git -C "${repo_root}" diff --name-only --diff-filter=ACMR "${base_commit}...HEAD"
-	git -C "${repo_root}" diff --name-only --diff-filter=ACMR
-	git -C "${repo_root}" diff --cached --name-only --diff-filter=ACMR
+	git -C "${repo_root}" diff --name-only --no-renames --diff-filter=ACDMRT "${base_commit}...HEAD"
+	git -C "${repo_root}" diff --name-only --no-renames --diff-filter=ACDMRT
+	git -C "${repo_root}" diff --cached --name-only --no-renames --diff-filter=ACDMRT
 	git -C "${repo_root}" ls-files --others --exclude-standard
 } | sort -u >"${changed_list_path}"
 
-while IFS= read -r changed_path; do
-	[[ -n "${changed_path}" ]] || continue
-	case "${changed_path}" in
-	go.mod | go.sum)
-		printf './...\n' >>"${package_list_path}"
-		;;
-	skills/*)
-		printf '%s\n' \
-			'./internal/service/skills' \
-			'./internal/service/workspace' \
-			'./internal/handler/workspace' >>"${package_list_path}"
-		;;
-	cmd/* | internal/* | tools/*)
-		append_nearest_go_package "${changed_path}"
-		;;
-	esac
-done <"${changed_list_path}"
+# trimcheck is a separate module and is absent from the root go list graph.
+if grep -q '^tools/trimcheck/' "${changed_list_path}"; then
+	(
+		cd "${repo_root}/tools/trimcheck"
+		export GOWORK=off
+		go vet -p="${package_parallelism}" ./...
+		module_test_args=(-vet=off -p="${package_parallelism}")
+		if [[ ${fresh_mode} -eq 1 ]]; then module_test_args+=(-count=1); fi
+		go test "${module_test_args[@]}" ./...
+	)
+fi
+
+# A failed graph load must fail the gate, not silently produce an empty scope.
+(cd "${repo_root}" && go run ./scripts/check-go-scope <"${changed_list_path}") >"${package_list_path}"
 
 packages=()
 while IFS= read -r package_path; do

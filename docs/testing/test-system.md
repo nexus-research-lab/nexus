@@ -4,12 +4,47 @@
 静态工程约束使用 ESLint / TypeScript AST / CSS 工具链；不通过匹配业务源码、
 注释措辞或 Tailwind class 证明行为。视觉陈列使用 Gallery，不要求组件登记覆盖。
 
-## 日常门禁
+Local Vitest runs use one worker by default to reduce peak CPU load. Set
+`VITEST_MAX_WORKERS` explicitly when parallelism is wanted; CI uses four workers.
+This lowers concurrency, not the total work of a full run.
+
+## Test ownership
+
+前端测试的保留、合并与新增规则统一见
+[`frontend-engineering-spec.md` §8](../specs/frontend-engineering-spec.md#8-测试合同)。
+Mock 调用断言不证明端到端交付；真实后端与原生宿主的验证入口见下文。
+
+Conversation regressions live with their owners: scroll models, composer runtime
+interactions, message presentation, stream snapshot reconciliation, and Room feed
+ordering/lifecycle. Shared message builders are in `features/conversation/testing`;
+they build input data rather than reimplementing the production state machine.
+
+The incremental Go gate includes deleted and renamed paths. Production changes
+select their package and transitive consumers, including test imports. Test-only
+and `testdata` changes select the owning package. Migration changes select all
+storage packages plus migration and real server startup tests. Dependency changes
+or unresolved removed packages fall back to the full host package set; package
+metadata errors fail the gate. Changes under the separate `tools/trimcheck` module
+run vet/tests inside that module with `GOWORK=off`. Selection follows the current host build tags;
+Windows/macOS native CI remains necessary. `GO_CHECK_BASE_REF` can override the
+comparison base; otherwise a clean checkout synchronized with upstream has no
+changed packages and does not constitute a fresh full validation.
+
+## 运行入口
 
 - `make check-go`：仓库规定的增量 Go 门禁；不要默认全量运行。
-- `pnpm --dir web run check`：ESLint、类型检查、静态工具测试、全部共置 Vitest 和生产构建。
+- `pnpm --dir web run check` / `make check-web`：日常 ESLint 与类型检查。
+- `pnpm --dir web test <文件或目录>`：本次修改相关的行为测试；例如 `pnpm --dir web test src/shared/ui/list`。可传多个路径，省略路径会运行全部 Vitest。
+- `pnpm --dir web run test:contracts`：修改静态检查工具、CSS token 或原生主题投影时运行的工具测试。
+- `pnpm --dir web run check:full` / `make check-web-full`：静态检查、工具测试、全部 Vitest 与生产构建；CI、发布、测试运行环境/构建配置变更或明确要求全量验证时执行。
 - `go generate ./internal/protocol && git diff --exit-code -- web/src/types/generated/protocol.ts`：协议生成漂移，后端 CI 强制执行。
 - `pnpm --dir web run test:browser`：保留的浏览器流程测试，手动运行。
+
+日常完成标准是静态检查加相关行为测试，不因“交付前”再跑全套或构建。
+共享行为变更要选择相关消费者；影响范围确实无法判断时再使用完整入口。
+没有行为变化的文档、文案或纯样式修改不补跑全部行为测试。
+`make check` 组合增量 Go 门禁与前端静态检查；它不宣称前端全量验收。
+`make test` 显式运行 Go 门禁与全部前端行为测试，`make test-web` 只运行后者。
 
 Vitest 统一加载业务 TS 模块；迁移来的 MJS 用例直接 import，并声明 Node 环境。
 组件继续使用 jsdom / Testing Library。布局算法、滚动锁、焦点恢复和用户设置属于

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitest/config";
 
-const maxWorkers = Number.parseInt(process.env.VITEST_MAX_WORKERS ?? "2", 10);
+const maxWorkers = Number.parseInt(process.env.VITEST_MAX_WORKERS ?? "1", 10);
 
 if (!Number.isInteger(maxWorkers) || maxWorkers < 1) {
   throw new Error(`VITEST_MAX_WORKERS must be a positive integer, got: ${process.env.VITEST_MAX_WORKERS}`);
