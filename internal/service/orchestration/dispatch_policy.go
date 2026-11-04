@@ -206,7 +206,10 @@ func (s *Service) reconcileDispatchPolicy(ctx context.Context, repository dispat
 		return deferPolicy("cancelled", "plan_or_execution_replaced")
 	}
 	assignment := findAssignmentByID(snapshot, p.AssignmentID)
-	continuation := assignment != nil && assignment.Metadata["user_continuation"] == true
+	continuation := p.UserRetry || assignment != nil && assignment.Metadata["user_continuation"] == true
+	if p.Reason == "user_paused" {
+		return deferPolicy(p.State, "user_paused")
+	}
 	if snapshot.Execution.Status == protocol.ExecutionStatusPaused || (!continuation && rootRecoveryStoppedByUser(snapshot)) {
 		return deferPolicy(p.State, "paused")
 	}
@@ -273,6 +276,29 @@ func (s *Service) reconcileDispatchPolicy(ctx context.Context, repository dispat
 	if !slices.Contains(snapshot.ReadyWorkItemIDs, p.WorkItemID) {
 		return deferPolicy("pending", "waiting_for_acceptance")
 	}
+	for _, dependency := range p.RetryDependencyIDs {
+		accepted := false
+		for _, acceptance := range snapshot.Acceptances {
+			if acceptance.WorkItemID == dependency && acceptance.Decision == protocol.WorkAcceptanceAccepted {
+				accepted = true
+				break
+			}
+		}
+		if !accepted {
+			return deferPolicy("pending", "waiting_for_acceptance")
+		}
+	}
+	if p.UserRetry {
+		// Wait for physical cancellation before allowing replacement work to touch artifacts.
+		for _, cancellation := range snapshot.CancellationDispatches {
+			if !slices.Contains(p.RetryWorkItemIDs, cancellation.WorkItemID) {
+				continue
+			}
+			if cancellation.Status != protocol.ExecutionCancellationDispatchDelivered && cancellation.Status != protocol.ExecutionCancellationDispatchNotRequired && cancellation.Status != protocol.ExecutionCancellationDispatchCancelled {
+				return deferPolicy("pending", "waiting_for_cancellation")
+			}
+		}
+	}
 	actor := ActorContext{OwnerUserID: snapshot.Execution.OwnerUserID, SessionKey: snapshot.Execution.SessionKey, ExecutionID: p.ExecutionID, AgentID: snapshot.Execution.CoordinatorAgentID, Role: ExecutionActorCoordinator, ActorKind: protocol.ExecutionActorSystem, ScopeKind: snapshot.Execution.ScopeKind, RoomID: snapshot.Execution.RoomID, ConversationID: snapshot.Execution.ConversationID}
 	work, spec, err := resolvePlanWork(snapshot, p.WorkItemID, "")
 	if err != nil || spec.ID != p.SpecID {
@@ -281,6 +307,10 @@ func (s *Service) reconcileDispatchPolicy(ctx context.Context, repository dispat
 	a, d, attempt, err := s.authorizedPolicyChain(ctx, actor, snapshot, work, spec, DispatchPolicyInput{TargetAgentID: p.TargetAgentID, ReturnToAgentID: p.ReturnToAgentID, Instruction: p.Instruction, DispatchKind: p.DispatchKind}, "policy:"+p.ID)
 	if err != nil {
 		return deferPolicy("cancelled", "target_no_longer_authorized")
+	}
+	if p.UserRetry {
+		a.Metadata["user_continuation"] = true
+		a.Metadata["continuation_pause_revision"] = p.ContinuationPauseRevision
 	}
 	updated, err := repository.ActivateDispatchPolicy(ctx, store.ActivateDispatchPolicyCommand{PolicyID: p.ID, Assignment: store.AssignCommand{Assignment: a, Dispatch: d, RootAttempt: &attempt, ExpectedExecutionVersion: snapshot.Execution.Version, Meta: s.commandMeta(actor, "policy:"+p.ID, "assign")}})
 	if err != nil {

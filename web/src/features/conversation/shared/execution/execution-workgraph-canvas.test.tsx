@@ -100,3 +100,14 @@ it("keeps retry selection exact from the line and keyboard target, and closes it
   fireEvent.keyDown(container.querySelector('[data-execution-board-grid]')!, { key: "Escape" });
   expect(screen.queryByRole("complementary")).toBeNull();
 });
+
+
+it("offers retry on a submitted task selected from a completed graph", () => {
+  const run = vi.fn();
+  const node = { id: "item", kind: "agent" as const, visibility: "primary" as const, work_item_id: "item", attempt_id: "new", agent_id: "author", position: 0, can_retry: true, retry_downstream: true };
+  const value: ExecutionView = { ...execution, status: "completed", graph: { ...execution.graph!, nodes: [node] } };
+  const { container } = render(<I18nProvider><ExecutionWorkGraphCanvas currentId={null} directory={{}} execution={value} taskRuns={[]} recovery={{ run, states: {} }} /></I18nProvider>);
+  fireEvent.click(container.querySelector('[data-execution-graph-node-id="item"]')!);
+  fireEvent.click(screen.getByRole("button", { name: "Retry this task" }));
+  expect(run).toHaveBeenCalledWith(node);
+});

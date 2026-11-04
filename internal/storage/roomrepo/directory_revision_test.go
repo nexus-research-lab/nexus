@@ -84,7 +84,7 @@ func TestDirectoryRevisionAcrossConnections(t *testing.T) {
 		t.Fatal("room deletion did not invalidate directory")
 	}
 	// 版本迁移可完整回滚并重新应用，旧数据库升级保留原有资源。
-	if err := goose.Down(writer, roomrepoMigrationDir(t)); err != nil {
+	if err := goose.DownTo(writer, roomrepoMigrationDir(t), 166); err != nil {
 		t.Fatal(err)
 	}
 	if err := goose.Up(writer, roomrepoMigrationDir(t)); err != nil {

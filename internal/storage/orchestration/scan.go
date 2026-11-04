@@ -267,7 +267,7 @@ func scanSubmission(scanner interface{ Scan(...any) error }) (protocol.WorkSubmi
 	err := scanner.Scan(
 		&item.ID, &item.ExecutionID, &item.PlanID, &item.WorkItemID, &item.SpecID,
 		&item.AssignmentID, &item.AttemptID, &item.Sequence, &item.SubmitterAgentID,
-		&item.ResultSummary, &resultRefsJSON, &evidenceJSON, &item.CreatedAt, &metadataJSON,
+		&item.ResultSummary, &resultRefsJSON, &evidenceJSON, &item.CreatedAt, &metadataJSON, &item.Superseded,
 	)
 	if err != nil {
 		return protocol.WorkSubmission{}, err

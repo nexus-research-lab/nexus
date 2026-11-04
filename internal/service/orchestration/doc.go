@@ -5,6 +5,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员地图：
+//   - work_retry.go：用户任务重试预览、依赖影响范围和版本确认，沿原路由生成 durable policies。
 //   - user_recovery.go：用户 exact 节点同 owner/reviewer 续跑、事务回执读取与出队前复核。
 //   - runtime_result.go：结构化交付/审核的 durable intake、精确领域结果证明与重启对账；不从运行完成推断交付。
 //   - root_recovery.go：启动 root 孤儿收口、DM 精确终态、成员恢复和非 Goal 协调恢复；后台审计从 terminal receipt 补偿队列写入失败；逐个 Execution 隔离失败，恢复目标不可用时跳过；只唤醒宿主留下在途工作的 Execution。

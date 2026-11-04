@@ -5,7 +5,7 @@
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
-import type { ExecutionRecoveryReceipt, ExecutionSummary, ExecutionView } from "@/types/conversation/execution";
+import type { ExecutionRecoveryReceipt, WorkRetryPreview, ExecutionSummary, ExecutionView } from "@/types/conversation/execution";
 import type {
   WorkGraphWorkflow,
   WorkGraphWorkflowEditorSession,
@@ -213,4 +213,15 @@ export async function deleteWorkGraphWorkflowApi(
     `${AGENT_API_BASE_URL}/workgraph/workflows/${encodeURIComponent(workflowId)}`,
     { method: "DELETE" },
   );
+}
+
+export function getWorkRetryPreviewApi(sessionKey: string, executionId: string, workItemId: string, attemptId: string): Promise<WorkRetryPreview> {
+ const query = new URLSearchParams({ session_key: sessionKey, work_item_id: workItemId, attempt_id: attemptId });
+ return requestApi(`${AGENT_API_BASE_URL}/executions/${encodeURIComponent(executionId)}/retry-preview?${query}`, { method: "GET" });
+}
+export function requestWorkRetryApi(sessionKey: string, preview: WorkRetryPreview, requestId: string): Promise<ExecutionRecoveryReceipt> {
+ return requestApi(`${AGENT_API_BASE_URL}/executions/${encodeURIComponent(preview.execution_id)}/retry`, {
+  method: "POST",
+  body: { session_key: sessionKey, work_item_id: preview.work_item_id, attempt_id: preview.attempt_id, snapshot_revision: preview.snapshot_revision, request_id: requestId },
+ });
 }

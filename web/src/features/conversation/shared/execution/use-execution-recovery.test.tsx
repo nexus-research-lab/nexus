@@ -8,8 +8,8 @@ import { expect, it, vi } from "vitest";
 import type { ExecutionGraphNodeView, ExecutionRecoveryReceipt } from "@/types/conversation/execution";
 import { RECOVERY_REQUEUE_MS, useExecutionRecovery } from "./use-execution-recovery";
 
-const api = vi.hoisted(() => ({ request: vi.fn(), read: vi.fn() }));
-vi.mock("@/lib/api/conversation/execution-api", () => ({ requestExecutionRecoveryApi: api.request, getExecutionRecoveryReceiptApi: api.read }));
+const api = vi.hoisted(() => ({ request: vi.fn(), read: vi.fn(), preview: vi.fn(), retry: vi.fn() }));
+vi.mock("@/lib/api/conversation/execution-api", () => ({ requestExecutionRecoveryApi: api.request, getExecutionRecoveryReceiptApi: api.read, getWorkRetryPreviewApi: api.preview, requestWorkRetryApi: api.retry }));
 const node = { id: "node", work_item_id: "work", attempt_id: "attempt", can_recover: true } as ExecutionGraphNodeView;
 const wrapper = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
 
@@ -66,4 +66,39 @@ it("releases a queued fence after the cooldown so the same Attempt can be retrie
   } finally {
     vi.useRealTimers();
   }
+});
+
+
+it("previews submitted dependencies, confirms the exact revision, and reconciles a lost retry response", async () => {
+  api.preview.mockReset(); api.retry.mockReset(); api.read.mockReset();
+  const preview = { execution_id: "execution", work_item_id: "work", attempt_id: "attempt", snapshot_revision: 7, submitted: true, affected: [{ work_item_id: "work", subject: "Draft", running: false, submitted: true }, { work_item_id: "child", subject: "Publish", running: true, submitted: false }] };
+  api.preview.mockResolvedValue(preview);
+  const { result } = renderHook(() => useExecutionRecovery("session", "execution", vi.fn()));
+  const retryNode = { ...node, can_retry: true };
+  await act(async () => result.current.run(retryNode));
+  expect(result.current.confirmation).toEqual(preview);
+  expect(api.retry).not.toHaveBeenCalled();
+  act(() => result.current.cancelRetry?.());
+  expect(result.current.confirmation).toBeNull();
+  await act(async () => result.current.run(retryNode));
+  api.retry.mockRejectedValue(new Error("lost response"));
+  await act(async () => result.current.confirmRetry?.());
+  expect(api.retry).toHaveBeenCalledWith("session", preview, expect.any(String));
+  expect(result.current.states.attempt.status).toBe("unknown");
+  const requestId = api.retry.mock.calls[0][2];
+  api.read.mockResolvedValue({ execution_id: "execution", work_item_id: "work", attempt_id: "attempt", request_id: requestId, queued: true });
+  await act(async () => result.current.run(retryNode));
+  expect(api.retry).toHaveBeenCalledOnce();
+  expect(api.read).toHaveBeenCalledWith("session", "execution", requestId);
+});
+
+it("retries an unsubmitted task from a fresh preview without downstream confirmation", async () => {
+  api.preview.mockReset(); api.retry.mockReset();
+  const preview = { execution_id: "execution", work_item_id: "work", attempt_id: "attempt", snapshot_revision: 9, submitted: false, affected: [] };
+  api.preview.mockResolvedValue(preview);
+  api.retry.mockImplementation(async (_session, value, requestId) => ({ ...value, request_id: requestId, queued: true }));
+  const { result } = renderHook(() => useExecutionRecovery("session", "execution", vi.fn()));
+  await act(async () => result.current.run({ ...node, can_retry: true }));
+  expect(result.current.confirmation).toBeNull();
+  expect(api.retry).toHaveBeenCalledWith("session", preview, expect.any(String));
 });

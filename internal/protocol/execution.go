@@ -650,6 +650,7 @@ type ExecutionCancellationBinding struct {
 //
 // Submission 本身不可修改；review decision 独立写入 WorkAcceptance。
 type WorkSubmission struct {
+	Superseded       bool           `json:"superseded,omitempty"`
 	ID               string         `json:"id"`
 	ExecutionID      string         `json:"execution_id"`
 	PlanID           string         `json:"plan_id"`
@@ -828,6 +829,7 @@ const (
 	ExecutionEventAttemptTerminal    ExecutionEventType = "attempt_terminal"
 	ExecutionEventWorkSubmitted      ExecutionEventType = "work_submitted"
 	ExecutionEventAcceptanceRecorded ExecutionEventType = "acceptance_recorded"
+	ExecutionEventWorkRetried        ExecutionEventType = "work_retried"
 	ExecutionEventWorkTakenOver      ExecutionEventType = "work_taken_over"
 	ExecutionEventCompleted          ExecutionEventType = "execution_completed"
 )

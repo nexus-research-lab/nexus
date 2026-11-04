@@ -1,3 +1,4 @@
+import { ExecutionRetryConfirmation } from "./execution-retry-confirmation";
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
  * OUTPUT: 以共享标题动作和状态 Badge、唯一历史下拉和明确空态切换已有历史的 WorkGraph 主视图，以及当前有效图共用的恢复动作。
@@ -239,6 +240,7 @@ export function ExecutionWorkGraphSurface({
       data-execution-workgraph-partial={runtimeProjectionPartial ? "true" : undefined}
       data-execution-last-successful-at={lastSuccessfulAt ?? undefined}
     >
+      {sharedContinuation?.resource !== resource ? <ExecutionRetryConfirmation action={localRecovery} /> : null}
       <header
         className="flex min-h-11 shrink-0 items-center gap-2 border-b dialog-divider px-3 py-2"
         data-execution-header-status={header?.status}

@@ -225,8 +225,12 @@ func runWorkGraphRestartChild(t *testing.T) {
 	}
 	defer stopDispatch()
 	input := protocol.RequestExecutionRecovery{SessionKey: state.Actor.SessionKey, RequestID: "app-explicit-recovery", WorkItemID: state.Attempt.WorkItemID, AttemptID: state.Attempt.ID}
+	preview, err := server.services.Orchestration.PreviewWorkRetry(ctx, state.Actor.OwnerUserID, state.Actor.ExecutionID, input)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for range 2 {
-		receipt, err := server.services.Orchestration.RequestWorkRecovery(ctx, state.Actor.OwnerUserID, state.Actor.ExecutionID, input)
+		receipt, err := server.services.Orchestration.RequestWorkRetry(ctx, state.Actor.OwnerUserID, state.Actor.ExecutionID, protocol.RequestWorkRetry{RequestExecutionRecovery: input, SnapshotRevision: preview.SnapshotRevision})
 		if err != nil || !receipt.Queued {
 			t.Fatalf("exact recovery receipt %+v %v", receipt, err)
 		}

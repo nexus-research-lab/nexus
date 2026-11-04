@@ -291,7 +291,8 @@ JOIN execution_plan_revisions active_plan
  AND active_plan.execution_id = acceptance.execution_id
 WHERE acceptance.work_item_id = `+r.bind(2)+`
   AND acceptance.spec_id = `+r.bind(3)+`
-  AND acceptance.decision = 'accepted'`,
+  AND acceptance.decision = 'accepted'
+  AND NOT EXISTS (SELECT 1 FROM execution_submission_supersessions superseded WHERE superseded.submission_id = acceptance.submission_id)`,
 		planID, workItemID, specID,
 	).Scan(&accepted); err != nil {
 		return false, "", err
@@ -316,6 +317,7 @@ WHERE dependency.plan_id = `+r.bind(1)+`
         AND acceptance.work_item_id = upstream.work_item_id
         AND acceptance.spec_id = upstream.spec_id
         AND acceptance.decision = 'accepted'
+  AND NOT EXISTS (SELECT 1 FROM execution_submission_supersessions superseded WHERE superseded.submission_id = acceptance.submission_id)
   )`,
 		planID, workItemID,
 	).Scan(&blockedDependencies); err != nil {
@@ -335,6 +337,7 @@ JOIN execution_plan_revisions active_plan
  AND active_plan.execution_id = submission.execution_id
 WHERE submission.work_item_id = `+r.bind(2)+`
   AND submission.spec_id = `+r.bind(3)+`
+  AND `+activeSubmissionSQL("submission")+`
   AND acceptance.acceptance_id IS NULL`,
 		planID, workItemID, specID,
 	).Scan(&pendingSubmission); err != nil {

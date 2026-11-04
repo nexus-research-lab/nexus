@@ -1258,3 +1258,18 @@ layer cannot enforce.
 显式续跑记录目标队列的暂停 revision，派发入队时原子核对；期间新的停止/恢复操作使旧准入失效。仅允许该项通过已有队列暂停，其他被暂停项与 Goal continuation 不会随之恢复。随后发生的用户停止撤销此项准入，重复请求、恢复旧 claim 或重启不能重新授予许可。自动恢复仍遵守暂停门禁。目标在排队期间被替换、交付或关闭时，出队前丢弃旧请求。
 
 续跑的派发被后续停止或永久投递失败取消时，新 Attempt 收口为 interrupted，保留该 Assignment 以便用户再次明确续跑；不会反复自动派发。原执行者同时是审核人时，续跑轮次保留同轮审核，不额外生成会被旧暂停阻挡的自审核任务；跨执行者审核仍走原审核人投递链路及其暂停限制。
+
+
+### 用户发起的任务重试与下游重做
+
+最新 managed WorkGraph 的认证 owner 可通过 `retry-preview` 获取 exact Work Item/root Attempt 与 snapshot revision，再通过 `retry` 确认。已被更新的图或其他当前 Execution 替代的图拒绝写入。允许暂停、失败、中断、取消、尚未开始且已有派发策略的未提交任务重试。正常运行中的任务不提供该动作。最新整图处于 completed/failed/cancelled 时，可在同一事务内重新激活。
+
+未提交任务重试只重建自身责任。存在当前 Submission 的任务重做，按当前 Plan 的 dependency 边递归覆盖下游，包括 soft dependency；既有重试等待期间再次请求，保留其尚待完成的取消范围。确认预览列出节点、当前负责人、运行及提交状态。请求必须携带预览 revision，任何中间 mutation 都要求重新预览。
+
+同一事务中为受影响 Submission 追加 supersession、撤销旧 Assignment、取消未完成 Attempt 与 work/review dispatch、登记 physical cancellation outbox、把 Work Item 恢复为 open，并以原 owner/reviewer 建立 durable retry policies。旧 Submission/Acceptance/Attempt 与产物记录保留用于历史核对。当前 Snapshot、依赖满足、完成检查和新提交判定只消费未 supersede 的结果；旧 review binding 与 worker binding 无法提交有效新结果。每个 Work Item/spec 的当前有效 accepted 结果最多一个，由同一 Execution CAS 事务检查；历史允许多个被重试替代的验收结果。
+
+已分配过或已有策略的下游沿用原路由。未分配的下游继续等待原有显式分配流程。替代执行等待本次范围内的 physical cancellation 得到 delivered/not_required/cancelled 回执；未支持或结果未知时保持等待。受影响的下游在新上游验收前不启动，包括重试范围内的 soft dependency。重新打开已完成 Execution 同时推进 completion audit revision，避免旧完成检查关闭新一轮执行。
+
+每个 retry policy 固定目标队列的暂停 revision，复用单项显式续跑准入。后续 stop 会使旧请求失效。重新激活暂停图时，范围外 pending policy 保持 user_paused。重试不授予 Goal 自动续跑权限。执行指令要求核对文件、检查点和外部回执，再执行剩余工作或重新交付。
+
+重试使用稳定 request_id 与用户事务回执。重复请求只对应一个操作，丢失响应先只读查询原回执，确认 absent 才允许再次提交。新端点共用 `recovery-receipt`，queued 表示已提交重试意图，运行与验收仍以权威执行状态呈现。

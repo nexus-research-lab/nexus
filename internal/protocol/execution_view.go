@@ -138,6 +138,9 @@ type ExecutionGraphNodeRunView struct {
 // ExecutionGraphNodeView 把稳定责任节点与其当前 Node Run 分开表达。
 // Agent 节点 ID 沿用 Work Item ID；Subagent 节点 ID 沿用 child Attempt ID。
 type ExecutionGraphNodeView struct {
+	Superseded           bool                         `json:"superseded,omitempty"`
+	CanRetry             bool                         `json:"can_retry,omitempty"`
+	RetryDownstream      bool                         `json:"retry_downstream,omitempty"`
 	CanRecover           bool                         `json:"can_recover,omitempty"`
 	ID                   string                       `json:"id"`
 	Kind                 ExecutionGraphNodeKind       `json:"kind"`

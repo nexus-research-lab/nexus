@@ -461,6 +461,8 @@ func (s *Server) mountGoalRoutes() {
 func (s *Server) mountExecutionRoutes() {
 	s.router.Post(s.prefixPath("/executions/{execution_id}/recover"), s.handlers.execution.HandleRequestWorkRecovery)
 	s.router.Get(s.prefixPath("/executions/{execution_id}/recovery-receipt"), s.handlers.execution.HandleGetWorkRecoveryReceipt)
+	s.router.Get(s.prefixPath("/executions/{execution_id}/retry-preview"), s.handlers.execution.HandleWorkRetryPreview)
+	s.router.Post(s.prefixPath("/executions/{execution_id}/retry"), s.handlers.execution.HandleWorkRetry)
 	s.router.Get(
 		s.prefixPath("/executions/latest"),
 		s.handlers.execution.HandleGetLatestExecution,

@@ -137,6 +137,9 @@ export interface ExecutionGraphNodeRunView {
 
 export interface ExecutionGraphNodeView {
   can_recover?: boolean;
+  can_retry?: boolean;
+  superseded?: boolean;
+  retry_downstream?: boolean;
   id: string;
   kind: ExecutionGraphNodeKind;
   visibility: ExecutionGraphNodeVisibility;
@@ -310,4 +313,13 @@ export interface ExecutionRecoveryReceipt {
   attempt_id: string;
   request_id: string;
   queued: boolean;
+}
+
+export interface WorkRetryPreview {
+ execution_id: string;
+ work_item_id: string;
+ attempt_id: string;
+ snapshot_revision: number;
+ submitted: boolean;
+ affected: { work_item_id: string; subject: string; agent_id?: string; running: boolean; submitted: boolean }[];
 }

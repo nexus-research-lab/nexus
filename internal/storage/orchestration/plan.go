@@ -284,6 +284,7 @@ FROM execution_submissions submission
 LEFT JOIN execution_acceptances acceptance
   ON acceptance.submission_id = submission.submission_id
 WHERE submission.plan_id = `+r.bind(1)+`
+  AND `+activeSubmissionSQL("submission")+`
   AND acceptance.acceptance_id IS NULL`,
 		active.ID,
 	).Scan(&unreviewed); err != nil {

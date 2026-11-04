@@ -28,6 +28,7 @@ LEFT JOIN execution_acceptances acceptance
 WHERE submission.execution_id = `+r.bind(1)+`
   AND submission.work_item_id = `+r.bind(2)+`
   AND submission.spec_id = `+r.bind(3)+`
+  AND `+activeSubmissionSQL("submission")+`
   AND acceptance.acceptance_id IS NULL`,
 		executionID, workItemID, specID,
 	).Scan(&pending); err != nil {
@@ -110,6 +111,7 @@ LEFT JOIN execution_acceptances acceptance
   ON acceptance.submission_id = submission.submission_id
 WHERE submission.work_item_id = `+r.bind(1)+`
   AND submission.spec_id = `+r.bind(2)+`
+  AND `+activeSubmissionSQL("submission")+`
   AND acceptance.acceptance_id IS NULL`,
 		item.WorkItemID, item.SpecID,
 	).Scan(&pending); err != nil {
@@ -254,7 +256,7 @@ func (r *Repository) Review(ctx context.Context, command ReviewCommand) (*protoc
 		r.abortMutation(mutation)
 		return nil, err
 	}
-	if submission == nil || submission.ExecutionID != item.ExecutionID ||
+	if submission == nil || submission.Superseded || submission.ExecutionID != item.ExecutionID ||
 		submission.PlanID != item.PlanID || submission.WorkItemID != item.WorkItemID ||
 		submission.SpecID != item.SpecID || submission.AssignmentID != item.AssignmentID {
 		r.abortMutation(mutation)
@@ -272,6 +274,18 @@ func (r *Repository) Review(ctx context.Context, command ReviewCommand) (*protoc
 	if err = validateExpectedVersion(command.ExpectedAssignmentVersion, "expected Assignment version"); err != nil {
 		r.abortMutation(mutation)
 		return nil, err
+	}
+	if item.Decision == protocol.WorkAcceptanceAccepted {
+		var accepted int
+		err = mutation.tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM execution_acceptances acceptance WHERE acceptance.work_item_id=`+r.bind(1)+` AND acceptance.spec_id=`+r.bind(2)+` AND acceptance.decision='accepted' AND NOT EXISTS (SELECT 1 FROM execution_submission_supersessions superseded WHERE superseded.submission_id=acceptance.submission_id)`, item.WorkItemID, item.SpecID).Scan(&accepted)
+		if err != nil {
+			r.abortMutation(mutation)
+			return nil, err
+		}
+		if accepted != 0 {
+			r.abortMutation(mutation)
+			return nil, fmt.Errorf("%w: Work Item already has a current Acceptance", ErrInvariant)
+		}
 	}
 	item.CreatedAt = timeOr(item.CreatedAt, r.currentTime())
 	if err = r.insertAcceptance(ctx, mutation.tx, item); err != nil {

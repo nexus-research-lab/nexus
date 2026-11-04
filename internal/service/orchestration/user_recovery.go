@@ -47,7 +47,7 @@ func (s *Service) GetWorkRecoveryReceipt(ctx context.Context, owner, executionID
 	receipt := &protocol.ExecutionRecoveryReceipt{RequestID: requestID, ExecutionRecoveryTarget: protocol.ExecutionRecoveryTarget{ExecutionID: executionID}}
 	if event != nil {
 		source, _ := event.Payload["continued_attempt_id"].(string)
-		if event.Type != protocol.ExecutionEventWorkTakenOver || source == "" || event.ActorKind != protocol.ExecutionActorUser || event.ActorID != owner {
+		if (event.Type != protocol.ExecutionEventWorkTakenOver && event.Type != protocol.ExecutionEventWorkRetried) || (source == "" && event.Type != protocol.ExecutionEventWorkRetried) || event.ActorKind != protocol.ExecutionActorUser || event.ActorID != owner {
 			return nil, domainError(ErrorCodeInvalidInput, "continuation receipt conflict")
 		}
 		receipt.WorkItemID, receipt.AttemptID, receipt.Queued = event.WorkItemID, source, true

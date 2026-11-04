@@ -151,6 +151,10 @@ func (r *Repository) attemptSelect(prefix string) string {
 }
 
 func (r *Repository) submissionSelect(prefix string) string {
+	identity := prefix + "submission_id"
+	if prefix == "" {
+		identity = "execution_submissions.submission_id"
+	}
 	return `SELECT
     ` + prefix + `submission_id, ` + prefix + `execution_id, ` + prefix + `plan_id,
     ` + prefix + `work_item_id, ` + prefix + `spec_id, ` + prefix + `assignment_id,
@@ -158,7 +162,7 @@ func (r *Repository) submissionSelect(prefix string) string {
     ` + prefix + `submitter_agent_id, ` + prefix + `result_summary,
     ` + r.dialect.JSONText(prefix+"result_refs_json") + `,
     ` + r.dialect.JSONText(prefix+"evidence_json") + `, ` + prefix + `created_at,
-    ` + r.dialect.JSONText(prefix+"metadata_json")
+    ` + r.dialect.JSONText(prefix+"metadata_json") + `, EXISTS (SELECT 1 FROM execution_submission_supersessions superseded WHERE superseded.submission_id = ` + identity + `)`
 }
 
 func (r *Repository) acceptanceSelect(prefix string) string {
@@ -594,6 +598,7 @@ JOIN execution_plan_items active_item
  AND active_item.work_item_id = submission.work_item_id
  AND active_item.spec_id = submission.spec_id
 WHERE submission.execution_id = `+r.bind(2)+`
+  AND `+activeSubmissionSQL("submission")+`
   AND NOT EXISTS (
       SELECT 1 FROM execution_submissions newer
       WHERE newer.execution_id = submission.execution_id
@@ -656,6 +661,7 @@ JOIN execution_plan_items active_item
  AND active_item.work_item_id = acceptance.work_item_id
  AND active_item.spec_id = acceptance.spec_id
 WHERE acceptance.execution_id = `+r.bind(2)+`
+  AND `+activeSubmissionSQL("submission")+`
   AND NOT EXISTS (
       SELECT 1 FROM execution_submissions newer
       WHERE newer.execution_id = submission.execution_id

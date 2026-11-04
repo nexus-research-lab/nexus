@@ -99,6 +99,7 @@ func (r *Repository) beginMutation(
 	expectedVersion int64,
 	meta CommandMeta,
 	eventType protocol.ExecutionEventType,
+	reopenCompleted ...bool,
 ) (*mutation, error) {
 	executionID = strings.TrimSpace(executionID)
 	if executionID == "" {
@@ -134,13 +135,17 @@ func (r *Repository) beginMutation(
 		value.replayed = true
 		return value, nil
 	}
+	statusFence := "status IN ('active', 'waiting', 'paused')"
+	if len(reopenCompleted) > 0 && reopenCompleted[0] {
+		statusFence = "status IN ('active', 'waiting', 'paused', 'completed', 'failed', 'cancelled')"
+	}
 	result, err := tx.ExecContext(ctx, `
 UPDATE executions
 SET version = version + 1,
     updated_at = `+r.bind(1)+`
 WHERE execution_id = `+r.bind(2)+`
   AND version = `+r.bind(3)+`
-  AND status IN ('active', 'waiting', 'paused')`,
+  AND `+statusFence,
 		r.timestamp(r.currentTime()),
 		executionID,
 		expectedVersion,

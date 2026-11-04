@@ -1618,18 +1618,19 @@ function ExecutionNodeInspector({
         </>
       }
     >
-      {recovery && node.can_recover && node.attempt_id ? (
+      {node.superseded ? <p role="status">{t("execution.retry_superseded")}</p> : null}
+      {recovery && (node.can_recover || node.can_retry) && (node.attempt_id || node.can_retry) ? (
         <div className="space-y-2">
           <UiButton
             size="sm"
             variant="outline"
-            disabled={["pending", "queued"].includes(recovery.states[node.attempt_id]?.status ?? "")}
+            disabled={["pending", "queued"].includes(recovery.states[node.attempt_id || node.work_item_id]?.status ?? "")}
             onClick={() => recovery.run(node)}
           >
-            {t(recovery.states[node.attempt_id]?.status === "unknown" ? "execution.recovery_check" : recovery.states[node.attempt_id]?.status === "pending" ? "execution.recovery_pending" : "execution.recover_node")}
+            {t(recovery.states[node.attempt_id || node.work_item_id]?.status === "unknown" ? "execution.recovery_check" : recovery.states[node.attempt_id || node.work_item_id]?.status === "pending" ? "execution.recovery_pending" : node.can_retry ? "execution.retry_node" : "execution.recover_node")}
           </UiButton>
           <p role="status" className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
-            {t(recovery.states[node.attempt_id]?.status === "queued" ? "execution.recovery_queued" : recovery.states[node.attempt_id]?.status === "unknown" ? "execution.recovery_unknown" : recovery.states[node.attempt_id]?.status === "absent" ? "execution.recovery_absent" : recovery.states[node.attempt_id]?.status === "rejected" ? "execution.recovery_rejected" : "execution.recovery_hint")}
+            {t(recovery.states[node.attempt_id || node.work_item_id]?.status === "queued" ? "execution.recovery_queued" : recovery.states[node.attempt_id || node.work_item_id]?.status === "unknown" ? "execution.recovery_unknown" : recovery.states[node.attempt_id || node.work_item_id]?.status === "absent" ? "execution.recovery_absent" : recovery.states[node.attempt_id || node.work_item_id]?.status === "rejected" ? "execution.recovery_rejected" : "execution.recovery_hint")}
           </p>
         </div>
       ) : null}

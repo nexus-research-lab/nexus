@@ -331,7 +331,9 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 
 ### 7.4 精确节点恢复入口
 
-当前且读取成功的 WorkGraph 中，服务端标记 `can_recover` 的责任节点在详情显示“继续此任务”。Room 停止/失败消息旁通过 exact Agent ID + AgentRoundID 对应当前唯一可续跑节点，显示同一操作；不按姓名或消息顺序猜测归属。历史图、stale 快照和已被接管的旧消息不提供动作。聊天、普通画布与放大视图共享请求状态和同步重复点击门禁。前端不乐观修改运行/完成状态；授权和暂停语义以执行编排规范“用户发起的精确节点恢复”为准。
+当前且读取成功的 WorkGraph 中，服务端标记 `can_retry` 的任务节点在点击后的详情中提供“重试此任务”，覆盖未提交的停止/暂停/失败任务和已提交任务。已提交任务必须先展示 `retry-preview` 返回的影响范围，再确认 exact snapshot revision。已完成的最新图同样可重做。旧 `can_recover` 动作作为兼容入口保留。Room 停止消息用 exact Agent ID + AgentRoundID 匹配当前任务。历史模式及 stale 快照不提供操作，普通与放大画布共享请求和确认状态。失效历史节点的详情标记 `superseded`。领域语义以执行编排规范“用户发起的任务重试与下游重做”为准。
+
+`GET /executions/{execution_id}/retry-preview` 接收 session_key/work_item_id/attempt_id，返回 `WorkRetryPreview`。`POST /executions/{execution_id}/retry` 接收 `RequestWorkRetry`，owner 从认证上下文获取。已提交节点的确认提示包含重做范围、停止进行中任务和等待上游新验收的后果。版本冲突刷新图后重新预览；unknown 通过现有 recovery-receipt 只读核对。
 
 `POST /executions/{execution_id}/recover` 接收 `protocol.RequestExecutionRecovery`；owner 来自认证上下文，宿主原子建立同一负责人新的责任链与 durable dispatch。`GET /executions/{execution_id}/recovery-receipt?session_key=...&request_id=...` 只读核对事务回执。queued 显示已安排原执行者继续、等待启动；连接失败进入 unknown，下一次动作只能查询回执；确认 absent 后才允许再次明确提交同一 request_id。目标冲突显示不可继续并刷新图。session/Execution 切换或卸载后的迟到响应不能写回新视图。
 

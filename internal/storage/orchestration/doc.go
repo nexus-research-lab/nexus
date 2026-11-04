@@ -3,6 +3,7 @@
 // 与只读投影见 docs/specs/execution-graph-spec.md。本头部只列存储边界。
 //
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
+//   - work_retry.go：结果 supersession、旧执行取消与重试策略的原子写入。
 //   - runtime_result.go：按 Execution/kind/target 唯一的不可变结果接收、pending deadline 与领域核对状态。
 //   - root_recovery.go：按游标分页扫描 active managed Execution，供启动 root 对账与恢复投递审计。
 //   - repository.go / commands.go / errors.go：事务、command 幂等、CAS 与稳定错误。

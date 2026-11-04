@@ -1,6 +1,6 @@
 // INPUT: owner/session/exact Execution 只读查询、当前/最近/历史有界 ExecutionSnapshot、完整 WorkGraph Assignment/Attempt/Submission/Review/Acceptance 历史与 visibility 投影前运行事实。
 // OUTPUT: 去除控制面 identity、保留每个 root/child Attempt 与 immutable Submission Gate、按 Plan position 排序并派生交付阶段的一个或多个 protocol.ExecutionView。
-// POS: Execution 状态机到 HTTP/DM/Room WorkGraph UI 的唯一展示投影；可恢复标记来自当前权威根 Attempt。
+// POS: Execution 状态机到 HTTP/DM/Room WorkGraph UI 的唯一展示投影；恢复/重试能力来自当前责任，失效结果保留历史标记。
 package orchestration
 
 import (
@@ -145,6 +145,9 @@ func (s *Service) getViewForExecution(
 	for index := range result.Graph.Nodes {
 		node := &result.Graph.Nodes[index]
 		node.CanRecover = node.Kind == protocol.ExecutionGraphNodeAgent && canRecoverWorkAttempt(snapshot, node.WorkItemID, node.AttemptID)
+		if node.Kind == protocol.ExecutionGraphNodeAgent {
+			node.CanRetry, node.RetryDownstream = retryWorkTarget(snapshot, node.WorkItemID, node.AttemptID)
+		}
 	}
 	return result, nil
 }
@@ -372,6 +375,9 @@ func projectExecutionGraphViewWithHistory(
 					Runs:         []protocol.ExecutionGraphNodeRunView{executionAttemptRunView(attempt)},
 					Position:     item.Position,
 				}
+				if submission, exists := submissionByAttemptID[attempt.ID]; exists {
+					node.Superseded = submission.Superseded
+				}
 				if index == len(roots)-1 {
 					node.ResponsibilityStatus = item.Status
 				}
@@ -414,6 +420,7 @@ func projectExecutionGraphViewWithHistory(
 						dispatchBySubmissionID[submission.ID],
 						acceptance,
 					)
+					gate.Superseded = submission.Superseded
 					result.Nodes = append(result.Nodes, gate)
 					result.Edges = append(result.Edges, protocol.ExecutionGraphEdgeView{
 						ID:           fmt.Sprintf("review:%s:%s", nodeID, gate.ID),
