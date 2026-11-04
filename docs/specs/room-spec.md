@@ -165,3 +165,10 @@ Room shared 历史由两类行组成：
 - 共享正文与私有正文的来源显式分离；私域正文不会因普通投影自动进入 public feed。
 - Room Skill 决定业务流程；Room 平台只负责路由、可见性、持久化、唤醒和运行时护栏。
 - handoff ledger、输入队列、`source_agent_id`/scope 绑定、`reply_route` 校验与 cursor 推进的不变量见 [Room 协作协议](./room-collaboration-spec.md) §5、§8、§9。
+
+
+### 跨进程目录刷新
+
+Room、成员、Conversation 标题/草稿和 Agent/Profile 展示信息的数据库 mutation 通过触发器在同一事务内推进 `directory_revision`。宿主每秒读取这一行版本，观察到变化后向全局应用订阅发送 `directory_changed`，由客户端按当前身份重新读取共享目录。多个连续变化可以合并成一次通知，检测间隔之外还需加上 WebSocket 和目录请求耗时。独立 `nexusctl` 写入也参与同一版本协议。
+
+通知只携带目录失效原因。数据库回滚不推进已提交版本，普通消息活动时间和无值变化的 Room 写锁不触发目录刷新。原有 HTTP/configuration 的即时通知继续生效。应用事件订阅先注册，再向该连接发送一次目录核对通知，覆盖首屏读取到订阅建立之间及重连期间的变化。后端观察器读取失败后保留上一版本重试，宿主关闭取消并等待观察器退出。

@@ -1,3 +1,6 @@
+// INPUT: WebSocket 请求与已认证连接。
+// OUTPUT: 命令分发和先注册后核对的全局目录订阅。
+// POS: 实时 transport 分发边界，首订阅与重连均补齐目录读取空窗。
 package websocket
 
 import (
@@ -27,7 +30,7 @@ func (h *Handler) dispatchWebSocketMessageWithControlDispatcher(
 	case "unsubscribe_workspace":
 		h.handleUnsubscribeWorkspace(sender, inbound)
 	case "subscribe_app_events":
-		h.handleSubscribeAppEvents(sender)
+		h.handleSubscribeAppEvents(ctx, sender)
 	case "unsubscribe_app_events":
 		h.handleUnsubscribeAppEvents(sender)
 	case "subscribe_room":
@@ -54,11 +57,15 @@ func (h *Handler) dispatchWebSocketMessageWithControlDispatcher(
 	}
 }
 
-func (h *Handler) handleSubscribeAppEvents(sender *handlershared.WebSocketSender) {
+func (h *Handler) handleSubscribeAppEvents(ctx context.Context, sender *handlershared.WebSocketSender) {
 	if h.appEventSubs == nil {
 		return
 	}
 	h.appEventSubs.Subscribe(sender)
+	// 先注册再核对，补齐首屏读取与订阅建立之间以及重连期间的目录变化。
+	_ = sender.SendEvent(ctx, protocol.NewEvent(protocol.EventTypeDirectoryChanged, map[string]any{
+		"reason": "agent_room_directory_changed",
+	}))
 }
 
 func (h *Handler) handleUnsubscribeAppEvents(sender *handlershared.WebSocketSender) {

@@ -7,8 +7,9 @@ import { extractAssistantReplyPreview } from "@/features/conversation/shared/mes
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { buildChatNotificationDirectoryIndex } from "./chat-notification-directory";
 import { useChatNotificationSocket } from "./use-chat-notification-socket";
-const socket = vi.hoisted(() => ({ onMessage: (_value: unknown) => {}, refresh: vi.fn(), update: vi.fn(() => true) }));
+const socket = vi.hoisted(() => ({ onMessage: (_value: unknown) => {}, refresh: vi.fn(), agents: vi.fn(), update: vi.fn(() => true) }));
 vi.mock("@/lib/websocket", () => ({ useAppEventSubscription: vi.fn(), useWebSocket: (options: { onMessage: (value: unknown) => void }) => { socket.onMessage = options.onMessage; return { send: vi.fn(), state: "disconnected" }; } }));
+vi.mock("@/store/agent", () => ({ useAgentStore: { getState: () => ({ load_agents_from_server: socket.agents }) } }));
 vi.mock("@/lib/conversation/room-directory-events", () => ({ notifyRoomDirectoryUpdated: socket.refresh }));
 vi.mock("../home-directory-resource", () => ({ applyHomeDirectoryRoomUpdate: socket.update }));
 beforeEach(() => vi.clearAllMocks());
@@ -60,4 +61,11 @@ it("resolves deleted sessions from directory event data", () => {
   act(() => socket.onMessage({ protocol_version: 1, timestamp: 2, event_type: "directory_changed", data: { reason: "session_deleted", session_key: "session" } }));
   expect(socket.update).toHaveBeenLastCalledWith({ roomId: "room-1", timestamp: 2, preview: "" });
   expect(socket.refresh).toHaveBeenCalledTimes(1);
+});
+
+it("refreshes a new group and agent metadata from global invalidation without a Room subscription", () => {
+  setup();
+  act(() => socket.onMessage({ protocol_version: 1, timestamp: 2, event_type: "directory_changed", data: { reason: "agent_room_directory_changed" } }));
+  expect(socket.refresh).toHaveBeenCalledOnce();
+  expect(socket.agents).toHaveBeenCalledOnce();
 });

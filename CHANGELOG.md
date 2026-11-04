@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Refresh chat and agent directories after standalone CLI changes using committed directory revisions and WebSocket invalidation, with reconciliation when subscriptions connect.
+
 - Add a shared icon-only continuation action to empty DM/Room composers, including paused queues and exact recoverable WorkGraph tasks; preserve existing send/stop icons and prevent duplicate or unknown-outcome replay.
 
 - Continue interrupted WorkGraph tasks with their original agent from the stopped reply or graph, preserving accepted work and durable dispatch across restart.

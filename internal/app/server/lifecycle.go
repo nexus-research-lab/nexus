@@ -134,6 +134,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		}
 	}
 	starters := []func(context.Context) (func(), error){
+		s.startDirectoryWatch,
 		s.startWorkGraphHistoryBackfill,
 		s.startControlIdentityInvalidations,
 		s.startConfigurationRecovery,
