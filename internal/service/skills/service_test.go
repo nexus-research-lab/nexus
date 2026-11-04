@@ -37,6 +37,7 @@ func TestMain(m *testing.M) {
 		"imagegen",
 		"visualize",
 		"automation",
+		"computer-use",
 		"nexus-manager",
 		"nexus-configuration",
 		"nexus-product-guide",

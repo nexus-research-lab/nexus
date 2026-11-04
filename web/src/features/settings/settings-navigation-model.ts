@@ -25,6 +25,7 @@ export type SettingsSectionKey =
   | "permissions"
   | "sandbox"
 	| "browser"
+  | "computer-use"
   | "personal"
   | "operations-organization"
   | "default-models"
@@ -56,6 +57,7 @@ export const SETTINGS_NAVIGATION_GROUPS: readonly SettingsNavigationGroup[] = [
       { key: "permissions", labelKey: "settings.navigation.permissions" },
       { key: "sandbox", labelKey: "settings.navigation.sandbox" },
 		{ key: "browser", labelKey: "settings.navigation.browser" },
+      { key: "computer-use", labelKey: "settings.navigation.computer_use" },
     ],
   },
   {

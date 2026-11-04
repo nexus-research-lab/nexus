@@ -1,4 +1,4 @@
-// INPUT: Goal/Execution command 领域及其内置 Skill 绑定。
+// INPUT: Goal/Execution/Computer Use command 领域及其内置 Skill 绑定。
 // OUTPUT: 不可变的托管语义 Skill 目录与精确成员判断。
 // POS: runtime 发现、提示投影和权限策略共用的唯一绑定真相源。
 package agent
@@ -10,11 +10,14 @@ const (
 	GoalSkillName = "goal-manager"
 	// ExecutionSkillName 是 Execution/WorkGraph command 语义的规范 Skill 绑定。
 	ExecutionSkillName = "execution-orchestrator"
+	// ComputerUseSkillName 是 Computer Use command 语义的规范 Skill 绑定。
+	ComputerUseSkillName = "computer-use"
 )
 
 var managedSemanticSkillNames = []string{
 	GoalSkillName,
 	ExecutionSkillName,
+	ComputerUseSkillName,
 }
 
 // ManagedSemanticSkillNames 返回由调用方持有的规范 Skill 绑定副本。
@@ -33,7 +36,7 @@ func IsManagedSemanticSkillName(name string) bool {
 	return false
 }
 
-// BindManagedSemanticSkills 强制绑定 Goal/Execution Skill，同时保留其他 Skill 的调用方顺序。
+// BindManagedSemanticSkills 强制绑定 Goal/Execution/Computer Use Skill，同时保留其他 Skill 的调用方顺序。
 // 托管名称会被规范化、去重，并从禁用集合中移除。
 func BindManagedSemanticSkills(skillIDs []string, disabledSkillIDs []string) ([]string, []string) {
 	bound := make([]string, 0, len(skillIDs)+len(managedSemanticSkillNames))

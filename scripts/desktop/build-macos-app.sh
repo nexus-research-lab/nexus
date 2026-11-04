@@ -50,6 +50,8 @@ NEXUSCFG_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexuscfg"
 SWIFT_PRODUCT="NexusDesktop"
 BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-0}"
 NXS_RUNTIME_PATH="${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-}"
+BUNDLE_CUA_RUNTIME="${NEXUS_DESKTOP_BUNDLE_CUA_RUNTIME:-0}"
+CUA_RUNTIME_PATH="${NEXUS_DESKTOP_CUA_RUNTIME_PATH:-}"
 HOST_ARCH="$(uname -m)"
 
 case "${NEXUS_DESKTOP_TARGET_ARCH:-${HOST_ARCH}}" in
@@ -220,6 +222,28 @@ if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
   fi
 fi
 
+if is_enabled "${BUNDLE_CUA_RUNTIME}"; then
+  cua_output_path="${RESOURCES_DIR}/bin/nexuscua"
+  if [[ -z "${CUA_RUNTIME_PATH}" || ! -x "${CUA_RUNTIME_PATH}" ]]; then
+    echo "missing cached CUA runtime: ${CUA_RUNTIME_PATH:-<unset>}" >&2
+    exit 1
+  fi
+  echo "==> Using cached bundled CUA runtime"
+  cp "${CUA_RUNTIME_PATH}" "${cua_output_path}"
+  # Carry the pinned runtime's distribution notices and provenance into the app.
+  cua_package_dir="$(dirname "${CUA_RUNTIME_PATH}")"
+  cua_notice_dir="${RESOURCES_DIR}/licenses/nexus-cua"
+  mkdir -p "${cua_notice_dir}"
+  for notice in LICENSE THIRD_PARTY_NOTICES.md sbom.spdx.json manifest.json; do
+    if [[ -f "${cua_package_dir}/${notice}" ]]; then
+      cp "${cua_package_dir}/${notice}" "${cua_notice_dir}/${notice}"
+    fi
+  done
+  if [[ -d "${cua_package_dir}/licenses" ]]; then
+    rsync -a "${cua_package_dir}/licenses/" "${cua_notice_dir}/dependencies/"
+  fi
+fi
+
 require_macho_architecture "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
 require_macho_architecture "${MACOS_CONTENTS_DIR}/nexus-server"
 require_macho_architecture "${RESOURCES_DIR}/bin/nexusctl"
@@ -229,6 +253,9 @@ if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
 fi
 if [[ -x "${RESOURCES_DIR}/bin/rg" ]]; then
   require_macho_architecture "${RESOURCES_DIR}/bin/rg"
+fi
+if [[ -x "${RESOURCES_DIR}/bin/nexuscua" ]]; then
+  require_macho_architecture "${RESOURCES_DIR}/bin/nexuscua"
 fi
 
 chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
@@ -240,6 +267,9 @@ if [[ -f "${RESOURCES_DIR}/bin/nxs" ]]; then
 fi
 if [[ -f "${RESOURCES_DIR}/bin/rg" ]]; then
   chmod 0755 "${RESOURCES_DIR}/bin/rg"
+fi
+if [[ -f "${RESOURCES_DIR}/bin/nexuscua" ]]; then
+  chmod 0755 "${RESOURCES_DIR}/bin/nexuscua"
 fi
 
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/web/dist/" "${RESOURCES_DIR}/Web/"
@@ -264,6 +294,17 @@ sed \
   -e "s/__BUILD_NUMBER__/${BUILD_NUMBER}/g" \
   "${MACOS_DIR}/Resources/Info.plist" > "${CONTENTS_DIR}/Info.plist"
 
+if [[ -n "${NEXUS_DESKTOP_DEFAULT_STATE_ROOT:-}" ]]; then
+  if [[ "${BUNDLE_IDENTIFIER}" == "com.leemysw.nexus" ]]; then
+    echo "a bundled preview state root requires a separate bundle identifier" >&2
+    exit 1
+  fi
+  /usr/libexec/PlistBuddy -c "Add :NexusDefaultStateRoot string ${NEXUS_DESKTOP_DEFAULT_STATE_ROOT}" "${CONTENTS_DIR}/Info.plist"
+fi
+if [[ "${NEXUS_DESKTOP_REGISTER_URL_SCHEME:-1}" == "0" ]]; then
+  /usr/libexec/PlistBuddy -c 'Delete :CFBundleURLTypes' "${CONTENTS_DIR}/Info.plist"
+fi
+
 printf 'APPL????' > "${CONTENTS_DIR}/PkgInfo"
 
 if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev/null 2>&1; then
@@ -280,6 +321,14 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
   fi
   if [[ -x "${RESOURCES_DIR}/bin/rg" ]]; then
     codesign_target "${RESOURCES_DIR}/bin/rg"
+  fi
+  if [[ -x "${RESOURCES_DIR}/bin/nexuscua" ]]; then
+    if is_enabled "${NEXUS_DESKTOP_PRESERVE_CUA_SIGNATURE:-0}"; then
+      # Explicit preview builds can retain the exact already-tested release bytes.
+      codesign --verify --strict "${RESOURCES_DIR}/bin/nexuscua"
+    else
+      codesign_target "${RESOURCES_DIR}/bin/nexuscua"
+    fi
   fi
   codesign_target "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
   codesign_target "${APP_BUNDLE}"

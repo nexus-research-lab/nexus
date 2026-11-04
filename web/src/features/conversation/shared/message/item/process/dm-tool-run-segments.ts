@@ -368,53 +368,40 @@ function countToolRunErrors(
 }
 
 function resolveTerminalToolRunPhase(
-  lastToolUseId: string | undefined,
+  _lastToolUseId: string | undefined,
   indexes: ReadonlySet<number>,
   content: readonly ContentBlock[],
 ): Exclude<ToolRunPhase, "active"> {
-  if (!lastToolUseId) {
-    return "complete";
-  }
-  let lastToolUseIndex = -1;
-  indexes.forEach((index) => {
-    const block = content[index];
-    if (
-      block?.type === "tool_use"
-      && block.id === lastToolUseId
-      && index > lastToolUseIndex
-    ) {
-      lastToolUseIndex = index;
-    }
-  });
-  let phase: Exclude<ToolRunPhase, "active"> = "complete";
+  let hasError = false;
+  let hasRejected = false;
+  let hasSuperseded = false;
+  let hasStopped = false;
   [...indexes]
     .sort((left, right) => left - right)
     .forEach((index) => {
-      if (index <= lastToolUseIndex) {
-        return;
-      }
       const block = content[index];
       if (block?.type === "tool_use_error") {
-        phase = "error";
+        hasError = true;
         return;
       }
-      if (
-        block?.type !== "tool_result"
-        || block.tool_use_id !== lastToolUseId
-      ) {
+      if (block?.type !== "tool_result") {
         return;
       }
-      phase = isInterruptedToolResult(block)
-        ? "stopped"
-        : block.is_error
-        ? "error"
-        : isRejectedToolResult(block)
-        ? "rejected"
-        : isSupersededToolResult(block)
-        ? "superseded"
-        : "complete";
+      if (isInterruptedToolResult(block)) {
+        hasStopped = true;
+      } else if (block.is_error) {
+        hasError = true;
+      } else if (isRejectedToolResult(block)) {
+        hasRejected = true;
+      } else if (isSupersededToolResult(block)) {
+        hasSuperseded = true;
+      }
     });
-  return phase;
+  if (hasError) return "error";
+  if (hasRejected) return "rejected";
+  if (hasSuperseded) return "superseded";
+  if (hasStopped) return "stopped";
+  return "complete";
 }
 
 function countUnresolvedToolUses(

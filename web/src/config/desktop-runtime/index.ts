@@ -1,7 +1,9 @@
 export {
   applyDesktopRuntimeDocumentFlags,
+  getDesktopPlatform,
   getDesktopRuntimeConfig,
   isDesktopRuntime,
+  isComputerUseDesktopRuntime,
 } from "./runtime-config";
 export {
   applyDesktopRequestHeaders,

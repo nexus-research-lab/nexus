@@ -54,6 +54,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       NEXUS_TEST_POSTGRES_URL: postgres://nexus:nexus-test@127.0.0.1:5432/nexus_test?sslmode=disable
+      GOWORK: "off"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6

@@ -102,6 +102,8 @@ type Config struct {
 	ConnectorInstagramClientSecret   string
 	ConnectorShopifyClientID         string
 	ConnectorShopifyClientSecret     string
+	ComputerUseEnabled               bool
+	ComputerUseBinaryPath            string
 }
 
 // MemoryMaintenanceConfig 描述 Nexus 唤醒 nxs 记忆维护任务的宿主策略。
@@ -200,6 +202,8 @@ func Load() Config {
 		DesktopSandboxEnabled:       strings.EqualFold(strings.TrimSpace(appMode), "desktop"),
 		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		BrowserEnabled:              browserEnabled,
+		ComputerUseEnabled:          mustBool(getEnv("NEXUS_COMPUTER_USE_ENABLED", "false")),
+		ComputerUseBinaryPath:       strings.TrimSpace(getEnv("NEXUS_COMPUTER_USE_BINARY", "")),
 		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsSourceURLs:            getEnv("SKILLS_SOURCE_URLS", ""),
 		SkillsDefaultSourcesEnabled: mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),

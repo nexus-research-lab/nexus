@@ -101,8 +101,12 @@ func TestCommandDiagnosticsCoverResultsWithoutLoggingPayloads(t *testing.T) {
 				t.Fatalf("diagnostic leaked raw identity or payload: %s", output.String())
 			}
 			receipts, _ := actor.Round.CommandReceipts.Since(0)
+			// Every invoke that resolves an operation records one trusted receipt,
+			// including failures, so indeterminate mutations remain auditable.
+			// Envelope, request-identity and unknown-operation rejections never
+			// reach an operation and record none.
 			wantReceipts := 0
-			if action == ActionInvoke && tc.status == "ok" {
+			if action == ActionInvoke && label != "unknown" && tc.reason != "invalid_request_id" {
 				wantReceipts = 1
 			}
 			if len(receipts) != wantReceipts {

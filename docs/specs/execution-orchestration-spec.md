@@ -580,7 +580,7 @@ External channel admission is a separate policy layer, not a substitute for thes
 
 ### 5.1 `nexus.command` transport
 
-- Goal, Execution, Automation, and Subagent share one model-visible, always-loaded
+- Goal, Execution, Computer Use, Automation, and Subagent share one model-visible, always-loaded
   MCP tool, `nexus.command`. Bundled Skills own model decisions.
 - The host captures owner, Agent, Session, Room role, Goal revision, WorkBinding,
   ReviewBinding, coordination authority, and Automation route in a physical-round
@@ -590,9 +590,16 @@ External channel admission is a separate policy layer, not a substitute for thes
   actor-filtered read; `invoke` resolves the operation from the in-process directory.
   Execution may reuse the exact schema already returned or host-injected in this
   physical round; schema reuse never caches authority or skips input validation.
-- Business input travels directly through the SDK `stream-json` MCP call. Nexus
-  creates no temporary input file, writable staging root, shell process,
-  environment capability, capability token, loopback broker, or command shim.
+  Computer Use keeps its fresh observation operations in that bounded directory so
+  the host can enforce observation and request identity together; a Computer Use
+  mutation must load the fresh exact contract first.
+- Business input travels directly through the SDK `stream-json` MCP call. For
+  Goal/Execution/Automation/Subagent, Nexus creates no temporary input file,
+  writable staging root, shell process, environment capability, capability
+  token, loopback broker, or command shim. Computer Use is the explicit
+  host-owned exception: its service may supervise a pinned local `nexus-cua`
+  sidecar over a private socket or named pipe, while keeping the endpoint,
+  token, native handles, and artifact root outside the model-visible contract.
 - The bridge replaces the per-round SDK server instance in place, so authority
   updates need no runtime restart.
 - The adapter validates required fields, closed objects, types, enums, patterns, and
@@ -632,6 +639,20 @@ used by `contract` and `executed: false`; supplied values are not echoed. Room
 work and review dispatches include the canonical `submit_work` and `review_work`
 schemas respectively, injected by app composition so orchestration and realtime
 services do not import MCP. Dispatch text supplies fields, never authority.
+
+Computer Use uses the same round-scoped command envelope and does not expose a
+second MCP server:
+
+| Business operation | Exact tool sequence | Design boundary |
+| --- | --- | --- |
+| `get_computer` | `{"domain":"computer","action":"inspect"}` | Starts the supervised sidecar lazily, then returns capabilities and permission state. Disabled configuration fails closed. |
+| `list_applications` | Computer contract → `invoke` | Returns expiring discovery refs; the Agent cannot supply process handles. |
+| `select_target` | `list_applications` → Computer contract → `invoke` | Approves exact application identity, action scope, foreground input and duration before opening a round-bounded session. |
+| `list_launchable_applications` / `launch_application` | Computer contract → `invoke` | Discover installed applications; approve one exact launch independently of later input authority. |
+| `observe` | Computer contract → `invoke` | Returns fresh opaque window/element refs and an optional bounded screenshot artifact. |
+| `perform_action` | `observe` → Computer contract → `invoke` | Requires a fresh observation and the approved target-session scope. Sensitive operations require separate approval; unknown results reconcile under the original request_id. |
+| `verify_state` | Computer contract → `invoke` | Reads a bounded predicate against the selected window. |
+| `close_target` | Computer contract → `invoke` | Closes the session and discards round-local refs and pending mutation state. |
 
 A stable `request_id` identifies one semantic intent and is reused for retries.
 Changing operation, target, or input requires a new ID. No transport path is

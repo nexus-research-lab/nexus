@@ -20,6 +20,7 @@
     <NexusDesktopBuildNumber Condition="'$(NexusDesktopBuildNumber)' == ''">0</NexusDesktopBuildNumber>
     <NexusDesktopFileVersion Condition="'$(NexusDesktopFileVersion)' == ''">0.0.0.0</NexusDesktopFileVersion>
     <NexusDesktopAssemblyVersion Condition="'$(NexusDesktopAssemblyVersion)' == ''">0.0.0.0</NexusDesktopAssemblyVersion>
+    <NexusDesktopPreview Condition="'$(NexusDesktopPreview)' == ''">false</NexusDesktopPreview>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,6 +37,10 @@
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>NexusBuildNumber</_Parameter1>
       <_Parameter2>$(NexusDesktopBuildNumber)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>NexusPreview</_Parameter1>
+      <_Parameter2>$(NexusDesktopPreview)</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 </Project>

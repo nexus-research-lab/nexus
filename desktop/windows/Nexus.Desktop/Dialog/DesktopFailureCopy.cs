@@ -59,6 +59,7 @@ internal static class DesktopFailureCopy
             "日志导出没有完成。已有会话、任务和文件未受影响。",
             "检查所选位置是否已经生成日志文件；如果没有，再重新导出。"),
         "app.open_external_url" or "app.start_browser_extension_setup"
+            or "app.start_computer_use_permission_setup"
             or "app.open_workspace_file" or "app.open_route" => string.Join(
                 Environment.NewLine + Environment.NewLine,
                 "窗口或页面的打开结果待确认。Nexus 中已有的会话、任务和文件没有被修改。",

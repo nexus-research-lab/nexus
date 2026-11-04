@@ -8,7 +8,9 @@ param(
   [string]$BuildNumber = "",
   [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED,
   [string]$BundleNXSRuntime = $env:NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME,
-  [string]$NXSRuntimePath = $env:NEXUS_DESKTOP_NXS_RUNTIME_PATH
+  [string]$NXSRuntimePath = $env:NEXUS_DESKTOP_NXS_RUNTIME_PATH,
+  [string]$CUAPackageRoot = "",
+  [switch]$Preview
 )
 
 $ErrorActionPreference = "Stop"
@@ -185,8 +187,10 @@ Write-Host "==> Building web/dist"
 Push-Location (Join-Path $rootDir "web")
 try {
   pnpm install --frozen-lockfile --prefer-offline
+  if ($LASTEXITCODE -ne 0) { throw "Failed to install web dependencies" }
   $env:NEXUS_DESKTOP_BUILD = "1"
   pnpm build
+  if ($LASTEXITCODE -ne 0) { throw "Failed to build web assets" }
 } finally {
   Remove-Item Env:NEXUS_DESKTOP_BUILD -ErrorAction SilentlyContinue
   Pop-Location
@@ -242,6 +246,8 @@ dotnet publish $projectPath `
   -p:NexusDesktopBuildNumber=$resolvedBuildNumber `
   -p:NexusDesktopFileVersion=$fileVersion `
   -p:NexusDesktopAssemblyVersion=$fileVersion `
+  -p:NexusDesktopPreview=$($Preview.IsPresent.ToString().ToLowerInvariant()) `
+  -p:AssemblyName=$ExecutableName `
   -o $publishDir
 if ($LASTEXITCODE -ne 0) {
   throw "Failed to publish Windows shell with exit code $LASTEXITCODE"
@@ -258,6 +264,24 @@ Copy-Item -Recurse -Force (Join-Path $publishDir "*") $OutputDir
 Copy-Item -Force $sidecarPath (Join-Path $resourcesDir "nexus-server.exe")
 Copy-Item -Force $nexusctlPath (Join-Path $resourcesBinDir "nexusctl.exe")
 Copy-Item -Force $nexuscfgPath (Join-Path $resourcesBinDir "nexuscfg.exe")
+if (-not [string]::IsNullOrWhiteSpace($CUAPackageRoot)) {
+  $cuaRoot = (Resolve-Path -LiteralPath $CUAPackageRoot).Path
+  foreach ($required in @("nexuscua.exe", "manifest.json", "sbom.spdx.json", "THIRD_PARTY_NOTICES.md", "LICENSE")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $cuaRoot $required) -PathType Leaf)) {
+      throw "CUA package is missing $required"
+    }
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $cuaRoot 'licenses') -PathType Container)) {
+    throw 'CUA package is missing third-party license files'
+  }
+  $cuaManifest = Get-Content -LiteralPath (Join-Path $cuaRoot "manifest.json") -Raw | ConvertFrom-Json
+  if ($cuaManifest.platform -ne 'windows' -or $cuaManifest.architecture -notin @('x86_64', 'amd64')) {
+    throw 'CUA package must target Windows x64'
+  }
+  $runtimeHash = (Get-FileHash -LiteralPath (Join-Path $cuaRoot 'nexuscua.exe') -Algorithm SHA256).Hash
+  if ($runtimeHash -ine $cuaManifest.runtime.sha256) { throw 'CUA runtime checksum does not match its manifest' }
+  Copy-Item -Recurse -LiteralPath $cuaRoot -Destination (Join-Path $resourcesDir 'CUA')
+}
 if ($bundleNXSRuntime) {
   $nxsPath = Join-Path $resourcesBinDir "nxs.exe"
   $nxsRipgrepPath = Join-Path $resourcesBinDir "rg.exe"
@@ -310,8 +334,9 @@ if ($desktopEnvLines.Count -gt 0) {
   $desktopEnvLines | Set-Content -Encoding UTF8 $desktopEnvPath
 }
 
-$registerProtocolScript = Join-Path $OutputDir "register-nexus-protocol.ps1"
-@"
+if (-not $Preview) {
+  $registerProtocolScript = Join-Path $OutputDir "register-nexus-protocol.ps1"
+  @"
 `$ErrorActionPreference = "Stop"
 `$exe = Join-Path `$PSScriptRoot "$ExecutableName.exe"
 if (-not (Test-Path `$exe)) {
@@ -326,12 +351,13 @@ Set-Item -Path "`$protocolKey\shell\open\command" -Value "`"`$exe`" `"%1`""
 Write-Host "Registered nexus:// protocol for `$exe"
 "@ | Set-Content -Encoding UTF8 $registerProtocolScript
 
-$unregisterProtocolScript = Join-Path $OutputDir "unregister-nexus-protocol.ps1"
-@"
+  $unregisterProtocolScript = Join-Path $OutputDir "unregister-nexus-protocol.ps1"
+  @"
 `$ErrorActionPreference = "Stop"
 Remove-Item -Recurse -Force "HKCU:\Software\Classes\nexus" -ErrorAction SilentlyContinue
 Write-Host "Unregistered nexus:// protocol"
 "@ | Set-Content -Encoding UTF8 $unregisterProtocolScript
+}
 
 Remove-Item -Recurse -Force $intermediateDir -ErrorAction SilentlyContinue
 

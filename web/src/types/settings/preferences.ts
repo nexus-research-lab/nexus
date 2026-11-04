@@ -30,6 +30,33 @@ export interface NXSRuntimeStatus {
   message?: string;
 }
 
+export type CUAInstallationPermissionState =
+  | "granted"
+  | "denied"
+  | "not_determined"
+  | "not_applicable"
+  | "unknown"
+  | string;
+
+export interface CUAInstallationPermissions {
+  screen_capture: CUAInstallationPermissionState;
+  accessibility: CUAInstallationPermissionState;
+  input_control: CUAInstallationPermissionState;
+}
+
+export type CUAInstallationPermissionKey = keyof CUAInstallationPermissions;
+
+export interface CUAInstallationStatus {
+  installed: boolean;
+  enabled: boolean;
+  version?: string;
+  architecture?: string;
+  source?: string;
+  release_url?: string;
+  message?: string;
+  permissions?: CUAInstallationPermissions;
+}
+
 export interface ModelSelectionPreference {
   provider?: string;
   model?: string;

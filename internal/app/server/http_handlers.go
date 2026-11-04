@@ -13,6 +13,7 @@ import (
 	browserhandler "github.com/nexus-research-lab/nexus/internal/handler/browser"
 	capabilityhandler "github.com/nexus-research-lab/nexus/internal/handler/capability"
 	channelhandler "github.com/nexus-research-lab/nexus/internal/handler/channel"
+	computerusehandler "github.com/nexus-research-lab/nexus/internal/handler/computeruse"
 	connectorhandler "github.com/nexus-research-lab/nexus/internal/handler/connector"
 	corehandler "github.com/nexus-research-lab/nexus/internal/handler/core"
 	echohandler "github.com/nexus-research-lab/nexus/internal/handler/echo"
@@ -40,6 +41,7 @@ type handlerSet struct {
 	skill        *skillhandler.Handlers
 	connector    *connectorhandler.Handlers
 	channel      *channelhandler.Handlers
+	computerUse  *computerusehandler.Handlers
 	automation   *automationhandler.Handlers
 	provider     *providerhandler.Handlers
 	subscription *subscriptionhandler.Handlers
@@ -106,6 +108,7 @@ func newHandlerSet(
 		skill:        skillhandler.New(api, services.Skills),
 		connector:    connectorhandler.New(api, services.Connectors),
 		channel:      channelhandler.New(api, services.Ingress, services.ChannelControl),
+		computerUse:  computerusehandler.New(api, services.ComputerUse),
 		automation:   automationhandler.New(api, services.Automation),
 		provider:     providerhandler.New(api, services.Provider, services.Preferences),
 		subscription: subscriptionhandler.New(api, services.Subscription),

@@ -9,7 +9,8 @@
 //   - client.go：Client 接口、Factory 与 agentClient（宿主管理 Agent runtime 的能力边界），
 //     并统一收口并发连接失败、永久撤销失去 Manager 所有权的 client、取消换代中的
 //     connect/config RPC、识别关闭态控制错误及隔离未收口的 SDK 会话；清理失败不被
-//     普通断管分类吞掉，也不释放重连或旧配置启动重试的栅栏。
+//     普通断管分类吞掉，也不释放重连或旧配置启动重试的栅栏；读流提前关闭时先关闭精确子进程再等待退出，避免超大消息阻塞管道收尾。
+//   - client_message_test.go：脚本化进程覆盖完整 CUA 图片消息预算及超限后的有界断流收尾，不使用 Provider 或用户内容。
 //   - session.go / round.go / idle*.go / owner.go / interrupt.go / streaming_input.go / task.go /
 //     goal_accounting.go：Manager 管理 session_key → SDK client、owner、运行中 round、
 //     key 级启动与关闭栅栏、client 换代、lease 条件关闭、round keyed state、

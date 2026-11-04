@@ -25,7 +25,7 @@ func TestCommandDiagnosticsUseBaseLoggerAcrossRequestAndBackgroundRounds(t *test
 		}
 		ctx = runtimectx.WithRuntimeRoundLease(ctx, "sensitive-session", "sensitive-round")
 		agent := &protocol.Agent{AgentID: "sensitive-agent", OwnerUserID: "sensitive-owner"}
-		tool, available, err := buildNexusCommandMCPTool(ctx, config.Config{}, base, stubRuntimeAgentResolver{record: agent}, nil, nil, nil, nil, nexusmcp.RoundContext{
+		tool, available, err := buildNexusCommandMCPTool(ctx, config.Config{}, base, stubRuntimeAgentResolver{record: agent}, nil, nil, nil, nil, nil, nexusmcp.RoundContext{
 			SessionKey: "sensitive-session", RoundID: "sensitive-round", CommandReceipts: nexusmcp.NewCommandReceiptState(),
 			CommandContext: runtimectx.RuntimeCommandContext{Agent: agent},
 		})

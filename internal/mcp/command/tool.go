@@ -40,9 +40,9 @@ func NewTool(handler Handler, diagnostics ...*Diagnostics) sdktool.Tool {
 	}
 	return sdktool.Tool{
 		Name: ToolName,
-		Description: "调用 Nexus 托管的 Goal、Execution、Automation 或 Subagent 命令。" +
+		Description: "调用 Nexus 托管的 Goal、Execution、Computer Use、Automation 或 Subagent 命令。" +
 			"用 contract 获取操作目录和精确输入 schema，再按对应 domain 使用 inspect/invoke 或 plan/apply；Execution 本轮已返回或宿主内联的 exact schema 可直接复用，权限仍以最新 binding 和 allowed_actions 为准。",
-		SearchHint:  "nexus goal execution automation subagent contract inspect invoke plan apply 目标 执行 自动化",
+		SearchHint:  "nexus goal execution computer use automation subagent contract inspect invoke plan apply 目标 执行 电脑 自动化",
 		AlwaysLoad:  true,
 		InputSchema: inputSchema,
 		Annotations: &sdktool.ToolAnnotations{Destructive: true},
@@ -81,7 +81,7 @@ func inputSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"domain": map[string]any{
-				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution, DomainSubagent},
+				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution, DomainComputer, DomainSubagent},
 			},
 			"action": map[string]any{
 				"description": "goal/execution：contract、inspect（固定读取，省略 operation）、invoke（提供 operation 和 request_id）；automation：contract、inspect（提供查询 operation）、plan、apply；subagent：contract、inspect（list）、invoke（其他 operation）。",
@@ -161,7 +161,7 @@ func errorResult(err error) sdktool.ToolResult {
 	}
 }
 
-// HandleSemantic 执行 contract/inspect/invoke，并为成功的 mutation 记录可信回执。
+// HandleSemantic 执行 contract/inspect/invoke，并为每次 invoke 记录可信回执。
 func HandleSemantic(
 	ctx context.Context,
 	actor Actor,
@@ -203,9 +203,16 @@ func HandleSemantic(
 			RequestID: request.RequestID,
 			SessionID: actor.Round.CommandContext.CurrentSDKSessionID(),
 		})
-		if err == nil {
-			recordReceipt(actor, request.RequestID, domain, operation.Name, request.Input, result)
+		if err != nil {
+			result = Result{
+				StructuredContent: map[string]any{
+					"outcome": "rejected",
+					"message": err.Error(),
+				},
+				IsError: true,
+			}
 		}
+		recordReceipt(actor, request.RequestID, domain, operation.Name, request.Input, result)
 		return result, err
 	default:
 		return nil, fmt.Errorf("%s 只支持 contract、inspect、invoke", domain)
@@ -224,7 +231,7 @@ func recordReceipt(
 	input map[string]any,
 	result Result,
 ) {
-	if result.IsError || actor.Round.CommandReceipts == nil {
+	if actor.Round.CommandReceipts == nil {
 		return
 	}
 	receipt := nexusmcp.CommandReceipt{
@@ -234,6 +241,9 @@ func recordReceipt(
 		receipt.Outcome = stringValue(result.StructuredContent["outcome"])
 		receipt.Message = stringValue(result.StructuredContent["message"])
 		receipt.ReasonCode = stringValue(result.StructuredContent["reason_code"])
+		receipt.ErrorCode = stringValue(result.StructuredContent["error_code"])
+		receipt.MutationStatus = stringValue(result.StructuredContent["mutation_status"])
+		receipt.RecoveryAction = stringValue(result.StructuredContent["recovery_action"])
 		receipt.ExecutionID = stringValue(result.StructuredContent["execution_id"])
 		receipt.Changed = stringSliceValue(result.StructuredContent["changed"])
 		receipt.SnapshotRevision = int64Value(result.StructuredContent["snapshot_revision"])

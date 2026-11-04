@@ -62,6 +62,7 @@ func (s *CommandAttemptState) Reset(key string) {
 const (
 	CommandDomainGoal         = "goal"
 	CommandDomainExecution    = "execution"
+	CommandDomainComputer     = "computer"
 	GoalOperationCreate       = "create_goal"
 	GoalOperationRetarget     = "retarget_goal"
 	GoalOperationAudit        = "audit_objective_alignment"
@@ -78,6 +79,9 @@ type CommandReceipt struct {
 	Outcome          string   `json:"outcome,omitempty"`
 	Message          string   `json:"message,omitempty"`
 	ReasonCode       string   `json:"reason_code,omitempty"`
+	ErrorCode        string   `json:"error_code,omitempty"`
+	MutationStatus   string   `json:"mutation_status,omitempty"`
+	RecoveryAction   string   `json:"recovery_action,omitempty"`
 	GoalID           string   `json:"goal_id,omitempty"`
 	GoalStatus       string   `json:"goal_status,omitempty"`
 	ExecutionID      string   `json:"execution_id,omitempty"`
@@ -107,6 +111,9 @@ func (s *CommandReceiptState) Record(receipt CommandReceipt) CommandReceipt {
 	receipt.Outcome = strings.TrimSpace(receipt.Outcome)
 	receipt.Message = strings.TrimSpace(receipt.Message)
 	receipt.ReasonCode = strings.TrimSpace(receipt.ReasonCode)
+	receipt.ErrorCode = strings.TrimSpace(receipt.ErrorCode)
+	receipt.MutationStatus = strings.TrimSpace(receipt.MutationStatus)
+	receipt.RecoveryAction = strings.TrimSpace(receipt.RecoveryAction)
 	receipt.GoalID = strings.TrimSpace(receipt.GoalID)
 	receipt.GoalStatus = strings.TrimSpace(receipt.GoalStatus)
 	receipt.ExecutionID = strings.TrimSpace(receipt.ExecutionID)

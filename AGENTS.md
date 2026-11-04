@@ -103,6 +103,7 @@ cmd -> app -> handler -> service -> domain/storage
 | 失败协议、Automation 持久阶段 | `docs/specs/failure-recovery-spec.md` |
 | 定时任务绑定与 IM 投递权限 | `docs/specs/automation-permission-pipeline-spec.md` |
 | 运行时人工交互与 MCP 工具面 | `docs/specs/permission-runtime-spec.md` |
+| Computer Use 分发、设置开关与权限引导 | `docs/specs/computer-use-spec.md` |
 | 对话式配置、revision 密钥 | `docs/specs/conversational-configuration-control-spec.md` |
 | Slash 与计划模式 | `docs/specs/slash-command-spec.md` |
 | 能力页 | `docs/specs/capability-page-design-spec.md` |

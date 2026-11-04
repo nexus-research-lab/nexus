@@ -2,7 +2,7 @@
 // OUTPUT: 证明短状态复用共享紧凑 Notice，普通宽内容不继承该限制。
 // POS: ToolBlock 结果详情 DOM 合同；mutation 语义解析由纯模型测试负责。
 
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
@@ -49,6 +49,37 @@ describe("ToolBlockResult", () => {
     await act(async () => resolveOld({ ref: "old", kind: "tool_result", byte_size: 10, content: "Old detail" }));
     expect(screen.getByText("New detail")).toBeTruthy();
     expect(screen.queryByText("Old detail")).toBeNull();
+  });
+
+  it("shows the tool identity and retries a failed detail load", async () => {
+    let rejectFirst!: (error: Error) => void;
+    let resolveRetry!: (value: MessageDetailResponse) => void;
+    vi.mocked(getSessionMessageDetailApi)
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectFirst = reject; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveRetry = resolve; }));
+    render(
+      <I18nProvider>
+        <ToolBlockResult
+          toolResult={{
+            type: "tool_result",
+            tool_use_id: "tool-cua-observe",
+            content: null,
+            detail_session_key: "session",
+            detail_ref: "detail-1",
+          }}
+        />
+      </I18nProvider>,
+    );
+    await act(async () => rejectFirst(new Error("missing detail")));
+    expect(screen.getByText("Tool result tool-cua-observe (detail-1) could not be loaded.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await act(async () => resolveRetry({
+      ref: "detail-1",
+      kind: "tool_result",
+      byte_size: 10,
+      content: "retried detail",
+    }));
+    expect(screen.getByText("retried detail")).toBeTruthy();
   });
 
   it.each([

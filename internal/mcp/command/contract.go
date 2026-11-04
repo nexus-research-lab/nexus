@@ -19,6 +19,7 @@ const (
 	DomainSubagent   = "subagent"
 	DomainGoal       = nexusmcp.CommandDomainGoal
 	DomainExecution  = nexusmcp.CommandDomainExecution
+	DomainComputer   = nexusmcp.CommandDomainComputer
 
 	GoalOperationCreate       = nexusmcp.GoalOperationCreate
 	GoalOperationRetarget     = nexusmcp.GoalOperationRetarget

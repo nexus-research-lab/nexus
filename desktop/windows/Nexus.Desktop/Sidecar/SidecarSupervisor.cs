@@ -1,5 +1,5 @@
 // INPUT: Trusted desktop runtime configuration and durable sidecar identity.
-// OUTPUT: Job-owned backend startup, bounded asynchronous shutdown and conservative recovery.
+// OUTPUT: Job-owned backend startup, private CUA foreground handoff, bounded shutdown and conservative recovery.
 // POS: Windows sidecar lifecycle; native process primitives live in SidecarProcessLifetime.
 using System.Diagnostics;
 using System.IO;
@@ -27,6 +27,7 @@ internal sealed class SidecarSupervisor : IDisposable
     private SidecarProcessLifetime? lifetime;
     private Task? stopTask;
     private Task? outputTask;
+    private ComputerUseForegroundBroker? computerUseForeground;
 
     public SidecarSupervisor(DesktopStartupTimeline startupTimeline, CancellationToken cancellationToken = default)
     {
@@ -52,6 +53,7 @@ internal sealed class SidecarSupervisor : IDisposable
     public async Task<SidecarRuntimeConfig> StartAsync(CancellationToken cancellationToken = default)
     {
         startupTimeline.Mark("sidecar.launch_begin");
+        computerUseForeground = new ComputerUseForegroundBroker(() => process);
         ProcessStartInfo startInfo = BuildStartInfo();
         cancellationToken.ThrowIfCancellationRequested();
         lifetime = SidecarProcessLifetime.Start(startInfo);
@@ -96,6 +98,8 @@ internal sealed class SidecarSupervisor : IDisposable
 
     public void Dispose()
     {
+        computerUseForeground?.Dispose();
+        computerUseForeground = null;
         lifetime?.Dispose();
         lifetime = null;
     }
@@ -124,6 +128,7 @@ internal sealed class SidecarSupervisor : IDisposable
         };
 
         startInfo.Environment["NEXUS_APP_MODE"] = "desktop";
+        startInfo.Environment["NEXUS_CUA_FOREGROUND_PIPE"] = computerUseForeground?.PipeName ?? string.Empty;
         startInfo.Environment["NEXUS_DESKTOP_PARENT_PIPE"] = "1";
         startInfo.Environment["NEXUS_APP_ROOT"] = locator.AppRoot;
         startInfo.Environment["NEXUS_STATE_ROOT"] = DesktopPaths.RootDirectory;
@@ -155,8 +160,23 @@ internal sealed class SidecarSupervisor : IDisposable
         ApplyPackagedConnectorConfig(startInfo);
         ApplyBundledControlCommands(startInfo);
         ApplyBundledNXSRuntime(startInfo);
+        ApplyBundledComputerUse(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = runtime.WebBaseUrl.TrimEnd('/');
         return startInfo;
+    }
+
+    private void ApplyBundledComputerUse(ProcessStartInfo startInfo)
+    {
+        if (startInfo.Environment.TryGetValue("NEXUS_COMPUTER_USE_BINARY", out string? configured)
+            && !string.IsNullOrWhiteSpace(configured))
+        {
+            return;
+        }
+        string binary = Path.Combine(locator.AppRoot, "CUA", "nexuscua.exe");
+        if (File.Exists(binary))
+        {
+            startInfo.Environment["NEXUS_COMPUTER_USE_BINARY"] = binary;
+        }
     }
 
     private void ApplyPackagedConnectorConfig(ProcessStartInfo startInfo)

@@ -16,6 +16,7 @@ import {
   MonitorCog,
   Chrome,
   Cpu,
+  MousePointer2,
   FolderKanban,
   Palette,
   Settings2,
@@ -27,7 +28,7 @@ import {
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
-import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { isComputerUseDesktopRuntime, isDesktopRuntime } from "@/config/desktop-runtime";
 import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
@@ -59,6 +60,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   permissions: ShieldCheck,
   sandbox: Box,
 	browser: Chrome,
+  "computer-use": MousePointer2,
   personal: UserRound,
   providers: Cable,
   "default-models": MonitorCog,
@@ -99,6 +101,7 @@ export function SettingsSidebarNavigation({
         (item.key !== "workspace" || isDesktopRuntime()) &&
 				(item.key !== "browser" || isDesktopRuntime()) &&
         (item.key !== "sandbox" || isDesktopRuntime()) &&
+        (item.key !== "computer-use" || isComputerUseDesktopRuntime()) &&
         (!isOperationsSection(item.key) ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),

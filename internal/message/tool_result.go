@@ -4,6 +4,7 @@
 package message
 
 import (
+	"encoding/json"
 	"strings"
 	"unicode"
 
@@ -87,7 +88,119 @@ func (p *Processor) enrichToolResultBlock(
 	enriched := cloneMap(block)
 	p.attachTaskToolStructuredOutput(enriched, structuredOutput)
 	attachMutationResultMetadata(enriched, structuredOutput)
+	p.redactTransientComputerUseResult(enriched)
 	return enriched
+}
+
+// redactTransientComputerUseResult keeps screenshots and accessibility trees
+// available to the provider response, but removes them from the durable
+// transcript projection. Opaque refs and bounded observation metadata remain
+// useful for audit without persisting screen contents or AX text.
+func (p *Processor) redactTransientComputerUseResult(block map[string]any) {
+	toolUseID := textutil.AnyString(block["tool_use_id"])
+	toolUse := p.segment.FindToolUse(toolUseID)
+	if !isComputerObservationToolUse(toolUse) {
+		return
+	}
+	for _, key := range []string{"content", "structured_output"} {
+		if value, changed := redactTransientObservationValue(block[key]); changed {
+			block[key] = value
+		}
+	}
+	metadata := mapValue(block["metadata"])
+	if metadata == nil {
+		metadata = make(map[string]any, 1)
+	} else {
+		metadata = cloneMap(metadata)
+	}
+	metadata["cua_transient_content_redacted"] = true
+	block["metadata"] = metadata
+}
+
+func isComputerObservationToolUse(toolUse map[string]any) bool {
+	if toolUse == nil {
+		return false
+	}
+	name := textutil.AnyString(toolUse["name"])
+	if name != "mcp__nexus__command" && name != "nexus__command" &&
+		name != "nexus.command" && name != "nexus/command" {
+		return false
+	}
+	input := mapValue(toolUse["input"])
+	if textutil.AnyString(input["domain"]) != "computer" {
+		return false
+	}
+	operation := textutil.AnyString(input["operation"])
+	return operation == "observe" || operation == "perform_action"
+}
+
+func redactTransientObservationValue(value any) (any, bool) {
+	switch typed := value.(type) {
+	case string:
+		var decoded any
+		if json.Unmarshal([]byte(typed), &decoded) != nil {
+			return value, false
+		}
+		redacted, changed := redactTransientObservationValue(decoded)
+		if !changed {
+			return value, false
+		}
+		encoded, err := json.Marshal(redacted)
+		if err != nil {
+			return value, false
+		}
+		return string(encoded), true
+	case map[string]any:
+		if typed["type"] == "image" {
+			return map[string]any{
+				"type": "text", "text": "[Computer Use screenshot omitted from durable history]",
+			}, true
+		}
+		result := cloneMap(typed)
+		changed := false
+		for _, key := range []string{"image_data", "image_mime"} {
+			if _, ok := result[key]; ok {
+				delete(result, key)
+				changed = true
+			}
+		}
+		if elements, ok := result["elements"].([]any); ok {
+			result["elements_count"] = len(elements)
+			delete(result, "elements")
+			changed = true
+		} else if elements, ok := result["elements"].([]map[string]any); ok {
+			result["elements_count"] = len(elements)
+			delete(result, "elements")
+			changed = true
+		}
+		for key, child := range result {
+			if redacted, childChanged := redactTransientObservationValue(child); childChanged {
+				result[key] = redacted
+				changed = true
+			}
+		}
+		return result, changed
+	case []any:
+		result := make([]any, len(typed))
+		changed := false
+		for index, child := range typed {
+			redacted, childChanged := redactTransientObservationValue(child)
+			result[index] = redacted
+			changed = changed || childChanged
+		}
+		return result, changed
+	case []map[string]any:
+		result := make([]map[string]any, len(typed))
+		changed := false
+		for index, child := range typed {
+			redacted, childChanged := redactTransientObservationValue(child)
+			result[index] = redacted.(map[string]any)
+			changed = changed || childChanged
+		}
+		return result, changed
+	default:
+		return value, false
+	}
 }
 
 // attachMutationResultMetadata 只缓存显式 mutation envelope 的紧凑语义。

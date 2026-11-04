@@ -230,6 +230,11 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Get(s.prefixPath("/settings/echo"), s.handlers.echo.HandleGetEcho)
 	s.router.Put(s.prefixPath("/settings/echo"), s.handlers.echo.HandleUpdateEcho)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
+	s.router.Get(s.prefixPath("/settings/runtime/computer-use"), s.handlers.computerUse.HandleStatus)
+	s.router.Post(s.prefixPath("/settings/runtime/computer-use/install"), s.handlers.computerUse.HandleInstall)
+	s.router.Post(s.prefixPath("/settings/runtime/computer-use/enable"), s.handlers.computerUse.HandleEnable)
+	s.router.Post(s.prefixPath("/settings/runtime/computer-use/disable"), s.handlers.computerUse.HandleDisable)
+	s.router.Post(s.prefixPath("/settings/runtime/computer-use/permissions/check"), s.handlers.computerUse.HandleCheckPermissions)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }
 

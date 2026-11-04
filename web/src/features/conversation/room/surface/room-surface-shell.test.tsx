@@ -4,6 +4,7 @@
 import { act, render } from "@testing-library/react";
 import { createRef, type ComponentProps } from "react";
 import { expect, it, vi } from "vitest";
+import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { RoomSurfaceShell } from "./room-surface-shell";
 import type { RoomSurfaceLayoutProps } from "./layout/room-surface-layout-types";
 const boundary = vi.hoisted(() => ({ props: null as RoomSurfaceLayoutProps | null }));
@@ -35,7 +36,13 @@ it.each([false, true])("keeps fork completion scoped when navigation changed: %s
   let resolve!: (id: string) => void;
   const props = baseProps();
   props.onForkConversation = vi.fn(() => new Promise<string>((done) => { resolve = done; }));
-  const { rerender } = render(<RoomSurfaceShell {...props} />);
+  const { rerender } = render(<RoomSurfaceShell {...props} />, {
+    wrapper: ({ children }) => (
+      <I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => key }}>
+        {children}
+      </I18N_CONTEXT.Provider>
+    ),
+  });
   let pending!: Promise<void>;
   act(() => { pending = boundary.props!.onForkConversation("round"); });
   if (changed) rerender(<RoomSurfaceShell {...props} conversationId="conversation-b" />);

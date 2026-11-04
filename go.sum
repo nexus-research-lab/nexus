@@ -1,3 +1,5 @@
+github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
+github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/bwmarrin/discordgo v0.29.0 h1:FmWeXFaKUwrcL3Cx65c20bTRW+vOb6k8AnaP+EgjDno=
 github.com/bwmarrin/discordgo v0.29.0/go.mod h1:NJZpH+1AfhIcyQsPeuBKsUtYrRnjkyu0kIVMCHkZtRY=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
@@ -59,6 +61,20 @@ github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOF
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260928040950-c994b197e010 h1:PyU1PlK2VlevRfzhlOHD0fIEBNQvxOz+RGC5fyqt6FA=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260928040950-c994b197e010/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261020065623-52bbc5884427 h1:8Wv5i9FvoFAOIBeVSCpzjYhJmlKbvTFotvBBuCMyDCk=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261020065623-52bbc5884427/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261103021413-236fb583ddcf h1:t+ptPQlVqoNb49LMbnzrK3MkW2erSOWtVt48Ev6ZoOs=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261103021413-236fb583ddcf/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.1 h1:p22MZ/zfezSmKLD3NVxVhhrEBMV0WTqYVn5T1ZUScto=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.1/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.2 h1:cnJ9Ni9HfUsbAVmwrsOTS3GsKjfdQ6ly8qHRapuinDg=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.2/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.3 h1:UAmXkrwcs1OVwz/hp/YcyZp8P20o4BHB6uWBDbMnOwk=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.3/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.4 h1:59NhnUVakPNyxmwqAihfFOMCKXPlmk/axIFTIOKP3S4=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.4/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.5 h1:7yQvLGj4rE5kIwovuSeFxKUCSEzSIwC7I3ZQxacIzhU=
+github.com/nexus-research-lab/nexus-cua/sdk/go v0.2.0-rc.5/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.2-beta.1 h1:5WwR5TV6A12taXMH7SggT8yCMMJMF9jWE7Wj+4AuHck=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.2-beta.1/go.mod h1:ln3IqPYYocZbYvl9TAOrG/cxGR9xcn4pnZRLdCTEGEU=
 github.com/pelletier/go-toml/v2 v2.4.3 h1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=

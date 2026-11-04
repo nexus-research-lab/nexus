@@ -12,6 +12,7 @@
 | 模块边界 | [Internal 模块边界](./specs/internal-boundaries.md) |
 | 前端 | [工程与设计系统治理](./specs/frontend-engineering-spec.md) · [视觉与交互](../design.md) · [Agent 入口](../web/AGENTS.md) |
 | 权限与沙箱 | [帮我批准](./auto-review.md) · [桌面沙箱与一次性审批](./guides/desktop-sandbox.md) · [macOS / Windows 沙箱实现导读](./guides/desktop-sandbox-implementation.zh-CN.md) |
+| Computer Use | [能力规范](./specs/computer-use-spec.md) · [macOS 接入](./guides/computer-use.md) |
 | Room Skill 编写 | [中文](./guides/room-skill-authoring.md) · [英文](./guides/room-skill-authoring.en.md) |
 | WorkGraph | [设计原则](./guides/workgraph-design-principles.zh-CN.md) · [实现方案](./guides/workgraph-implementation-design.zh-CN.md) · [代码解读](./guides/workgraph-code-reading-report.zh-CN.md) · [方法论模板](./guides/workgraph-methodology-templates.zh-CN.md) |
 | 运维 | [Linux Runtime 隔离](./operations/runtime-isolation.md) · [Control 部署与账号迁移](./operations/control-migration.md) |
@@ -45,6 +46,7 @@
 - [定时自动化权限](./specs/automation-permission-pipeline-spec.md)
 - [Echo 主动跟进](./specs/echo-spec.md)
 - [Browser 能力](./specs/browser-spec.md)
+- [Computer Use 能力](./specs/computer-use-spec.md)
 - [对话配置控制面](./specs/conversational-configuration-control-spec.md)
 - [Web 弹窗](./specs/dialog-design-spec.md) · [页面信息层级](./specs/web-surface-density-spec.md) · [能力页面](./specs/capability-page-design-spec.md)
 

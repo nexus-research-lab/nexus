@@ -51,6 +51,7 @@ scripts/desktop/package-macos-app.sh
 应用图标的矢量母版为 `desktop/macos/Resources/AppIconSource.svg`。更新时先导出透明背景的 1024×1024 `AppIconSource.png`，再运行 `swift scripts/desktop/generate-macos-icon.swift` 生成 Finder / Dock 使用的 `AppIcon.icns`。Windows 的 `desktop/windows/Nexus.Desktop/Resources/AppIcon.ico` 从同一 PNG 导出，包含 16、24、32、48、64、128、256 像素层；同步更新官网仓 `nexus-atlas/public/images/nexus-app-icon.png`，首页、下载页及结构化数据复用该文件。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
 `smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。
+测试从目标 App 的 Info.plist 读取 bundle ID，通知和 URL 路由只发给该 App。未注册 URL scheme 的独立预览包通过自身通知验证窗口路由，不注册或打开正式版的深链接。
 `make app-check-ui` 从当前 Swift 源码编译独立 QA App，复用实际 `WindowManager`、
 `WebViewHost` 和 bridge，通过临时端口加载当前前端 Gallery。它使用独立 Bundle ID、
 偏好 suite、状态根和 Vite 缓存，不启动 `AppDelegate`、sidecar 或更新器，业务 API

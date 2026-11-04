@@ -1,3 +1,7 @@
+// INPUT: bootstrap preferences, explicit environment and optional preview bundle defaults.
+// OUTPUT: validated managed state roots; preview launches keep a separate default root.
+// POS: desktop state-root selection and migration bootstrap boundary.
+
 import Foundation
 
 enum DesktopStateRootStore {
@@ -132,6 +136,9 @@ enum DesktopStateRootStore {
     if let override = ProcessInfo.processInfo.environment[initialRootEnvironmentName],
        !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       candidate = normalizedURL(override)
+    } else if let bundled = Bundle.main.object(forInfoDictionaryKey: "NexusDefaultStateRoot") as? String,
+              !bundled.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      candidate = normalizedURL(bundled)
     } else {
       candidate = defaultRootDirectory
     }

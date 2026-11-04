@@ -197,7 +197,7 @@ Content-Type: application/json
 
 | 领域 | 控制入口 |
 | --- | --- |
-| Goal、Execution、Automation | 共享 round-scoped `nexus.command` |
+| Goal、Execution、Computer Use、Automation | 共享 round-scoped `nexus.command` |
 | Subagent 委派 | 复用 Execution Skill 的按需 `references/subagents.md` 和 command 的 subagent domain；不增加独立常驻工具或顶层 Skill |
 | Configuration | round-scoped `nexuscfg` |
 | owner 平台资源管理 | 仅主智能体可见的 `nexusctl` |

@@ -6,9 +6,10 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  private static let showMainWindowNotification = Notification.Name("com.leemysw.nexus.showMainWindow")
-  private static let showLauncherNotification = Notification.Name("com.leemysw.nexus.showLauncher")
-  private static let exitNotification = Notification.Name("com.leemysw.nexus.exit")
+  private static let notificationPrefix = Bundle.main.bundleIdentifier ?? "com.leemysw.nexus"
+  private static let showMainWindowNotification = Notification.Name("\(notificationPrefix).showMainWindow")
+  private static let showLauncherNotification = Notification.Name("\(notificationPrefix).showLauncher")
+  private static let exitNotification = Notification.Name("\(notificationPrefix).exit")
   private static let exitCommandArgument = "--nexus-desktop-exit"
 
   private let startupTimeline = DesktopStartupTimeline()

@@ -2,34 +2,40 @@ import Darwin
 import Foundation
 
 enum SidecarPortAllocator {
-  private static let desktopLoopbackPort = 34343
-  private static let portRetryCount = 100
-  private static let portRetryIntervalMicroseconds: useconds_t = 200_000
+  private static let preferredLoopbackPort = 34343
+  private static let fallbackLoopbackPorts = 34344...34443
 
   static func allocate(startupTimeline: DesktopStartupTimeline? = nil) throws -> Int {
-    if isAvailable(desktopLoopbackPort) {
-      return desktopLoopbackPort
+    if isAvailable(preferredLoopbackPort) {
+      startupTimeline?.mark("sidecar.port_selected", metadata: [
+        "port": "\(preferredLoopbackPort)",
+        "source": "preferred",
+      ])
+      return preferredLoopbackPort
     }
 
-    startupTimeline?.mark("sidecar.port_wait_begin", metadata: [
-      "port": "\(desktopLoopbackPort)",
+    // A packaged build and an installed build can legitimately coexist while
+    // they use different state roots. Do not make the second instance wait
+    // twenty seconds and then fail just because the preferred port is busy.
+    startupTimeline?.mark("sidecar.port_preferred_unavailable", metadata: [
+      "port": "\(preferredLoopbackPort)",
     ])
-    // 旧 sidecar 正在响应退出信号时，给固定本地端口一个短暂释放窗口。
-    for attempt in 1...portRetryCount {
-      usleep(portRetryIntervalMicroseconds)
-      if isAvailable(desktopLoopbackPort) {
-        startupTimeline?.mark("sidecar.port_wait_ready", metadata: [
-          "attempt": "\(attempt)",
-          "port": "\(desktopLoopbackPort)",
-        ])
-        return desktopLoopbackPort
-      }
+
+    for port in fallbackLoopbackPorts where isAvailable(port) {
+      startupTimeline?.mark("sidecar.port_selected", metadata: [
+        "port": "\(port)",
+        "source": "fallback",
+        "preferred_port": "\(preferredLoopbackPort)",
+      ])
+      return port
     }
 
     startupTimeline?.mark("sidecar.port_unavailable", metadata: [
-      "port": "\(desktopLoopbackPort)",
+      "preferred_port": "\(preferredLoopbackPort)",
+      "fallback_start": "\(fallbackLoopbackPorts.lowerBound)",
+      "fallback_end": "\(fallbackLoopbackPorts.upperBound)",
     ])
-    throw DesktopShellError.portUnavailable(desktopLoopbackPort)
+    throw DesktopShellError.portUnavailable(preferredLoopbackPort)
   }
 
   private static func isAvailable(_ port: Int) -> Bool {

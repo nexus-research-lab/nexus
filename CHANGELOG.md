@@ -17,6 +17,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Continue interrupted WorkGraph tasks with their original agent from the stopped reply or graph, preserving accepted work and durable dispatch across restart.
 
+- Install only the SDK-pinned nexus-cua release and archive digests instead of `releases/latest`, accept the nexus-cua `nexus.cua.release.v1` pipeline manifest, and reject a sidecar whose `runtime_version` differs from the pin.
+
+- Deliver Windows screenshots across equivalent native path spellings using directory-confined reads.
+
+- Expose Windows Computer Use settings, recognize native executables, verify Windows release packages, and retain bundled-runtime enablement across restarts.
+
+- Build Windows CUA previews with separate data, registry and instance identities, verify the pinned CUA payload, and start the sidecar without a focus-stealing console window.
+
+- Hand Windows foreground eligibility from the native Nexus host to its owned CUA child over a private, bounded pipe. Validate the backend caller and child process identity; retain runtime authority checks and native foreground readback.
+
+- Filter Computer Use app discovery by name or application id to avoid catalog pagination, and clarify recovery after stale observations or an app starting concurrently.
+
+- Expose discovery window state in Computer Use observations, distinguish Stage Manager thumbnails from minimized windows, and bound recovery of unknown mutation results.
+
+- Preserve Computer Use recovery fields in model-visible error text and explain both required options for background-window metadata recovery.
+- Fix Computer Use screenshot responses getting stuck at the bridge's default 1 MiB message limit: use a bounded 32 MiB budget and close failed runtime streams before waiting for process exit.
+- Remember the exact selected Computer Use window, include screenshots by default, normalize common key spellings, and correct the read-operation request ID guidance.
+- Preserve macOS CUA authority during input between actions with a bounded idle wait and fresh observation; keep immediate cancellation and explicit reauthorization for takeover during native dispatch.
+- Distinguish missing Computer Use observations from missing target authority, and guide bounded recovery of macOS Stage Manager windows without repeated target grants.
+- Deliver Computer Use screenshots as native MCP image blocks instead of oversized JSON text, and remove post-action screenshots and AX trees from durable message projections.
+- Scope macOS packaging smoke checks to the target bundle, including previews without a registered URL scheme.
+- Integrate the pinned CUA v0.2.0-rc.5 SDK: return fresh post-action observations and images, expose same-application scene capture, preserve mutation evidence on read failure, and latch user takeover until a new target grant. Completed-action caches retain no screenshots or AX trees.
+- Guide macOS Input Control setup through Input Monitoring as well as Accessibility.
+- Allow isolated macOS preview bundles to retain their own default state root and exact CUA payload, include runtime license/provenance files, and scope lifecycle notifications by bundle identity.
+
+- Revoke active Computer Use sessions before waiting for in-flight actions during round close, and close sessions returned after concurrent shutdown.
+
+- C3: pin the reviewed CUA SDK revision and verify backend builds with GOWORK=off in the dedicated target and CI.
+
+- C9: approve Computer Use target scope once per bounded session, reserve per-action approval for sensitive operations, expose restore/window/range/hold and launch operations, and derive input bounds from runtime capabilities.
+
 - Protect the entire private app tree, including newly created directories; migrate readable Skill projections to skills-public and cover package-manager, agent and browser credentials.
 - Clean disposable Windows workspace scratch only before runtime startup under desktop ownership, preserve migration safety across Windows path separators, and pin the Windows Rust toolchain.
 
@@ -46,6 +77,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WorkGraph 相邻重试改为短侧连线，回环就近走侧轨并从独立侧口返回；区分流程实线、重试虚线与回连，增加关系图例。工具栏与搜索移出画布内容区，背景改为点阵，详情浮层按可视区域避让并保持正常字号。
 
 - WorkGraph 复用本轮已提供的上下文与操作 schema，Room 审核派发也内联准确协议；多项已就绪责任可通过 `assign_work_batch` 一次原子派发，任一项失败整批回滚，重复请求不会重复派发。
+
+- C8: Computer Use 对接支持小数归一化坐标的 SDK，模型工具继续使用整数坐标。
+
+- C1: Computer Use 窗口列表返回明确的 state（normal/minimized/offscreen/unknown），与新版 Runtime/SDK 同步。
+
+- Computer Use 指针动作统一使用 `0..1000` 归一化坐标；滚动必须指定目标点，参数上限与 Runtime 一致。开发时需要配套重建新版 CUA Runtime 与 SDK。
 
 - macOS 桌面沙箱对齐 Codex 的无状态模型：每条命令独立套用 Seatbelt 策略，删除宿主 scratch 租约、监督启动记录、策略回执、启动崩溃恢复与随包 `nexus-runtime-bootstrap` helper，“设置 › 沙箱”不再有残留资源回收入口。App 启动不再依赖沙箱恢复。升级后自动删除旧版留下的沙箱记录表、`app/processes` 与带租约标记的 scratch 目录；清理失败只记日志、下次启动重试，不阻止 App 启动。
 - macOS 开启沙箱后，命令在沙箱内失败时可以通过一次性审批改为沙箱外执行（此前只能切换到完全访问）。
@@ -167,6 +204,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 Computer Use `observe` 无法识别 `list_windows` 返回的
+  `window_ref`，现在优先按精确 ref 选择，再按精确标题或唯一标题片段选择。
+- 修复 CUA 权限引导只打开固定页面且缺少结果反馈的问题：设置页显示三项权限的实时状态，每项单独提供开启入口，返回 Nexus 后自动复查。
+- 修复 macOS 桌面 sidecar 固定占用单一端口导致 CUA 特性包与已有 Nexus 实例冲突；首选端口被占用时自动选择受限的本机回退端口。
 - 暂停 Room 成员不再卡满 10 秒：此前暂停在持有派发锁时等待该成员 slot 收尾，而 slot 收尾需要同一把锁，中断只能等到超时才返回并记录失败；现在在锁内持久化暂停闸门后先释放锁再中断，后续派发与输出仍由数据库中的暂停状态把关。
 - 修复 Room 历史增量读取在成员每轮追加 transcript 后必然失效、每次打开都全量重建的问题：读模型改为校验已发布消息的 transcript 投影摘要，只追加时继续增量；全量重建新增耗时、分组数与落盘结果日志；DM/Room 首屏历史加载期间显示加载状态，不再呈现为空会话。
 - 修复 Room WorkGraph 执行轮把业务根轮次误当成员 runtime lease，导致 `<subagent_admission eligible="true">` 与 `nexus.command` 的 Subagent authority 冲突；现在按成员 `AgentRoundID` 校验命令面，并让准入投影与实际命令面共用同一结果。
@@ -224,6 +265,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - 扩展内置 PPTX Skill：增加模板 inventory、PPTX 容器与关系校验、页面重排和 PDF/PNG 视觉渲染工具，并补充 HTML-to-PPTX 与 OOXML 定点编辑工作流。
+- 接入可选 Nexus Computer Use 能力：round-scoped 的应用发现、目标选择、无障碍观察、截图与受限桌面动作通过 pinned nexus-cua sidecar 提供；`perform_action` 复用当前 runtime 的一次性真人审批，sidecar 崩溃后自动切换新 epoch 并丢弃旧 opaque state，runtime round 结束时自动关闭 CUA session。
+- 设置中的 CUA 开关会从 `nexus-research-lab/nexus-cua` GitHub Release 下载并校验对应 macOS 安装包，安装后再启动 sidecar，并引导用户完成系统权限授权。
 
 - IM 私聊配对可切换到本地 Room 的指定话题与成员，复用私域排队、回复和权限确认；改绑无需重新登录，旧任务保留且停止旧绑定回信。
 

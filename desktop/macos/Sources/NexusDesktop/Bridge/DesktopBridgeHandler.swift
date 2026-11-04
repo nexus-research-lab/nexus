@@ -3,6 +3,7 @@
 // POS: macOS web/native trust boundary and the only rejection path visible to the embedded UI.
 
 import AppKit
+import ApplicationServices
 import UniformTypeIdentifiers
 import WebKit
 
@@ -137,6 +138,9 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       return ["opened": true]
     case "app.start_browser_extension_setup":
       return try startBrowserExtensionSetup()
+    case "app.start_computer_use_permission_setup":
+      let permission = request.stringPayload("permission")
+      return try startComputerUsePermissionSetup(permission: permission.isEmpty ? "screen_capture" : permission)
     case "app.get_workspace_file_applications":
       return try DesktopWorkspaceFileActions.applicationsPayload(
         for: request.stringPayload("path")
@@ -191,6 +195,44 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       throw DesktopBridgeError.invalidURL
     }
     try DesktopExternalURLPolicy.open(url)
+  }
+
+  /// Computer Use 权限引导一次只处理一个权限：先调用对应的 macOS 正式请求 API
+  /// 让当前 App 登记到系统列表，再打开对应隐私面板供用户点击允许。宿主不写入 TCC。
+  private func startComputerUsePermissionSetup(permission: String) throws -> [String: Any] {
+    let pane: String
+    switch permission {
+    case "screen_capture":
+      if !CGPreflightScreenCaptureAccess() {
+        _ = CGRequestScreenCaptureAccess()
+      }
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    case "accessibility":
+      if !AXIsProcessTrusted() {
+        _ = AXIsProcessTrustedWithOptions([
+          kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true,
+        ] as CFDictionary)
+      }
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    case "input_control":
+      if !CGPreflightPostEventAccess() {
+        _ = CGRequestPostEventAccess()
+      }
+      // Synthesis requires Accessibility; passive user-takeover detection also
+      // requires Input Monitoring. Request it explicitly without writing TCC.
+      if !CGPreflightListenEventAccess() {
+        _ = CGRequestListenEventAccess()
+        pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+      } else {
+        pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+      }
+    default:
+      throw DesktopBridgeError.invalidComputerUsePermission
+    }
+    guard let paneURL = URL(string: pane), NSWorkspace.shared.open(paneURL) else {
+      throw DesktopBridgeError.computerUsePermissionsPageUnavailable
+    }
+    return ["opened": true, "permission": permission]
   }
 
   private func startBrowserExtensionSetup() throws -> [String: Any] {
@@ -450,6 +492,8 @@ private enum DesktopBridgeError: LocalizedError {
   case invalidResponse
   case browserExtensionUnavailable
   case browserExtensionsPageUnavailable
+  case computerUsePermissionsPageUnavailable
+  case invalidComputerUsePermission
 
   var errorDescription: String? {
     switch self {
@@ -467,6 +511,10 @@ private enum DesktopBridgeError: LocalizedError {
       return "未找到 Nexus 浏览器扩展，请重新安装或更新 Nexus。"
     case .browserExtensionsPageUnavailable:
       return "无法打开浏览器扩展程序页面，请确认已安装 Google Chrome 或 Microsoft Edge。"
+    case .computerUsePermissionsPageUnavailable:
+      return "无法打开 macOS 隐私设置，请在系统设置中手动进入 隐私与安全性。"
+    case .invalidComputerUsePermission:
+      return "Computer Use 权限类型无效。"
     }
   }
 }

@@ -14,7 +14,7 @@ import { UiDialogPortal, UiDialogBackdrop, UiDialogShell, UiDialogHeader } from 
 import { Navigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
-import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { isComputerUseDesktopRuntime, isDesktopRuntime } from "@/config/desktop-runtime";
 import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -29,6 +29,7 @@ import { SettingsGeneralSection } from "./general/settings-general-section";
 import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
 import { SettingsSandboxSection } from "./sandbox/settings-sandbox-section";
 import { BrowserSettingsSection } from "./browser/browser-settings-section";
+import { ComputerUseSettingsSection } from "./computer-use/computer-use-settings-section";
 import { isOperationsSection, type SettingsSectionKey } from "./settings-navigation-model";
 import { OrganizationPanel } from "./operations/organization-panel";
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
@@ -135,6 +136,13 @@ function SettingsSectionContent({
 	if (section === "browser") {
 		return isDesktopRuntime() ? (
 			<BrowserSettingsSection />
+		) : (
+			<Navigate replace to={AppRouteBuilders.settings()} />
+		);
+	}
+	if (section === "computer-use") {
+		return isComputerUseDesktopRuntime() ? (
+			<ComputerUseSettingsSection />
 		) : (
 			<Navigate replace to={AppRouteBuilders.settings()} />
 		);

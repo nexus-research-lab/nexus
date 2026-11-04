@@ -1,5 +1,5 @@
 // INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
-// OUTPUT: Nexus runtime 所需的最小 Client 能力、换代语义及清理失败后的重连栅栏。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力、换代语义、断流后的进程收尾及清理失败后的重连栅栏。
 // POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
@@ -981,7 +981,13 @@ func (c *agentClient) pumpMessages(
 		message, err := session.Recv(ctx)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				readErr = session.Wait()
+				// EOF may mean the JSON reader rejected a frame while the child
+				// is still writing. Waiting first deadlocks on the undrained pipe.
+				// Close the exact session before collecting its read/exit error.
+				readErr = c.closeBridgeSession(session)
+				if readErr == nil {
+					readErr = session.Wait()
+				}
 				return
 			}
 			// 中文注释：SDK abort 是有效的 round 中断信号，不能当作普通 EOF 吞掉。

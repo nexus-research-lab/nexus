@@ -29,6 +29,7 @@ import (
 	channelauthorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
+	computerusesvc "github.com/nexus-research-lab/nexus/internal/service/computeruse"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
@@ -94,6 +95,7 @@ type AppServices struct {
 	WorkGraphWorkflow      *workgraphworkflowsvc.Service
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
 	Browser                *browsersvc.Service
+	ComputerUse            *computerusesvc.Service
 	Relay                  *relaysvc.Client
 	SlashCatalog           *slashcommandsvc.Catalog
 	SlashRegistry          *slashcommandsvc.Registry
@@ -107,6 +109,14 @@ func (s *AppServices) Close(ctx context.Context) error {
 		return nil
 	}
 	var closeErrors []error
+	// Computer Use owns native sessions and its local sidecar. Revoke this
+	// authority before stopping the runtime that can still dispatch rounds.
+	if s.ComputerUse != nil {
+		closeErrors = append(closeErrors, s.ComputerUse.Close(ctx))
+		if ctx.Err() != nil {
+			return errors.Join(closeErrors...)
+		}
+	}
 	if s.Runtime != nil {
 		closeErrors = append(closeErrors, s.Runtime.Close(ctx))
 		if ctx.Err() != nil {
@@ -206,6 +216,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		browserService = browsersvc.NewService()
 		browserService.SetLogger(logger.With("component", "browser"))
 	}
+	computerUseService := computerusesvc.NewService(cfg)
+	computerUseService.SetLogger(logger.With("component", "computer-use"))
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	projectPermissionService := projectpermissionsvc.NewService(cfg)
@@ -223,15 +235,18 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
 		LauncherPath: cfg.RuntimeLauncherPath,
 	})
-	if browserService != nil {
-		runtimeManager.SetRoundFinishedObserver(func(sessionKey string, roundID string) {
+	runtimeManager.SetRoundFinishedObserver(func(sessionKey string, roundID string) {
+		if browserService != nil {
 			go func() {
 				if err := browserService.FinalizeRound(context.Background(), sessionKey, roundID); err != nil {
 					logger.Warn("Browser round 收尾失败", "session_key", sessionKey, "round_id", roundID, "err", err)
 				}
 			}()
-		})
-	}
+		}
+		if err := computerUseService.CloseRoundByID(context.Background(), roundID); err != nil {
+			logger.Warn("Computer Use round 收尾失败", "round_id", roundID, "err", err)
+		}
+	})
 	if strings.TrimSpace(cfg.ControlURL) != "" &&
 		!strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") {
 		authService = authsvc.NewControlAuthority(cfg, db, nil)
@@ -483,6 +498,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		explicitGoalCoordinator,
 		orchestrationService,
 		permission,
+		computerUseService,
 		builtInTools,
 		workGraphWorkflowService,
 	)
@@ -532,6 +548,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		WorkGraphWorkflow:      workGraphWorkflowService,
 		MemoryMaintenance:      memoryMaintenance,
 		Browser:                browserService,
+		ComputerUse:            computerUseService,
 		SlashCatalog:           slashCommandCatalog,
 		SlashRegistry:          slashCommandRegistry,
 	}

@@ -1,5 +1,5 @@
 // INPUT: Agent runtime、主/后台模型、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
-// OUTPUT: 经统一校验、固定宿主 Provider 所有权、后台模型投影与 MCP 名称隔离后的 SDK client options。
+// OUTPUT: 经统一校验、固定宿主 Provider 所有权、后台模型投影、有限图片消息预算与 MCP 名称隔离后的 SDK client options。
 // POS: Agent 数据库配置进入 DM/Room runtime 前的统一启动选项装配边界。
 package clientopts
 
@@ -32,6 +32,10 @@ var agentSessionDeniedTools = []string{
 	"CronList",
 	"CronDelete",
 }
+
+// A CUA screenshot can contain 16 MiB of PNG data. Reserve bounded room for
+// its Base64 encoding and observation metadata in one runtime JSON message.
+const runtimeMaxMessageBytes = 32 * 1024 * 1024
 
 // claudeSessionAvailableTools 与 Nexus 当前 nxs 会话的默认模型可见工具保持一致。
 var claudeSessionAvailableTools = []string{
@@ -269,6 +273,7 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, err
 	}
 	options := agentclient.Options{
+		MaxBufferSize:          runtimeMaxMessageBytes,
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         slices.Clone(input.SettingSources),
 		AdditionalDirectories:  additionalDirectories,

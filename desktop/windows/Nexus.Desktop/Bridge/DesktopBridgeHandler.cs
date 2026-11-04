@@ -74,6 +74,8 @@ internal sealed class DesktopBridgeHandler
                 "app.relocate_state_root" => RelocateStateRoot(payload),
                 "app.open_external_url" => OpenExternalUrl(payload),
                 "app.start_browser_extension_setup" => await StartBrowserExtensionSetupAsync(),
+                "app.start_computer_use_permission_setup" => throw new PlatformNotSupportedException(
+                    "电脑操控权限设置只在 macOS 提供。"),
                 "app.get_workspace_file_applications" => GetWorkspaceFileApplications(payload),
                 "app.open_workspace_file" => OpenWorkspaceFile(payload),
                 "app.export_logs" => ExportLogs(),
