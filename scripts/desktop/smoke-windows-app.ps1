@@ -65,6 +65,12 @@ public static class NexusWindowChromeProbe
     private static extern bool SetForegroundWindow(IntPtr hwnd);
 
     [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll")]
     private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
 
     [DllImport("user32.dll")]
@@ -228,6 +234,18 @@ public static class NexusWindowChromeProbe
             int deltaX = before.Left > movement ? -movement : movement;
 
             _ = SetForegroundWindow(hwnd);
+            for (int attempt = 0; attempt < 20 && GetForegroundWindow() != hwnd; attempt++)
+            {
+                Thread.Sleep(25);
+            }
+            if (GetForegroundWindow() != hwnd)
+            {
+                return "test setup could not activate the owned window";
+            }
+            if (GetAncestor(WindowFromPoint(new Point { X = startX, Y = startY }), 2) != hwnd)
+            {
+                return "test setup drag point is covered by another window";
+            }
             _ = SetCursorPos(startX, startY);
             mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
             try
