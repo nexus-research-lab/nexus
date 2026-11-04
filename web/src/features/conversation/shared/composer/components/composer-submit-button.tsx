@@ -1,9 +1,9 @@
-// INPUT: Composer 发送、Goal 创建、附件准备和停止执行状态。
+// INPUT: Composer 发送、继续、Goal 创建、附件准备和停止执行状态。
 // OUTPUT: 单一语义动作按钮及当前可访问名称和视觉状态。
 // POS: Composer 提交动作投影；共享 UiButton 拥有基础 DOM 与视觉合同。
 
 import type { ReactNode } from "react";
-import { Send, StopCircle, Target } from "lucide-react";
+import { Play, Send, StopCircle, Target } from "lucide-react";
 
 import { UiIconButton } from "@/shared/ui/button/button";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
@@ -17,10 +17,11 @@ export interface ComposerSubmitButtonProps {
   onStop?: () => void;
   sendLabel: string;
   shouldStop: boolean;
+  shouldContinue?: boolean;
   stopLabel: string;
 }
 
-type ComposerSubmitVisual = "goal" | "loading" | "send" | "stop";
+type ComposerSubmitVisual = "goal" | "loading" | "send" | "stop" | "continue";
 
 interface ComposerSubmitProjection {
   action: "send" | "stop";
@@ -36,6 +37,7 @@ const SUBMIT_ACTION_BY_VISUAL: Record<
   ComposerSubmitVisual,
   ComposerSubmitProjection["action"]
 > = {
+  continue: "send",
   goal: "send",
   loading: "send",
   send: "send",
@@ -48,6 +50,7 @@ export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
     shouldStop: props.shouldStop && Boolean(props.onStop),
   });
   const content: Record<ComposerSubmitVisual, ReactNode> = {
+    continue: <Play size={16} />,
     goal: <Target size={16} />,
     loading: <LoadingOrb variant="preparing" />,
     send: <Send size={16} />,
@@ -56,6 +59,7 @@ export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
   return (
     <UiIconButton
       aria-label={projection.ariaLabel}
+      tooltip={props.shouldContinue ? projection.ariaLabel : undefined}
       className={projection.className}
       disabled={projection.disabled}
       onClick={
@@ -88,6 +92,7 @@ function projectComposerSubmitButton(
       visual: "loading",
     },
     { active: props.isGoalMode, visual: "goal" },
+    { active: Boolean(props.shouldContinue), visual: "continue" },
   ];
   const visual = visualCandidates.find((candidate) => candidate.active)?.visual
     ?? "send";

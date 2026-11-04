@@ -17,7 +17,7 @@ export const RECOVERY_REQUEUE_MS = 120_000;
 type RecoveryStatus = "pending" | "queued" | "unknown" | "absent" | "rejected";
 interface RecoveryRequest { requestId: string; status: RecoveryStatus }
 export interface ExecutionRecoveryAction {
-  run: (node: ExecutionGraphNodeView) => void;
+  run: (node: ExecutionGraphNodeView) => Promise<void>;
   states: Readonly<Record<string, RecoveryRequest>>;
 }
 
@@ -68,5 +68,5 @@ export function useExecutionRecovery(sessionKey: string, executionId: string, on
       } else update("unknown");
     }
   };
-  return { states, run: (node) => { void run(node); } };
+  return { states, run };
 }

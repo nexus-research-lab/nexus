@@ -1,6 +1,6 @@
 /**
  * INPUT: Composer 视图能力、Session 草稿作用域、聊天历史作用域及投递动作。
- * OUTPUT: 草稿、附件、键盘、发送与 textarea 焦点的统一视图模型；Plan 仅在发送边界编码为 /plan。
+ * OUTPUT: 草稿、附件、键盘、发送/继续与 textarea 焦点的统一视图模型；Plan 仅在发送边界编码为 /plan。
  * POS: Shared Composer 的顶层交互编排入口。
  */
 import { useCallback, useLayoutEffect, useRef } from "react";
@@ -18,6 +18,7 @@ import { useComposerHistory } from "../use-composer-history";
 import { useComposerMention } from "../use-composer-mention";
 import { useComposerSlashCommand } from "../use-composer-slash-command";
 import { buildComposerViewState } from "./composer-controller-model";
+import { useComposerContinuation } from "./use-composer-continuation";
 import { useComposerDraft } from "./use-composer-draft";
 import { useComposerGoalActions } from "./use-composer-goal-actions";
 import { useComposerKeyboard } from "./use-composer-keyboard";
@@ -33,6 +34,10 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
 
 export function useComposerController({
   commandCatalog = EMPTY_COMMAND_CATALOG,
+  continuationMessages = [],
+  continuationReady = false,
+  workGraphSessionKey,
+  onGuideQueuedMessage,
   attachmentsDisabledReason,
   defaultPlaceholder,
   defaultDeliveryPolicy,
@@ -192,16 +197,33 @@ export function useComposerController({
     onCreateGoal,
   });
   const { submitGoal } = goal;
+  const continuation = useComposerContinuation({
+    scope: draftScopeKey,
+    sessionKey: workGraphSessionKey,
+    messages: continuationMessages,
+    memberIds: workGraphSessionKey?.startsWith("room:") || roomMembers.length ? roomMembers.map((member) => member.agent_id) : undefined,
+    ready: continuationReady && !isLoading && (!runtimePhase || runtimePhase === "idle")
+      && !interactionIdentity && !attachments.isPreparingAttachments
+      && !sessionSettingsController.saving && !localDirectories.saving,
+    inputQueueItems, onSendMessage, onGuideQueuedMessage,
+  });
+  const shouldContinue = continuation.available && draftState.inputMode === "message"
+    && !draftState.input.trim() && attachments.attachments.length === 0
+    && !isLoading && (!runtimePhase || runtimePhase === "idle");
   const handleSend = useCallback(async () => {
     if (sessionSettingsController.saving || localDirectories.saving) {
       return;
     }
-    if (isGoalMode) {
+    if (shouldContinue) {
+      await continuation.run();
+    } else if (isGoalMode) {
       await submitGoal();
     } else {
       await submitMessage();
     }
   }, [
+    shouldContinue,
+    continuation,
     isGoalMode,
     localDirectories.saving,
     sessionSettingsController.saving,
@@ -286,7 +308,13 @@ export function useComposerController({
     },
     sessionSettings: sessionSettingsController,
     localDirectories,
-    state,
+    state: {
+      ...state,
+      shouldContinue,
+      isSendDisabled: shouldContinue ? continuation.disabled : state.isSendDisabled,
+      sendButtonLabel: shouldContinue ? continuation.label : state.sendButtonLabel,
+      activeError: state.activeError ?? (shouldContinue ? continuation.error : null),
+    },
     attachments: {
       attachments: attachments.attachments,
       handleFileSelect: attachments.handleFileSelect,

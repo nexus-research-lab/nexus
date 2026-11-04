@@ -4,6 +4,8 @@ L5 | 父级: web/src/features/conversation/shared/composer
 
 ## 职责
 
+- `composer-continuation-model.ts` 与 `use-composer-continuation.ts`: 从明确终态、暂停队列和共享 WorkGraph 恢复资格装配统一继续动作，防重与未知受理按 Session 隔离；不修改历史。
+
 - `composer-textarea.ts`: 原生光标行查询与草稿末尾聚焦/滚动；DOM 副作用不进入纯状态模型
 
 - `use-composer-controller.ts`: 组合草稿、附件、提及、加号 Plan 与 Slash 共用入口、Slash 目录、历史和各动作协议

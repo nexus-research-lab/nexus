@@ -38,9 +38,9 @@ it("rejects stale scope completions and never requests an unauthorized node", as
   api.request.mockReturnValue(new Promise<ExecutionRecoveryReceipt>((finish) => { resolve = finish; }));
   const refresh = vi.fn();
   const { result, rerender } = renderHook(({ session }) => useExecutionRecovery(session, "execution", refresh), { initialProps: { session: "first" } });
-  act(() => result.current.run({ ...node, can_recover: false }));
+  act(() => { void result.current.run({ ...node, can_recover: false }); });
   expect(api.request).not.toHaveBeenCalled();
-  act(() => result.current.run(node));
+  act(() => { void result.current.run(node); });
   const requestId = api.request.mock.calls[0][4] as string;
   rerender({ session: "second" }); rerender({ session: "first" });
   await act(async () => resolve({ execution_id: "execution", work_item_id: "work", attempt_id: "attempt", request_id: requestId, queued: true }));

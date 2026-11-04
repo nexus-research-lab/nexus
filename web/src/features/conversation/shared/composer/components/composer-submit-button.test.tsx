@@ -31,6 +31,15 @@ function renderSubmitButton(
 }
 
 describe("ComposerSubmitButton", () => {
+  it("offers an icon-only continuation action", async () => {
+    const user = userEvent.setup();
+    const props = renderSubmitButton({ shouldContinue: true, sendLabel: "Continue" });
+    const button = screen.getByRole("button", { name: "Continue" });
+    expect(button.textContent).toBe("");
+    await user.click(button);
+    expect(props.onSend).toHaveBeenCalledOnce();
+    expect(props.onStop).not.toHaveBeenCalled();
+  });
   it("routes the ordinary state only to the send action", async () => {
     const user = userEvent.setup();
     const props = renderSubmitButton();

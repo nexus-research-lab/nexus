@@ -18,7 +18,12 @@ import type {
 } from "@/types/generated/protocol";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
+import type { Message } from "@/types/conversation/message/entity";
+
 export interface ComposerPanelProps {
+  /** 当前会话的终态证据；历史加载/连接未就绪时禁止继续。 */
+  continuationMessages?: readonly Message[];
+  continuationReady?: boolean;
   compact: boolean;
   commandCatalog: CommandCatalogData;
   defaultPlaceholder?: string;

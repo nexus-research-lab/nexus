@@ -36,6 +36,10 @@ type ComposerConversation = Pick<
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
+  | "messages"
+  | "is_history_loading"
+  | "is_session_loading"
+  | "ws_state"
   | "pending_agent_slots"
   | "reorder_input_queue_messages"
   | "room_agent_execution_states"
@@ -141,6 +145,8 @@ export function useGroupChatComposerModel({
     });
   }, [goal.leadAgentId, roomMembers, sessionKey, setGoal, t]);
   return {
+    continuationMessages: conversation.messages,
+    continuationReady: !conversation.is_history_loading && !conversation.is_session_loading && conversation.ws_state === "connected",
     commandCatalog: conversation.command_catalog,
     contextUsage: conversation.context_usage,
     contextUsageItems: roomMembers.map((member) => ({

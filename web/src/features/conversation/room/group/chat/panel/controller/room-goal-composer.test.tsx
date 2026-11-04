@@ -52,6 +52,7 @@ describe("Room Goal owner drafts", () => {
 describe("Room Goal host dispatch", () => {
   function conversation(): Parameters<typeof useGroupChatComposerModel>[0]["conversation"] {
     return {
+      messages: [], ws_state: "connected", is_session_loading: false, is_history_loading: false,
       command_catalog: { status: "ready", commands: [] }, context_usage: null, context_usage_by_agent: {},
       delete_input_queue_message: vi.fn(async () => {}), enqueue_input_queue_message: vi.fn(async () => {}),
       guide_input_queue_message: vi.fn(async () => {}), input_queue_items: [], is_loading: false,

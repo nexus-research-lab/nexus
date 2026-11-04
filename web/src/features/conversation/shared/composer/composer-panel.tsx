@@ -224,6 +224,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 runtimeKind={props.runtimeKind}
                 submit={{
                   isDisabled: state.isSendDisabled,
+                  shouldContinue: state.shouldContinue,
                   isGoalCreating: state.isGoalCreating,
                   isGoalMode: state.isGoalMode,
                   isPreparingAttachments: state.isPreparingAttachments,
