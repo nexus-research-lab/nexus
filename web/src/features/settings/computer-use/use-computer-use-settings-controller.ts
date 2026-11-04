@@ -46,7 +46,7 @@ export function useComputerUseSettingsController() {
   const refresh = useCallback(async () => {
     try {
       const next = await getComputerUseStatusApi();
-      if (next.enabled) {
+      if (next.enabled && !next.update_required) {
         try {
           setStatus(await checkComputerUsePermissionsApi());
         } catch {
@@ -74,7 +74,7 @@ export function useComputerUseSettingsController() {
     setError(false);
     try {
       let next = status;
-      if (enabled && !next?.installed) {
+      if (enabled && (!next?.installed || next.update_required)) {
         next = await installComputerUseApi();
       }
       next = await setComputerUseEnabledApi(enabled);
@@ -88,13 +88,33 @@ export function useComputerUseSettingsController() {
       }
       setStatus(next);
     } catch {
-      setError(true);
       await refresh();
+      setError(true);
     } finally {
       requestInFlight.current = false;
       setBusy(false);
     }
   }, [refresh, status]);
+
+  const onUpdate = useCallback(async () => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setBusy(true);
+    setError(false);
+    try {
+      const next = await installComputerUseApi();
+      setStatus(next);
+      if (next.enabled) {
+        setStatus(await checkComputerUsePermissionsApi());
+      }
+    } catch {
+      await refresh();
+      setError(true);
+    } finally {
+      requestInFlight.current = false;
+      setBusy(false);
+    }
+  }, [refresh]);
 
   const onCheckPermissions = useCallback(async () => {
     if (requestInFlight.current) return;
@@ -104,8 +124,8 @@ export function useComputerUseSettingsController() {
     try {
       setStatus(await checkComputerUsePermissionsApi());
     } catch {
-      setError(true);
       await refresh();
+      setError(true);
     } finally {
       requestInFlight.current = false;
       setBusy(false);
@@ -150,6 +170,7 @@ export function useComputerUseSettingsController() {
     onChange,
     onCheckPermissions,
     onOpenPermissions,
+    onUpdate,
     refresh,
     status,
   };

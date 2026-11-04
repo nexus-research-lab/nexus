@@ -12,8 +12,9 @@ const pinnedCUAVersion = "0.2.0"
 // integrity; this map proves the asset is the one this build was tested with.
 // Copy values from the release's SHA256SUMS when bumping pinnedCUAVersion.
 var pinnedCUAArchiveSHA256 = map[string]string{
-	"nexuscua-0.2.0-macos-arm64.tar.gz": "1fe8d14dfad62e52626a2fb619de3d6ca48e19777b0b4c31fa8e2f5eb5459982",
-	"nexuscua-0.2.0-windows-x86_64.zip": "75fd7f9d4bf5fc566da10490923071ab512063b7109e0dcbb87494c89b93875a",
+	"nexuscua-0.2.0-macos-arm64.tar.gz":  "1fe8d14dfad62e52626a2fb619de3d6ca48e19777b0b4c31fa8e2f5eb5459982",
+	"nexuscua-0.2.0-macos-x86_64.tar.gz": "80f3204bdf15585a7345610185299efd69ab5bd0cb2d3d9f602ad6a9d90b4d42",
+	"nexuscua-0.2.0-windows-x86_64.zip":  "75fd7f9d4bf5fc566da10490923071ab512063b7109e0dcbb87494c89b93875a",
 }
 
 func pinnedCUAReleaseAPIURL() string {

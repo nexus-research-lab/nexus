@@ -54,6 +54,7 @@ export function ComputerUseSettingsSection() {
   const settings = useComputerUseSettingsController();
   const installed = settings.status?.installed === true;
   const enabled = settings.status?.enabled === true;
+  const updateRequired = settings.status?.update_required === true;
   const permissions = settings.status?.permissions;
   const windowsDesktop = getDesktopPlatform() === "windows";
   const permissionsReady = enabled && permissions != null && PERMISSION_ROWS.every(([name]) => {
@@ -89,7 +90,12 @@ export function ComputerUseSettingsSection() {
                       : t("settings.computer_use.not_installed")}
                 </p>
               ) : null}
-              {enabled ? (
+              {updateRequired ? (
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} role="status">
+                  {t("settings.computer_use.update_required", { version: settings.status?.required_version ?? "" })}
+                </p>
+              ) : null}
+              {enabled && !updateRequired ? (
                 <div className="mt-3 space-y-2" aria-label={t("settings.computer_use.permissions_title")}>
                   <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} role="status">
                     {permissionsReady
@@ -133,7 +139,16 @@ export function ComputerUseSettingsSection() {
                 </p>
               ) : null}
             </div>
-            {enabled ? (
+            {updateRequired ? (
+              <UiButton
+                disabled={settings.busy}
+                onClick={() => void settings.onUpdate()}
+                size="xs"
+                variant="text"
+              >
+                {t("settings.computer_use.update")}
+              </UiButton>
+            ) : enabled ? (
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <UiButton
                   disabled={settings.busy}

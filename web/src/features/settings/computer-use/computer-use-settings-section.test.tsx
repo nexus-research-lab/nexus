@@ -33,6 +33,20 @@ function renderSettings() {
   );
 }
 
+it("offers the required component update for an installed legacy version", async () => {
+  const onUpdate = vi.fn();
+  useController.mockReturnValue({
+    busy: false, error: false, onChange: vi.fn(), onUpdate,
+    status: { installed: true, enabled: true, version: "0.1.0", required_version: "0.2.0", update_required: true },
+  });
+  renderSettings();
+  expect(screen.getByText("已安装版本 0.1.0")).toBeTruthy();
+  expect(screen.getByText("当前 Nexus 需要电脑操控组件 0.2.0。")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "重新检查权限" })).toBeNull();
+  await userEvent.setup().click(screen.getByRole("button", { name: "更新组件" }));
+  expect(onUpdate).toHaveBeenCalledOnce();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   useController.mockReturnValue({

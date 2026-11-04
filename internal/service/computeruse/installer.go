@@ -52,13 +52,15 @@ var (
 // CUAInstallationStatus is the browser-safe host installation projection.
 // It deliberately omits the private binary path, endpoint, and token.
 type CUAInstallationStatus struct {
-	Installed    bool   `json:"installed"`
-	Enabled      bool   `json:"enabled"`
-	Version      string `json:"version,omitempty"`
-	Architecture string `json:"architecture,omitempty"`
-	Source       string `json:"source,omitempty"`
-	ReleaseURL   string `json:"release_url,omitempty"`
-	Message      string `json:"message,omitempty"`
+	Installed       bool   `json:"installed"`
+	Enabled         bool   `json:"enabled"`
+	Version         string `json:"version,omitempty"`
+	RequiredVersion string `json:"required_version,omitempty"`
+	UpdateRequired  bool   `json:"update_required"`
+	Architecture    string `json:"architecture,omitempty"`
+	Source          string `json:"source,omitempty"`
+	ReleaseURL      string `json:"release_url,omitempty"`
+	Message         string `json:"message,omitempty"`
 }
 
 type CUAInstallResult struct {
@@ -149,7 +151,7 @@ func (i *CUAInstaller) InstalledBinaryPath() string {
 
 func (i *CUAInstaller) Status() CUAInstallationStatus {
 	state, err := i.readState()
-	status := CUAInstallationStatus{Architecture: currentCUAArchitecture()}
+	status := CUAInstallationStatus{Architecture: currentCUAArchitecture(), RequiredVersion: i.expectedVersion}
 	if err != nil {
 		status.Message = "CUA 安装状态无法读取"
 		return status
@@ -161,6 +163,7 @@ func (i *CUAInstaller) Status() CUAInstallationStatus {
 	status.ReleaseURL = state.ReleaseURL
 	if i.InstalledBinaryPath() != "" {
 		status.Installed = true
+		status.UpdateRequired = !i.allowUnaccepted && state.Version != i.expectedVersion
 	} else {
 		status.Enabled = false
 		status.Installed = false

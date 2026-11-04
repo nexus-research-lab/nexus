@@ -137,6 +137,8 @@ export const zhSettingsMessages = {
   "settings.computer_use.description": "开启后，Nexus 可以操作已授权的应用。所需权限状态显示在下方。",
   "settings.computer_use.install_description": "开启后会自动安装电脑操控组件。",
   "settings.computer_use.version": "已安装版本 {version}",
+  "settings.computer_use.update_required": "当前 Nexus 需要电脑操控组件 {version}。",
+  "settings.computer_use.update": "更新组件",
   "settings.computer_use.installed": "电脑操控组件已安装",
   "settings.computer_use.not_installed": "电脑操控组件尚未安装",
   "settings.computer_use.working": "正在准备电脑操控…",

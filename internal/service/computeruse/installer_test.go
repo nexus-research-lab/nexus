@@ -87,6 +87,12 @@ func TestCUAInstallerDownloadsVerifiesAndPersistsRelease(t *testing.T) {
 	if !reloaded.Enabled() || reloaded.InstalledBinaryPath() == "" {
 		t.Fatal("reloaded installer lost its state")
 	}
+	if status := reloaded.Status(); !status.UpdateRequired || status.RequiredVersion != pinnedCUAVersion || status.Version != "0.1.0" {
+		t.Fatalf("legacy installation did not expose the required upgrade: %#v", status)
+	}
+	if installer.Status().UpdateRequired {
+		t.Fatal("matching installed version must not require an upgrade")
+	}
 	if _, err := installer.Install(context.Background()); err != nil || !installer.Enabled() {
 		t.Fatalf("idempotent installation did not preserve enablement: %v", err)
 	}

@@ -7,13 +7,17 @@ Nexus 通过 pinned 的 `nexus-cua` SDK/sidecar 使用原生桌面能力。模�
 
 ## 1. 常规启用（设置页）
 
-在 macOS Apple Silicon 或 Windows x64 桌面端打开 设置 → 电脑操控（CUA）开关。
+在 macOS Apple Silicon / Intel 或 Windows x64 桌面端打开 设置 → 电脑操控（CUA）开关。
 当前固定使用 v0.2.0。未安装时，Nexus 会从
 `nexus-research-lab/nexus-cua` 下载与内置 SDK 同版本的 GitHub Release 安装包，完成
 源码固定 SHA256、Release checksum 与 manifest 校验后安装到状态根的 `computer-use/versions/` 下，再启用并
 自动检查系统权限。macOS 上 Screen Recording / Accessibility / Input Control 任一未授予时，
 按设置页引导前往 系统设置 → 隐私与安全性 完成授权，然后「重新检查权限」。
 Windows 使用当前交互式桌面的权限状态，设置页显示 Runtime 返回的结果。
+
+已安装的组件与当前 Nexus 所需版本不匹配时，设置页显示「更新组件」。
+点击更新会安装固定版本并保留启用状态；重新开启旧组件时也会先执行更新。
+Intel 发布包已通过构建、签名、公证与诊断检查，原生交互验收尚未完成。
 
 安装与启用状态持久化在本地；重启 Nexus 后保持。该入口在 macOS 和 Windows 桌面宿主显示。
 

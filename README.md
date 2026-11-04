@@ -108,7 +108,7 @@ Verify the matching `.sha256` file before installing. Desktop app data is stored
 
 For macOS source debugging, run `make app-run`; the local Desktop principal does not depend on Control.
 
-Computer Use is available in the macOS Apple Silicon and Windows x64 desktop settings. Nexus installs the pinned v0.2.0 runtime and verifies its release archive checksum. [Setup guide](docs/guides/computer-use.md).
+Computer Use is available in the macOS Apple Silicon/Intel and Windows x64 desktop settings. Nexus installs the pinned v0.2.0 runtime and verifies its release archive checksum. [Setup guide](docs/guides/computer-use.md).
 
 ### Server Deployment
 

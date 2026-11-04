@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-04
+
+- Allow macOS Intel hosts to install the pinned CUA v0.2.0 x86_64 archive. The runtime archive passed Intel build, source tests, signing, notarization and diagnostic smoke; interactive native acceptance remains unverified.
+
+- Detect previously installed Computer Use components that differ from the pinned runtime. Offer an explicit update action and update legacy installations before enabling, preserving the previous enablement state on component updates.
+
 ## [0.2.7] - 2026-11-04
 
 - Pin Bridge v0.2.7 and bundled nxs v0.2.7 across desktop platforms, including the Windows MXC helper and matching SDK validation revision.

@@ -25,6 +25,48 @@ vi.mock("@/lib/desktop-bridge/desktop-bridge", () => ({
 }));
 beforeEach(() => vi.resetAllMocks());
 
+it.each([false, true])("updates a legacy installation while preserving enabled=%s", async (enabled) => {
+  const legacy = { installed: true, enabled, version: "0.1.0", required_version: "0.2.0", update_required: true };
+  const updated = { ...legacy, version: "0.2.0", update_required: false };
+  mocks.status.mockResolvedValue(legacy);
+  mocks.install.mockResolvedValue(updated);
+  mocks.checkPermissions.mockResolvedValue(updated);
+  const { result } = renderHook(useComputerUseSettingsController);
+  await waitFor(() => expect(result.current.status?.update_required).toBe(true));
+  expect(mocks.checkPermissions).not.toHaveBeenCalled();
+  await act(() => result.current.onUpdate());
+  expect(mocks.install).toHaveBeenCalledOnce();
+  expect(mocks.setEnabled).not.toHaveBeenCalled();
+  expect(mocks.checkPermissions).toHaveBeenCalledTimes(enabled ? 1 : 0);
+  expect(result.current.status).toEqual(updated);
+});
+
+it("installs the required version before enabling an already installed legacy component", async () => {
+  mocks.status.mockResolvedValue({ installed: true, enabled: false, version: "0.1.0", update_required: true });
+  mocks.install.mockResolvedValue({ installed: true, enabled: false, version: "0.2.0" });
+  mocks.setEnabled.mockResolvedValue({ installed: true, enabled: true, version: "0.2.0" });
+  mocks.checkPermissions.mockResolvedValue({ installed: true, enabled: true, version: "0.2.0" });
+  const { result } = renderHook(useComputerUseSettingsController);
+  await waitFor(() => expect(result.current.status?.version).toBe("0.1.0"));
+  await act(() => result.current.onChange(true));
+  expect(mocks.install).toHaveBeenCalledOnce();
+  expect(mocks.install.mock.invocationCallOrder[0]).toBeLessThan(mocks.setEnabled.mock.invocationCallOrder[0]);
+  expect(result.current.status?.version).toBe("0.2.0");
+});
+
+it("keeps a failed upgrade visible and retryable without enabling the legacy component", async () => {
+  const legacy = { installed: true, enabled: false, version: "0.1.0", update_required: true };
+  mocks.status.mockResolvedValue(legacy);
+  mocks.install.mockRejectedValue(new Error("download failed"));
+  const { result } = renderHook(useComputerUseSettingsController);
+  await waitFor(() => expect(result.current.status).toEqual(legacy));
+  await act(() => result.current.onUpdate());
+  expect(result.current.status).toEqual(legacy);
+  expect(result.current.error).toBe(true);
+  expect(result.current.busy).toBe(false);
+  expect(mocks.setEnabled).not.toHaveBeenCalled();
+});
+
 it("guides permissions through the dedicated bridge command, never the external URL allowlist", async () => {
   mocks.status.mockResolvedValue({ installed: true, enabled: true });
   mocks.checkPermissions.mockResolvedValue({ installed: true, enabled: true });

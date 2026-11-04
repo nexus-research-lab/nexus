@@ -12,6 +12,7 @@
 // minimization from thumbnail bounds; post-action reads do not reuse that state.
 // Closing a round revokes its runtime session before waiting for active mutations;
 // a session opened concurrently with close is immediately revoked on return.
+// Installation status exposes required-version mismatches for explicit component upgrades.
 // Supported runtimes return a post-action observation using the previous read
 // options. Successful mutation evidence survives read failures; replay caches
 // retain no screenshots or accessibility trees. User takeover remains latched

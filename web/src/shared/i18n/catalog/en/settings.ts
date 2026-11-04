@@ -140,6 +140,8 @@ export const enSettingsMessages = {
   "settings.computer_use.description": "When enabled, Nexus can control authorized applications. Required permission states appear below.",
   "settings.computer_use.install_description": "Turning this on automatically installs the computer control component.",
   "settings.computer_use.version": "Installed version {version}",
+  "settings.computer_use.update_required": "This Nexus version requires Computer Use {version}.",
+  "settings.computer_use.update": "Update component",
   "settings.computer_use.installed": "Computer control is installed",
   "settings.computer_use.not_installed": "Computer control is not installed",
   "settings.computer_use.working": "Preparing computer control…",

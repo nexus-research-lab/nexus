@@ -50,6 +50,8 @@ export interface CUAInstallationStatus {
   installed: boolean;
   enabled: boolean;
   version?: string;
+  required_version?: string;
+  update_required?: boolean;
   architecture?: string;
   source?: string;
   release_url?: string;
