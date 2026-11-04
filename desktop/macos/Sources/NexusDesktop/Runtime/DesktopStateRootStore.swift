@@ -19,7 +19,11 @@ enum DesktopStateRootStore {
   }
 
   static var defaultRootDirectory: URL {
-    URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".nexus", isDirectory: true)
+    if let bundled = Bundle.main.object(forInfoDictionaryKey: "NexusDefaultStateRoot") as? String,
+       !bundled.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return normalizedURL(bundled)
+    }
+    return URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".nexus", isDirectory: true)
   }
 
   static var bootstrapLocation: String {

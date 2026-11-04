@@ -7,7 +7,7 @@
 - SwiftPM 可执行程序，使用 AppKit + WKWebView。
 - 开发模式下从仓库根目录启动 `go run ./cmd/nexus-server`；启动前会校验 `web/dist` 不早于 Web 源码、入口和构建配置，避免误跑旧前端。
 - Bundle 模式下从 `.app/Contents/MacOS/nexus-server` 启动 Go sidecar，并优先使用 `.app/Contents/Resources/bin/nxs` 作为 `nxs` runtime。
-- Shell 自动分配 loopback 随机端口。
+- Shell 优先使用 loopback 端口 34343，被占用时在 34344–34443 中选择可用端口。
 - Sidecar 通过 `WEB_DIST_DIR` 托管 `web/dist`，WebView 访问同源 `http://127.0.0.1:<port>/`。
 - Shell 在 document start 注入 `window.__NEXUS_DESKTOP_RUNTIME__`，前端优先使用注入的 API / WebSocket 地址。
 - 桌面运行数据统一写入 `~/.nexus`；宿主日志写入 `~/.nexus/app/logs`，用户 runtime 数据写入 `~/.nexus/users/<owner>/runtime`。
@@ -180,3 +180,48 @@ xattr -dr com.apple.quarantine /Applications/Nexus.app
 外观设置通过 `app.get_system_fonts` 读取 NSFontManager 的本机字体家族目录。
 
 待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台使用 Dock 数字角标显示待确认事项总数，不弹跳，回到应用或清空待处理请求时取消，窗口最小化不切断事件连接。
+
+## 独立测试 App（Preview）
+
+在仓库根目录执行：
+
+```bash
+make preview          # 构建当前工作树（包含未提交改动）
+make preview-run      # 重新构建并启动；终端保持运行
+make preview-package  # 重新构建、烟测，输出 zip、sha256 和 metadata
+```
+
+三个入口复用正式构建/运行/打包脚本，由 `scripts/desktop/preview-macos-app.sh`
+统一配置 `Nexus Preview.app`、`dev.nexus.preview` 和 `NexusPreview` 可执行文件。
+App 位于 `desktop/macos/.build/preview/`，分发包位于
+`desktop/macos/.build/preview-package/`；正式版 App 和分发产物不会被覆盖。
+前端和 Swift 编译缓存仍复用现有构建流程，不要同时运行正式版和 Preview 构建。
+
+默认状态根 `~/.nexus-preview` 写入 App 的 Info.plist，在运行机器上展开；从 Finder
+双击或复制到另一台机器后也生效。Bundle ID 隔离系统偏好，后端在首选端口占用时使用有限范围的备用端口，支持与正式版并行运行。Preview 不注册正式版
+URL Scheme，也不检查正式版更新。首次启动是空白环境，需要重新完成配置；不自动
+复制或迁移 `~/.nexus`、`~/.nexus-cua-preview`。设置中的显式状态根迁移仍然可用，
+测试时应保持独立目录。
+
+依赖 macOS、Xcode Command Line Tools、Go、Node.js/pnpm、Python 3 和本地 `rg`。
+每次调用都会从同级 `nexus-agent-sdk-go` 当前源码重新构建 nxs，并通过专用 Go
+workspace 将宿主的 Bridge 依赖绑定到同级 `nexus-agent-sdk-bridge` 当前源码。
+Go 编译缓存仍可复用；不会使用旧 `dist/nxs`，不会修改正式构建的 go.mod/go.work。
+缺少本地源码、编译不兼容或随包 runtime 检查失败时直接失败，不回退到发布版。
+
+默认使用各目录当前检出的提交及未提交改动；不会自动切分支、拉取远端或合并其他
+工作树。需要测试特定分支时，先在对应源码目录切换，或指定现有工作树：
+
+```bash
+make preview NEXUS_PREVIEW_SDK_ROOT=/absolute/path/to/sdk-worktree \
+  NEXUS_PREVIEW_BRIDGE_ROOT=/absolute/path/to/bridge-worktree
+```
+
+`NEXUS_PREVIEW_RIPGREP_PATH` 可指定本地 rg（默认 PATH 中的 rg；跨架构构建时需匹配
+目标架构）。App 的 `Contents/Resources/preview-sources.json` 记录 Nexus、SDK、Bridge
+的源码目录、提交、分支和 dirty 状态；这些是开发构建来源信息，不是发布验收证明。
+
+Preview 启动会清除 `.env` 继承的 `NEXUSCTL_COMMAND_PATH`、`NEXUSCFG_COMMAND_PATH`、
+`NEXUS_NXS_COMMAND_PATH`，使用本次 App 捆绑的 CLI 与 runtime。
+不会自动带入其他工作树的 CUA 集成。Preview 是开发测试产物；本地默认 ad-hoc
+签名，构建或烟测成功不等于完整发布验收。

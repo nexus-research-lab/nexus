@@ -155,21 +155,21 @@ NEXUS_DESKTOP_BUILD=1 run_pnpm build
 echo "==> Building Go sidecar"
 mkdir -p "${SIDECAR_BUILD_DIR}"
 cd "${ROOT_DIR}"
-GOWORK=off CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
+GOWORK="${NEXUS_DESKTOP_GO_WORK:-off}" CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${SIDECAR_BUILD_PATH}" \
   ./cmd/nexus-server
 
 echo "==> Building nexusctl"
-GOWORK=off CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
+GOWORK="${NEXUS_DESKTOP_GO_WORK:-off}" CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${NEXUSCTL_BUILD_PATH}" \
   ./cmd/nexusctl
 
 echo "==> Building nexuscfg"
-GOWORK=off CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
+GOWORK="${NEXUS_DESKTOP_GO_WORK:-off}" CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${NEXUSCFG_BUILD_PATH}" \
@@ -294,6 +294,7 @@ sed \
   -e "s/__BUILD_NUMBER__/${BUILD_NUMBER}/g" \
   "${MACOS_DIR}/Resources/Info.plist" > "${CONTENTS_DIR}/Info.plist"
 
+# Persist preview isolation in the bundle so Finder launches use it as well.
 if [[ -n "${NEXUS_DESKTOP_DEFAULT_STATE_ROOT:-}" ]]; then
   if [[ "${BUNDLE_IDENTIFIER}" == "com.leemysw.nexus" ]]; then
     echo "a bundled preview state root requires a separate bundle identifier" >&2
@@ -303,6 +304,13 @@ if [[ -n "${NEXUS_DESKTOP_DEFAULT_STATE_ROOT:-}" ]]; then
 fi
 if [[ "${NEXUS_DESKTOP_REGISTER_URL_SCHEME:-1}" == "0" ]]; then
   /usr/libexec/PlistBuddy -c 'Delete :CFBundleURLTypes' "${CONTENTS_DIR}/Info.plist"
+fi
+if [[ "${NEXUS_DESKTOP_DISABLE_UPDATE_CHECK:-0}" == "1" ]]; then
+  /usr/libexec/PlistBuddy -c 'Add :NexusDisableUpdateCheck bool true' "${CONTENTS_DIR}/Info.plist"
+fi
+
+if [[ -n "${NEXUS_DESKTOP_SOURCE_MANIFEST:-}" ]]; then
+  cp "${NEXUS_DESKTOP_SOURCE_MANIFEST}" "${RESOURCES_DIR}/preview-sources.json"
 fi
 
 printf 'APPL????' > "${CONTENTS_DIR}/PkgInfo"

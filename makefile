@@ -54,7 +54,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser check-web check-web-full typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
 	check-cua-sdk check-backend check-normalization check-go-vet check-go check-go-fresh check-go-full check-desktop-sandbox check-desktop-sandbox-windows check-desktop-sandbox-windows-native check test run-web run-backend run-backend-go \
-	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-check-ui app-check-ui-app app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
+	preview preview-run preview-package app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-check-ui app-check-ui-app app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
 # Show help
@@ -236,6 +236,15 @@ check-backend: check-go ## Alias of Go backend checks
 check: check-go check-web ## Run incremental Go checks and frontend static checks
 
 test: check-go test-web ## Run Go checks and all frontend behavior tests explicitly
+
+preview: ## 构建独立的 macOS Nexus Preview 测试 App
+	PNPM="$${PNPM:-$(PNPM)}" ./scripts/desktop/preview-macos-app.sh build
+
+preview-run: ## 构建并启动 Nexus Preview（独立数据目录）
+	PNPM="$${PNPM:-$(PNPM)}" ./scripts/desktop/preview-macos-app.sh run
+
+preview-package: ## 构建、烟测并打包 Nexus Preview
+	PNPM="$${PNPM:-$(PNPM)}" ./scripts/desktop/preview-macos-app.sh package
 
 app-build-dev: ## 构建 macOS 桌面开发版 shell
 	PNPM="$${PNPM:-$(PNPM)}" ./scripts/desktop/build-macos-dev.sh

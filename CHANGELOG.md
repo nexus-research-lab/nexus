@@ -54,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add macOS `make preview`, `preview-run`, and `preview-package` with a separate app identity, persistent preview state root, and isolated package output; previews do not register the production URL scheme or check for production updates. Select a bounded fallback loopback port when the preferred port is occupied so isolated apps can coexist.
+
 - WorkGraph 支持显式声明后续节点的负责人和审核人，依赖验收后由宿主一次派发到 DM/Room；保留暂停、Plan/Goal 版本及成员权限检查，不自动重试失败任务。
 - WorkGraph 支持记录可恢复进展检查点，接管后保留产物和未知外部效果的核对线索；检查点不代表交付或验收。
 - 命名 WorkGraph 支持类型化参数、默认值与约束；详情展示输入示例和按模板版本聚合的实际运行、失败及完成耗时样本，对话编辑可参考统计。
@@ -69,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows 原生开发入口支持 `make dev`、`dev-nxs` 和独立服务启动，自动等待 Control 就绪、检查端口并在退出时清理本次启动的进程；`nexus-server check-desktop-runtime` 可在原生 Windows 上验证随包 nxs。
 
 ### Changed
+
+- Build Preview nxs from the local SDK checkout and bind host builds to the local Bridge checkout through an isolated Go workspace. Bundle source revisions and dirty-state metadata instead of silently reusing dist binaries.
 
 - WorkGraph 内部 DM 交付、审核与恢复轮次在支持的 runtime 上跳过自动记忆抽取，减少额外模型调用；Goal 功能关闭时独立 Room 工作图仍可恢复检查。宿主关闭使用独立宽限等待运行时的退出阶段，并继续保留真实清理失败。
 
@@ -89,6 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows 关闭窗口时先询问“最小化到托盘”或“退出”；退出时后端先排空运行时再结束其 Job，后端以原子方式加入桌面壳持有的 kill-on-close Job，单实例锁保持到清理完成；按保存的进程身份回收旧后端，不再按进程名扫描结束同名进程。
 
 ### Fixed
+
+- Clear inherited control CLI and nxs command overrides when launching Preview, so stale `.env` paths cannot route agents to an incompatible installed CLI or the wrong database.
 
 - macOS nxs 完全访问使用普通文件执行路径，保留严格 MCP 配置、宿主授权与模式切换时的 runtime 退休流程；网络准入不会重新安装沙箱。DM 已确认完成的事件先于上下文占用统计发布。
 

@@ -49,6 +49,7 @@ final class DesktopUpdateChecker {
     self.defaults = defaults
     self.session = session
     self.isDisabled = ProcessInfo.processInfo.environment["NEXUS_DESKTOP_DISABLE_UPDATE_CHECK"] == "1"
+      || Bundle.main.object(forInfoDictionaryKey: "NexusDisableUpdateCheck") as? Bool == true
   }
 
   func checkOnLaunchIfNeeded() {
