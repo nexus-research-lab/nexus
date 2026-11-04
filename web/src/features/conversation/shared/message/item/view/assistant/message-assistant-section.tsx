@@ -34,6 +34,7 @@ export function MessageAssistantSection({
   onPermissionResponse,
   permissionReadOnlyReason,
   showHeader,
+  showIdentity,
   workspaceAgentId,
   unresolvedToolStatus,
   agentMentionDirectory,
@@ -47,6 +48,10 @@ export function MessageAssistantSection({
     workspaceAgentId,
   });
   const openContact = useOpenAgentContact(scope, onOpenAgentContact);
+  const headerVisible = showHeader && (showIdentity || hasAssistantHeaderSignal(
+    assistant.header,
+    Boolean(assistantHeaderAction || assistantReplyTarget),
+  ));
 
   if (assistant.hidden && !showEmptyState) {
     return null;
@@ -56,13 +61,12 @@ export function MessageAssistantSection({
     <div className={cn("nexus-chat-message-section w-full", layout.section)}>
       <div className={cn("w-full", layout.inner)}>
         <div className="nexus-chat-assistant group relative min-w-0">
-          {showHeader ? (
+          {headerVisible ? (
             <AssistantMessageHeader
               agentMentionDirectory={agentMentionDirectory}
               avatarUrl={currentAgentAvatar}
               automationTaskName={assistant.header.automationTaskName}
               canStop={assistant.header.canStop}
-              compact={compact}
               echo={assistant.header.echo}
               headerAction={assistantHeaderAction}
               replyTarget={assistantReplyTarget}
@@ -73,6 +77,7 @@ export function MessageAssistantSection({
               name={currentAgentName}
               onOpenContact={openContact}
               onStop={assistant.header.stop}
+              showIdentity={showIdentity}
               showMetadata={layout.showMetadata}
               timestamp={assistant.header.timestamp}
             />
@@ -80,7 +85,7 @@ export function MessageAssistantSection({
 
           <div
             className={cn(
-              "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-2 text-left",
+              "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-1 text-left",
               layout.content,
             )}
           >
@@ -119,6 +124,20 @@ export function MessageAssistantSection({
       </div>
     </div>
   );
+}
+
+// 身份隐藏时，头部只为仍需看见的标记或动作出现；没有标记就不留空行。
+function hasAssistantHeaderSignal(
+  header: MessageAssistantSectionProps["assistant"]["header"],
+  hasExternalHeaderContent: boolean,
+): boolean {
+  return [
+    hasExternalHeaderContent,
+    header.canStop,
+    header.echo,
+    header.automationTaskName != null,
+    header.handoffReply != null,
+  ].some(Boolean);
 }
 
 function hasAssistantBodyContent(

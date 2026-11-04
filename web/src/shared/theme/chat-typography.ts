@@ -5,7 +5,7 @@ import { createJSONStorage, persist, type StateStorage } from "zustand/middlewar
 import { readThemePreference, writeThemePreference, removeThemePreference } from "./theme-storage";
 
 const STORAGE_KEY = "nexus-chat-typography";
-export const DEFAULT_CHAT_TYPOGRAPHY = { font: "default", fontSize: 14, lineHeight: 1.7 } as const;
+export const DEFAULT_CHAT_TYPOGRAPHY = { font: "default", fontSize: 14, lineHeight: 1.6 } as const;
 export const CHAT_TYPOGRAPHY_LIMITS = { fontSize: { min: 12, max: 26 }, lineHeight: { min: 1.2, max: 2.4 } } as const;
 type ChatTypography = { font: string; fontSize: number; lineHeight: number };
 

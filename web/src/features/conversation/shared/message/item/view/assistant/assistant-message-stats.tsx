@@ -71,7 +71,7 @@ export function AssistantMessageStats({
     : [];
 
   return (
-    <div className="nexus-chat-message-stats min-w-0 pt-1.5 text-xs tabular-nums text-(--text-muted)">
+    <div className="nexus-chat-message-stats min-w-0 pt-1 text-xs tabular-nums text-(--text-muted)">
       {receiptItems.length > 0 ? (
         <div
           className="flex min-w-0 items-center gap-1.5 leading-tight text-[color:color-mix(in_srgb,var(--success)_82%,var(--text-default)_18%)]"
@@ -100,7 +100,7 @@ export function AssistantMessageStats({
       {hasSecondaryMetadata || receiptItems.length === 0 ? (
         <div className={cn(
           "flex min-w-0 items-center justify-between gap-3",
-          receiptItems.length > 0 && "pt-1.5",
+          receiptItems.length > 0 && "pt-1",
         )}>
           <div className="flex min-w-0 flex-1 items-center">
             {statsItems.length > 0 ? (
@@ -156,7 +156,7 @@ function AssistantStatsTrailing({
   onFork?: () => Promise<void>;
 }) {
   return (
-    <div className="ml-auto flex h-6 shrink-0 items-center gap-0.5">
+    <div className="ml-auto flex h-5 shrink-0 items-center gap-0.5">
       {memories.length > 0 ? (
         <AssistantMemoryReferences memories={memories} />
       ) : null}
@@ -252,11 +252,11 @@ function AssistantMemoryReferences({
         aria-label={label}
         onClick={() => setIsOpen((current) => !current)}
         shape="round"
-        size="xs"
+        size="2xs"
         tooltip={label}
         variant="ghost"
       >
-        <BookOpenText className="h-3.5 w-3.5" />
+        <BookOpenText className="h-3 w-3" />
       </UiIconButton>
 
       {isOpen && portalContainer ? createPortal(

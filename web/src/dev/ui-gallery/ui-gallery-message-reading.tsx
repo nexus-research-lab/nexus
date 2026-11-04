@@ -35,7 +35,7 @@ export function MessageReadingGallery() {
         <div className="min-w-0 space-y-3" data-reading-density={compact ? "compact" : "expanded"} key={String(compact)}>
           <MessageUserSection compact={compact} message={USER} />
           <MessageAssistantSection assistant={ASSISTANT} assistantContentMode="dm_archived" canRespondToPermissions={false}
-            compact={compact} hiddenToolNames={[]} showHeader={false} workspaceAgentId="other-agent" />
+            compact={compact} hiddenToolNames={[]} showHeader={false} showIdentity workspaceAgentId="other-agent" />
           <FileArtifactBlock compact={compact} path="reports/source.md" workspaceAgentId="author"
             onOpenWorkspaceFile={(path, agentId) => setOpenedFiles((current) => [...current, `${agentId}:${path}`])} />
         </div>

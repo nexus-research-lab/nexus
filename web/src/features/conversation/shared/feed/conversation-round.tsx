@@ -94,6 +94,8 @@ export function ConversationRound({
           onPermissionResponse={renderer.onPermissionResponse}
           pendingPermissions={state.isLive ? source.pendingPermissions : []}
           roundId={state.roundId}
+          // DM 页头已经是对方身份，每轮不再重复头像与名称。
+          showAssistantIdentity={false}
           runtimePhase={state.isLive ? source.runtimePhase : null}
           workspaceAgentId={workspaceAgentId}
         />

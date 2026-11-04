@@ -43,6 +43,7 @@ function MessageItemInner({
   assistantEmptyState,
   assistantContentMode = "dm_archived",
   showAssistantHeader = true,
+  showAssistantIdentity = true,
   showUserMessages = true,
   className,
   agentMentionDirectory,
@@ -65,7 +66,7 @@ function MessageItemInner({
   return (
     <div
       className={cn(
-        "nexus-chat-message-round w-full min-w-0 space-y-1 py-3",
+        "nexus-chat-message-round w-full min-w-0 space-y-1 py-1",
         animateEntry && "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-(--motion-duration-layout)",
         compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
         className,
@@ -108,6 +109,7 @@ function MessageItemInner({
         assistantEmptyState={assistantEmptyState}
         assistantContentMode={assistantContentMode}
         showHeader={showAssistantHeader}
+        showIdentity={showAssistantIdentity}
         agentMentionDirectory={agentMentionDirectory}
         assistant={state.assistant}
       />

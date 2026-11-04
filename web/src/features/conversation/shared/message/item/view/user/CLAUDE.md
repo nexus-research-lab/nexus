@@ -16,6 +16,6 @@
 User 入口在消费侧声明消息、正文、附件和复制动作的最小结构，不依赖 Assistant 状态或控制器返回类型；上游按角色筛选后必须保留 `UserMessage` 具体类型，不得要求视图重复判别角色。
 无气泡 User 正文必须与 Assistant 正文复用 `nexus-chat-message-body-rhythm`，桌面与窄栏的头部到正文、正文到消息尾部间距不得各自覆写。
 
-User 入口按 exact Session、Agent、Message、round 身份重建局部编辑/复制/折叠状态，不能把旧草稿带到另一个消息。触屏无 hover 时，消息动作保持可见且可操作。
+User 入口按 exact Session、Agent、Message、round 身份重建局部编辑/复制/折叠状态，不能把旧草稿带到另一个消息。可 hover 的桌面上（含窄栏），时间与动作浮在气泡正下方且不占文档流（定位由 `theme-recipes.css` 的 `.nexus-chat-user-actions` 持有）；触屏无 hover 时回到气泡下方常规流，并保持可见且可操作。
 
 外部 IM 经配对发进群聊的消息带 `external_source`（渠道 + 发送者称呼），`user-message-content.tsx` 在气泡顶部与 Goal 标记同层显示“来自微信 · 名称”；只做展示，不参与对齐或动作判断。

@@ -11,9 +11,9 @@ import { cn } from "@/shared/ui/class-name";
 type MessageAvatarSize = "full" | "compact";
 type MessageAvatarRadius = "content" | "control";
 
-// 真人和 Agent 的作者头像共用阅读尺寸，避免身份类型影响消息头对齐。
-export function MessageAuthorAvatar({ compact, ...props }: Omit<ComponentProps<typeof MessageAvatar>, "className" | "size" | "radius"> & { compact: boolean }) {
-  return <MessageAvatar {...props} size={compact ? "compact" : "full"} radius="control" className={cn("nexus-chat-avatar shrink-0", !compact && "h-8 w-8")} />;
+// 真人和 Agent 的作者头像共用 24px 行内尺寸：身份与名称同处一行，不再为头像单独撑高消息头。
+export function MessageAuthorAvatar(props: Omit<ComponentProps<typeof MessageAvatar>, "className" | "size" | "radius">) {
+  return <MessageAvatar {...props} size="compact" radius="control" className="nexus-chat-avatar shrink-0" />;
 }
 
 const AVATAR_SIZE_CLASS_MAP: Record<MessageAvatarSize, string> = {

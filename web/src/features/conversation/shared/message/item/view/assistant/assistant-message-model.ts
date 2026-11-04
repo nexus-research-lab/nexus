@@ -145,6 +145,7 @@ export interface MessageAssistantSectionProps {
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
   showHeader: boolean;
+  showIdentity: boolean;
   workspaceAgentId?: string | null;
   unresolvedToolStatus?: UnresolvedToolStatus;
   agentMentionDirectory?: import("../../../agent-mention-chip").AgentMentionDirectory;

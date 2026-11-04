@@ -22,7 +22,7 @@ export function resolveUserMessageLayout(compact: boolean) {
 export function resolveAssistantMessageLayout(compact: boolean) {
   const reading = READING_LAYOUTS[compact ? "compact" : "expanded"];
   return {
-    content: compact ? `pt-1 ${reading.body}` : `w-full max-w-full pt-3 ${reading.body}`,
+    content: compact ? `pt-1 ${reading.body}` : `w-full max-w-full pt-2 ${reading.body}`,
     inner: compact ? "max-w-full" : CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME,
     section: reading.section,
     showMetadata: compact,

@@ -94,7 +94,7 @@ function MessageUserSectionContent({
             data-editing={String(editor.isEditing)}
           >
             {author ? <div className={cn("nexus-chat-message-header mb-2 flex min-w-0 items-center gap-2", alignment === "left" ? "justify-start" : "justify-end")}>
-              <MessageAuthorAvatar avatarUrl={author.avatar} compact={compact}><span aria-hidden="true">{getInitials(author.name, "AG", 1)}</span></MessageAuthorAvatar>
+              <MessageAuthorAvatar avatarUrl={author.avatar}><span aria-hidden="true">{getInitials(author.name, "AG", 1)}</span></MessageAuthorAvatar>
               <span className="nexus-chat-author min-w-0 truncate text-sm font-medium text-(--text-strong)">{author.name}</span>
             </div> : null}
             {editor.isEditing ? (

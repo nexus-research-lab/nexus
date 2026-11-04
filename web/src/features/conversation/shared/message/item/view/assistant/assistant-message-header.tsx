@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 身份、结算元数据与宿主 public handoff reply 来源。
- * OUTPUT: 消息头部、不可点击的“回应 @Agent”标注与可选停止动作。
+ * OUTPUT: 消息头部（DM 可省略头像与名称）、不可点击的“回应 @Agent”标注与可选停止动作。
  * POS: Assistant 消息头视图，不解析正文 mention 也不发起通讯。
  */
 import type { ReactNode } from "react";
@@ -23,7 +23,6 @@ interface AssistantMessageHeaderProps {
   avatarUrl?: string | null;
   automationTaskName?: string | null;
   canStop: boolean;
-  compact: boolean;
   echo: boolean;
   agentMentionDirectory?: AgentMentionDirectory;
   headerAction?: ReactNode;
@@ -33,20 +32,15 @@ interface AssistantMessageHeaderProps {
   name?: string | null;
   onOpenContact?: () => void;
   onStop: () => void;
+  showIdentity: boolean;
   showMetadata: boolean;
   timestamp?: number;
 }
-
-const HEADER_LAYOUTS = {
-  compact: "min-h-6 pb-0",
-  expanded: "min-h-8 pb-0",
-} as const;
 
 export function AssistantMessageHeader({
   avatarUrl,
   automationTaskName,
   canStop,
-  compact,
   echo,
   agentMentionDirectory,
   headerAction,
@@ -56,28 +50,30 @@ export function AssistantMessageHeader({
   name,
   onOpenContact,
   onStop,
+  showIdentity,
   showMetadata,
   timestamp,
 }: AssistantMessageHeaderProps) {
   const { t } = useI18n();
   const displayName = name || t("message.assistant_fallback");
-  const layout = HEADER_LAYOUTS[compact ? "compact" : "expanded"];
   return (
     <div
       className={cn(
-        "nexus-chat-message-header flex min-w-0 items-center gap-2",
-        layout,
+        "nexus-chat-message-header flex min-h-6 min-w-0 items-center gap-2 pb-0",
       )}
     >
-      <AssistantHeaderAvatar
-        avatarUrl={avatarUrl}
-        compact={compact}
-        displayName={displayName}
-        onOpenContact={onOpenContact}
-      />
-      <span className="nexus-chat-author shrink-0 text-sm font-medium text-(--text-strong)">
-        {displayName}
-      </span>
+      {showIdentity ? (
+        <>
+          <AssistantMessageAvatar
+            avatarUrl={avatarUrl}
+            displayName={displayName}
+            onOpenContact={onOpenContact}
+          />
+          <span className="nexus-chat-author shrink-0 text-sm font-medium text-(--text-strong)">
+            {displayName}
+          </span>
+        </>
+      ) : null}
       <AssistantAutomationBadge taskName={automationTaskName} />
       <AssistantEchoBadge visible={echo} />
       {replyTarget ? <MessageReplyChip {...replyTarget} /> : handoffReplySourceAgentId ? (
@@ -126,27 +122,6 @@ function AssistantAutomationBadge({ taskName }: { taskName?: string | null }) {
       <Clock3 className="h-2.5 w-2.5" />
       {t("message.scheduled_task")}
     </UiBadge>
-  );
-}
-
-function AssistantHeaderAvatar({
-  avatarUrl,
-  compact,
-  displayName,
-  onOpenContact,
-}: {
-  avatarUrl?: string | null;
-  compact: boolean;
-  displayName: string;
-  onOpenContact?: () => void;
-}) {
-  return (
-    <AssistantMessageAvatar
-      avatarUrl={avatarUrl}
-      compact={compact}
-      displayName={displayName}
-      onOpenContact={onOpenContact}
-    />
   );
 }
 
@@ -204,37 +179,24 @@ function AssistantStopAction({
   );
 }
 
-const AVATAR_PRESENTATION = {
-  compact: {
-    bot: "h-3 w-3",
-  },
-  full: {
-    bot: "h-4 w-4",
-  },
-} as const;
-
 function AssistantMessageAvatar({
   avatarUrl,
-  compact = false,
   displayName,
   onOpenContact,
 }: {
   avatarUrl?: string | null;
-  compact?: boolean;
   displayName: string;
   onOpenContact?: () => void;
 }) {
   const { t } = useI18n();
-  const presentation = AVATAR_PRESENTATION[compact ? "compact" : "full"];
   return (
     <MessageAuthorAvatar
       ariaLabel={t("room.agent_contact_open", { name: displayName })}
       avatarUrl={avatarUrl}
-      compact={compact}
       onClick={onOpenContact}
       title={t("room.agent_contact_open", { name: displayName })}
     >
-      <Bot className={presentation.bot} />
+      <Bot className="h-3.5 w-3.5" />
     </MessageAuthorAvatar>
   );
 }

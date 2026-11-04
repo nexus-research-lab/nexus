@@ -48,6 +48,8 @@ export interface MessageItemProps {
   assistantContentMode?: AssistantContentMode;
   /** 上层已有稳定身份头时可隐藏内部重复头部。 */
   showAssistantHeader?: boolean;
+  /** DM 页头已表明对方身份时隐藏 Assistant 头像与名称；Echo、定时任务、回应来源与停止仍保留在精简头部。 */
+  showAssistantIdentity?: boolean;
   /** 检查器只读过程时可隐藏主 Feed 已展示的用户输入。 */
   showUserMessages?: boolean;
   className?: string;
