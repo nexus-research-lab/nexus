@@ -8,6 +8,9 @@ package computeruse
 import (
 	"context"
 	"os"
+	"os/exec"
 )
+
+func prepareNativeProcess(*exec.Cmd) {}
 
 func prepareNativeForeground(context.Context, *os.Process) {}

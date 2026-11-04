@@ -2,13 +2,14 @@ using System.IO;
 using System.IO.Pipes;
 using System.Text;
 using Nexus.Desktop.Diagnostics;
+using Nexus.Desktop.Runtime;
 
 namespace Nexus.Desktop.Lifecycle;
 
 internal sealed class DesktopSingleInstanceCoordinator : IDisposable
 {
-    private const string MutexName = @"Local\NexusDesktop";
-    private const string PipeName = "NexusDesktopActivation";
+    private static readonly string MutexName = AppVersionInfo.IsPreview ? @"Local\NexusCUAPreview" : @"Local\NexusDesktop";
+    private static readonly string PipeName = AppVersionInfo.IsPreview ? "NexusCUAPreviewActivation" : "NexusDesktopActivation";
 
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Mutex mutex;

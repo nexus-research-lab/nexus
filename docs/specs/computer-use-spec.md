@@ -64,13 +64,18 @@ retryable 和 recovery_action。后台截图失败额外明确元数据恢复必
 
 ## 动作后观察与接管
 
+Windows `build-windows-app.ps1 -Preview` 构建使用 `.nexus-cua-preview` 数据目录、
+`Software\NexusCUAPreview` 启动指针与独立实例通道。`-CUAPackageRoot` 接受带 manifest、
+SBOM 和许可证的固定 Windows x64 包，校验 runtime SHA-256 后随应用打包。
+宿主将其路径交给后端，CUA 启用状态和目标会话继续由现有宿主授权流程控制。
+
 Windows 桌面宿主通过私有、当前用户限定的 named pipe 向自家 CUA 子进程传递
 `AllowSetForegroundWindow` 资格。请求只能来自宿主拥有的后端，目标必须是其仍存活的
 直接子进程；PID 不进入模型工具或 Web 请求。单次请求最多等待 500 ms，不使用
 `ASFW_ANY`、模拟输入或线程输入队列绑定。OS 拒绝传递时仍由 Runtime 的原生聚焦与
 实际前台窗口回读决定结果；此通道不授予目标、动作或会话权限，也不解除用户接管。
 
-固定的 `v0.2.0-rc.4` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
+固定的 `v0.2.0-rc.5` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
 每次动作沿用最近 `observe` 的截图、AX 和 `application_scene` 选项，让一次动作请求
 返回新的观察；新的 guard 替换已消耗的旧 guard。场景观察仅包含锚点显示器上的同一应用。
 Runtime 有界稳定等待不证明业务完成，必要时仍执行 `verify_state`。

@@ -8,11 +8,18 @@ import (
 	"encoding/binary"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Microsoft/go-winio"
+	"golang.org/x/sys/windows"
 )
+
+func prepareNativeProcess(command *exec.Cmd) {
+	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NO_WINDOW}
+}
 
 func prepareNativeForeground(ctx context.Context, process *os.Process) {
 	name := os.Getenv("NEXUS_CUA_FOREGROUND_PIPE")

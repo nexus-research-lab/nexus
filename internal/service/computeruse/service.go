@@ -1535,6 +1535,7 @@ func (s *ProcessSupervisor) Start(ctx context.Context) (Client, error) {
 		return nil, err
 	}
 	cmd := exec.Command(binaryPath, "serve", "--endpoint", endpoint, "--token-file", tokenFile, "--artifact-root", artifactRoot)
+	prepareNativeProcess(cmd)
 	stdoutStats := &sidecarOutputStats{}
 	stderrStats := &sidecarOutputStats{}
 	cmd.Stdout = stdoutStats

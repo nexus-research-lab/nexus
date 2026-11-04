@@ -23,4 +23,6 @@
 // foreground*.go transfer Windows OS foreground eligibility through the native
 // host's private pipe only for its live owned CUA child, after mutation approval.
 // This best-effort handoff neither changes grants nor bypasses native readback.
+// Windows child startup suppresses console creation so the sidecar cannot take
+// foreground ownership away from the approving desktop host.
 package computeruse

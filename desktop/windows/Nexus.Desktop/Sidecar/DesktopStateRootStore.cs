@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using Microsoft.Win32;
+using Nexus.Desktop.Runtime;
 
 namespace Nexus.Desktop.Sidecar;
 
@@ -18,7 +19,7 @@ internal static class DesktopStateRootStore
 
     public static string DefaultRootDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".nexus");
+        AppVersionInfo.IsPreview ? ".nexus-cua-preview" : ".nexus");
 
     public static string BootstrapLocation => $"HKCU\\{RegistryKeyPath}";
 
@@ -165,7 +166,7 @@ internal static class DesktopStateRootStore
         {
             string? overridePath = Environment.GetEnvironmentVariable(RegistryKeyEnvironmentName);
             return string.IsNullOrWhiteSpace(overridePath)
-                ? @"Software\NexusDesktop"
+                ? (AppVersionInfo.IsPreview ? @"Software\NexusCUAPreview" : @"Software\NexusDesktop")
                 : overridePath.Trim().TrimStart('\\');
         }
     }

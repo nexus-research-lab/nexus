@@ -50,6 +50,10 @@ public partial class MainWindow : System.Windows.Window
         this.startupTimeline = startupTimeline;
         this.updateChecker = updateChecker;
         InitializeComponent();
+        if (AppVersionInfo.IsPreview)
+        {
+            Title = "Nexus CUA Preview";
+        }
         ConfigureInitialWindowBounds();
         UpdateTitleBarDensity(Width);
         ConfigureWebViewSurface(MainWebView);

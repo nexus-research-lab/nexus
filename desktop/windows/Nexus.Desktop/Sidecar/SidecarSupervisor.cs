@@ -160,8 +160,23 @@ internal sealed class SidecarSupervisor : IDisposable
         ApplyPackagedConnectorConfig(startInfo);
         ApplyBundledControlCommands(startInfo);
         ApplyBundledNXSRuntime(startInfo);
+        ApplyBundledComputerUse(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = runtime.WebBaseUrl.TrimEnd('/');
         return startInfo;
+    }
+
+    private void ApplyBundledComputerUse(ProcessStartInfo startInfo)
+    {
+        if (startInfo.Environment.TryGetValue("NEXUS_COMPUTER_USE_BINARY", out string? configured)
+            && !string.IsNullOrWhiteSpace(configured))
+        {
+            return;
+        }
+        string binary = Path.Combine(locator.AppRoot, "CUA", "nexuscua.exe");
+        if (File.Exists(binary))
+        {
+            startInfo.Environment["NEXUS_COMPUTER_USE_BINARY"] = binary;
+        }
     }
 
     private void ApplyPackagedConnectorConfig(ProcessStartInfo startInfo)
