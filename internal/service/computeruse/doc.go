@@ -27,4 +27,6 @@
 // foreground ownership away from the approving desktop host.
 // installer.go verifies platform-specific release assets and executable names,
 // preserves identical installed versions, and persists bundled-runtime enablement.
+// Screenshot delivery normalizes Windows verbatim paths and opens each image
+// beneath a pinned confinedfs root with bounded reads.
 package computeruse

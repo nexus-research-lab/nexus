@@ -24,6 +24,7 @@ import (
 
 	nexuscua "github.com/nexus-research-lab/nexus-cua/sdk/go"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 const (
@@ -1160,22 +1161,29 @@ func (r *Round) readArtifact(path string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+	resolvedRoot = comparableArtifactPath(resolvedRoot)
+	resolvedPath = comparableArtifactPath(resolvedPath)
 	relative, err := filepath.Rel(resolvedRoot, resolvedPath)
 	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", "", errors.New("Computer Use screenshot artifact escaped its private root")
 	}
-	info, err := os.Stat(cleanPath)
+	bound, err := confinedfs.Open(resolvedRoot)
+	if err != nil {
+		return "", "", err
+	}
+	defer bound.Close()
+	file, err := bound.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
+	if err != nil {
+		return "", "", err
+	}
+	defer file.Close()
+	info, err := file.Stat()
 	if err != nil {
 		return "", "", err
 	}
 	if !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > maxScreenshotBytes {
 		return "", "", errors.New("Computer Use screenshot artifact exceeds the bounded file policy")
 	}
-	file, err := os.Open(cleanPath)
-	if err != nil {
-		return "", "", err
-	}
-	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, maxScreenshotBytes+1))
 	if err != nil {
 		return "", "", err
@@ -1188,6 +1196,18 @@ func (r *Round) readArtifact(path string) (string, string, error) {
 		mime = "application/octet-stream"
 	}
 	return base64.StdEncoding.EncodeToString(data), mime, nil
+}
+
+// Rust canonical paths can use a Windows verbatim prefix while Go's root does
+// not. Normalize that spelling before Rel; the opened directory still bounds IO.
+func comparableArtifactPath(path string) string {
+	if runtime.GOOS != "windows" {
+		return path
+	}
+	if strings.HasPrefix(path, `\\?\UNC\`) {
+		return `\\` + strings.TrimPrefix(path, `\\?\UNC\`)
+	}
+	return strings.TrimPrefix(path, `\\?\`)
 }
 
 func observationView(value nexuscua.WindowObservation) map[string]any {
