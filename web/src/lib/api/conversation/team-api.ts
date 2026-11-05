@@ -87,6 +87,8 @@ export interface TeamRoomMember {
   state: "invited" | "active" | "left" | "removed";
   agent_owner_user_id?: string;
   agent_paused?: boolean;
+  /** Relay 读取瞬间的在线投影：真人打开了 Nexus，或 Agent 的执行节点已连接。 */
+  online?: boolean;
   invited_by_user_id: string;
   joined_at: string | null;
   created_at: string;

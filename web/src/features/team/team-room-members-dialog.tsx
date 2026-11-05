@@ -192,7 +192,7 @@ export function TeamRoomMembersDialog({
                       const editable = member.state === "active" && member.role !== "owner" && canChangeRoles;
                       const removable = member.state === "active" && member.role !== "owner" && canManage && !(current?.role === "admin" && member.role === "admin");
                       return <UiListRow key={member.member_id} className="max-sm:grid max-sm:grid-cols-[28px_minmax(0,1fr)_auto]" density="dense" title={name}
-                        leading={<UiAgentAvatar avatar={member.member_id === currentUserId ? selfAvatar : directory.find((entry) => entry.user_id === member.member_id)?.avatar} name={name} size="sm" />}
+                        leading={<UiAgentAvatar avatar={member.member_id === currentUserId ? selfAvatar : directory.find((entry) => entry.user_id === member.member_id)?.avatar} name={name} online={member.online} onlineLabel={t("team.online")} size="sm" />}
                         right={editable ? <UiSelectMenu ariaLabel={t("team.member_role", { name })} className="w-24 shrink-0 max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-2 max-sm:w-full" disabled={resource.busy}
                           onChange={(value) => { void resource.setRole(member.member_id, value as "admin" | "member"); }}
                           options={[{ label: t("team.role_member"), value: "member" }, { label: t("team.role_admin"), value: "admin" }]}
@@ -211,7 +211,7 @@ export function TeamRoomMembersDialog({
                       const name = onlineAgentNames.get(member.member_id) ?? member.member_id;
                       const isOwner = member.agent_owner_user_id === currentUserId;
                       return <UiListRow key={member.member_id} density="dense" title={name}
-                        leading={<UiAgentAvatar avatar={agentDirectory.find((agent) => agent.agent_id === member.member_id)?.avatar} name={name} size="sm" />}
+                        leading={<UiAgentAvatar avatar={agentDirectory.find((agent) => agent.agent_id === member.member_id)?.avatar} name={name} online={member.online} onlineLabel={t("team.online")} size="sm" />}
                         right={member.agent_paused && !isOwner ? <UiBadge size="xs" tone="warning">{t("team.agent_paused")}</UiBadge> : resource.details?.room.coordinator_agent_id === member.member_id ? <Crown aria-label={t("team.coordinator_agent")} role="img" className="h-4 w-4 shrink-0 text-(--accent)" /> : null}
                         actions={<>
                           {isOwner ? (

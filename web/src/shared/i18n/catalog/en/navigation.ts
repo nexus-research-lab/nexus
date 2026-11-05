@@ -219,6 +219,7 @@ export const enNavigationMessages = {
   "team.add_agent": "Add Agent",
   "team.coordinator_agent": "Coordinator Agent",
   "team.agent_paused": "Paused",
+  "team.online": "Online",
   "team.mention_agent": "@ Agent",
   "team.invite": "Invite",
   "team.members": "Members",

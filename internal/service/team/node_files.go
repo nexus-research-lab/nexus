@@ -1,17 +1,21 @@
-// INPUT: 原生 Room 生成的精确轮次交付凭据与 owner 工作区读取入口。
-// OUTPUT: 本机持久 outbox 中的不可变文件内容，不扫描目录或解析正文路径。
-// POS: 复用 deliver_files 与 Relay 文件目录的窄适配。
+// INPUT: 原生 Room 生成的精确轮次交付凭据、owner 工作区读取入口与领取附带的群共享文件目录。
+// OUTPUT: 本机持久 outbox 中的不可变文件内容；本轮可读的群共享文件本机副本。
+// POS: 复用 deliver_files 与 Relay 文件目录的窄适配，不扫描目录或解析正文路径。
 package team
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"path/filepath"
 	"slices"
+	"time"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
 
@@ -59,4 +63,78 @@ func (o *nodeObserver) captureFiles(ctx context.Context, job *teamstore.NodeJob,
 		}
 	}
 	return nil
+}
+
+const (
+	// 每次领取最多新下载 32 MiB；已同步且大小一致的不可变文件不重复下载。
+	roomFilesDownloadBudget = 32 << 20
+	roomFileMaxSize         = 20 << 20
+)
+
+// prepareRoomFiles 把群共享文件同步到本群会话公共附件目录 shared/<file_id>/，供本轮 Agent 读取。
+// 共享文件按 ID 不可变；任何单个文件失败都只标记未同步，绝不让投递失败或重跑。
+func (e *NodeExecutor) prepareRoomFiles(ctx context.Context, grant teamstore.NodeGrant, job teamstore.NodeJob, token string) []roomdomain.OnlineRoomFile {
+	uploaders := make(map[string]string)
+	for _, item := range job.Delivery.Messages {
+		if item.AuthorType != "agent" && item.AuthorUserID != "" {
+			uploaders[item.AuthorUserID] = item.AuthorDisplayName
+		}
+	}
+	files := make([]roomdomain.OnlineRoomFile, 0, len(job.Delivery.RoomFiles))
+	budget := int64(roomFilesDownloadBudget)
+	for _, file := range job.Delivery.RoomFiles {
+		entry := roomdomain.OnlineRoomFile{Name: file.Name, Size: file.Size, UploadedBy: file.UploaderID, UploadedAt: file.CreatedAt}
+		if name := uploaders[file.UploaderID]; name != "" {
+			entry.UploadedBy = name
+		}
+		entry.Path, entry.Skipped = e.syncRoomFile(ctx, job, token, file, &budget)
+		if entry.Skipped != "" && entry.Skipped != "too_large" && entry.Skipped != "download_budget_exceeded" {
+			e.logFailure(ctx, "sync_room_file", grant, job, errors.New(entry.Skipped))
+		}
+		files = append(files, entry)
+	}
+	return files
+}
+
+func (e *NodeExecutor) syncRoomFile(ctx context.Context, job teamstore.NodeJob, token string, file relaycontract.RoomFile, budget *int64) (string, string) {
+	if e.assetFile == nil || e.upload == nil {
+		return "", "unavailable"
+	}
+	name := filepath.Base(file.Name)
+	if name != file.Name || name == "." || name == ".." {
+		return "", "invalid_name"
+	}
+	destination := "shared/" + file.ID + "/"
+	path, size, err := e.assetFile(ctx, job.RoomID, job.ConversationID, destination+name)
+	if err != nil {
+		return "", "unavailable"
+	}
+	if size == file.Size {
+		return path, ""
+	}
+	if file.Size > roomFileMaxSize {
+		return "", "too_large"
+	}
+	if file.Size > *budget {
+		return "", "download_budget_exceeded"
+	}
+	// 与触发附件一致：每次真实下载前续租，避免连续下载耗尽 30 秒租约。
+	if _, err = e.relay.RenewDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, ""); err != nil {
+		return "", "lease_renew_failed"
+	}
+	readCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	data, err := e.relay.DeliveryFile(readCtx, token, job.Delivery.ID, job.Delivery.LeaseID, relaycontract.MessageAttachment{ID: file.ID, Name: file.Name, Size: file.Size, SHA256: file.SHA256})
+	cancel()
+	if err != nil {
+		return "", "download_failed"
+	}
+	*budget -= int64(len(data))
+	result, err := e.upload(ctx, job.RoomID, job.ConversationID, name, destination, bytes.NewReader(data))
+	if err != nil {
+		return "", "write_failed"
+	}
+	if path, _, err = e.assetFile(ctx, job.RoomID, job.ConversationID, result.Path); err != nil {
+		return "", "unavailable"
+	}
+	return path, ""
 }

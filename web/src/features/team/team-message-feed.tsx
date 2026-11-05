@@ -35,6 +35,15 @@ import type { AgentMention } from "@/types/conversation/message/entity";
 import { TeamInvitationList } from "./team-invitation-list";
 import { useTeamInvitations } from "./use-team-invitations";
 
+// 共享 READING 锚点按轮次 DOM 身份记忆首个可见项；投递/任务卡挂在源消息下，
+// 其高度变化与历史前插都不能让阅读位置漂移。
+function feedAnchor(id: string, rootId = id) {
+  return {
+    "data-conversation-round-id": id,
+    "data-conversation-root-round-id": rootId,
+  };
+}
+
 interface TeamMessageFeedProps {
   agentDirectory: ControlAgentDirectoryEntry[];
   currentUserAvatar?: string | null;
@@ -156,7 +165,7 @@ export function TeamMessageFeed({
     >
       {messages.map((message) =>
         message.content.blocks.some((block) => block.type === "room_invitation") ? (
-          <li key={message.id} className="px-3 py-2 text-sm text-(--text-muted)">
+          <li key={message.id} {...feedAnchor(message.id)} className="px-3 py-2 text-sm text-(--text-muted)">
             {message.content.blocks
               .filter((block) => block.type === "room_invitation")
               .map((block, index) => {
@@ -255,7 +264,7 @@ export function TeamMessageFeed({
                   ),
               )
               .map((job) => (
-                <li key={job.id}>
+                <li key={job.id} {...feedAnchor(`job:${job.id}`, message.id)}>
                   <RoomAgentResultCard
                     activityState={
                       job.state === "ready"
@@ -321,7 +330,7 @@ export function TeamMessageFeed({
                   ),
               )
               .map((delivery) => (
-                <li key={delivery.id}>
+                <li key={delivery.id} {...feedAnchor(`delivery:${delivery.id}`, message.id)}>
                   <RoomAgentResultCard
                     agentAvatar={agentsByID.get(delivery.agent_id)?.avatar}
                     agentName={
@@ -527,7 +536,7 @@ function TeamMessageItem({
       </div>
     ) : null;
     return (
-      <li>
+      <li {...feedAnchor(message.id)}>
         <RoomAgentResultCard
           agentAvatar={agent?.avatar}
           agentMentionDirectory={mentionDirectory}
@@ -579,7 +588,7 @@ function TeamMessageItem({
     message.author_username ||
     "?";
   return (
-    <li>
+    <li {...feedAnchor(message.id)}>
       <MessageUserSection
         alignment={
           currentUserId && message.author_user_id === currentUserId

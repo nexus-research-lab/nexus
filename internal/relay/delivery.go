@@ -26,8 +26,11 @@ type Delivery struct {
 	// CancelRequested 随续期返回：真人已请求停止，节点中断本机执行后以 fail 收口。
 	CancelRequested bool `json:"cancel_requested,omitempty"`
 	// RoomInstructions 只随领取下发，是群管理员设置的共同说明，可信度等同群消息。
-	RoomInstructions string    `json:"room_instructions,omitempty"`
-	Messages         []Message `json:"messages,omitempty"`
+	RoomInstructions string `json:"room_instructions,omitempty"`
+	// Members 与 RoomFiles 只随领取下发：领取瞬间的 active 成员在线投影与最近群共享文件目录。
+	Members   []RoomMember `json:"members,omitempty"`
+	RoomFiles []RoomFile   `json:"room_files,omitempty"`
+	Messages  []Message    `json:"messages,omitempty"`
 }
 
 type DeliveryOutput struct {

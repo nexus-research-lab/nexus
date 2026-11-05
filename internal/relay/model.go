@@ -34,6 +34,16 @@ type MessageContent struct {
 	Execution   *ExecutionMetadata  `json:"execution,omitempty"`
 }
 
+// RoomFile 是群共享不可变文件元数据；文件名只用于展示。
+type RoomFile struct {
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Size       int64     `json:"size"`
+	SHA256     string    `json:"sha256"`
+	UploaderID string    `json:"uploader_id"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 // MessageAttachment 仅引用已持久化的群文件，不接受本机路径或远程 URL。
 type MessageAttachment struct {
 	ID     string `json:"id"`
@@ -128,17 +138,19 @@ type RoomList struct {
 
 // RoomMember 是真人和 Agent 共用的在线 Room 成员记录。
 type RoomMember struct {
-	RoomID           string     `json:"room_id"`
-	Type             string     `json:"member_type"`
-	ID               string     `json:"member_id"`
-	Role             string     `json:"role"`
-	State            string     `json:"state"`
-	AgentOwnerUserID string     `json:"agent_owner_user_id,omitempty"`
-	AgentPaused      bool       `json:"agent_paused,omitempty"`
-	InvitedByUserID  string     `json:"invited_by_user_id"`
-	JoinedAt         *time.Time `json:"joined_at"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	RoomID           string `json:"room_id"`
+	Type             string `json:"member_type"`
+	ID               string `json:"member_id"`
+	Role             string `json:"role"`
+	State            string `json:"state"`
+	AgentOwnerUserID string `json:"agent_owner_user_id,omitempty"`
+	AgentPaused      bool   `json:"agent_paused,omitempty"`
+	// Online 是 Relay 读取瞬间的在线投影（真人目录连接 / Agent 执行节点）；只用于展示。
+	Online          bool       `json:"online"`
+	InvitedByUserID string     `json:"invited_by_user_id"`
+	JoinedAt        *time.Time `json:"joined_at"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // RoomDetails 是在线 Room 管理使用的成员快照。

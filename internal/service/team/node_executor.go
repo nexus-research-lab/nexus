@@ -39,6 +39,7 @@ type NodeExecutor struct {
 	upload             func(context.Context, string, string, string, string, io.Reader) (*workspacesvc.UploadResult, error)
 	stop               func(context.Context, roomrealtime.InterruptRequest) error
 	openFile           func(context.Context, string, string) (*os.File, string, error)
+	assetFile          func(context.Context, string, string, string) (string, int64, error)
 	ready              atomic.Bool
 	mu                 sync.Mutex
 	active             map[string]string
@@ -59,6 +60,7 @@ func NewNodeExecutor(nodes *NodeService, relay *relaysvc.Client, rooms *roomsvc.
 	e.loop = duework.New(duework.Options{})
 	nodes.executor = e
 	e.upload = rooms.UploadConversationAttachment
+	e.assetFile = rooms.ConversationAssetFile
 	e.openFile = workspace.OpenFileForDownload
 	return e
 }
@@ -357,6 +359,9 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 		}
 		return err
 	}
+	// 群共享文件是尽力而为的公开上下文：单个文件不可用只标记未同步，不阻断投递。
+	stage = "prepare_room_files"
+	input.roomFiles = e.prepareRoomFiles(ctx, grant, job, token.Token)
 	stage = "execute"
 	return e.execute(ctx, grant, job, token, input)
 }

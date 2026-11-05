@@ -1,5 +1,5 @@
 // INPUT: 不含本人的邀请目录和远程账号头像。
-// OUTPUT: 群设置使用远程本人头像，不误用本地 owner 身份。
+// OUTPUT: 群设置使用远程本人头像，不误用本地 owner 身份；只有在线成员带在线点。
 // POS: 在线群成员身份展示回归。
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
@@ -14,7 +14,8 @@ vi.mock("@/lib/api/account/control-api", () => ({
 }));
 vi.mock("./use-team-room-members", () => ({useTeamRoomMembers: () => ({
   details: {room: {name: "Example", avatar: "", coordinator_agent_id: ""}, members: [
-    {member_type: "user", member_id: "remote-me", state: "active", role: "member"},
+    {member_type: "user", member_id: "remote-me", state: "active", role: "member", online: true},
+    {member_type: "user", member_id: "offline-peer", state: "active", role: "member"},
   ]}, busy: false,
 })}));
 
@@ -25,4 +26,14 @@ it("shows my remote avatar even though the invitation directory excludes me", as
   </I18N_CONTEXT.Provider>);
   await screen.findByRole("dialog");
   expect(document.querySelector('img[src="/icon/agent/7.png"]')).not.toBeNull();
+});
+
+it("marks only online members with the presence dot", async () => {
+  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
+    <TeamRoomMembersDialog agents={[]} currentUserId="remote-me" directory={[]}
+      onClose={() => {}} onChanged={() => {}} onDeparted={() => {}} open roomId="room" />
+  </I18N_CONTEXT.Provider>);
+  await screen.findByRole("dialog");
+  expect(document.querySelectorAll('[data-presence="online"]')).toHaveLength(1);
+  expect(screen.getByRole("img", {name: /team\.online/})).toBeTruthy();
 });

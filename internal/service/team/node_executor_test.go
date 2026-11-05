@@ -886,6 +886,9 @@ func TestNodeExecutionStopsWhenRelayRequestsCancel(t *testing.T) {
 		if request.PublicInstructions != "用中文回复" {
 			t.Errorf("群说明未进入执行请求: %q", request.PublicInstructions)
 		}
+		if !strings.Contains(request.PublicRoomState, "- user alice: online") {
+			t.Errorf("在线状态未进入执行请求: %q", request.PublicRoomState)
+		}
 		return admission(ctx)
 	}
 	job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "job", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", AgentID: "online", Scope: "scope"})
@@ -894,7 +897,7 @@ func TestNodeExecutionStopsWhenRelayRequestsCancel(t *testing.T) {
 	}
 	job.State = "ready"
 	job.RoomID, job.ConversationID, job.RoundID = "room", "conversation", "relay_job"
-	job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", MessageID: "message", RoomInstructions: "用中文回复"}
+	job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", MessageID: "message", RoomInstructions: "用中文回复", Members: []relaycontract.RoomMember{{Type: "user", ID: "alice", Online: true}}}
 	if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -909,5 +912,77 @@ func TestNodeExecutionStopsWhenRelayRequestsCancel(t *testing.T) {
 	current, err := repo.NodeJob(ctx, "local-owner", "job")
 	if err != nil || current == nil || current.State != "cancelled" || stops != 1 || failed.Load() != 1 {
 		t.Fatalf("停止请求未收口: %+v stops=%d fails=%d %v", current, stops, failed.Load(), err)
+	}
+}
+
+func TestRoomFilesSyncOnceAndNeverFailDelivery(t *testing.T) {
+	data := []byte("shared plan")
+	hash := sha256.Sum256(data)
+	downloads := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/relay/v1/node/deliveries/delivery/renew":
+			_, _ = w.Write([]byte(`{"code":"0000","data":{}}`))
+		case "/api/relay/v1/node/deliveries/delivery/files/plan":
+			downloads++
+			_, _ = w.Write(data)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"code":"not_found","message":"gone"}`))
+		}
+	}))
+	defer server.Close()
+	client, err := relaysvc.NewClient(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := map[string]int64{}
+	executor := &NodeExecutor{relay: client, logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		assetFile: func(_ context.Context, room, conversation, path string) (string, int64, error) {
+			if room != "local-room" || conversation != "local-conversation" {
+				t.Fatalf("共享文件越出本群会话: %s %s", room, conversation)
+			}
+			size, ok := stored[path]
+			if !ok {
+				size = -1
+			}
+			return "/assets/" + path, size, nil
+		},
+		upload: func(_ context.Context, _, _, name, destination string, reader io.Reader) (*workspacesvc.UploadResult, error) {
+			got, _ := io.ReadAll(reader)
+			stored[destination+name] = int64(len(got))
+			return &workspacesvc.UploadResult{Path: destination + name}, nil
+		}}
+	now := time.Now().UTC()
+	delivery := &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", RoomFiles: []relaycontract.RoomFile{
+		{ID: "plan", Name: "plan.md", Size: int64(len(data)), SHA256: hex.EncodeToString(hash[:]), UploaderID: "alice", CreatedAt: now},
+		{ID: "huge", Name: "huge.bin", Size: 21 << 20, UploaderID: "alice", CreatedAt: now},
+		{ID: "gone", Name: "gone.txt", Size: 4, SHA256: strings.Repeat("0", 64), UploaderID: "bob", CreatedAt: now},
+		{ID: "dots", Name: "..", Size: 1, UploaderID: "bob", CreatedAt: now},
+	}, Messages: []relaycontract.Message{{ID: "message", AuthorType: "user", AuthorUserID: "alice", AuthorDisplayName: "Alice"}}}
+	job := teamstore.NodeJob{RoomID: "local-room", ConversationID: "local-conversation", Delivery: delivery}
+	files := executor.prepareRoomFiles(t.Context(), teamstore.NodeGrant{}, job, "machine")
+	if len(files) != 4 || files[0].Path != "/assets/shared/plan/plan.md" || files[0].UploadedBy != "Alice" {
+		t.Fatalf("共享文件未同步: %+v", files)
+	}
+	if files[1].Skipped != "too_large" || files[2].Skipped != "download_failed" || files[3].Skipped != "invalid_name" || files[2].UploadedBy != "bob" {
+		t.Fatalf("不可同步文件未标记: %+v", files[1:])
+	}
+	if again := executor.prepareRoomFiles(t.Context(), teamstore.NodeGrant{}, job, "machine"); again[0].Path == "" || downloads != 1 {
+		t.Fatalf("不可变共享文件被重复下载: downloads=%d %+v", downloads, again[0])
+	}
+}
+
+func TestDeliveryPresenceMarksSelfAndFallsBackToIDs(t *testing.T) {
+	delivery := &relaycontract.Delivery{AgentID: "online-self", Members: []relaycontract.RoomMember{
+		{Type: "user", ID: "alice", Online: true},
+		{Type: "user", ID: "silent"},
+		{Type: "agent", ID: "online-self", Online: true},
+		{Type: "agent", ID: "peer"},
+	}, Messages: []relaycontract.Message{{AuthorType: "user", AuthorUserID: "alice", AuthorDisplayName: "Alice"}}}
+	members := deliveryPresence(delivery, []nodeAgent{{AgentID: "online-self", Name: "Self"}, {AgentID: "peer", Name: "Peer"}})
+	if len(members) != 4 || members[0].Name != "Alice" || !members[0].Online || members[1].Name != "silent" || members[1].Online ||
+		!members[2].Self || members[2].Name != "Self" || members[3].Self || members[3].Name != "Peer" || members[3].Online {
+		t.Fatalf("在线投影错误: %+v", members)
 	}
 }

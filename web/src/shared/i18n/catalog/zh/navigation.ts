@@ -217,6 +217,7 @@ export const zhNavigationMessages = {
   "team.add_agent": "添加 Agent",
   "team.coordinator_agent": "主持 Agent",
   "team.agent_paused": "已暂停",
+  "team.online": "在线",
   "team.mention_agent": "@ Agent",
   "team.invite": "邀请",
   "team.members": "成员",

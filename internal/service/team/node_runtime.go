@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
@@ -28,6 +30,7 @@ type deliveryExecutionInput struct {
 	content       string
 	publicContext []protocol.Message
 	attachments   []protocol.ChatAttachment
+	roomFiles     []roomdomain.OnlineRoomFile
 }
 
 // deliveryInput 只做确定性校验；失败意味着同一投递永远无法执行。
@@ -56,6 +59,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 		token = fresh
 	}
 	directory := deliveryAgentDirectory(job.Delivery, token.Directory, job.LocalAgentID)
+	roomState := roomdomain.BuildOnlineRoomStatePrompt(deliveryPresence(job.Delivery, token.Directory), input.roomFiles)
 	job.State = "running"
 	if err := e.nodes.store.SaveNodeJob(ctx, &job, "ready", nil); err != nil {
 		return err
@@ -109,7 +113,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 	}()
 	job.Delivery.Messages = nil
 	admitted := false
-	err := e.start(ctx, roomrealtime.ChatRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoomID: job.RoomID, ConversationID: job.ConversationID, TargetAgentIDs: []string{job.LocalAgentID}, RoundID: job.RoundID, Content: input.content, Attachments: input.attachments, PublicContext: input.publicContext, PublicAgentDirectory: directory, PublicInstructions: job.Delivery.RoomInstructions, UserMessageID: job.Delivery.MessageID, Internal: true, ExecutionOrigin: "relay", EventObserver: observer.observe}, func(admissionCtx context.Context) error {
+	err := e.start(ctx, roomrealtime.ChatRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoomID: job.RoomID, ConversationID: job.ConversationID, TargetAgentIDs: []string{job.LocalAgentID}, RoundID: job.RoundID, Content: input.content, Attachments: input.attachments, PublicContext: input.publicContext, PublicAgentDirectory: directory, PublicInstructions: job.Delivery.RoomInstructions, PublicRoomState: roomState, UserMessageID: job.Delivery.MessageID, Internal: true, ExecutionOrigin: "relay", EventObserver: observer.observe}, func(admissionCtx context.Context) error {
 		// Room 准备可能很慢；原生 round 注册后、任何 slot 启动前再次验证。
 		if err := admissionCtx.Err(); err != nil {
 			return err
@@ -236,6 +240,30 @@ func deliveryAgentDirectory(delivery *relaycontract.Delivery, entries []nodeAgen
 		directory[id] = entry.Name
 	}
 	return directory
+}
+
+// deliveryPresence 把领取瞬间的 active 成员投影为公开在线事实；名称取 Control 公开目录与群消息署名，
+// 缺失时退回成员 ID，不向 Control 追加查询。
+func deliveryPresence(delivery *relaycontract.Delivery, entries []nodeAgent) []roomdomain.OnlineRoomMember {
+	agentNames := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		agentNames[entry.AgentID] = entry.Name
+	}
+	userNames := make(map[string]string)
+	for _, item := range delivery.Messages {
+		if item.AuthorType != "agent" && item.AuthorUserID != "" {
+			userNames[item.AuthorUserID] = textutil.FirstNonEmpty(item.AuthorDisplayName, item.AuthorUsername)
+		}
+	}
+	members := make([]roomdomain.OnlineRoomMember, 0, len(delivery.Members))
+	for _, member := range delivery.Members {
+		if member.Type == "agent" {
+			members = append(members, roomdomain.OnlineRoomMember{Kind: "agent", Name: textutil.FirstNonEmpty(agentNames[member.ID], member.ID), Self: member.ID == delivery.AgentID, Online: member.Online})
+			continue
+		}
+		members = append(members, roomdomain.OnlineRoomMember{Kind: "user", Name: textutil.FirstNonEmpty(userNames[member.ID], member.ID), Online: member.Online})
+	}
+	return members
 }
 
 func nodeOutputRejected(err error) bool {

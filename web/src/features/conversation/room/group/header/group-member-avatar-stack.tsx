@@ -1,5 +1,5 @@
 // INPUT: 当前 Room 成员、目录加载/禁用状态和显式打开动作。
-// OUTPUT: 36px 成员入口，四枚公共小头像、可增长的额外人数徽标与唯一具名按钮。
+// OUTPUT: 36px 成员入口，四枚公共小头像（在线 Room 可带在线点）、可增长的额外人数徽标与唯一具名按钮。
 // POS: Room Header 成员摘要；头像与 Badge 持有外形，外层 Header 持有响应式收缩。
 
 import { UsersRound } from "lucide-react";
@@ -14,7 +14,7 @@ import { getAgentDisplayName } from "@/lib/agent-display-name";
 interface GroupMemberAvatarStackProps {
   disabled?: boolean;
   isLoading?: boolean;
-  members: Pick<Agent, "agent_id" | "name" | "avatar">[];
+  members: (Pick<Agent, "agent_id" | "name" | "avatar"> & { online?: boolean })[];
   onClick: () => void;
   tourAnchor?: string;
 }
@@ -51,6 +51,7 @@ export function GroupMemberAvatarStack({
                 avatar={member.avatar}
                 key={member.agent_id}
                 name={getAgentDisplayName(member.name, t)}
+                online={member.online}
                 size="xs"
               />
             ))}

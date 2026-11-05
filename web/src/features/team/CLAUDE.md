@@ -20,6 +20,8 @@
 
 
 - `team-workspace.tsx` 默认显示 Relay 群共享文件，复用公共 `WORKSPACE_PANEL_HEADER_*` 页头几何与 `WorkspaceFileTree`；本机 Agent 文件另列页签。上传按文件名和内容摘要生成稳定命令，不随失败重试变化；读错误不冒充空目录，上传未确认不被例行刷新清除，离开页面中止传输。当前支持有界上传/下载，不提供共享文件重命名、删除或编辑。
+- 成员 `online` 是 Relay 读取瞬间的在线投影（真人打开 Nexus / Agent 执行节点已连接），仅经 `UiAgentAvatar online` 在成员弹窗与群头像显示在线点，群头像在线优先排序；上下线经目录 WS 刷新详情，不用于权限、投递或 @ 候选判断。
+- `team-message-feed.tsx` 每个顶层项携带 `data-conversation-round-id`/`data-conversation-root-round-id`（任务/投递卡挂在源消息下），供共享 READING 锚点在状态卡增减、附件加载和历史前插时保持阅读位置。
 - `team-message-feed.tsx` 承载在线 Room 消息轨道与本机/远端投递状态投影，统一通过 `MessageUserSection` 渲染真人消息、通过 `RoomAgentResultCard` 渲染 Agent 回复及未回复任务/投递卡片。
 - `POST /team-node/room` 为当前已加入的本人 Agent 准备确定性执行 Room；不需要 Node 授权或历史任务，不启动 runtime。工作图和子智能体沿原生会话空态展示，模型权限设置在第一轮前可用。成员与本机目录交集由服务端重新核验。
 

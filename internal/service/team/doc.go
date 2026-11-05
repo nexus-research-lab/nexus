@@ -11,6 +11,7 @@
 // 本轮完整回复的结构化 @ 按首次出现顺序累计持久化，只随成功收口的 final 输出提交；中间 assistant 输出不带 @，失败、中断或取消不唤醒任何 Agent（与本地 Room handoff 时序一致）。
 // 领取的 active Agent 范围与 Control 公开目录取交集，通过 Room PublicAgentDirectory 复用提示和 mention 解析；远端成员不物化为本机执行成员。
 // node_files.go 仅消费当前轮次 deliverable 凭据，复用安全文件读取与 Relay 目录；冻结字节后重试，不扫描工作区。
+// node_files.go 另把领取附带的群共享文件尽力同步到本群会话 shared/<file_id>/（按 ID 不可变、有下载预算），失败只标记未同步；node_runtime.go 把成员在线与共享目录作为本轮 PublicRoomState 交给 Room。
 // PrepareRooms 从常驻目录批量准备入群 Agent；RecoverJob 仅在精确 round 已停止且远端回执确认后结束未知任务。
 // 消息附件凭精确投递租约下载并核验摘要，复用 Room.UploadConversationAttachment 与 ChatRequest.Attachments；Slash 原文进入同一原生展开入口。
 // node_watch.go 使用独立 Node Principal 订阅 Relay WS；复用 duework 合并唤醒和退避，无固定领取轮询；稳定超过 1 分钟的连接断开从最小退避重连，授权停用时每 30 秒复查。

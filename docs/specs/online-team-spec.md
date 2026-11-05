@@ -79,4 +79,6 @@
 - `storage/teamrelay/jobs.go` 持久 inbox/outbox；ready→running CAS 与撤销共锁授权行；未知 running 不自动重跑。
 - `room/relay_execution.go` 按 owner/在线作用域/Room/本机 Agent 绑定独立执行会话，复用原生权限、问答与 exact round 中断。
 - `node_runtime.go` 只转发 durable 且 `is_complete` 的 assistant 文本：单条 64 KiB、单任务 1 MiB；final 和本机 draining 原子落盘；重试只重放原 output ID。
+- 领取附带 `members`（active 成员与在线投影）和 `room_files`（最近 200 个群共享文件）。`node_files.go` 在 runtime 启动前把共享文件尽力同步到本群会话公共附件目录 `shared/<file_id>/`：已同步且大小一致不重复下载，每次新下载合计 32 MiB、单文件 20 MiB，超限或失败只标记未同步，绝不让投递失败。成员在线与共享目录作为 `# Nexus Online Room State` 只进入本轮输入，不进入稳定提示词，不授予权限。
+- 在线状态由 Relay 按存活 WS 投影：真人看目录连接，Agent 看其执行节点连接；成员快照的 `online` 只用于展示，上下线由目录 WS 提示刷新，不参与鉴权或投递资格。
 - 尚未验收/实现：真实双节点模型、未知运行人工解锁和远程产物。

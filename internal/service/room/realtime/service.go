@@ -76,7 +76,9 @@ type ChatRequest struct {
 	// PublicAgentDirectory 是服务端在线成员展示目录，不参与本机执行资格。
 	PublicAgentDirectory map[string]string
 	// PublicInstructions 是在线群管理员设置的共同说明，可信度等同群消息。
-	PublicInstructions    string
+	PublicInstructions string
+	// PublicRoomState 是在线领取瞬间的成员在线与共享文件快照；只进入本轮输入，不进入稳定提示词。
+	PublicRoomState       string
 	GoalContext           string
 	GoalID                string
 	GoalObjectiveRevision int64

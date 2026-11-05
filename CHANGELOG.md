@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Show who is online in online rooms: members and Agents whose host is connected get a presence dot in the member dialog and room header, and Agents receive the same presence snapshot with each task. Requires nexus-relay with member presence.
+- Let online-room Agents read the room's shared files: each task syncs shared files (bounded, cached by file ID) into the room conversation and lists them with their local paths; files that cannot be synced are listed as not synced instead of failing the task.
+- Keep the reading position stable in online rooms while delivery cards, attachments or earlier history change the feed height.
+
 ## [0.2.8] - 2026-11-04
 
 - Allow macOS Intel hosts to install the pinned CUA v0.2.0 x86_64 archive. The runtime archive passed Intel build, source tests, signing, notarization and diagnostic smoke; interactive native acceptance remains unverified.

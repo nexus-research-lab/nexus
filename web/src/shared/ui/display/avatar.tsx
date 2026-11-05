@@ -30,6 +30,10 @@ interface UiAgentAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   imageClassName?: string;
   isWorking?: boolean;
   name: string;
+  /** 在线时在右下角显示状态点；未提供表示该表面不投影在线状态。 */
+  online?: boolean;
+  /** 在线状态的可访问名称，由消费者按界面语言提供。 */
+  onlineLabel?: string;
   size?: UiAvatarSize;
 }
 
@@ -126,6 +130,8 @@ export function UiAgentAvatar({
   imageClassName,
   isWorking = false,
   name,
+  online = false,
+  onlineLabel,
   size = "md",
   ...props
 }: UiAgentAvatarProps) {
@@ -134,7 +140,7 @@ export function UiAgentAvatar({
 
   return (
     <span
-      aria-label={name}
+      aria-label={online && onlineLabel ? `${name} · ${onlineLabel}` : name}
       className={cn(
         "relative flex shrink-0 items-center justify-center border border-(--surface-avatar-border) bg-(--surface-avatar-background) font-semibold text-(--surface-avatar-foreground) shadow-(--surface-avatar-shadow)",
         AVATAR_SIZE_CLASS_MAP[size],
@@ -154,6 +160,13 @@ export function UiAgentAvatar({
         key={avatarSrc}
         src={avatarSrc}
       />
+      {online ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-(--success) ring-2 ring-(--surface-panel-background)"
+          data-presence="online"
+        />
+      ) : null}
     </span>
   );
 }

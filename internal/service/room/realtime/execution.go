@@ -392,6 +392,10 @@ func (e *slotExecution) prepareDispatchPayload() (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if e.round.ExecutionOrigin == "relay" {
+		// 在线状态与共享目录随领取变化；放在本轮输入而非稳定提示词，避免每次上下线都失效提示缓存。
+		dispatchPrompt = runtimehost.JoinPromptSections(dispatchPrompt, e.round.PublicRoomState)
+	}
 	if err = e.service.recordPrivateRoundMarker(e.round, e.slot, dispatchPrompt); err != nil {
 		return nil, err
 	}

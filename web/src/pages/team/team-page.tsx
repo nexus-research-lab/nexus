@@ -200,8 +200,9 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
       agent_id: `${member.member_type}:${member.member_id}`,
       name: agent?.name || person?.display_name || person?.username || (isSelf ? status?.display_name || status?.username || t("team.you") : member.member_id),
       avatar: agent?.avatar || person?.avatar || (isSelf ? status?.avatar : undefined),
+      online: member.online,
     };
-  });
+  }).sort((left, right) => Number(Boolean(right.online)) - Number(Boolean(left.online)));
   const errorMessage = room.error ? t(TEAM_ERROR_KEYS[room.error]) : null;
 	const activeAgentIDs = new Set(room.room?.members
 		.filter((member) => member.member_type === "agent" && member.state === "active" && !member.agent_paused)
