@@ -249,7 +249,7 @@ summary 文案：
 - 普通、分段与显式读取共用缓存，按受控文件句柄的文件身份、大小、mtime、首尾指纹校验；读取期间文件变化则不发布缓存。
 - 缓存与调用方通过深拷贝隔离，分段重编号不污染旧条目。
 - 索引重建不主动清空全部 transcript；历史删除按目录失效。
-- 采用 12 个文件的 LRU 上限；不变更 canonical JSONL 格式，不做活跃文件的字节级增量解析。
+- 解析缓存按 LRU 最多保留 12 个文件，按源文件大小计重合计至多 64 MiB；超大单文件跳过缓存深拷贝。不变更 canonical JSONL 格式，不做活跃文件的字节级增量解析。
 
 ### 4.4 Room 发送受理的上下文读取
 
@@ -257,7 +257,7 @@ summary 文案：
 - slot 在 runtime 确认可恢复状态后，复用消息身份索引读取游标所在轮次及其后消息，再由既有公区 batch 过滤已消费部分；为失败恢复保留目标 Agent 最近终态。
 - 普通输入以当前触发消息为上界；当前活跃轮次不物化 synthetic interrupt。
 - 轮内引导与公开 mention 共用读取入口。
-- 冷启动、无法定位游标、超预算或所选内容包含 UI detail 时保留 canonical 完整正文；UI 页大小和正文预览不是模型上下文预算。
+- 运行时按当前 generation 校验工具详情的身份、大小与摘要，在同一读事务中恢复原文。没有可用索引、游标缺失、详情损坏、超预算或图片需要还原原始编码时读取 canonical 完整正文。
 
 ### 4.5 派生读模型
 
@@ -296,13 +296,9 @@ Room 增量：
 容量上限：
 
 - 派生层必须限制 group 数、单 group、generation 和单页 payload 字节。
-- detached build 在读取/规范化前限制 canonical source 总字节：DM 先检查全部 overlay/transcript 快照；Room 先检查 ledger，再从有界 ledger 收集 dependency 快照，并在 resolve private transcript 前再次检查。
-- source 超限：
-  - detached build 只能生成绑定当前 source digest 的 disabled marker；ledger 自身超限的 Room marker 只绑定 ledger snapshot，不能为计算全依赖 digest 读取 oversized ledger。
-  - 读取走 request-bound canonical 精确分页；完整规范化回到可由 HTTP context 取消的 request-bound 路径。
-  - 不改写 canonical，不向客户端返回截断历史。
-  - 同 source 不得反复启动 detached rebuild；source 变化后，有空闲 admission 时才可尝试恢复索引。
-  - 该降级保留完整功能，但回到完整规范化的原有成本，不是 append-only 增量方案。
+- DM 后台构建保留 64 MiB 的源文件预算。Room 单独检查公区 ledger；当它在预算内、但加上引用的成员源超过预算时，共用后台任务按成员处理。它先流式读取父链和并行工具关联，再按文件区间投影选中的消息；仅 Room 已引用的消息进入 SQLite 检查点。
+- 检查点绑定 owner、conversation、成员身份、私有 overlay 和选中的 transcript 指纹。按完整消息在约 1 MiB 或 256 条时提交，进程中断后复用匹配指纹的已提交消息；未完成成员可能需要重新扫描。成员源发生变化时重新投影受影响的引用，已发布消息发生变化时仍按完整 Room 语义重建。对客户端发布的分页、目录和详情属于同一完整 generation。
+- 后台任务对序列化公开引用设置 128 MiB 工作预算；逐成员读取时，父链位置、工具配对和待对齐输入也受剩余预算约束。公区 ledger 自身超过 64 MiB 或公开引用工作集超预算时，首次消息读取走可取消的精确投影。稳定结果在派生库容量允许时发布给后续分页；导航降级直接读取 ledger/overlay 的目录字段。DM 的超预算标记仍沿用请求级读取策略。
 
 ### 4.6 客户端窗口与大型内容
 
@@ -311,7 +307,7 @@ Room 增量：
   - 淘汰以完整 root round 为单位。
   - around 请求必须保留目标锚点；实时、乐观与最新 round 优先于可再次分页取得的历史。
   - 单个不可拆 round 可独自超过字节预算，但不得因此保留更早的大 round。
-- canonical 历史保存完整 Tool result 与内联图片。派生 generation 对单个 `>=256 KiB` 的 Tool result 或图片只保存内容摘要、大小和 opaque detail ref；消息页返回有界预览/引用，Tool 展开或图片实际渲染时才读取完整 detail。
+- canonical 历史保存完整 Tool result 与内联图片。派生 generation 对单个 `>=256 KiB` 的 Tool result 或图片只保存内容摘要、大小和 opaque detail ref。同一 physical round 内的 Tool result 共用 256 KiB 内联预算，预算耗尽后保留步骤和详情引用，预览最多使用剩余额度。Tool 展开或图片实际渲染时读取完整 detail。
 - detail 必须同时绑定 owner、Session scope、source generation 和 payload digest；source 变化、scope 不匹配、派生数据损坏或淘汰后一律返回 unavailable，不回退猜测旧内容。
 - 图片 detail 只以受限 raster MIME 和 `nosniff` 响应；桌面客户端必须通过带会话令牌的 fetch 生成临时 Blob URL，不能把认证 URL 直接交给 `<img>`。
 - Feed 和定位只使用消息 round 页与同 generation 的 `SessionRoundIndex`。`ConversationTurn`、`TurnPage` 与 turn-index HTTP 投影已删除，禁止恢复先全量读取再切片的第二套历史 API。

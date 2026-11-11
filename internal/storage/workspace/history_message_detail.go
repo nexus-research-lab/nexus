@@ -6,6 +6,7 @@ package workspace
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -46,7 +47,21 @@ type historyReadModelDetail struct {
 	Digest    string
 }
 
+// 同一组中的多个中等输出共用预览预算，索引冷建和热读采用同一判定。
+type historyToolResultBudget int
+
+func (b *historyToolResultBudget) reserve(size int) (inline bool, previewBytes int) {
+	if size < historyMessageDetailThresholdBytes && size <= int(*b) {
+		*b -= historyToolResultBudget(size)
+		return true, 0
+	}
+	previewBytes = min(int(*b), historyMessageDetailPreviewBytes)
+	*b -= historyToolResultBudget(previewBytes)
+	return false, previewBytes
+}
+
 type historyDetailProjectionContext struct {
+	toolBudget *historyToolResultBudget
 	scope      string
 	generation string
 	sequence   int
@@ -60,6 +75,7 @@ func projectHistoryReadModelGroup(
 	sequence int,
 	group historyPageIndexedGroup,
 ) (historyPageIndexedGroup, []historyReadModelDetail, error) {
+	budget := historyToolResultBudget(historyMessageDetailThresholdBytes)
 	projected := group
 	projected.Items = make([]protocol.Message, 0, len(group.Items))
 	details := make([]historyReadModelDetail, 0)
@@ -70,6 +86,7 @@ func projectHistoryReadModelGroup(
 			row["content"],
 			historyDetailProjectionContext{
 				scope:      scope,
+				toolBudget: &budget,
 				generation: generation,
 				sequence:   sequence,
 				messageID:  messageID,
@@ -129,7 +146,7 @@ func projectHistoryDetailMap(
 		if err != nil {
 			return nil, nil, err
 		}
-		if len(payload) >= historyMessageDetailThresholdBytes {
+		if inline, previewBytes := ctx.toolBudget.reserve(len(payload)); !inline {
 			detail, err := newHistoryReadModelDetail(
 				ctx,
 				historyMessageDetailKindToolResult,
@@ -140,7 +157,7 @@ func projectHistoryDetailMap(
 				return nil, nil, err
 			}
 			projected := cloneHistoryDetailMap(value)
-			projected["content"] = historyToolResultPreview(value["content"])
+			projected["content"] = historyToolResultPreview(value["content"], previewBytes)
 			attachHistoryDetailReference(projected, detail)
 			return projected, []historyReadModelDetail{detail}, nil
 		}
@@ -171,8 +188,9 @@ func projectHistoryDetailMap(
 
 	projected := cloneHistoryDetailMap(value)
 	details := make([]historyReadModelDetail, 0)
-	for key, item := range value {
-		if key != "content" && key != "source" {
+	for _, key := range []string{"content", "source"} {
+		item, exists := value[key]
+		if !exists {
 			continue
 		}
 		nested, extracted, err := projectHistoryDetailValue(
@@ -227,15 +245,15 @@ func attachHistoryDetailReference(
 	block["detail_truncated"] = true
 }
 
-func historyToolResultPreview(value any) any {
+func historyToolResultPreview(value any, limit int) any {
 	text, ok := value.(string)
-	if !ok {
+	if !ok || limit == 0 {
 		return nil
 	}
-	if len(text) <= historyMessageDetailPreviewBytes {
+	if len(text) <= limit {
 		return text
 	}
-	end := historyMessageDetailPreviewBytes
+	end := limit
 	for end > 0 && !utf8.ValidString(text[:end]) {
 		end--
 	}
@@ -299,8 +317,9 @@ func withHistoryDetailPath(
 
 func historyPageBuildHasLargeDetails(built historyPageIndexBuild) bool {
 	for _, group := range built.Groups {
+		budget := historyToolResultBudget(historyMessageDetailThresholdBytes)
 		for _, row := range group.Items {
-			found, err := historyValueHasLargeDetail(row["content"])
+			found, err := historyValueHasLargeDetail(row["content"], &budget)
 			if err == nil && found {
 				return true
 			}
@@ -309,17 +328,17 @@ func historyPageBuildHasLargeDetails(built historyPageIndexBuild) bool {
 	return false
 }
 
-func historyValueHasLargeDetail(value any) (bool, error) {
+func historyValueHasLargeDetail(value any, budget *historyToolResultBudget) (bool, error) {
 	switch typed := value.(type) {
 	case []any:
 		for _, item := range typed {
-			if found, err := historyValueHasLargeDetail(item); err != nil || found {
+			if found, err := historyValueHasLargeDetail(item, budget); err != nil || found {
 				return found, err
 			}
 		}
 	case []map[string]any:
 		for _, item := range typed {
-			if found, err := historyValueHasLargeDetail(item); err != nil || found {
+			if found, err := historyValueHasLargeDetail(item, budget); err != nil || found {
 				return found, err
 			}
 		}
@@ -327,8 +346,11 @@ func historyValueHasLargeDetail(value any) (bool, error) {
 		blockType := strings.TrimSpace(stringFromAny(typed["type"]))
 		if blockType == "tool_result" {
 			payload, err := json.Marshal(typed["content"])
-			if err != nil || len(payload) >= historyMessageDetailThresholdBytes {
-				return len(payload) >= historyMessageDetailThresholdBytes, err
+			if err != nil {
+				return false, err
+			}
+			if inline, _ := budget.reserve(len(payload)); !inline {
+				return true, nil
 			}
 		}
 		if blockType == "image" {
@@ -338,7 +360,7 @@ func historyValueHasLargeDetail(value any) (bool, error) {
 			}
 		}
 		for _, key := range []string{"content", "source"} {
-			if found, err := historyValueHasLargeDetail(typed[key]); err != nil || found {
+			if found, err := historyValueHasLargeDetail(typed[key], budget); err != nil || found {
 				return found, err
 			}
 		}
@@ -379,16 +401,25 @@ func (m *historyReadModel) loadDetail(
 		}
 		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
 	}
+	detail, err := readHistoryDetail(ctx, tx, access.Scope, scope.Generation, ref, historyMessageDetailMaxBytes)
+	if err != nil {
+		return HistoryMessageDetail{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return HistoryMessageDetail{}, err
+	}
+	return detail, nil
+}
+
+func readHistoryDetail(ctx context.Context, tx *sql.Tx, scope, generation, ref string, budget int64) (HistoryMessageDetail, error) {
 	var detail HistoryMessageDetail
 	var digest string
-	err = tx.QueryRowContext(
+	err := tx.QueryRowContext(
 		ctx,
 		`SELECT kind, media_type, byte_size, payload, payload_digest
 		 FROM history_read_details
-		 WHERE scope = ? AND generation = ? AND detail_ref = ?`,
-		access.Scope,
-		scope.Generation,
-		ref,
+		 WHERE scope = ? AND generation = ? AND detail_ref = ? AND byte_size <= ?`,
+		scope, generation, ref, budget,
 	).Scan(&detail.Kind, &detail.MediaType, &detail.ByteSize, &detail.Payload, &digest)
 	if err != nil {
 		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
@@ -400,8 +431,5 @@ func (m *historyReadModel) loadDetail(
 		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
 	}
 	detail.Ref = ref
-	if err = tx.Commit(); err != nil {
-		return HistoryMessageDetail{}, err
-	}
 	return detail, nil
 }

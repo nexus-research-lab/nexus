@@ -120,6 +120,18 @@ func TestRoomRuntimeHistoryDoesNotUseDetailPreview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	indexed, err := h.readRuntimeHistoryIndex(ctx, access, "u", "", "", nil)
+	if err != nil || !reflect.DeepEqual(indexed, want) {
+		t.Fatalf("indexed tool output differs from canonical: %v", err)
+	}
+	// 丢失详情时整次读取回退原始记录，不能把仍有 detail_ref 的预览交给 Agent。
+	db, err := h.readModel.database(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.ExecContext(ctx, "DELETE FROM history_read_details WHERE scope=?", access.Scope); err != nil {
+		t.Fatal(err)
+	}
 	got, err := h.ReadRuntimeHistoryContext(ctx, owner, conversation, "u", "", "", nil)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("runtime used a truncated preview: %v", err)

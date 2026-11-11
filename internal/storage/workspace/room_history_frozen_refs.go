@@ -36,7 +36,7 @@ func (ref roomFrozenTranscriptRef) transcriptRef() roomTranscriptRef {
 	}
 }
 
-func (ref roomFrozenTranscriptRef) dependsOn(source historyPageSourceSnapshot) bool {
+func (ref roomTranscriptRef) dependsOn(source historyPageSourceSnapshot) bool {
 	if filepath.Clean(ref.WorkspacePath) != source.WorkspacePath {
 		return false
 	}
@@ -72,12 +72,13 @@ func (s *RoomHistoryStore) collectRoomFrozenTranscriptRefs(
 		}
 	}
 	dirty := make(map[string]struct{})
+	checked := roomWorkspaceChecks{}
 	for _, row := range frozenRows {
 		if stringFromAny(row[overlayKindField]) != overlayKindTranscriptRef {
 			continue
 		}
 		ref, ok := roomTranscriptRefFromRow(protocol.Message(row))
-		if !ok || !s.paths.workspacePathIsConfinedForOwner(ownerUserID, ref.WorkspacePath) {
+		if !ok || !checked.allows(s.paths, ownerUserID, ref.WorkspacePath) {
 			continue
 		}
 		key := ref.cacheKey()
@@ -136,7 +137,7 @@ func (s *RoomHistoryStore) verifyRoomFrozenTranscriptRefs(
 	for _, item := range frozen {
 		affected := false
 		for _, source := range changed {
-			if item.dependsOn(source) {
+			if item.transcriptRef().dependsOn(source) {
 				affected = true
 				break
 			}

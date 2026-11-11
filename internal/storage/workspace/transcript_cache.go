@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// 按源文件字节为解析缓存计重，避免深拷贝几份大型 transcript 后长期驻留。
+const maxTranscriptCacheSourceBytes = 64 << 20
+
 type transcriptCacheEntry struct {
 	Source        historyPageSourceSnapshot
 	LastAccessUTC int64
@@ -31,6 +34,12 @@ func (s *AgentHistoryStore) readTranscriptCache(path string, source historyPageS
 }
 
 func (s *AgentHistoryStore) writeTranscriptCache(path string, source historyPageSourceSnapshot, entries []transcriptEntry) {
+	if source.Size > maxTranscriptCacheSourceBytes {
+		s.cache.mu.Lock()
+		delete(s.cache.entries, path)
+		s.cache.mu.Unlock()
+		return
+	}
 	// 缓存只持有私有副本，投影和分段合并不能修改其他请求的原始条目。
 	entry := transcriptCacheEntry{Source: source, LastAccessUTC: time.Now().UnixNano(), Entries: cloneTranscriptEntries(entries)}
 	s.cache.mu.Lock()
@@ -48,7 +57,11 @@ func cloneTranscriptEntries(entries []transcriptEntry) []transcriptEntry {
 }
 
 func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
-	if len(s.cache.entries) <= maxTranscriptCacheEntries {
+	var weight int64
+	for _, entry := range s.cache.entries {
+		weight += entry.Source.Size
+	}
+	if len(s.cache.entries) <= maxTranscriptCacheEntries && weight <= maxTranscriptCacheSourceBytes {
 		return
 	}
 
@@ -67,7 +80,8 @@ func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
 	sort.Slice(candidates, func(i int, j int) bool {
 		return candidates[i].LastAccessUTC < candidates[j].LastAccessUTC
 	})
-	for len(candidates) > maxTranscriptCacheEntries {
+	for len(candidates) > maxTranscriptCacheEntries || weight > maxTranscriptCacheSourceBytes {
+		weight -= s.cache.entries[candidates[0].Path].Source.Size
 		delete(s.cache.entries, candidates[0].Path)
 		candidates = candidates[1:]
 	}

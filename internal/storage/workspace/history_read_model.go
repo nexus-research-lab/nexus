@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 8 // 派生中断终态保留 interrupted_by_host 恢复原因。
+	historyReadModelSchemaVersion = 9 // 重建旧的大 Room disabled 标记并启用成员检查点。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000
@@ -180,7 +180,8 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 		// version=0 也会清理，使上次初始化中断留下的半张表自愈。
 		if _, err = tx.ExecContext(
 			ctx,
-			`DROP TABLE IF EXISTS history_read_message_keys;
+			`DROP TABLE IF EXISTS history_room_refs;
+			 DROP TABLE IF EXISTS history_read_message_keys;
 			 DROP TABLE IF EXISTS history_read_tail;
 			 DROP TABLE IF EXISTS history_read_details;
 			 DROP TABLE IF EXISTS history_read_groups;
@@ -190,6 +191,12 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 		}
 	}
 	statements := []string{
+		`CREATE TABLE IF NOT EXISTS history_room_refs (
+			scope TEXT NOT NULL, member TEXT NOT NULL, stamp TEXT NOT NULL, message_id TEXT NOT NULL,
+			payload BLOB NOT NULL, digest BLOB NOT NULL, updated_at_ms INTEGER NOT NULL,
+			PRIMARY KEY(scope,member,message_id)
+		) WITHOUT ROWID`,
+		`CREATE INDEX IF NOT EXISTS history_room_refs_age ON history_room_refs(updated_at_ms)`,
 		`CREATE TABLE IF NOT EXISTS history_read_message_keys (scope TEXT NOT NULL, generation TEXT NOT NULL, message_id TEXT NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(scope,generation,message_id)) WITHOUT ROWID`,
 		`CREATE TABLE IF NOT EXISTS history_read_tail (scope TEXT PRIMARY KEY, generation TEXT NOT NULL, rows_json BLOB NOT NULL, frozen_refs_json BLOB NOT NULL, rows_digest TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS history_read_scopes (
@@ -910,6 +917,14 @@ func (m *historyReadModel) persist(
 	if err != nil {
 		return err
 	}
+	// 已拿到 SQLite 写锁；目录若在首次检查后删除，与删除方的 scope 清理串行收口。
+	if access.OpenRoot != nil {
+		root, openErr := access.OpenRoot(false)
+		if openErr != nil {
+			return openErr
+		}
+		root.Close()
+	}
 	if err = tx.Commit(); err != nil {
 		return err
 	}
@@ -1046,6 +1061,9 @@ func (m *historyReadModel) deleteScope(ctx context.Context, scope string) error 
 		return err
 	}
 	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_room_refs WHERE scope=?`, scope); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_details WHERE scope = ?`, scope); err != nil {
 		return err
 	}
@@ -1074,6 +1092,9 @@ func (m *historyReadModel) evictColdScopes(ctx context.Context, cutoff time.Time
 		return err
 	}
 	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_room_refs WHERE updated_at_ms < ?`, cutoff.UnixMilli()); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(
 		ctx,
 		`DELETE FROM history_read_details
