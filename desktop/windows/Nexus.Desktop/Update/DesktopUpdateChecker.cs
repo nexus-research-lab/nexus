@@ -568,6 +568,16 @@ internal sealed class DesktopUpdateChecker
             : latest.InstallerSha256FileName;
         string sha256Path = Path.Combine(updateDir, SafePathSegment(sha256FileName));
 
+        try
+        {
+            if (latest.BuildNumber is not null)
+                return await PrepareDirectoryDeltaAsync(latest, installerUrl, updateDir, reportProgress);
+        }
+        catch (Exception error)
+        {
+            startupTimeline.Mark("update_check.delta_fallback", new Dictionary<string, string> { ["error"] = error.Message });
+        }
+
         await DownloadFileAsync(installerUrl, installerPath, reportProgress);
         await DownloadFileAsync(sha256Url, sha256Path, static (_, _) => { });
 
@@ -580,6 +590,36 @@ internal sealed class DesktopUpdateChecker
         }
 
         return new DownloadedUpdate(installerPath, sha256Path, actualHash.ToLowerInvariant());
+    }
+
+    private async Task<DownloadedUpdate> PrepareDirectoryDeltaAsync(
+        DesktopReleaseInfo latest, Uri full, string directory, Action<long, long?> progress)
+    {
+        string from = $"{currentVersion.Version.Split('+')[0]}-{currentVersion.BuildNumber}";
+        string to = $"{latest.Version.Split('+')[0]}-{latest.BuildNumber}";
+        Uri remote = new(full.AbsoluteUri + $".from-{from}.delta");
+        string patch = Path.Combine(directory, "update.delta");
+        string checksum = patch + ".sha256";
+        await DownloadFileAsync(new Uri(remote.AbsoluteUri + ".sha256"), checksum, static (_, _) => { });
+        string expected = ReadExpectedSha256(checksum, Path.GetFileName(remote.LocalPath));
+        await DownloadFileAsync(remote, patch, progress);
+        if (!string.Equals(ComputeSha256(patch), expected, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("增量包摘要不匹配。");
+
+        string stage = Path.Combine(directory, "delta-stage");
+        if (Directory.Exists(stage)) Directory.Delete(stage, true);
+        var start = new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "Resources", "nexus-server.exe"))
+        { UseShellExecute = false, CreateNoWindow = true };
+        foreach (string value in new[] { "apply-update-delta", patch, from, to, AppContext.BaseDirectory, stage })
+            start.ArgumentList.Add(value);
+        using Process process = Process.Start(start) ?? throw new IOException("无法启动增量重建。");
+        await process.WaitForExitAsync();
+        string installer = Path.Combine(stage, "delta-install.exe");
+        if (process.ExitCode != 0 || !File.Exists(installer)) throw new IOException("增量重建失败。");
+        if (Environment.ProcessPath is { } self && Authenticode.Signer(self) is { } publisher &&
+            Authenticode.Signer(installer) != publisher)
+            throw new InvalidDataException("增量安装器签名与已安装应用不匹配。");
+        return new DownloadedUpdate(installer, checksum, expected, true);
     }
 
     private async Task DownloadFileAsync(
@@ -652,12 +692,14 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        Process.Start(new ProcessStartInfo
+        var installerStart = new ProcessStartInfo
         {
             FileName = downloadedUpdate.InstallerPath,
             WorkingDirectory = Path.GetDirectoryName(downloadedUpdate.InstallerPath)!,
             UseShellExecute = true,
-        });
+        };
+        if (downloadedUpdate.IsDelta) installerStart.ArgumentList.Add("/DIR=" + Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
+        Process.Start(installerStart);
         startupTimeline.Mark("update_check.installer_started", new Dictionary<string, string>
         {
             ["latest_version"] = latest.Version,

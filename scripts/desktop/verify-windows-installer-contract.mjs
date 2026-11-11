@@ -10,7 +10,7 @@ const rootDirectory = path.resolve(scriptDirectory, "../..");
 const installerScriptArgument = process.argv.indexOf("--installer-script");
 const installerScriptPath = installerScriptArgument >= 0
   ? process.argv[installerScriptArgument + 1]
-  : path.join(scriptDirectory, "package-windows-app.ps1");
+  : path.join(scriptDirectory, "windows-inno.ps1");
 
 if (!installerScriptPath) {
   throw new Error("--installer-script requires a path");

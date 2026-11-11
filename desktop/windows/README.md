@@ -124,3 +124,6 @@ dotnet run --project desktop/windows/Nexus.Desktop.LifecycleTests -c Release
 随后用打包桌面端验证：启动长命令和 stdio MCP → 点窗口 × → 选择退出 → 界面仍可响应 → `shell.log` 出现 `sidecar.stop_finished` → 原后端、nxs 及后代退出 → 端口 34343 释放 → 立即重启成功。另测取消关闭、最小化到托盘、连续点击退出、启动过程中退出、仅结束桌面壳进程，以及换输出目录重新打包后启动。PSEC 嵌套 Job 必须在支持该 API 的 Windows 主机测试。
 
 诊断位于当前状态目录 `app/logs/shell.log` 和 `shutdown-failure-*.json` / `startup-failure-*.json`。旧版 `NexusSidecar.pid.json` 若缺少启动时间，不能证明进程身份；新版本会保留记录并要求先识别、退出旧实例，不会按名称批量强杀。
+
+增量更新直接以已安装应用目录为基准，逐文件重建到新目录并验证摘要。macOS 验证新版应用的标识、签名团队和 Gatekeeper；Windows 复用 Inno 安装器生命周期并在安装时校验外部文件。没有匹配版本/构建/架构的补丁或准备失败时自动回退全量安装包。
+此前缺少目录差分应用命令的版本先全量升级一次；发布流程使用上一正式版随包的服务程序验证后续差分。

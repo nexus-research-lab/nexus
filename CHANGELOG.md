@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Desktop updates can reconstruct the new app from the installed directory on Windows and macOS. Unchanged files are reused locally, changed files are verified after patching, and missing or unusable deltas fall back to the full release package.
 - Speed up local Rooms with long member transcripts. History indexing checkpoints public replies across restarts, updates the latest rounds on append, and loads excess tool output on expansion. Opening the round navigator no longer replays all member transcripts when the index is unavailable.
 
 - Show who is online in online rooms: members and Agents whose host is connected get a presence dot in the member dialog and room header, and Agents receive the same presence snapshot with each task. Requires nexus-relay with member presence.

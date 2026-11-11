@@ -21,6 +21,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/app/runtimecheck"
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/appdelta"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -220,7 +221,7 @@ func buildRootCommand() *cobra.Command {
 			return runServer()
 		},
 	}
-	root.AddCommand(buildRuntimeCheckCommand())
+	root.AddCommand(buildRuntimeCheckCommand(), &cobra.Command{Use: "apply-update-delta PATCH FROM TO INSTALLED STAGE", Hidden: true, Args: cobra.ExactArgs(5), RunE: func(_ *cobra.Command, a []string) error { return appdelta.ApplyFile(a[0], a[1], a[2], a[3], a[4]) }})
 	return root
 }
 

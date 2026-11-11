@@ -399,33 +399,22 @@ final class DesktopUpdateChecker {
       let progressWindow = DesktopDownloadProgressWindow(release: latest)
       progressWindow.show()
       let downloadedUpdate: DesktopDownloadedUpdate
+      let stagedAppURL: URL
       do {
-        downloadedUpdate = try await downloadAndVerifyUpdate(
-          latest,
-          reportProgress: progressWindow.report
-        )
+        if let delta = try? await prepareDirectoryDelta(latest, reportProgress: progressWindow.report) {
+          downloadedUpdate = delta.0
+          stagedAppURL = delta.1
+        } else {
+          downloadedUpdate = try await downloadAndVerifyUpdate(latest, reportProgress: progressWindow.report)
+          stagedAppURL = try await prepareAppBundle(from: downloadedUpdate)
+          try await verifyStagedAppTrust(stagedAppURL)
+        }
       } catch {
         progressWindow.close()
         throw error
       }
       progressWindow.close()
-      startupTimeline.mark("update_check.download_verified", metadata: [
-        "latest_version": latest.version,
-        "package_asset": latest.packageFileName ?? "",
-        "sha256": downloadedUpdate.sha256Hash,
-      ])
-
-      let stagedAppURL = try await prepareAppBundle(from: downloadedUpdate)
-      startupTimeline.mark("update_check.package_prepared", metadata: [
-        "latest_version": latest.version,
-        "staged_app": stagedAppURL.path,
-      ])
-
-      try await verifyStagedAppTrust(stagedAppURL)
-      startupTimeline.mark("update_check.package_trust_verified", metadata: [
-        "latest_version": latest.version,
-        "staged_app": stagedAppURL.path,
-      ])
+      startupTimeline.mark("update_check.package_trust_verified", metadata: ["staged_app": stagedAppURL.path])
 
       guard promptInstall(latest, downloadedUpdate: downloadedUpdate) else {
         return
@@ -439,6 +428,46 @@ final class DesktopUpdateChecker {
       ])
       showDownloadFailedAlert(latest)
     }
+  }
+
+  private func prepareDirectoryDelta(
+    _ latest: DesktopReleaseInfo,
+    reportProgress: @escaping (Int64, Int64?) -> Void
+  ) async throws -> (DesktopDownloadedUpdate, URL) {
+    guard let installed = currentInstallTargetURL(), let full = latest.packageDownloadURL,
+          let build = latest.buildNumber else { throw DesktopUpdateError.missingPackage }
+    let version = currentVersion.version.components(separatedBy: "+")[0]
+    let from = "\(version)-\(currentVersion.buildNumber)"
+    let to = "\(latest.version.components(separatedBy: "+")[0])-\(build)"
+    let remote = full.appendingPathExtension("from-\(from).delta")
+    let dir = try updateDirectory(for: latest)
+    let patch = dir.appendingPathComponent(remote.lastPathComponent)
+    let checksum = patch.appendingPathExtension("sha256")
+    try await downloadFile(from: remote.appendingPathExtension("sha256"), to: checksum)
+    let expected = try Self.readExpectedSHA256(from: checksum, packageFileName: patch.lastPathComponent)
+    try await downloadFile(from: remote, to: patch, reportProgress: reportProgress)
+    let actual = try await Task.detached(priority: .utility) { try Self.computeSHA256(patch) }.value
+    guard actual.caseInsensitiveCompare(expected) == .orderedSame else { throw DesktopUpdateError.sha256Mismatch }
+    let stage = dir.appendingPathComponent("delta-Nexus.app")
+    if FileManager.default.fileExists(atPath: stage.path) { try FileManager.default.removeItem(at: stage) }
+    let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/nexus-server")
+    try await Self.runProcess(executablePath: helper.path, arguments: ["apply-update-delta", patch.path, from, to, installed.path, stage.path])
+    let signing = try await Self.runProcess(executablePath: "/usr/bin/codesign", arguments: ["-dv", "--verbose=4", installed.path])
+    guard let teamLine = signing.standardError.split(separator: "\n").first(where: { $0.hasPrefix("TeamIdentifier=") }) else {
+      throw DesktopUpdateError.invalidResponse
+    }
+    let team = String(teamLine.dropFirst("TeamIdentifier=".count))
+    guard team.count == 10, team.allSatisfy({ "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".contains($0) }) else {
+      throw DesktopUpdateError.invalidResponse
+    }
+    try await Self.runProcess(executablePath: "/usr/bin/codesign",
+      arguments: ["--verify", "--deep", "--strict", "-R=anchor apple generic and certificate leaf[subject.OU] = \"\(team)\"", stage.path])
+    try await verifyStagedAppTrust(stage)
+    guard let stagedBundle = Bundle(url: stage) else { throw DesktopUpdateError.invalidResponse }
+    let staged = DesktopAppVersion.fromBundle(stagedBundle)
+    guard staged.version.components(separatedBy: "+")[0] == latest.version.components(separatedBy: "+")[0],
+          staged.buildNumber == build else { throw DesktopUpdateError.invalidResponse }
+    return (DesktopDownloadedUpdate(packageURL: patch, sha256URL: checksum, packageFileName: patch.lastPathComponent, sha256Hash: actual), stage)
   }
 
   private func downloadAndVerifyUpdate(
