@@ -25,6 +25,10 @@ enum DesktopUpdateCacheCleaner {
       "previous": previousMarker ?? "",
     ])
 
+    if FileManager.default.fileExists(atPath: updatesDirectory.path) {
+      _ = await DesktopUpdateChecker.runPackageHelper(["update-adopt", DesktopPaths.cacheDirectory.path,
+        currentVersion.version, currentVersion.buildNumber])
+    }
     let result = await Task.detached(priority: .utility) {
       Self.removeEntries(at: updatesDirectory)
     }.value

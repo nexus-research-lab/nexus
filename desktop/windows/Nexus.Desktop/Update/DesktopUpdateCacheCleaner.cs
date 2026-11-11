@@ -31,6 +31,12 @@ internal static class DesktopUpdateCacheCleaner
             ["previous"] = previousMarker,
         });
 
+        if (Directory.Exists(updatesDirectory))
+        {
+            await DesktopUpdateChecker.RunPackageHelperAsync(startupTimeline, "update-adopt",
+                DesktopPaths.CacheDirectory, currentVersion.Version, currentVersion.BuildNumber);
+        }
+
         CleanupResult result;
         try
         {

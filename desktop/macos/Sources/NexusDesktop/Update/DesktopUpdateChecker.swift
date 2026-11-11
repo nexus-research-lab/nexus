@@ -441,6 +441,11 @@ final class DesktopUpdateChecker {
     }
   }
 
+  static func runPackageHelper(_ arguments: [String]) async -> Bool {
+    let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/nexus-server")
+    return (try? await runProcess(executablePath: helper.path, arguments: arguments)) != nil
+  }
+
   private func downloadAndVerifyUpdate(
     _ latest: DesktopReleaseInfo,
     reportProgress: @escaping (Int64, Int64?) -> Void
@@ -462,10 +467,18 @@ final class DesktopUpdateChecker {
       : "\(packageFileName).sha256"
     let sha256URL = updateDirectory.appendingPathComponent(Self.safePathSegment(sha256FileName))
 
-    try await downloadFile(from: packageDownloadURL, to: packageURL, reportProgress: reportProgress)
     try await downloadFile(from: packageSHA256URL, to: sha256URL)
 
     let expectedHash = try Self.readExpectedSHA256(from: sha256URL, packageFileName: packageFileName)
+    let baseline = DesktopPaths.cacheDirectory.appendingPathComponent("update-base")
+    var rebuilt = false
+    if FileManager.default.fileExists(atPath: baseline.appendingPathComponent("base").path) {
+      rebuilt = await Self.runPackageHelper(["update-delta", baseline.path, packageDownloadURL.absoluteString, packageURL.path, expectedHash])
+      startupTimeline.mark("update_check.delta", metadata: ["rebuilt": String(rebuilt)])
+    }
+    if !rebuilt {
+      try await downloadFile(from: packageDownloadURL, to: packageURL, reportProgress: reportProgress)
+    }
     let actualHash = try await Task.detached(priority: .utility) {
       try Self.computeSHA256(packageURL)
     }.value
@@ -474,6 +487,7 @@ final class DesktopUpdateChecker {
       throw DesktopUpdateError.sha256Mismatch
     }
 
+    _ = await Self.runPackageHelper(["update-base", baseline.path, packageURL.path, expectedHash])
     return DesktopDownloadedUpdate(
       packageURL: packageURL,
       sha256URL: sha256URL,

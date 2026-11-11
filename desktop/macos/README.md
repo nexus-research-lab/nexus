@@ -225,3 +225,5 @@ Preview 启动会清除 `.env` 继承的 `NEXUSCTL_COMMAND_PATH`、`NEXUSCFG_COM
 `NEXUS_NXS_COMMAND_PATH`，使用本次 App 捆绑的 CLI 与 runtime。
 不会自动带入其他工作树的 CUA 集成。Preview 是开发测试产物；本地默认 ad-hoc
 签名，构建或烟测成功不等于完整发布验收。
+
+桌面端在缓存的 `update-base/base` 中保留最近一次校验成功的完整安装包。后续检查按该文件的 SHA-256 选择同架构差分包，重建后继续执行完整安装包摘要、签名和 Gatekeeper 校验。首次缺少基包、发布未提供更小的差分或校验失败时自动下载全量包。

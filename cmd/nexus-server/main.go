@@ -21,6 +21,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/app/runtimecheck"
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/appdelta"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -438,6 +439,12 @@ func runServer() error {
 
 func main() {
 	root := buildRootCommand()
+	root.AddCommand(&cobra.Command{Use: "update-delta CACHE URL OUTPUT SHA256", Hidden: true, Args: cobra.ExactArgs(4), RunE: func(_ *cobra.Command, args []string) error {
+		return appdelta.Reconstruct(args[0], args[1], args[2], args[3])
+	}},
+		&cobra.Command{Use: "update-base CACHE PACKAGE SHA256", Hidden: true, Args: cobra.ExactArgs(3), RunE: func(_ *cobra.Command, args []string) error { return appdelta.Remember(args[0], args[1], args[2]) }})
+	root.AddCommand(&cobra.Command{Use: "update-adopt CACHE VERSION BUILD", Hidden: true, Args: cobra.ExactArgs(3), RunE: func(_ *cobra.Command, args []string) error { return appdelta.Adopt(args[0], args[1], args[2]) }})
+
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}

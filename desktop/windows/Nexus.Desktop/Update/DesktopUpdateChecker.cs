@@ -568,10 +568,15 @@ internal sealed class DesktopUpdateChecker
             : latest.InstallerSha256FileName;
         string sha256Path = Path.Combine(updateDir, SafePathSegment(sha256FileName));
 
-        await DownloadFileAsync(installerUrl, installerPath, reportProgress);
         await DownloadFileAsync(sha256Url, sha256Path, static (_, _) => { });
 
         string expectedHash = ReadExpectedSha256(sha256Path, installerFileName);
+        string baseline = Path.Combine(DesktopPaths.CacheDirectory, "update-base");
+        if (!File.Exists(Path.Combine(baseline, "base")) ||
+            !await RunPackageHelperAsync(startupTimeline, "update-delta", baseline, installerUrl.AbsoluteUri, installerPath, expectedHash))
+        {
+            await DownloadFileAsync(installerUrl, installerPath, reportProgress);
+        }
         string actualHash = ComputeSha256(installerPath);
         if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
         {
@@ -579,7 +584,31 @@ internal sealed class DesktopUpdateChecker
             throw new InvalidOperationException("下载的安装器 sha256 校验未通过，已丢弃本地文件。");
         }
 
+        await RunPackageHelperAsync(startupTimeline, "update-base", baseline, installerPath, expectedHash);
         return new DownloadedUpdate(installerPath, sha256Path, actualHash.ToLowerInvariant());
+    }
+
+    internal static async Task<bool> RunPackageHelperAsync(DesktopStartupTimeline startupTimeline, string command, params string[] args)
+    {
+        try
+        {
+            ProcessStartInfo start = new(Path.Combine(AppContext.BaseDirectory, "Resources", "nexus-server.exe"))
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            start.ArgumentList.Add(command);
+            foreach (string arg in args) start.ArgumentList.Add(arg);
+            using Process? helper = Process.Start(start);
+            if (helper is null) return false;
+            await helper.WaitForExitAsync();
+            startupTimeline.Mark("update_check." + command, new Dictionary<string, string> { ["exit_code"] = helper.ExitCode.ToString() });
+            return helper.ExitCode == 0;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private async Task DownloadFileAsync(

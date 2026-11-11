@@ -472,6 +472,16 @@ jobs:
             exit 1
           fi
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build and verify incremental desktop packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: python3 scripts/desktop/build-package-deltas.py "${RUNNER_TEMP}/artifacts" "${TAG}"
+
       - name: Upload Release Assets
         uses: actions/upload-artifact@v7
         with:
@@ -484,6 +494,8 @@ jobs:
             ${{ runner.temp }}/artifacts/Nexus-windows-*.metadata.json
             ${{ runner.temp }}/artifacts/NexusSetup-*.exe
             ${{ runner.temp }}/artifacts/NexusSetup-*.exe.sha256
+            ${{ runner.temp }}/artifacts/*.delta
+            ${{ runner.temp }}/artifacts/*.delta.sha256
 
       - name: Remove Previous App Release Assets
         env:
@@ -512,7 +524,8 @@ jobs:
             | select(
               (.name | test("^Nexus-macos-(arm64-|intel-)?" + $version + "-[0-9]+\\.dmg(\\.sha256|\\.metadata\\.json)?$")) or
               (.name | test("^Nexus-windows-" + $version + "-[0-9]+\\.metadata\\.json$")) or
-              (.name | test("^NexusSetup-" + $version + "-[0-9]+\\.exe(\\.sha256)?$"))
+              (.name | test("^NexusSetup-" + $version + "-[0-9]+\\.exe(\\.sha256)?$")) or
+              (.name | test("^(NexusSetup-|Nexus-macos-(arm64|intel)-)" + $version + "-[0-9]+\\.(exe|dmg)\\.from-[0-9a-f]{64}\\.delta(\\.sha256)?$"))
             )
             | [.id, .name]
             | @tsv
@@ -607,3 +620,5 @@ jobs:
             ${{ runner.temp }}/artifacts/Nexus-windows-*.metadata.json
             ${{ runner.temp }}/artifacts/NexusSetup-*.exe
             ${{ runner.temp }}/artifacts/NexusSetup-*.exe.sha256
+            ${{ runner.temp }}/artifacts/*.delta
+            ${{ runner.temp }}/artifacts/*.delta.sha256
