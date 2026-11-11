@@ -45,6 +45,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   relay/      - Relay 独立跨仓合同；service/relay 是客户端，service/team 负责本机节点登记与执行；handler/team 直连 Relay
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的投影
   echo/ automation/ - 主动跟进与定时任务领域模型
+  storage/workspace/ 本地会话历史、成员 transcript 和 SQLite 分页读模型；文件地图见包内 doc.go
   mcp/        - 宿主自有工具统一挂在单一 `nexus` MCP server；`nexus.command` 承载 Goal/Execution/Automation/Subagent
   cli/        - nexusctl / nexuscfg 本地命令行装配；模型侧命令不经过 CLI
   app/        - HTTP 与 CLI 共用的显式服务装配、资源所有权与进程生命周期

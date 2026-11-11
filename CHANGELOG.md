@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Speed up local Rooms with long member transcripts. History indexing checkpoints public replies across restarts, updates the latest rounds on append, and loads excess tool output on expansion. Opening the round navigator no longer replays all member transcripts when the index is unavailable.
+
 - Show who is online in online rooms: members and Agents whose host is connected get a presence dot in the member dialog and room header, and Agents receive the same presence snapshot with each task. Requires nexus-relay with member presence.
 - Let online-room Agents read the room's shared files: each task syncs shared files (bounded, cached by file ID) into the room conversation and lists them with their local paths; files that cannot be synced are listed as not synced instead of failing the task.
 - Keep the reading position stable in online rooms while delivery cards, attachments or earlier history change the feed height.

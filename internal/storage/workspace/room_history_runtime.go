@@ -6,6 +6,7 @@ package workspace
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 )
 
 // ReadRuntimeHistoryContext 在游标可定位时复用读模型，只读取未消费区间与恢复所需的终态。
-// 无游标、缓存失效或正文含 detail 时保留 canonical 读取，不能把展示预览发给模型。
+// 普通工具详情在同一快照中恢复原文；游标失效、图片格式或详情无法还原时从 canonical 读取。
 func (s *RoomHistoryStore) ReadRuntimeHistoryContext(ctx context.Context, owner, conversation, cursorID, agentID, throughID string, activeRoundIDs []string) (result []protocol.Message, resultErr error) {
 	active := normalizeActiveRoundIDs(activeRoundIDs)
 	defer func() { result = runtimeHistoryWindow(result, throughID, active) }()
@@ -146,14 +147,6 @@ func (s *RoomHistoryStore) readRuntimeHistoryIndex(ctx context.Context, access h
 }
 
 func readRuntimeHistoryGroups(ctx context.Context, tx *sql.Tx, scope, generation string, start, end int) ([]historyPageIndexedGroup, error) {
-	// detail 预览不是 runtime 正文；出现大内容时回退完整 canonical 路径。
-	var detail bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM history_read_details WHERE scope=? AND generation=? AND sequence>=? AND sequence<?)`, scope, generation, start, end).Scan(&detail); err != nil {
-		return nil, err
-	}
-	if detail {
-		return nil, errHistoryPageIndexResourceLimit
-	}
 	metadata, err := readHistoryReadModelMetadataRange(ctx, tx, scope, generation, start, end)
 	if err != nil {
 		return nil, err
@@ -162,7 +155,63 @@ func readRuntimeHistoryGroups(ctx context.Context, tx *sql.Tx, scope, generation
 	for index := range indexes {
 		indexes[index] = index
 	}
-	return readHistoryReadModelGroups(ctx, tx, scope, generation, metadata, indexes, start)
+	groups, err := readHistoryReadModelGroups(ctx, tx, scope, generation, metadata, indexes, start)
+	if err != nil {
+		return nil, err
+	}
+	remaining := int64(historyReadModelMaxPageBytes)
+	for _, group := range groups {
+		for _, row := range group.Items {
+			if err = restoreRuntimeToolDetails(row["content"], func(ref string) (HistoryMessageDetail, error) {
+				detail, err := readHistoryDetail(ctx, tx, scope, generation, ref, remaining)
+				remaining -= detail.ByteSize
+				return detail, err
+			}); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return groups, nil
+}
+
+// 只修改本事务刚解码的消息。图片解码后不能还原原始 data URI 或 source 形状，交给 canonical。
+func restoreRuntimeToolDetails(value any, load func(string) (HistoryMessageDetail, error)) error {
+	switch block := value.(type) {
+	case []any:
+		for _, item := range block {
+			if err := restoreRuntimeToolDetails(item, load); err != nil {
+				return err
+			}
+		}
+	case map[string]any:
+		if block["detail_truncated"] == true {
+			if block["type"] != "tool_result" || block["detail_kind"] != historyMessageDetailKindToolResult {
+				return ErrHistoryMessageDetailUnavailable
+			}
+			detail, err := load(stringFromAny(block["detail_ref"]))
+			if err != nil {
+				return err
+			}
+			if detail.Kind != historyMessageDetailKindToolResult || detail.ByteSize != protocol.Int64FromAny(block["detail_size"]) {
+				return ErrHistoryMessageDetailUnavailable
+			}
+			var content any
+			if err = json.Unmarshal(detail.Payload, &content); err != nil {
+				return err
+			}
+			block["content"] = normalizeDecodedJSONValue(content)
+			for _, key := range []string{"detail_ref", "detail_truncated", "detail_kind", "detail_size"} {
+				delete(block, key)
+			}
+			return nil
+		}
+		for _, key := range []string{"content", "source"} {
+			if err := restoreRuntimeToolDetails(block[key], load); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func runtimeHistoryHasTerminal(groups []historyPageIndexedGroup, agentID string) bool {

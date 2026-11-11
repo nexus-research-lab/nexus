@@ -7,24 +7,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func roomHistoryScope(ownerUserID, conversationID string) string {
+	return historyPageScope("room", fmt.Sprintf("v%d", historyPageIndexVersion), strings.TrimSpace(ownerUserID), strings.TrimSpace(conversationID))
+}
 
 func (s *RoomHistoryStore) historyPageAccess(
 	ownerUserID string,
 	conversationID string,
 ) historyPageIndexAccess {
-	scope := historyPageScope(
-		"room",
-		fmt.Sprintf("v%d", historyPageIndexVersion),
-		strings.TrimSpace(ownerUserID),
-		strings.TrimSpace(conversationID),
-	)
+	scope := roomHistoryScope(ownerUserID, conversationID)
 	return historyPageIndexAccess{
 		Scope:     scope,
 		LogAttrs:  []any{"conversation_id", strings.TrimSpace(conversationID)},
@@ -45,6 +46,9 @@ func (s *RoomHistoryStore) historyPageAccess(
 				conversationID,
 				historyPageSourceMaxBytes,
 			)
+		},
+		ReadRoundIndex: func(ctx context.Context, active []string) (protocol.SessionRoundIndex, error) {
+			return s.readCanonicalRoundIndexContext(ctx, ownerUserID, conversationID, active)
 		},
 		BuildCanonical: func(ctx context.Context) (historyPageIndexBuild, error) {
 			return s.buildRoomHistoryPageIndex(ctx, ownerUserID, conversationID)
@@ -156,6 +160,7 @@ func (s *RoomHistoryStore) roomHistoryPageDependencies(
 	rows []map[string]any,
 ) []roomHistoryPageDependency {
 	unique := make(map[string]roomHistoryPageDependency)
+	checked := roomWorkspaceChecks{}
 	for _, row := range rows {
 		if stringFromAny(row[overlayKindField]) != overlayKindTranscriptRef {
 			continue
@@ -164,8 +169,10 @@ func (s *RoomHistoryStore) roomHistoryPageDependencies(
 		privateSessionKey := stringFromAny(row["private_session_key"])
 		sessionID := stringFromAny(row["session_id"])
 		if workspacePath == "" || privateSessionKey == "" || sessionID == "" ||
-			stringFromAny(row["agent_id"]) == "" || stringFromAny(row["message_id"]) == "" ||
-			!s.paths.workspacePathIsConfinedForOwner(ownerUserID, workspacePath) {
+			stringFromAny(row["agent_id"]) == "" || stringFromAny(row["message_id"]) == "" {
+			continue
+		}
+		if !checked.allows(s.paths, ownerUserID, workspacePath) {
 			continue
 		}
 		dependency := roomHistoryPageDependency{
@@ -298,28 +305,34 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 			return historyPageIndexBuild{}, err
 		}
 		before := append([]historyPageSourceSnapshot{ledgerBefore}, dependenciesBefore...)
-		if historyPageSourcesExceedLimit(before, sourceLimit) {
-			ledgerAfter, afterErr := s.snapshotRoomHistoryLedger(ctx, ownerUserID, conversationID)
-			if afterErr != nil {
-				return historyPageIndexBuild{}, afterErr
-			}
-			dependenciesAfter, afterErr := s.collectRoomHistoryPageDependencySources(
-				ctx,
-				ownerUserID,
-				rawRows,
-			)
-			if afterErr != nil {
-				return historyPageIndexBuild{}, afterErr
-			}
-			after := append([]historyPageSourceSnapshot{ledgerAfter}, dependenciesAfter...)
-			latest = historyPageIndexBuild{Sources: after, Disabled: true}
-			if snapshotsEqual(before, after) {
-				latest.Cacheable = true
-				return latest, nil
-			}
-			continue
-		}
 		transcripts := roomTranscriptIndexCache{}
+		threshold := sourceLimit
+		budget := roomRefBudget(historyReadModelMaxPageBytes)
+		if threshold == 0 {
+			threshold = historyPageSourceMaxBytes
+			budget = math.MaxInt64
+		}
+		if historyPageSourcesExceedLimit(before, threshold) {
+			members := s.selectRoomRefs(ownerUserID, rawRows)
+			err = s.prepareRoomRefCheckpoints(ctx, ownerUserID, conversationID, members, dependenciesBefore, transcripts, budget)
+			if errors.Is(err, errHistoryPageSourcesChanged) && attempt+1 < historyPageBuildAttempts {
+				continue
+			}
+			if errors.Is(err, errHistoryPageIndexResourceLimit) && sourceLimit > 0 {
+				valid, checkErr := s.validateRoomHistoryPageSources(ctx, ownerUserID, conversationID, before)
+				if checkErr != nil {
+					return historyPageIndexBuild{}, checkErr
+				}
+				latest = historyPageIndexBuild{Sources: before, Disabled: true, DisabledCoverage: historyPageDisabledCoverageRoomProjection, Cacheable: valid}
+				if valid {
+					return latest, nil
+				}
+				continue
+			}
+			if err != nil {
+				return historyPageIndexBuild{}, err
+			}
+		}
 		resolved, err := s.resolveRoomHistoryRowsWithCache(ctx, ownerUserID, conversationID, rawRows, transcripts)
 		if err != nil {
 			return historyPageIndexBuild{}, err

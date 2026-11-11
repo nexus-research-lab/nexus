@@ -52,6 +52,9 @@ func (s *AgentHistoryStore) historyPageAccess(
 				historyPageSourceMaxBytes,
 			)
 		},
+		ReadRoundIndex: func(ctx context.Context, active []string) (protocol.SessionRoundIndex, error) {
+			return s.readCanonicalRoundIndexContext(ctx, workspacePath, sessionValue, active)
+		},
 		BuildCanonical: func(ctx context.Context) (historyPageIndexBuild, error) {
 			return s.buildAgentHistoryPageIndex(ctx, workspacePath, sessionValue)
 		},
