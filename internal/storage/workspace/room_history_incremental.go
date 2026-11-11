@@ -196,9 +196,7 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 		return fmt.Errorf("frozen transcript refs unavailable: %w", errHistoryPageIndexInvalid)
 	}
 	transcripts := roomTranscriptIndexCache{}
-	if err = s.verifyRoomFrozenTranscriptRefs(ctx, owner, frozen, changedDependencies, transcripts); err != nil {
-		return err
-	}
+
 	var boundaryTimestamp int64
 	if err = db.QueryRowContext(ctx, `SELECT cursor_timestamp FROM history_read_groups WHERE scope=? AND generation=? AND sequence=?`, scopeKey, previous.Generation, previous.GroupCount-1).Scan(&boundaryTimestamp); err != nil {
 		return err
@@ -267,7 +265,23 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	sortHistoryPageSources(dependencies)
 	expected := append([]historyPageSourceSnapshot{current}, dependencies...)
 	if historyPageSourcesExceedLimit(expected, historyPageSourceMaxBytes) {
-		return errHistoryPageIndexResourceLimit
+		members := s.selectRoomRefs(owner, raw)
+		for _, item := range frozen {
+			ref := item.transcriptRef()
+			_, needed := members[ref.cacheKey()]
+			for _, source := range changedDependencies {
+				needed = needed || ref.dependsOn(source)
+			}
+			if needed {
+				members.add(ref, item.MessageIDs...)
+			}
+		}
+		if err = s.prepareRoomRefCheckpoints(ctx, owner, conversation, members, dependencies, transcripts, historyReadModelMaxPageBytes); err != nil {
+			return err
+		}
+	}
+	if err = s.verifyRoomFrozenTranscriptRefs(ctx, owner, frozen, changedDependencies, transcripts); err != nil {
+		return err
 	}
 	resolved, err := s.resolveRoomHistoryRowsWithCache(ctx, owner, conversation, raw, transcripts)
 	if err != nil {

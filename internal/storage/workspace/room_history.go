@@ -206,6 +206,18 @@ func (s *RoomHistoryStore) resolveRoomHistoryRowsContext(
 // 让一次读模型构建同时完成行解析和冻结引用摘要，不重复读取大文件。
 type roomTranscriptIndexCache map[string]map[string]protocol.Message
 
+// 校验只在这次遍历的 owner 范围内复用；实际文件仍由固定根句柄打开。
+type roomWorkspaceChecks map[string]bool
+
+func (checked roomWorkspaceChecks) allows(paths *Store, owner, workspace string) bool {
+	allowed, ok := checked[workspace]
+	if !ok {
+		allowed = paths.workspacePathIsConfinedForOwner(owner, workspace)
+		checked[workspace] = allowed
+	}
+	return allowed
+}
+
 func (s *RoomHistoryStore) resolveRoomHistoryRowsWithCache(
 	ctx context.Context,
 	ownerUserID string,
@@ -213,6 +225,7 @@ func (s *RoomHistoryStore) resolveRoomHistoryRowsWithCache(
 	rows []map[string]any,
 	cache roomTranscriptIndexCache,
 ) ([]protocol.Message, error) {
+	checked := roomWorkspaceChecks{}
 	resolved := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
 		if err := ctx.Err(); err != nil {
@@ -228,7 +241,7 @@ func (s *RoomHistoryStore) resolveRoomHistoryRowsWithCache(
 			ctx,
 			ownerUserID,
 			protocol.Message(row),
-			cache,
+			cache, checked,
 		)
 		if resolveErr != nil {
 			return nil, resolveErr
@@ -246,9 +259,10 @@ func (s *RoomHistoryStore) resolveTranscriptReferenceContext(
 	ownerUserID string,
 	row protocol.Message,
 	cache roomTranscriptIndexCache,
+	checked roomWorkspaceChecks,
 ) (protocol.Message, bool, error) {
 	ref, ok := roomTranscriptRefFromRow(row)
-	if !ok || !s.paths.workspacePathIsConfinedForOwner(ownerUserID, ref.WorkspacePath) {
+	if !ok || !checked.allows(s.paths, ownerUserID, ref.WorkspacePath) {
 		return nil, false, nil
 	}
 	messageIndex, err := s.loadRoomTranscriptIndex(ctx, ownerUserID, ref, cache)
@@ -399,13 +413,17 @@ func indexRoomTranscriptMessages(rows []protocol.Message) map[string]protocol.Me
 		if messageID == "" {
 			continue
 		}
-		if current, exists := result[messageID]; exists {
-			result[messageID] = mergeCompactedMessage(current, protocol.Clone(row))
-			continue
-		}
-		result[messageID] = protocol.Clone(row)
+		mergeRoomTranscriptMessage(result, messageID, row)
 	}
 	return result
+}
+
+func mergeRoomTranscriptMessage(result map[string]protocol.Message, id string, row protocol.Message) {
+	next := protocol.Clone(row)
+	if current, exists := result[id]; exists {
+		next = mergeCompactedMessage(current, next)
+	}
+	result[id] = next
 }
 
 func overrideRoomTranscriptFields(target protocol.Message, source protocol.Message) {

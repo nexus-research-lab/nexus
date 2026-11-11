@@ -192,3 +192,23 @@ func TestTranscriptCacheReprojectsMarkersAndSegments(t *testing.T) {
 		t.Fatal("deleted project retained cache")
 	}
 }
+
+func TestTranscriptCacheCapsRetainedSourceBytes(t *testing.T) {
+	s := NewAgentHistoryStore(t.TempDir())
+	source := historyPageSourceSnapshot{Exists: true, Size: maxTranscriptCacheSourceBytes/2 + 1}
+	rows := []transcriptEntry{{Data: map[string]any{"uuid": "test"}}}
+	s.writeTranscriptCache("first", source, rows)
+	s.writeTranscriptCache("second", source, rows)
+	if _, ok := s.readTranscriptCache("first", source); ok {
+		t.Fatal("older weighted entry retained")
+	}
+	if _, ok := s.readTranscriptCache("second", source); !ok {
+		t.Fatal("latest entry missing")
+	}
+	large := source
+	large.Size = maxTranscriptCacheSourceBytes + 1
+	s.writeTranscriptCache("second", large, rows)
+	if _, ok := s.readTranscriptCache("second", large); ok {
+		t.Fatal("oversized file retained")
+	}
+}

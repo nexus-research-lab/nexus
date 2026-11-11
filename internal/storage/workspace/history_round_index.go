@@ -177,6 +177,9 @@ func buildCanonicalSessionRoundIndex(
 	activeRoundIDs []string,
 	collapseRoomRounds bool,
 ) (protocol.SessionRoundIndex, error) {
+	if access.ReadRoundIndex != nil {
+		return access.ReadRoundIndex(ctx, activeRoundIDs)
+	}
 	build := access.BuildCanonical
 	if build == nil {
 		build = access.Build
@@ -300,6 +303,10 @@ func readRoundIndexFromRootContext(
 				break
 			}
 			return protocol.SessionRoundIndex{}, err
+		}
+		// 导航只用用户输入或 marker 生成标题，等待重复 ID 对账时不保留工具正文。
+		if strings.TrimSpace(row.Role) != "user" && strings.TrimSpace(row.OverlayKind) != overlayKindRoundMarker {
+			row.Content = nil
 		}
 		rows = append(rows, row)
 		if messageID := strings.TrimSpace(row.MessageID); messageID != "" {

@@ -26,7 +26,10 @@ func alignTranscriptRoundMarkersWithFilter(
 	if len(roundMarkers) == 0 {
 		return nil
 	}
-	userTurns := collectTranscriptUserTurns(chain, shouldSkip)
+	return matchTranscriptRoundMarkers(collectTranscriptUserTurns(chain, shouldSkip), roundMarkers)
+}
+
+func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []transcriptRoundMarker) []transcriptRoundMarker {
 	if len(userTurns) == 0 {
 		return nil
 	}
@@ -103,27 +106,26 @@ func collectTranscriptUserTurns(
 		}
 		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, lastTimestamp)
 		lastTimestamp = entryTimestamp
-		decoded, err := sdkprotocol.DecodeMessage(entry.Data)
-		if err != nil {
-			continue
-		}
-		if decoded.Type == sdkprotocol.MessageTypeUser &&
-			!isTranscriptToolResult(decoded) &&
-			shouldAlignTranscriptUserTurn(entry.Data) {
-			empty := isEmptyTranscriptUserTurn(entry.Data)
-			if empty {
-				// 空串没有正文证据，不允许继承上一条消息的时间来匹配 marker。
-				entryTimestamp = transcriptEntryTimestamp(entry.Data, -1, 0)
-			}
-			turns = append(turns, transcriptUserTurn{
-				Content:         transcriptUserContent(entry.Data),
-				Timestamp:       entryTimestamp,
-				GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(entry.Data),
-				Empty:           empty,
-			})
+		if turn, ok := transcriptUserTurnForMarker(entry.Data, entryTimestamp); ok {
+			turns = append(turns, turn)
 		}
 	}
 	return turns
+}
+
+func transcriptUserTurnForMarker(data map[string]any, timestamp int64) (transcriptUserTurn, bool) {
+	if stringFromAny(data["type"]) != "user" || len(transcriptToolResultIDs(data)) != 0 {
+		return transcriptUserTurn{}, false
+	}
+	decoded, err := sdkprotocol.DecodeMessage(data)
+	if err != nil || decoded.Type != sdkprotocol.MessageTypeUser || isTranscriptToolResult(decoded) || !shouldAlignTranscriptUserTurn(data) {
+		return transcriptUserTurn{}, false
+	}
+	empty := isEmptyTranscriptUserTurn(data)
+	if empty {
+		timestamp = transcriptEntryTimestamp(data, -1, 0)
+	}
+	return transcriptUserTurn{Content: transcriptUserContent(data), Timestamp: timestamp, GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(data), Empty: empty}, true
 }
 
 func findMatchingRoundMarker(

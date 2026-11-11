@@ -4,6 +4,8 @@
 package workspace
 
 import (
+	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,16 +58,31 @@ func projectTranscriptChainWithFilter(
 	shouldSkip func(map[string]any) bool,
 ) []protocol.Message {
 	projected := make([]protocol.Message, 0, len(chain))
+	aligned := alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkip)
+	visitProjectedTranscript(workspacePath, sessionKey, agentID, slices.Values(chain), aligned, shouldSkip, func(rows ...protocol.Message) {
+		projected = append(projected, rows...)
+	})
+	return projected
+}
+
+func visitProjectedTranscript(
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	chain iter.Seq[transcriptEntry],
+	alignedMarkers []transcriptRoundMarker,
+	shouldSkip func(map[string]any) bool,
+	emit func(...protocol.Message),
+) {
 	currentRoundID := ""
 	currentRoundPurpose := ""
 	var processor *message.Processor
 	var lastTimestamp int64
-	alignedMarkers := alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkip)
 	markerIndex := 0
 	lastVisibleUserContent := ""
 	var lastVisibleUserTimestamp int64
 
-	for _, entry := range chain {
+	for entry := range chain {
 		if shouldSkip(entry.Data) {
 			continue
 		}
@@ -80,7 +97,7 @@ func projectTranscriptChainWithFilter(
 			entry.Data,
 			entryTimestamp,
 		); len(guidanceRows) > 0 {
-			projected = append(projected, guidanceRows...)
+			emit(guidanceRows...)
 			continue
 		}
 
@@ -97,7 +114,7 @@ func projectTranscriptChainWithFilter(
 					processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
 				}
 				output := processor.Process(decoded)
-				projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
+				emit(stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
 				continue
 			}
 			if !shouldAlignTranscriptUserTurn(entry.Data) {
@@ -149,7 +166,7 @@ func projectTranscriptChainWithFilter(
 			if userMessage == nil {
 				continue
 			}
-			projected = append(projected, *userMessage)
+			emit(*userMessage)
 			lastVisibleUserContent = stringFromAny((*userMessage)["content"])
 			lastVisibleUserTimestamp = entryTimestamp
 		case sdkprotocol.MessageTypeAssistant,
@@ -165,7 +182,7 @@ func projectTranscriptChainWithFilter(
 				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
 			}
 			output := processor.Process(decoded)
-			projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
+			emit(stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
 		case sdkprotocol.MessageTypeResult:
 			// result 统一以 Nexus overlay 为真相源。
 			// transcript 即使带了 result，也不再直接投影进历史，
@@ -175,8 +192,6 @@ func projectTranscriptChainWithFilter(
 			continue
 		}
 	}
-
-	return projected
 }
 
 func newTranscriptProcessor(

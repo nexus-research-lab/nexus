@@ -46,6 +46,7 @@ const (
 )
 
 var (
+	errHistoryPageSourcesChanged     = errors.New("history sources changed during projection")
 	errHistoryPageIndexInvalid       = errors.New("history page index is invalid")
 	errHistoryPageIndexResourceLimit = errors.New("history page index resource limit exceeded")
 	historyPageRebuilds              = newHistoryPageRebuildManager(historyPageRebuildWorkers)
@@ -57,8 +58,9 @@ var (
 const historyPageIndexDisabledResourceLimit = "resource_limit"
 
 const (
-	historyPageDisabledCoverageAll        = "all"
-	historyPageDisabledCoverageRoomLedger = "room_ledger"
+	historyPageDisabledCoverageAll            = "all"
+	historyPageDisabledCoverageRoomLedger     = "room_ledger"
+	historyPageDisabledCoverageRoomProjection = "room_projection"
 )
 
 type historyPageIndexDisabledError struct {
@@ -171,6 +173,7 @@ type historyPageIndexAccess struct {
 	OpenRoot        func(create bool) (*confinedfs.Root, error)
 	ValidateSources func(context.Context, []historyPageSourceSnapshot) (bool, error)
 	Build           func(context.Context) (historyPageIndexBuild, error)
+	ReadRoundIndex  func(context.Context, []string) (protocol.SessionRoundIndex, error)
 	BuildCanonical  func(context.Context) (historyPageIndexBuild, error)
 	Persist         func(context.Context, historyPageIndexBuild) error
 }
@@ -190,18 +193,7 @@ func readHistoryPageWithIndex(
 		}
 		var disabled *historyPageIndexDisabledError
 		if errors.As(err, &disabled) {
-			page, built, buildErr := buildCanonicalHistoryPage(ctx, access, request)
-			if buildErr != nil {
-				return protocol.MessagePage{}, buildErr
-			}
-			// resource-limit marker 与 canonical source 一致时保持 exact
-			// fallback，不再制造 detached rebuild loop。source 变化后只在当前
-			// 有空闲 admission 时启动一次新尝试，首屏不为恢复索引等待。
-			if built.Cacheable &&
-				historyPageSourceDigestForCoverage(built.Sources, disabled.coverage) != disabled.sourceDigest {
-				_, _ = historyPageRebuilds.tryStart(ctx, access)
-			}
-			return page, nil
+			return readDisabledHistoryPage(ctx, access, request, disabled.coverage, disabled.sourceDigest)
 		}
 		if errors.Is(err, errHistoryPageIndexResourceLimit) {
 			page, _, buildErr := buildCanonicalHistoryPage(ctx, access, request)
@@ -218,8 +210,7 @@ func readHistoryPageWithIndex(
 		return historyPageIndexingPage(), nil
 	}
 	if built.Disabled {
-		page, _, buildErr := buildCanonicalHistoryPage(ctx, access, request)
-		return page, buildErr
+		return readDisabledHistoryPage(ctx, access, request, built.DisabledCoverage, historyPageSourceDigestForCoverage(built.Sources, built.DisabledCoverage))
 	}
 	if built.Groups == nil || historyPageBuildHasLargeDetails(built) {
 		// 大内容 generation 在 ready 前同步发布；优先从读模型返回 detail
@@ -235,6 +226,37 @@ func readHistoryPageWithIndex(
 		return protocol.MessagePage{}, errHistoryPageIndexInvalid
 	}
 	return paginateHistoryPageIndexedGroups(built.Groups, request), nil
+}
+
+func isRoomForegroundProjection(coverage string) bool {
+	return coverage == historyPageDisabledCoverageRoomLedger || coverage == historyPageDisabledCoverageRoomProjection
+}
+
+// 单个公区账本超出后台预读预算时，首次仍由可取消的请求完整读取。利用已经算出的
+// 稳定结果建索引，避免翻页时再次读取整个账本。详情只能在成功落盘后交给客户端。
+func readDisabledHistoryPage(ctx context.Context, access historyPageIndexAccess, request historyPageIndexRequest, coverage, digest string) (protocol.MessagePage, error) {
+	page, built, err := buildCanonicalHistoryPage(ctx, access, request)
+	if request.DeferIndex && errors.Is(err, errHistoryPageSourcesChanged) {
+		return historyPageIndexingPage(), nil
+	}
+	if err != nil || !built.Cacheable {
+		return page, err
+	}
+	if isRoomForegroundProjection(coverage) && access.ReadModel != nil {
+		if err = persistHistoryPageIndex(ctx, access, built); err == nil {
+			if saved, ok, loadErr := loadHistoryPageIndex(ctx, access, request); ok && loadErr == nil {
+				return saved, nil
+			}
+		}
+		if err = ctx.Err(); err != nil {
+			return protocol.MessagePage{}, err
+		}
+		return page, nil
+	}
+	if historyPageSourceDigestForCoverage(built.Sources, coverage) != digest {
+		_, _ = historyPageRebuilds.tryStart(ctx, access)
+	}
+	return page, nil
 }
 
 func historyPageIndexingPage() protocol.MessagePage {
@@ -281,6 +303,17 @@ func awaitHistoryPageIndexBuild(
 		case <-future.ready:
 			if timer != nil {
 				timer.Stop()
+			}
+			if errors.Is(future.err, errHistoryPageSourcesChanged) {
+				if deferIndex {
+					return historyPageIndexBuild{}, true, nil
+				}
+				select {
+				case <-ctx.Done():
+					return historyPageIndexBuild{}, false, ctx.Err()
+				case <-future.complete:
+					continue
+				}
 			}
 			if future.err != nil {
 				return historyPageIndexBuild{}, false, future.err
@@ -427,7 +460,7 @@ func (m *historyPageRebuildManager) run(
 	}
 	shouldPersist := future.err == nil && future.built.Cacheable &&
 		shouldPersistHistoryPageIndex(future.built)
-	persistBeforeReady := shouldPersist && historyPageBuildHasLargeDetails(future.built)
+	persistBeforeReady := shouldPersist && (isRoomForegroundProjection(future.built.DisabledCoverage) || historyPageBuildHasLargeDetails(future.built))
 	var persistErr error
 	persistStarted := time.Now()
 	if persistBeforeReady {
