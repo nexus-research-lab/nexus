@@ -179,6 +179,11 @@ jobs:
           fi
           scripts/desktop/package-macos-app.sh
 
+      - name: Verify macOS directory delta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/desktop/build-package-deltas.py "${RUNNER_TEMP}"/macos-artifacts/*.dmg
+
       - name: Upload macOS App Assets
         uses: actions/upload-artifact@v7
         with:
@@ -188,6 +193,8 @@ jobs:
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg.sha256
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg.metadata.json
+            ${{ runner.temp }}/macos-artifacts/*.delta
+            ${{ runner.temp }}/macos-artifacts/*.delta.sha256
 
       - name: Delete macOS Signing Keychain
         if: ${{ always() && env.MACOS_CODESIGN_KEYCHAIN_PATH != '' }}
@@ -324,6 +331,7 @@ jobs:
       - name: Build Windows App Package
         shell: pwsh
         env:
+          NEXUS_DELTA_TREE: ${{ runner.temp }}\windows-delta-tree
           NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}\windows-app\Nexus
           NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}\windows-artifacts
           NEXUS_DESKTOP_VERSION: ${{ steps.tag.outputs.version }}
@@ -337,6 +345,14 @@ jobs:
         run: |
           pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/desktop/package-windows-app.ps1
 
+      - name: Verify Windows directory delta and install
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installer = Get-Item "$env:RUNNER_TEMP/windows-artifacts/NexusSetup-*.exe"
+          python scripts/desktop/build-package-deltas.py $installer.FullName --windows-tree "$env:RUNNER_TEMP/windows-delta-tree"
+
       - name: Upload Windows App Assets
         uses: actions/upload-artifact@v7
         with:
@@ -346,6 +362,8 @@ jobs:
             ${{ runner.temp }}/windows-artifacts/Nexus-windows-*.metadata.json
             ${{ runner.temp }}/windows-artifacts/NexusSetup-*.exe
             ${{ runner.temp }}/windows-artifacts/NexusSetup-*.exe.sha256
+            ${{ runner.temp }}/windows-artifacts/*.delta
+            ${{ runner.temp }}/windows-artifacts/*.delta.sha256
 
   release:
     needs:
@@ -472,16 +490,6 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Build and verify incremental desktop packages
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: python3 scripts/desktop/build-package-deltas.py "${RUNNER_TEMP}/artifacts" "${TAG}"
-
       - name: Upload Release Assets
         uses: actions/upload-artifact@v7
         with:
@@ -525,7 +533,7 @@ jobs:
               (.name | test("^Nexus-macos-(arm64-|intel-)?" + $version + "-[0-9]+\\.dmg(\\.sha256|\\.metadata\\.json)?$")) or
               (.name | test("^Nexus-windows-" + $version + "-[0-9]+\\.metadata\\.json$")) or
               (.name | test("^NexusSetup-" + $version + "-[0-9]+\\.exe(\\.sha256)?$")) or
-              (.name | test("^(NexusSetup-|Nexus-macos-(arm64|intel)-)" + $version + "-[0-9]+\\.(exe|dmg)\\.from-[0-9a-f]{64}\\.delta(\\.sha256)?$"))
+              (.name | test("^(NexusSetup-|Nexus-macos-(arm64|intel)-)" + $version + "-[0-9]+\\.(exe|dmg)\\.from-[0-9.]+-[0-9]+\\.delta(\\.sha256)?$"))
             )
             | [.id, .name]
             | @tsv

@@ -125,4 +125,4 @@ dotnet run --project desktop/windows/Nexus.Desktop.LifecycleTests -c Release
 
 诊断位于当前状态目录 `app/logs/shell.log` 和 `shutdown-failure-*.json` / `startup-failure-*.json`。旧版 `NexusSidecar.pid.json` 若缺少启动时间，不能证明进程身份；新版本会保留记录并要求先识别、退出旧实例，不会按名称批量强杀。
 
-桌面更新会保留一个经过 SHA-256 校验的安装器作为差分基包。可用时先重建新版完整安装器，再执行原有安装流程；没有匹配基包或重建失败时自动下载完整安装器。
+增量更新直接以已安装应用目录为基准，逐文件重建到新目录并验证摘要。macOS 验证新版应用的标识、签名团队和 Gatekeeper；Windows 复用 Inno 安装器生命周期并在安装时校验外部文件。没有匹配版本/构建/架构的补丁或准备失败时自动回退全量安装包。

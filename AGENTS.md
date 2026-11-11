@@ -32,7 +32,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 
 ```
 <directory>
-cmd/nexus-delta/ 与 internal/appdelta/ 负责桌面发布差分生成、完整安装包重建和基包校验。
+cmd/nexus-delta/ 与 internal/appdelta/ 负责桌面发布差分生成、从已安装应用目录重建新版及逐文件校验。
 cmd/        - 可执行入口：nexus-server（单个 main.go 装配服务、自动迁移与 runtime 检查；平台实例锁由 infra/desktopinstance 装配）、nexusctl 资源 CLI、nexuscfg 配置 CLI、Linux runtime launcher
 web/        - React 前端（features / store / shared / lib，见 web/AGENTS.md）
 desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 Chromium browser-extension

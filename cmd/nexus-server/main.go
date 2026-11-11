@@ -221,7 +221,7 @@ func buildRootCommand() *cobra.Command {
 			return runServer()
 		},
 	}
-	root.AddCommand(buildRuntimeCheckCommand())
+	root.AddCommand(buildRuntimeCheckCommand(), &cobra.Command{Use: "apply-update-delta PATCH FROM TO INSTALLED STAGE", Hidden: true, Args: cobra.ExactArgs(5), RunE: func(_ *cobra.Command, a []string) error { return appdelta.ApplyFile(a[0], a[1], a[2], a[3], a[4]) }})
 	return root
 }
 
@@ -439,12 +439,6 @@ func runServer() error {
 
 func main() {
 	root := buildRootCommand()
-	root.AddCommand(&cobra.Command{Use: "update-delta CACHE URL OUTPUT SHA256", Hidden: true, Args: cobra.ExactArgs(4), RunE: func(_ *cobra.Command, args []string) error {
-		return appdelta.Reconstruct(args[0], args[1], args[2], args[3])
-	}},
-		&cobra.Command{Use: "update-base CACHE PACKAGE SHA256", Hidden: true, Args: cobra.ExactArgs(3), RunE: func(_ *cobra.Command, args []string) error { return appdelta.Remember(args[0], args[1], args[2]) }})
-	root.AddCommand(&cobra.Command{Use: "update-adopt CACHE VERSION BUILD", Hidden: true, Args: cobra.ExactArgs(3), RunE: func(_ *cobra.Command, args []string) error { return appdelta.Adopt(args[0], args[1], args[2]) }})
-
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}

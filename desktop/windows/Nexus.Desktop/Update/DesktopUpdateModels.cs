@@ -109,7 +109,7 @@ internal sealed record DesktopReleaseInfo(
     }
 }
 
-internal sealed record DownloadedUpdate(string InstallerPath, string Sha256Path, string Sha256Hash);
+internal sealed record DownloadedUpdate(string InstallerPath, string Sha256Path, string Sha256Hash, bool IsDelta = false);
 
 internal enum UpdatePromptAction
 {

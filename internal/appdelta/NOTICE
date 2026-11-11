@@ -1,1 +1,1 @@
-bsdiff.go and suffix.go are adapted from Yovoice (leemysw/yovoice, e689ffa), distributed under the Apache License, Version 2.0. See the repository LICENSE.
+Directory delta format, bsdiff, qsufsort and regression tests adapted from Yovoice (leemysw/yovoice, e689ffa), Apache License 2.0. Nexus uses a distinct format identifier and platform-specific release integration. See LICENSE.

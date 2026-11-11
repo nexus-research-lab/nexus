@@ -119,3 +119,12 @@ jobs:
         run: |
           dotnet build desktop/windows/Nexus.Desktop/Nexus.Desktop.csproj `
             -c Release
+
+      - name: Replay directory delta against published Windows installers
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          choco upgrade innosetup --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+          ./scripts/desktop/test-windows-directory-delta.ps1
