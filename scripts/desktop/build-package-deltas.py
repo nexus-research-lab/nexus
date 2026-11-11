@@ -30,11 +30,21 @@ def mounted(dmg, root):
         run("hdiutil", "detach", root, "-quiet")
 
 
-def create(tool, old, new, full, previous, current, tmp):
+def create(tool, old, new, full, previous, current, tmp, historical_replay):
+    # 历史夹具用候选客户端回放。正式发布必须能用用户已安装的旧服务重建。
+    helper = old / ("Contents/MacOS/nexus-server" if full.suffix == ".dmg" else "Resources/nexus-server.exe")
+    if not historical_replay:
+        probe = subprocess.run([helper, "apply-update-delta", "--help"], capture_output=True, timeout=20)
+        if probe.returncode or b"apply-update-delta PATCH FROM TO INSTALLED STAGE" not in probe.stdout:
+            print("Previous release requires one full upgrade:", previous)
+            return
     patch = tmp / f"{full.name}.from-{previous}.delta"
     rebuilt = tmp / ("rebuilt.app" if full.suffix == ".dmg" else "rebuilt")
     run(tool, "create", previous, current, old, new, patch)
-    run(tool, "apply", previous, current, old, patch, rebuilt)
+    if historical_replay:
+        run(tool, "apply", previous, current, old, patch, rebuilt)
+    else:
+        run(helper, "apply-update-delta", patch, previous, current, old, rebuilt)
     if full.suffix == ".dmg":
         run("codesign", "--verify", "--deep", "--strict", rebuilt)
         run("spctl", "--assess", "--type", "execute", rebuilt)
@@ -85,11 +95,11 @@ def build(args, tmp):
     run("go", "build", "-o", tool, "./cmd/nexus-delta")
     if ext == ".dmg":
         with mounted(old_package, tmp/"old") as old, mounted(full, tmp/"new") as new:
-            create(tool, old, new, full, previous, current, tmp)
+            create(tool, old, new, full, previous, current, tmp, bool(args.previous))
     else:
         old = tmp/"installed"
         install(old_package, old)
-        create(tool, old, args.windows_tree.resolve(), full, previous, current, tmp)
+        create(tool, old, args.windows_tree.resolve(), full, previous, current, tmp, bool(args.previous))
 
 
 if __name__ == "__main__":

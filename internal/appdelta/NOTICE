@@ -1,1 +1,2 @@
 Directory delta format, bsdiff, qsufsort and regression tests adapted from Yovoice (leemysw/yovoice, e689ffa), Apache License 2.0. Nexus uses a distinct format identifier and platform-specific release integration. See LICENSE.
+The Windows Authenticode verifier is also adapted from that Yovoice revision.
