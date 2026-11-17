@@ -163,11 +163,7 @@ func (s *Service) runSlot(
 	defer admission.Release()
 	execution.ctx = admission.Context()
 
-	client, err := execution.prepareRuntimeClient()
-	if err != nil {
-		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
-		return
-	}
+	// 登记覆盖 runtime 准备与连接，避免交接空档被资源压力回收。
 	if err := s.Runtime.StartRound(slotCtx, slot.RuntimeSessionKey, slot.AgentRoundID, cancel); err != nil {
 		s.handleSlotFailure(
 			slotCtx,
@@ -179,12 +175,15 @@ func (s *Service) runSlot(
 		)
 		return
 	}
+	defer s.Runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
+	client, err := execution.prepareRuntimeClient()
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
+		return
+	}
 	// session 与 round 已同时进入 Manager；后续认证转场可由 owner 级关闭完整撤销。
 	execution.ctx = slotCtx
 	admission.Release()
-	defer func() {
-		s.Runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
-	}()
 	defer execution.broadcastContextUsage(client)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()

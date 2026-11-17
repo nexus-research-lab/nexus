@@ -1,5 +1,5 @@
-// INPUT: 当前 runtime session 的权威 subagent hook callbacks 与 bridge hook 事件。
-// OUTPUT: Agent PreToolUse 强准入、SubagentStart/Stop/failure 转发与 parent-exit durable grace schedule。
+// INPUT: 当前 runtime session 的权威 subagent hook callbacks、共享资源限制与 bridge hook 事件。
+// OUTPUT: Agent PreToolUse 权限/资源准入、SubagentStart/Stop/failure 转发与 parent-exit durable grace schedule。
 // POS: warm SDK session 与每轮 actor-specific Execution policy 之间的动态 hook 路由。
 package runtime
 
@@ -223,6 +223,12 @@ func (m *Manager) routeSubagentPreToolUse(
 			"Agent launch requires a stable tool_use_id",
 		), nil
 	}
+	if err := ctx.Err(); err != nil {
+		return sdkhook.Output{}, err
+	}
+	if err := m.memoryAdmissionError(); err != nil {
+		return denySubagentHookOutput(sdkhook.EventPreToolUse, "runtime_memory_pressure", err.Error()), nil
+	}
 	m.mu.Lock()
 	state := m.sessions[sessionKey]
 	if state == nil || len(state.SubagentHooks) == 0 {
@@ -254,6 +260,10 @@ func (m *Manager) routeSubagentPreToolUse(
 	if callbacks.PreToolUse == nil {
 		m.mu.Unlock()
 		return denySubagentHookOutput(sdkhook.EventPreToolUse, subagentHookUnavailableCode, subagentHookUnavailableMessage), nil
+	}
+	if m.shutdownDone != nil || state.Closing || m.subagentLimitReachedLocked() {
+		m.mu.Unlock()
+		return denySubagentHookOutput(sdkhook.EventPreToolUse, "runtime_resource_limit", ErrRuntimeResourceBusy.Error()), nil
 	}
 	state.NextSubagentBindingSeq++
 	binding := subagentHookBinding{

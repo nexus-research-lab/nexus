@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	defaultAssistantTerminalGrace     = 1500 * time.Millisecond
 	defaultInterruptedTerminalTimeout = 2 * time.Second
 	defaultRoundIdleTimeout           = 5 * time.Minute
 )
@@ -30,13 +29,6 @@ func roundResultWithElapsed(result RoundExecutionResult, startedAt time.Time) Ro
 	}
 	result.ElapsedTimeSeconds = int64(time.Since(startedAt).Seconds())
 	return result
-}
-
-func normalizeAssistantTerminalGrace(value time.Duration) time.Duration {
-	if value > 0 {
-		return value
-	}
-	return defaultAssistantTerminalGrace
 }
 
 func normalizeInterruptedTerminalTimeout(value time.Duration) time.Duration {

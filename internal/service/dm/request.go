@@ -249,12 +249,14 @@ func (e *dmChatExecution) prepareRunner() error {
 	defer admission.Release()
 	e.ctx = admission.Context()
 
-	preparation, err := e.prepareRuntime()
-	if err != nil {
-		return err
-	}
+	// 准备阶段也属于 round；连接与登记之间不能被资源压力回收当作空闲。
 	if !e.startRound() {
 		return runtimectx.ErrRuntimeSessionClosing
+	}
+	preparation, err := e.prepareRuntime()
+	if err != nil {
+		e.abortRegisteredRound()
+		return err
 	}
 	// session 与 round 已同时进入 Manager；后续认证转场可由 owner 级关闭完整撤销。
 	e.ctx = admissionBaseContext

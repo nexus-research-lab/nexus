@@ -14,7 +14,6 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
@@ -114,7 +113,7 @@ func (f fakeRoomQuotaChecker) EnsureQuotaAvailable(context.Context, string) erro
 	return f.err
 }
 
-func TestRealtimeServiceCompletesRoomRoundFromTerminalAssistantWithoutResult(t *testing.T) {
+func TestRealtimeServiceFailsRoomRoundWithoutResult(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -161,9 +160,6 @@ func TestRealtimeServiceCompletesRoomRoundFromTerminalAssistantWithoutResult(t *
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
 	)
-	usageService := usagesvc.NewServiceWithDB(cfg, db)
-	service.SetUsageRecorder(usageService)
-
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-assistant-terminal")
 	permission.BindSession(sharedSessionKey, sender)
@@ -179,23 +175,20 @@ func TestRealtimeServiceCompletesRoomRoundFromTerminalAssistantWithoutResult(t *
 	}
 
 	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "error"
 	})
 	for _, event := range events {
-		if event.EventType == protocol.EventTypeError || event.Data["status"] == "error" {
-			t.Fatalf("assistant end_turn 无 result 不应进入错误态: %+v", event)
+		if event.Data["status"] == "finished" {
+			t.Fatalf("缺少 result 不能宣告 Room round 成功: %+v", event)
 		}
 	}
 	assistantPayload := findRoomAssistantMessagePayload(t, events, "assistant-terminal-no-result")
-	if assistantPayload["is_complete"] != true || assistantPayload["stop_reason"] != "end_turn" {
-		t.Fatalf("terminal assistant 事件应保持完整终态: %+v", assistantPayload)
+	if assistantPayload["is_complete"] != true || assistantPayload["stop_reason"] != "error" {
+		t.Fatalf("已有回复应投影为失败终态: %+v", assistantPayload)
 	}
-	usageSummary, err := usageService.Summary(ctx, "user-room-assistant-terminal")
-	if err != nil {
-		t.Fatalf("读取 room token usage 失败: %v", err)
-	}
-	if usageSummary.InputTokens != 7 || usageSummary.OutputTokens != 11 || usageSummary.TotalTokens != 18 {
-		t.Fatalf("assistant fallback usage 未写入 ledger: %+v", usageSummary)
+	blocks := roomContentBlocksFromPayload(t, assistantPayload)
+	if len(blocks) != 1 || blocks[0]["text"] != "这是完整回复。" {
+		t.Fatalf("失败收口不能丢失已生成的正文: %+v", assistantPayload)
 	}
 }
 

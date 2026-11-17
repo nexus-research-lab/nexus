@@ -65,6 +65,10 @@ func (m *Manager) beginClientStartup(
 		m.mu.Unlock()
 		return nil, ErrRuntimeManagerClosed
 	}
+	if m.pendingStartupLimitReachedLocked() {
+		m.mu.Unlock()
+		return nil, ErrRuntimeResourceBusy
+	}
 	ownerLease, err := m.beginOwnerStartupLocked(ownerUserID, sessionKey)
 	if err != nil {
 		m.mu.Unlock()
@@ -127,6 +131,7 @@ func (m *Manager) releaseClientStartup(
 	}
 	m.mu.Lock()
 	if held && m.startupGates[sessionKey] == gate {
+		gate.resourceReserved = false
 		m.removeClientlessSessionIfIdleLocked(sessionKey, nil, gate)
 	}
 	m.releaseOwnerStartupLocked(ownerLease)
@@ -310,6 +315,9 @@ func (m *Manager) getOrCreateWithFactory(
 	}
 	cacheSurface, err := cacheSurfaceProfileFromOptions(ctx, options)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := startup.admitResources(ctx); err != nil {
 		return nil, nil, err
 	}
 	for {
@@ -774,6 +782,9 @@ func (m *Manager) connectClient(
 ) error {
 	if expected == nil || expectedState == nil {
 		return agentclient.ErrNotConnected
+	}
+	if err := startup.admitResources(ctx); err != nil {
+		return err
 	}
 
 	m.mu.Lock()

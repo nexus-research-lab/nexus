@@ -55,7 +55,6 @@ type RoundExecutionRequest struct {
 	IdlePauseState             func() (paused bool, changed <-chan struct{})
 	InterruptReason            func() string
 	InterruptedTerminalTimeout time.Duration
-	AssistantTerminalGrace     time.Duration
 	SyncSessionID              func(string) error
 	AfterQuery                 func() error
 	HandleDurableMessage       func(protocol.Message) error

@@ -552,7 +552,9 @@ func normalizePendingValue(value any) string {
 
 func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) protocol.Message {
 	t.Helper()
-	for _, event := range events {
+	// 同一消息可能被终态投影更新，校验最后到达的快照。
+	for index := len(events) - 1; index >= 0; index-- {
+		event := events[index]
 		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
 			continue
 		}

@@ -1,5 +1,5 @@
-// INPUT: session 最后使用时间、活动 round 与空闲阈值。
-// OUTPUT: 空闲 session 关闭及满足条件时的 owner 进程回收。
+// INPUT: session 最后使用时间、启动/round/后台/子任务状态与回收阈值。
+// OUTPUT: TTL 或压力触发的空闲 session 关闭及满足条件时的 owner 进程回收。
 // POS: Manager 的批量空闲生命周期入口。
 package runtime
 
@@ -7,32 +7,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 )
 
-// CloseIdleSessions 回收超过空闲阈值且没有运行中 round 的 SDK client。
+// CloseIdleSessions 回收超过空闲阈值且所有任务已完成的 SDK client。
 func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) (int, error) {
 	if idleFor <= 0 {
 		return 0, nil
 	}
+	return m.closeIdleSessions(ctx, idleFor, 0)
+}
 
+// idleFor 为零只用于资源压力回收；maxTargets 为零表示不限数量。
+func (m *Manager) closeIdleSessions(ctx context.Context, idleFor time.Duration, maxTargets int) (int, error) {
 	now := m.nowTime().UTC()
 	targets := make([]*sessionCloseTarget, 0)
 	owners := make(map[string]struct{})
 
 	m.mu.Lock()
-	for sessionKey, state := range m.sessions {
-		if state == nil || state.Closing || state.Rounds.active() {
-			continue
-		}
-		lastUsedAt := state.LastUsedAt
-		if lastUsedAt.IsZero() {
-			state.LastUsedAt = now
-			continue
-		}
-		if now.Sub(lastUsedAt) < idleFor {
-			continue
-		}
+	keys := m.idleSessionKeysLocked(now, idleFor)
+	if maxTargets > 0 && len(keys) > maxTargets {
+		keys = keys[:maxTargets]
+	}
+	for _, sessionKey := range keys {
 		target, started, _ := m.beginSessionCloseLocked(sessionKey)
 		if !started {
 			continue
@@ -87,4 +85,30 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 		}
 	}
 	return len(targets), errors.Join(errs...)
+}
+
+func (m *Manager) idleSessionKeysLocked(now time.Time, idleFor time.Duration) []string {
+	var keys []string
+	for key, state := range m.sessions {
+		if state == nil || state.Closing || m.startupGates[key] != nil ||
+			state.Rounds.active() || len(state.Rounds.doneSignals()) > 0 ||
+			len(state.BackgroundTasks) > 0 || len(state.SubagentHooks) > 0 || activeSubagentBindings(state) > 0 {
+			continue
+		}
+		if state.LastUsedAt.IsZero() {
+			state.LastUsedAt = now
+		}
+		if now.Sub(state.LastUsedAt) < idleFor || (idleFor == 0 && state.Client == nil) {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		a, b := m.sessions[keys[i]].LastUsedAt, m.sessions[keys[j]].LastUsedAt
+		if a.Equal(b) {
+			return keys[i] < keys[j]
+		}
+		return a.Before(b)
+	})
+	return keys
 }

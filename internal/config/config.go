@@ -85,6 +85,9 @@ type Config struct {
 	RuntimeRoundIdleTimeoutSeconds   int
 	RuntimeIdleSessionTTLSeconds     int
 	RuntimeIdleSessionSweepSeconds   int
+	RuntimeMaxSessions               int
+	RuntimeMaxSubagents              int
+	RuntimeMemoryReserveMB           int
 	RuntimeIsolationMode             string
 	RuntimeLauncherPath              string
 	ConnectorCredentialsKey          string
@@ -262,6 +265,9 @@ func Load() Config {
 		RuntimeRoundIdleTimeoutSeconds:   parseIntEnv(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200"), 1200),
 		RuntimeIdleSessionTTLSeconds:     parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600"), 600),
 		RuntimeIdleSessionSweepSeconds:   parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120"), 120),
+		RuntimeMaxSessions:               parseIntEnv(getEnv("NEXUS_RUNTIME_MAX_SESSIONS", "4"), 4),
+		RuntimeMaxSubagents:              parseIntEnv(getEnv("NEXUS_RUNTIME_MAX_SUBAGENTS", "8"), 8),
+		RuntimeMemoryReserveMB:           parseIntEnv(getEnv("NEXUS_RUNTIME_MEMORY_RESERVE_MB", "1024"), 1024),
 		RuntimeIsolationMode:             getEnv("NEXUS_RUNTIME_ISOLATION_MODE", "off"),
 		RuntimeLauncherPath:              getEnv("NEXUS_RUNTIME_LAUNCHER_PATH", "/usr/local/libexec/nexus-runtime-launcher"),
 		ConnectorCredentialsKey:          getEnv("CONNECTOR_CREDENTIALS_KEY", ""),

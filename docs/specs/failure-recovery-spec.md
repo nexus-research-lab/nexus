@@ -183,6 +183,7 @@ Subscription Admin：
 ### Conversation
 
 - 使用独立的 client request/message、Session、round、Agent round、failure code、ACK 和重连对账协议。
+- 运行结果与资源清理结果独立：会话关闭须等待进程退出和读取循环结束；非零退出码、已结束的断流诊断不单独阻止新任务，后代清理失败及无法确认的关闭错误继续保留 session 关闭栅栏。清理完成不授权自动重放失败任务。
 - 首次 WebSocket error 不是终态；客户端不自动重发 prompt、工具或副作用命令。
 - 新一次 `submission_started` 不能证明旧 `delivery_unknown`、Provider retry 或连接故障已恢复；只有与原身份匹配的 ACK、round 进展或权威 Session 对账才能解除。
 - Provider/runtime 的终态错误原文不得伪装成 assistant 正常回复，只投影为结构化可靠性提示。该提示只出现在 Composer 状态栈，不写入 Feed、历史、未读或滚动几何。
@@ -191,6 +192,23 @@ Subscription Admin：
 
 - 使用各自的 revision、request ID、plan digest、审计或回执。
 - 缺少领域身份时，结果未知只能在当前页锁定和对账，不能用 HTTP 诊断号补造身份。
+
+### 宿主运行资源准入
+
+DM、Room slot 与 AutoDream 共用 app 装配的一个 runtime Manager。资源准入发生在创建 client 前和连接前；它是减少资源挤兑的软保护，不是进程内存、CPU 或温度的 OS 硬限制。
+
+| 环境变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `NEXUS_RUNTIME_MAX_SESSIONS` | `4` | Manager 同时持有的 runtime 会话额度；在途 factory 预留、空闲 warm client、关闭中及清理失败的 client 均占用额度；同 key 复用不重复占用 |
+| `NEXUS_RUNTIME_MAX_SUBAGENTS` | `8` | 全 Manager 经 Agent PreToolUse 准入、尚未确认终态的子智能体额度，包含待完成的准入回调 |
+| `NEXUS_RUNTIME_MEMORY_RESERVE_MB` | `1024` | 启用内存准入；Windows/Linux 保留此 MiB 值和总物理内存 15% 中较大者；macOS 使用内核内存压力信号 |
+
+非正值关闭对应限制。配置从环境加载后在 app 初始化时生效；它不改写系统设置或已有 runtime 配置。
+
+- 会话额度用满或内存紧张时，只回收无活动 startup、无未完成 round、无后台任务、无活动子智能体的 LRU 会话。DM 与 Room slot 在准备 runtime 前登记 round，终态已展示但收尾未完成仍视为活动工作。回收沿用原关闭栅栏、进程退出确认及沙箱清理回执；不能用清理超时或未知结果释放额度。
+- 启用会话额度或内存保护时，全 Manager 最多持有 16 个启动事务（包含同 key 等待者）。每次资源准入最多等待 30 秒，约每秒重查；支持请求取消，宿主关闭或权限撤销后不再启动。等待结束返回资源不足或取消错误，不自动重放任务。
+- 子智能体额度耗尽或内存紧张时直接拒绝新 Agent 工具调用，不占着父任务等待子额度。已接受子任务收到成功处理的 Stop/Failure 终态后释放额度；准入回调拒绝或失败立即释放。现有任务不因本限流主动取消；该额度不覆盖绕过宿主 Hook 的 SDK 内部任务、后续 task message 或任意工具子进程。
+- Windows 检查可用物理内存及可提交内存，Linux 使用宿主 `/proc/meminfo` 的 `MemAvailable`，macOS 仅在内核压力为 normal 时放行。探针读取失败明确拒绝新增工作，不静默当作内存充足；Linux cgroup 限额仍由原隔离策略负责。
 
 ## 8. 验证原则
 

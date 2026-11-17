@@ -1,5 +1,5 @@
 // INPUT: runtime query、SDK 消息流、人工交互暂停信号与 map/persist/emit 回调。
-// OUTPUT: 排除人工等待时间的单轮终态；本地后处理失败时仍携带 provider terminal usage。
+// OUTPUT: 由 wire result 确认的单轮终态；本地后处理失败时仍携带 provider terminal usage。
 // POS: runtime exec 包的 query → receive → map → persist → emit 主状态机。
 package exec
 
@@ -32,20 +32,18 @@ func ExecuteRound(
 
 // roundExecution 保存接收循环的可变状态，让主入口只表达 query 与 receive 两个业务阶段。
 type roundExecution struct {
-	ctx                     context.Context
-	request                 RoundExecutionRequest
-	startedAt               time.Time
-	messageCh               <-chan sdkprotocol.ReceivedMessage
-	messagesSeen            int
-	lastMessage             sdkprotocol.ReceivedMessage
-	streamDiagnostics       roundStreamDiagnostics
-	idleTimeout             time.Duration
-	idleTimer               *time.Timer
-	idleTimeoutCh           <-chan time.Time
-	idlePaused              bool
-	idlePauseChanged        <-chan struct{}
-	assistantTerminalResult *RoundExecutionResult
-	assistantTerminalTimer  <-chan time.Time
+	ctx               context.Context
+	request           RoundExecutionRequest
+	startedAt         time.Time
+	messageCh         <-chan sdkprotocol.ReceivedMessage
+	messagesSeen      int
+	lastMessage       sdkprotocol.ReceivedMessage
+	streamDiagnostics roundStreamDiagnostics
+	idleTimeout       time.Duration
+	idleTimer         *time.Timer
+	idleTimeoutCh     <-chan time.Time
+	idlePaused        bool
+	idlePauseChanged  <-chan struct{}
 }
 
 type roundReceiveOutcome struct {
@@ -116,11 +114,6 @@ func (e *roundExecution) receive() (RoundExecutionResult, error) {
 				return e.receiveInterruptedTerminal(nil)
 			}
 			return RoundExecutionResult{}, ErrRoundInterrupted
-		case <-e.assistantTerminalTimer:
-			if e.explicitInterruptRequested() {
-				return e.receiveInterruptedTerminal(nil)
-			}
-			return roundResultWithElapsed(*e.assistantTerminalResult, e.startedAt), nil
 		case <-e.idleTimeoutCh:
 			e.refreshIdlePauseState()
 			if e.idlePaused {
@@ -221,9 +214,6 @@ func (e *roundExecution) handleStreamClosed() (RoundExecutionResult, error) {
 	if shouldTreatAsInterrupted(e.ctx, e.request.InterruptReason) {
 		return RoundExecutionResult{}, ErrRoundInterrupted
 	}
-	if e.assistantTerminalResult != nil {
-		return roundResultWithElapsed(*e.assistantTerminalResult, e.startedAt), nil
-	}
 	if clientStreamAbortError(e.request.Client) != nil {
 		return RoundExecutionResult{}, ErrRoundInterrupted
 	}
@@ -243,9 +233,10 @@ func (e *roundExecution) handleIncoming(incoming sdkprotocol.ReceivedMessage) (r
 		return roundReceiveOutcome{result: failureResult}, err
 	}
 	var terminalResult RoundExecutionResult
-	isTerminal := mapResult.TerminalStatus != ""
+	// assistant 的 stop_reason 只结束一次模型回复；SDK 仍可能续写或处理工具。
+	isTerminal := incoming.Type == sdkprotocol.MessageTypeResult && incoming.Result != nil && mapResult.TerminalStatus != ""
 	if isTerminal {
-		terminalResult = terminalRoundResult(mapResult, e.assistantTerminalResult, incoming.Result, e.startedAt)
+		terminalResult = terminalRoundResult(mapResult, incoming.Result, e.startedAt)
 	}
 	sessionID := textutil.FirstNonEmpty(
 		e.request.Mapper.SessionID(),
@@ -267,7 +258,6 @@ func (e *roundExecution) handleIncoming(incoming sdkprotocol.ReceivedMessage) (r
 			done:   true,
 		}, nil
 	}
-	e.rememberAssistantTerminal(mapResult)
 	return roundReceiveOutcome{}, nil
 }
 
@@ -366,15 +356,4 @@ func (e *roundExecution) emitEvents(events []protocol.EventMessage) error {
 		}
 	}
 	return nil
-}
-
-func (e *roundExecution) rememberAssistantTerminal(mapResult RoundMapResult) {
-	assistantResult, ok := terminalAssistantResult(mapResult)
-	if !ok {
-		return
-	}
-	e.assistantTerminalResult = &assistantResult
-	if e.assistantTerminalTimer == nil {
-		e.assistantTerminalTimer = time.After(normalizeAssistantTerminalGrace(e.request.AssistantTerminalGrace))
-	}
 }

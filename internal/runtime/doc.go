@@ -3,6 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - resources.go：共享会话额度、factory 前预留、有限启动等待、内存准入与子智能体额度；压力回收复用 idle.go，只选择无启动、round 收尾、后台写入和活动子任务的 LRU 会话。
 //   - result_hook.go：能力协商后启用的 Stop 结果路由；warm client 只交给唯一活动 round，子任务和歧义回调不写回。
 //   - sandbox_diagnostic.go：启动与诊断共用的已知 nxs-mxc/mxc-sdk 沙箱错误提示与关闭沙箱的出路说明。
 //   - autodream.go：一次性 AutoDream control 经共享启动事务、后台取消及终态退休；不拥有记忆领域规则。

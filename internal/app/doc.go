@@ -1,6 +1,6 @@
 // Package app 为 HTTP 和 CLI 显式装配共享业务服务与宿主适配。
 //
-// IM 来源、Channels、人类反馈受理与 Automation 工具限制在 app_services 中显式装配。
+// IM 来源、Channels、人类反馈受理、Automation 工具限制及共享 runtime 资源限额与平台内存探针在 app_services 中显式装配。
 //
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
