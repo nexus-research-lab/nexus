@@ -17,7 +17,7 @@ const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).r
 describe("pairing creation identity", () => {
   it("keeps field labels attached to their own dialog instance", () => {
     render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t }}>
-      {[1, 2].map((key) => <CreatePairingDialog key={key} agents={[a]} blocked={false} failure={null} onClose={vi.fn()} onCreate={vi.fn(async () => false)} />)}
+      {[1, 2].map((key) => <CreatePairingDialog key={key} pairings={[]} onManage={vi.fn()} agents={[a]} blocked={false} failure={null} onClose={vi.fn()} onCreate={vi.fn(async () => false)} />)}
     </I18N_CONTEXT.Provider>);
     const forms = Array.from(document.querySelectorAll("form"));
     expect(forms).toHaveLength(2);
@@ -36,7 +36,7 @@ describe("pairing creation identity", () => {
     const onClose = vi.fn();
     const view = (agents: Agent[]) => (
       <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t }}>
-        <CreatePairingDialog agents={agents} blocked={false} failure={null} onClose={onClose} onCreate={onCreate} />
+        <CreatePairingDialog pairings={[]} onManage={vi.fn()} agents={agents} blocked={false} failure={null} onClose={onClose} onCreate={onCreate} />
       </I18N_CONTEXT.Provider>
     );
     const { rerender } = render(view([a, b]));
@@ -65,7 +65,7 @@ it("cannot dismiss or edit the creation draft while its submission is pending", 
   const onCreate = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
   const onClose = vi.fn();
   const user = userEvent.setup();
-  render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t }}><CreatePairingDialog agents={[a]} blocked={false} failure={null} onCreate={onCreate} onClose={onClose} /></I18N_CONTEXT.Provider>);
+  render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t }}><CreatePairingDialog pairings={[]} onManage={vi.fn()} agents={[a]} blocked={false} failure={null} onCreate={onCreate} onClose={onClose} /></I18N_CONTEXT.Provider>);
   await user.type(screen.getByLabelText(/外部对象 ID/), "chat-42");
   await user.click(screen.getByRole("button", { name: "新增配对" }));
   expect((screen.getByLabelText(/外部对象 ID/) as HTMLInputElement).disabled).toBe(true);
@@ -82,13 +82,39 @@ it("cannot dismiss or edit the creation draft while its submission is pending", 
 it("switches to English without losing the pairing draft or changing protocol values", async () => {
   const user = userEvent.setup();
   const onCreate = vi.fn(async () => false);
-  const view = (locale: "en" | "zh") => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}><CreatePairingDialog agents={[a]} blocked={false} failure={null} onCreate={onCreate} onClose={vi.fn()} /></I18N_CONTEXT.Provider>;
+  const view = (locale: "en" | "zh") => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}><CreatePairingDialog pairings={[]} onManage={vi.fn()} agents={[a]} blocked={false} failure={null} onCreate={onCreate} onClose={vi.fn()} /></I18N_CONTEXT.Provider>;
   const { rerender } = render(view("zh"));
   await user.type(screen.getByLabelText(/外部对象 ID/), "chat-42");
   rerender(view("en"));
   expect((screen.getByLabelText(/External contact ID/) as HTMLInputElement).value).toBe("chat-42");
   await user.click(screen.getByRole("button", { name: "Select IM channel" }));
   await user.click(screen.getByRole("option", { name: "WeCom" }));
+  await user.type(screen.getByLabelText(/External contact ID/), "chat-42");
   await user.click(screen.getByRole("button", { name: "New pairing" }));
   expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ channel_type: "wechat", external_ref: "chat-42", agent_id: a.agent_id }));
+});
+
+it("opens the selected existing WeChat contact without creating another pairing", async () => {
+  const user = userEvent.setup();
+  const onManage = vi.fn();
+  const onCreate = vi.fn(async () => false);
+  const item = {
+    pairing_id: "pair-1", channel_type: "weixin-personal", chat_type: "dm",
+    account_id: "account-1", external_ref: "contact-42", external_name: "小李",
+    agent_id: a.agent_id, session_key: "session", status: "pending", source: "ingress",
+    created_at: "", updated_at: "",
+  } as const;
+  render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t }}>
+    <CreatePairingDialog pairings={[item]} onManage={onManage} agents={[a]} blocked={false} failure={null} onCreate={onCreate} onClose={vi.fn()} />
+  </I18N_CONTEXT.Provider>);
+  await user.click(screen.getByRole("button", { name: t("capability.pairing_select_chat_type") }));
+  await user.click(screen.getByRole("option", { name: "群聊" }));
+  await user.click(screen.getByRole("button", { name: t("capability.pairing_select_channel") }));
+  await user.click(screen.getByRole("option", { name: "微信" }));
+  expect(screen.getByRole("button", { name: t("capability.pairing_select_chat_type") }).textContent).toContain(t("capability.pairing_chat_dm"));
+  await user.click(screen.getByRole("button", { name: "选择联系人或群聊" }));
+  await user.click(screen.getByRole("option", { name: /小李.*account-1/ }));
+  await user.click(screen.getByRole("button", { name: "管理已有配对" }));
+  expect(onManage).toHaveBeenCalledWith(item);
+  expect(onCreate).not.toHaveBeenCalled();
 });

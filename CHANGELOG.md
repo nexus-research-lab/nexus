@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- 新增 IM 配对时可按渠道选择已知联系人或群聊并管理已有配对；首次联系提供获取对象的提示，个人微信仅显示私聊。
+
 ## [0.2.9] - 2026-11-11
 
 - Desktop updates can reconstruct the new app from the installed directory on Windows and macOS. Unchanged files are reused locally, changed files are verified after patching, and missing or unusable deltas fall back to the full release package.
