@@ -92,6 +92,7 @@ func (m *Manager) ClearSubagentHookCallbacks(sessionKey string, roundID string) 
 	pending := make([]subagentHookBinding, 0, 1)
 	if state != nil {
 		delete(state.SubagentHooks, roundID)
+		m.notifyResourceChangeLocked()
 		for _, binding := range state.SubagentHookBindings {
 			if binding.RoundID == roundID && !binding.Terminal {
 				pending = append(pending, binding)
@@ -442,6 +443,7 @@ func (m *Manager) markSubagentHookLifecycle(
 	}
 	if event == sdkhook.EventSubagentStop || event == sdkhook.EventPostToolUseFailure {
 		current.Terminal = true
+		m.notifyResourceChangeLocked()
 	}
 	state.SubagentHookBindings[binding.ToolUseID] = current
 	m.touchStateLocked(state)
@@ -510,6 +512,7 @@ func (m *Manager) removeSubagentHookBinding(
 	current, ok := state.SubagentHookBindings[toolUseID]
 	if ok && current.Sequence == sequence {
 		delete(state.SubagentHookBindings, toolUseID)
+		m.notifyResourceChangeLocked()
 	}
 }
 

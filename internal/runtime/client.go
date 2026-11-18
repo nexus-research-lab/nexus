@@ -452,6 +452,15 @@ func (c *agentClient) SendTaskMessage(ctx context.Context, taskID string, messag
 	return session.Control().SendTaskMessage(ctx, taskID, message, summary)
 }
 
+// SendTaskMessageWithState 读取可选的任务代次回执，供 Manager 合并异步终态。
+func (c *agentClient) SendTaskMessageWithState(ctx context.Context, taskID, message, summary string) (sdkprotocol.TaskRunState, error) {
+	session, err := c.currentSession()
+	if err != nil {
+		return sdkprotocol.TaskRunState{}, err
+	}
+	return session.Control().SendTaskMessageWithState(ctx, taskID, message, summary)
+}
+
 func (c *agentClient) RemoveMessages(ctx context.Context, uuids []string) error {
 	session, err := c.currentSession()
 	if err != nil {

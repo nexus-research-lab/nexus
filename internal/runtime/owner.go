@@ -174,6 +174,7 @@ func (m *Manager) beginOwnerReapLocked(
 	}
 
 	lifecycle.epoch++
+	m.notifyResourceChangeLocked()
 	flight := &ownerReapFlight{
 		startupsDone:   make(chan struct{}),
 		done:           make(chan struct{}),

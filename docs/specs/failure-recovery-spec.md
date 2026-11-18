@@ -200,14 +200,14 @@ DM、Room slot 与 AutoDream 共用 app 装配的一个 runtime Manager。资源
 | 环境变量 | 默认值 | 含义 |
 | --- | --- | --- |
 | `NEXUS_RUNTIME_MAX_SESSIONS` | `4` | Manager 同时持有的 runtime 会话额度；在途 factory 预留、空闲 warm client、关闭中及清理失败的 client 均占用额度；同 key 复用不重复占用 |
-| `NEXUS_RUNTIME_MAX_SUBAGENTS` | `8` | 全 Manager 经 Agent PreToolUse 准入、尚未确认终态的子智能体额度，包含待完成的准入回调 |
+| `NEXUS_RUNTIME_MAX_SUBAGENTS` | `8` | 全 Manager 的子智能体额度，包含启动准入、续跑投递及活动任务 |
 | `NEXUS_RUNTIME_MEMORY_RESERVE_MB` | `1024` | 启用内存准入；Windows/Linux 保留此 MiB 值和总物理内存 15% 中较大者；macOS 使用内核内存压力信号 |
 
 非正值关闭对应限制。配置从环境加载后在 app 初始化时生效；它不改写系统设置或已有 runtime 配置。
 
 - 会话额度用满或内存紧张时，只回收无活动 startup、无未完成 round、无后台任务、无活动子智能体的 LRU 会话。DM 与 Room slot 在准备 runtime 前登记 round，终态已展示但收尾未完成仍视为活动工作。回收沿用原关闭栅栏、进程退出确认及沙箱清理回执；不能用清理超时或未知结果释放额度。
-- 启用会话额度或内存保护时，全 Manager 最多持有 16 个启动事务（包含同 key 等待者）。每次资源准入最多等待 30 秒，约每秒重查；支持请求取消，宿主关闭或权限撤销后不再启动。等待结束返回资源不足或取消错误，不自动重放任务。
-- 子智能体额度耗尽或内存紧张时直接拒绝新 Agent 工具调用，不占着父任务等待子额度。已接受子任务收到成功处理的 Stop/Failure 终态后释放额度；准入回调拒绝或失败立即释放。现有任务不因本限流主动取消；该额度不覆盖绕过宿主 Hook 的 SDK 内部任务、后续 task message 或任意工具子进程。
+- 新启动最多同时受理 16 个事务，同一 session 排队与等待全局名额共用从入队起算的 30 秒预算。名额释放立即唤醒等候者，只有内存压力需要按秒重新采样。请求取消或宿主撤销准入会中止准备。已持久受理的 DM 由登记的 round 继续执行。按租约回滚已有 client 可以在队列满时进入，仍核对所有者与连接代次。
+- 子智能体额度同时计算 Agent 启动回调、正在投递的宿主续跑消息和运行时报告的活动子任务。宿主投递前预留名额，同一任务的多条消息共用名额。物理 runner 的代次区分同一 task ID 的多次执行，上一代的迟到终态不能释放新一代。SDK 自行启动的工作在其事件到达后计入，宿主不能提前拒绝绕开准入接口的进程。
 - Windows 检查可用物理内存及可提交内存，Linux 使用宿主 `/proc/meminfo` 的 `MemAvailable`，macOS 仅在内核压力为 normal 时放行。探针读取失败明确拒绝新增工作，不静默当作内存充足；Linux cgroup 限额仍由原隔离策略负责。
 
 ## 8. 验证原则

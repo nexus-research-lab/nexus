@@ -96,6 +96,7 @@ func (h *Host) ExecuteAgentRound(ctx context.Context, round AgentRound) (exec.Ro
 		InterruptReason: round.InterruptReason,
 		AfterQuery:      round.AfterQuery,
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+			h.Runtime.ObserveSubagentRun(round.RuntimeSessionKey, round.Client, incoming)
 			current := round.Actor()
 			observer.ObserveMessage(current, incoming)
 			observer.ObserveCompactBoundary(current, round.RuntimeSessionKey, round.AgentRoundID, incoming)

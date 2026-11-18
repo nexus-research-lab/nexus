@@ -92,6 +92,7 @@ func (m *Manager) runIdleMessageDrain(
 				m.touchStateLocked(state)
 			}
 			m.mu.Unlock()
+			m.ObserveSubagentRun(sessionKey, client, message)
 			if !handler(ctx, message) {
 				return
 			}

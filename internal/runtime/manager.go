@@ -35,6 +35,7 @@ type sessionState struct {
 	OwnerUserID              string
 	ProcessPolicyFingerprint string
 	CacheSurface             CacheSurfaceProfile
+	SubagentRuns             map[string]*subagentRun
 	HasSubagentHistory       bool
 	LastUsedAt               time.Time
 }
@@ -66,6 +67,7 @@ type Manager struct {
 	activeStartups        int
 	startupsDrained       chan struct{}
 	resourceLimits        ResourceLimits
+	resourceChanged       chan struct{}
 	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
 	// 放在 Manager 根上，避免 idle session 回收后立刻丢失高水位。
 	subagentUsageTotals map[string]int64

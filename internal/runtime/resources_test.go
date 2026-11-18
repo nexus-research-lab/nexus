@@ -10,14 +10,24 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 func TestResourceAdmissionBoundsStartupQueue(t *testing.T) {
-	m := NewManager()
+	m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return &fakeRuntimeClient{} }))
 	m.SetResourceLimits(ResourceLimits{MaxSessions: 1})
+	client, err := m.GetOrCreate(t.Context(), "rollback", bridge.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease, ok := m.CaptureClientLease("rollback", client)
+	if !ok {
+		t.Fatal("missing rollback lease")
+	}
 	var startups []*ClientStartup
 	defer func() {
 		for _, startup := range startups {
@@ -34,12 +44,92 @@ func TestResourceAdmissionBoundsStartupQueue(t *testing.T) {
 	if _, err := m.BeginClientStartup(t.Context(), "overflow", ""); !errors.Is(err, ErrRuntimeResourceBusy) {
 		t.Fatalf("unbounded startup queue: %v", err)
 	}
+	if closed, err := m.CloseSessionIfLease(t.Context(), lease); !closed || err != nil {
+		t.Fatalf("queued startups blocked rollback: %t, %v", closed, err)
+	}
 	startups[0].Close()
 	startup, err := m.BeginClientStartup(t.Context(), "after-release", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	startup.Close()
+}
+
+// 同 key 排队与等待全局名额共享一次等待预算。
+func TestResourceAdmissionWaitBudgetIncludesSameSessionQueue(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return &fakeRuntimeClient{} }))
+		m.SetResourceLimits(ResourceLimits{MaxSessions: 1})
+		if _, err := m.GetOrCreate(t.Context(), "occupied", bridge.Options{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := m.StartRound(t.Context(), "occupied", "r", nil); err != nil {
+			t.Fatal(err)
+		}
+		started := time.Now()
+		done := make(chan error, 3)
+		for range cap(done) {
+			go func() { _, err := m.GetOrCreate(t.Context(), "same", bridge.Options{}); done <- err }()
+		}
+		for range cap(done) {
+			if err := <-done; !errors.Is(err, ErrRuntimeResourceBusy) || !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatal(err)
+			}
+		}
+		if elapsed := time.Since(started); elapsed != runtimeResourceWaitTimeout {
+			t.Fatalf("three concurrent requests waited %s", elapsed)
+		}
+	})
+}
+
+type followupReceiptClient struct {
+	fakeRuntimeClient
+	deliver func() (sdkprotocol.TaskRunState, error)
+}
+
+func (c *followupReceiptClient) SendTaskMessageWithState(context.Context, string, string, string) (sdkprotocol.TaskRunState, error) {
+	return c.deliver()
+}
+
+// 回执与消息流可以乱序；续跑投递前占位，旧终态和迟到的 running 回执不能覆盖新状态。
+func TestResourceAdmissionFollowupSurvivesEvictionAndReleasesOnTerminal(t *testing.T) {
+	client := &followupReceiptClient{}
+	m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return client }))
+	m.SetResourceLimits(ResourceLimits{MaxSubagents: 1})
+	if _, err := m.GetOrCreate(t.Context(), "parent", bridge.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	update := func(gen int, status string) {
+		m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskUpdated: &sdkprotocol.TaskUpdatedMessage{TaskID: "child", RunGeneration: gen, Patch: sdkprotocol.TaskUpdatedPatch{Status: status}, Additional: map[string]any{"task_type": "local_agent"}}})
+	}
+	update(1, "completed")
+	count := func() int { m.mu.RLock(); defer m.mu.RUnlock(); return activeSubagentBindings(m.sessions["parent"]) }
+	client.deliver = func() (sdkprotocol.TaskRunState, error) {
+		if closed, err := m.closeIdleSessions(t.Context(), 0, 1); closed != 0 || err != nil {
+			t.Fatalf("evicted during delivery: %d, %v", closed, err)
+		}
+		if err := m.SendTaskMessage(t.Context(), "parent", "other", "message", ""); !errors.Is(err, ErrRuntimeResourceBusy) {
+			t.Fatalf("second child admitted: %v", err)
+		}
+		return sdkprotocol.TaskRunState{Generation: 2, Status: "running"}, nil
+	}
+	if err := m.SendTaskMessage(t.Context(), "parent", "child", "resume", ""); err != nil {
+		t.Fatal(err)
+	}
+	update(1, "completed")
+	if got := count(); got != 1 {
+		t.Fatalf("late previous completion released resumed run: %d", got)
+	}
+	client.deliver = func() (sdkprotocol.TaskRunState, error) {
+		update(2, "completed")
+		return sdkprotocol.TaskRunState{Generation: 2, Status: "running"}, nil
+	}
+	if err := m.SendTaskMessage(t.Context(), "parent", "child", "continue", ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := count(); got != 0 {
+		t.Fatalf("late receipt resurrected completed run: %d", got)
+	}
 }
 
 func TestResourceAdmissionReservesBeforeFactoryAndReleasesFailure(t *testing.T) {
@@ -78,6 +168,8 @@ func TestResourceAdmissionReservesBeforeFactoryAndReleasesFailure(t *testing.T) 
 
 func TestResourceAdmissionReclaimsOnlyCompletedWork(t *testing.T) {
 	m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return &fakeRuntimeClient{} }))
+	now := time.Now()
+	m.now = func() time.Time { return now }
 	for _, key := range []string{"idle", "finishing", "background", "child"} {
 		if _, err := m.GetOrCreate(t.Context(), key, bridge.Options{}); err != nil {
 			t.Fatal(err)
@@ -113,6 +205,7 @@ func TestResourceAdmissionReclaimsOnlyCompletedWork(t *testing.T) {
 			t.Fatalf("unfinished %s was reclaimed", key)
 		}
 	}
+	now = now.Add(time.Second)
 	m.MarkRoundFinished("finishing", "round")
 	if _, err := m.GetOrCreate(t.Context(), "next", bridge.Options{}); err != nil {
 		t.Fatal(err)

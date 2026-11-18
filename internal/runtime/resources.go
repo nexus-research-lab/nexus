@@ -31,6 +31,7 @@ type ResourceLimits struct {
 func (m *Manager) SetResourceLimits(limits ResourceLimits) {
 	m.mu.Lock()
 	m.resourceLimits = limits
+	m.notifyResourceChangeLocked()
 	m.mu.Unlock()
 }
 
@@ -54,8 +55,7 @@ func (m *Manager) memoryAdmissionError() error {
 // 等待只发生在启动事务内。子智能体回调直接拒绝超额启动，防止父任务
 // 占着所有额度等待子任务，产生无法自行解除的等待环。
 func (s *ClientStartup) admitResources(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, runtimeResourceWaitTimeout)
-	defer cancel()
+	var waitCtx context.Context
 	m := s.manager
 	for {
 		if err := ctx.Err(); err != nil {
@@ -74,28 +74,58 @@ func (s *ClientStartup) admitResources(ctx context.Context) error {
 			err = ErrRuntimeSessionClosing
 		}
 		admitted := err == nil && memoryErr == nil && s.reserveResourceSlotLocked()
-		m.mu.Unlock()
 		if err != nil || admitted {
+			m.mu.Unlock()
 			return err
 		}
-		// 回收路径与 TTL 清理共用关闭栅栏；失败会保留 Client 和占用额度。
-		closed, err := m.closeIdleSessions(ctx, 0, 1)
+		if m.resourceChanged == nil {
+			m.resourceChanged = make(chan struct{})
+		}
+		changed := m.resourceChanged
+		m.mu.Unlock()
+		blocked := ErrRuntimeResourceBusy
+		if memoryErr != nil {
+			blocked = memoryErr
+		}
+		if waitCtx == nil {
+			deadline := s.resourceDeadline
+			if deadline.IsZero() {
+				deadline = time.Now().Add(runtimeResourceWaitTimeout)
+			}
+			var cancel context.CancelFunc
+			waitCtx, cancel = context.WithDeadline(ctx, deadline)
+			defer cancel()
+		}
+		if err := waitCtx.Err(); err != nil {
+			return errors.Join(blocked, err)
+		}
+		// 与 TTL 清理共用关闭栅栏，失败会保留 client 和占用额度。
+		closed, err := m.closeIdleSessions(waitCtx, 0, 1)
 		if err != nil {
+			if waitCtx.Err() != nil {
+				return errors.Join(blocked, err, waitCtx.Err())
+			}
 			return fmt.Errorf("回收空闲运行资源失败: %w", err)
 		}
 		if closed > 0 {
 			continue
 		}
-		blocked := ErrRuntimeResourceBusy
+		var sample <-chan time.Time
+		var timer *time.Timer
 		if memoryErr != nil {
-			blocked = memoryErr
+			timer = time.NewTimer(time.Second)
+			sample = timer.C
 		}
-		timer := time.NewTimer(time.Second)
 		select {
-		case <-ctx.Done():
+		case <-waitCtx.Done():
+		case <-changed:
+		case <-sample:
+		}
+		if timer != nil {
 			timer.Stop()
-			return errors.Join(blocked, ctx.Err())
-		case <-timer.C:
+		}
+		if err := waitCtx.Err(); err != nil {
+			return errors.Join(blocked, err)
 		}
 	}
 }
@@ -134,9 +164,12 @@ func (m *Manager) residentSessionCountLocked() int {
 	return count
 }
 
-func (m *Manager) pendingStartupLimitReachedLocked() bool {
-	limits := m.resourceLimits
-	return (limits.MaxSessions > 0 || limits.MemoryAvailable != nil) && m.activeStartups >= runtimeMaxPendingStartups
+// 只在已有等待者时广播，持锁订阅与状态变化之间不会丢失唤醒。
+func (m *Manager) notifyResourceChangeLocked() {
+	if m.resourceChanged != nil {
+		close(m.resourceChanged)
+		m.resourceChanged = nil
+	}
 }
 
 func (m *Manager) subagentLimitReachedLocked() bool {
@@ -154,8 +187,13 @@ func (m *Manager) subagentLimitReachedLocked() bool {
 
 func activeSubagentBindings(state *sessionState) int {
 	count := 0
+	for _, run := range state.SubagentRuns {
+		if run.busy() {
+			count++
+		}
+	}
 	for _, binding := range state.SubagentHookBindings {
-		if !binding.Terminal {
+		if !binding.Terminal && !state.SubagentRuns[binding.SDKTaskID].busy() {
 			count++
 		}
 	}

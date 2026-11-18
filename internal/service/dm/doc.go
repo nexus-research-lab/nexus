@@ -9,7 +9,7 @@
 //   - wiring.go：RequireWiring 在启动时校验生产必需依赖，业务方法不再为缺失依赖降级。
 //   - Service 嵌入 runtimehost.Host：Provider/admission/队列信任/用量/额度/执行上下文/MCP 工厂等共用依赖、注入方法与共用阶段只在 runtimehost 实现一次。
 //   - im_delivery_reply.go：IM 反馈持久幂等入队、派发前复核与一次领取；反馈新轮次不继承旧轮次权限。
-//   - service.go / request.go / guidance_input.go / round*.go：写请求阶段状态、直接或 queue/guide 物化的首条 Room DM 用户消息消费 conversation draft，与运行时轮次编排；round 登记覆盖 runtime 准备，失败完成收尾，避免交接期间被空闲回收；完整回复落盘后写入独立摘要，编辑重发先失效旧摘要；/plan 在 runtime 准备阶段覆盖本轮权限。
+//   - service.go / request.go / guidance_input.go / round*.go：写请求阶段状态、直接或 queue/guide 物化的首条 Room DM 用户消息消费 conversation draft，与运行时轮次编排；同步准备响应请求与准入取消，持久受理由 round 持有；round 登记覆盖 runtime 准备，失败完成收尾，避免交接期间被空闲回收；完整回复落盘后写入独立摘要，编辑重发先失效旧摘要；/plan 在 runtime 准备阶段覆盖本轮权限。
 //   - input_queue.go / running_input.go / guidance_input.go / interrupt.go：durable 幂等受理、admission 暂时失败时保留并允许原请求重试恢复、先 ACK 后异步启动与下一轮队列、hook applied ACK 后消费引导、错过 hook 的接力与中断。
 //   - goal_command.go：UI set_goal 与 `/goal` 共用的 Goal 写入、完成态控制 marker、会话 started/title 基础事实；不创建普通模型 round。
 //   - goal_continuation.go / goal_runtime.go / goal_completion_receipt.go：含旧显式 Goal 确定性 reservation 恢复的 exact Goal/revision/Execution 续跑启动 claim、上下文、消费后 revision adoption、live scope create guard、parent terminal ledger、child lifecycle evidence、fenced 结算与最终回复完成收据。

@@ -71,6 +71,7 @@ func (m *Manager) finishSessionClose(target *sessionCloseTarget, cleanupErr erro
 	if current := m.sessions[target.sessionKey]; current == target.state {
 		if cleanupErr == nil {
 			delete(m.sessions, target.sessionKey)
+			m.notifyResourceChangeLocked()
 		} else {
 			current.CloseError = cleanupErr
 		}
