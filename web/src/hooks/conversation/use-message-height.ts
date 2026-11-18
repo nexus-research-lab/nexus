@@ -177,6 +177,8 @@ function estimateRoundText(
 }
 
 function createRoundHeightEstimator(containerWidth: number) {
+  // 渲染期写入闭包是有意为之：缓存只按正文片段逐段相等命中，被丢弃的并发渲染
+  // 或 React 丢弃 memo 只会降低命中率，不会返回过期高度。不要在此缓存其他状态。
   let previous = new Map<string, RoundTextEstimate>();
   return (
     roundIds: string[],

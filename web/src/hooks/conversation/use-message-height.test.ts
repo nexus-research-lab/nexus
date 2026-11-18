@@ -67,3 +67,19 @@ it("measures a round once it stops growing and releases rounds that leave the fe
   rerender({ ids: ["a", "b"], active: new Set<string>() });
   expect(vi.mocked(prepare).mock.calls.map(([text]) => text)).toEqual(["aaaa", "bbbb", "aaaa"]);
 });
+
+it("falls back to the default height before the column is measured", () => {
+  vi.mocked(prepare).mockClear();
+  const message: AssistantMessage = {
+    message_id: "m", session_key: "s", agent_id: "a", round_id: "r",
+    timestamp: 0, role: "assistant", content: [{ type: "text", text: "abcd" }],
+  };
+  const { result } = renderHook(() => useRoundHeights(
+    ["r"],
+    new Map([["r", [message]]]),
+    0,
+    new Set(),
+  ));
+  expect(result.current.get("r")).toBe(200);
+  expect(prepare).not.toHaveBeenCalled();
+});
