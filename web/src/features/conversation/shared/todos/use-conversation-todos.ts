@@ -1,9 +1,9 @@
 /**
  * INPUT: 当前会话消息与 session。
  * OUTPUT: 引用稳定的单会话任务列表、Room 按 Agent 隔离的进程，以及按 Agent round 隔离的节点局部 Task run。
- * POS: Todo 纯投影与 React 会话控制器之间的 memo 边界。
+ * POS: Todo 纯投影与 React 会话控制器之间的 memo 边界；分组投影缓存按 sessionKey 自行失效，跨流式帧复用未变化的 Agent / Agent round。
  */
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import type { Message } from "@/types/conversation/message/entity";
 import type { TodoItem } from "@/types/conversation/todo";
@@ -11,6 +11,7 @@ import type { TodoItem } from "@/types/conversation/todo";
 import {
   areTaskRunListsEqual,
   areTodoListsEqual,
+  createTodoGroupProjectionCache,
   areTodoProcessListsEqual,
   projectConversationTaskRuns,
   projectConversationTodoProcesses,
@@ -40,9 +41,10 @@ export function useConversationTodoProcesses(
   sessionKey: string | null,
 ): ConversationTodoProcess[] {
   const stableProcessesRef = useRef<ConversationTodoProcess[]>([]);
+  const [cache] = useState(createTodoGroupProjectionCache);
   const projectedProcesses = useMemo(
-    () => projectConversationTodoProcesses(messages, sessionKey),
-    [messages, sessionKey],
+    () => projectConversationTodoProcesses(messages, sessionKey, cache),
+    [cache, messages, sessionKey],
   );
 
   if (!areTodoProcessListsEqual(
@@ -59,9 +61,10 @@ export function useConversationTaskRuns(
   sessionKey: string | null,
 ): ConversationTaskRun[] {
   const stableRunsRef = useRef<ConversationTaskRun[]>([]);
+  const [cache] = useState(createTodoGroupProjectionCache);
   const projectedRuns = useMemo(
-    () => projectConversationTaskRuns(messages, sessionKey),
-    [messages, sessionKey],
+    () => projectConversationTaskRuns(messages, sessionKey, cache),
+    [cache, messages, sessionKey],
   );
 
   if (!areTaskRunListsEqual(stableRunsRef.current, projectedRuns)) {

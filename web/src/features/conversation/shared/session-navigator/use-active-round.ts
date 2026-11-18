@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
 import {
@@ -53,19 +53,29 @@ export function useActiveRound({
     [scopeKey],
   );
 
+  // 流式帧每次都会生成新的 roundIds 数组；若把它作为订阅依赖，每帧都会重建监听并在
+  // 提交阶段同步读取 scrollTop/scrollHeight，强制一次布局。这里只在作用域变化时订阅，
+  // 轮次变化改为排入下一帧，与浏览器自身布局合并。
+  const roundsRef = useRef({ ids: roundIds, set: new Set(roundIds) });
+  const scheduleSyncRef = useRef<(() => void) | null>(null);
+  const hasRounds = roundIds.length > 0;
+
   useEffect(() => {
     const scrollElement = scrollRef.current;
-    if (!scrollElement || !scopeKey || roundIds.length === 0) {
+    if (!scrollElement || !scopeKey || !hasRounds) {
       return;
     }
     let frame = 0;
-    const roundIdSet = new Set(roundIds);
     const syncActiveRound = (): void => {
       frame = 0;
+      const { ids, set } = roundsRef.current;
+      if (ids.length === 0) {
+        return;
+      }
       const navigationTarget = getConversationRoundNavigationTarget(
         scrollElement,
       );
-      if (navigationTarget && !roundIdSet.has(navigationTarget)) {
+      if (navigationTarget && !set.has(navigationTarget)) {
         clearConversationRoundNavigationTarget(
           scrollElement,
           navigationTarget,
@@ -73,14 +83,10 @@ export function useActiveRound({
       }
       // 导航目标只是进行中的滚动事务，不是已经可见的 active round。
       // 真正落点后由 pending jump 显式提交，加载/测量期间保留当前选择。
-      if (navigationTarget && roundIdSet.has(navigationTarget)) {
+      if (navigationTarget && set.has(navigationTarget)) {
         return;
       }
-      const nextRoundId = resolveVisibleRoundId(
-        scrollElement,
-        roundIds,
-        roundIdSet,
-      );
+      const nextRoundId = resolveVisibleRoundId(scrollElement, ids, set);
       if (nextRoundId) {
         activateRound(nextRoundId);
       }
@@ -91,17 +97,27 @@ export function useActiveRound({
       }
     };
 
+    scheduleSyncRef.current = scheduleSync;
     syncActiveRound();
     scrollElement.addEventListener("scroll", scheduleSync, { passive: true });
     window.addEventListener("resize", scheduleSync);
     return () => {
+      scheduleSyncRef.current = null;
       if (frame) {
         window.cancelAnimationFrame(frame);
       }
       scrollElement.removeEventListener("scroll", scheduleSync);
       window.removeEventListener("resize", scheduleSync);
     };
-  }, [activateRound, roundIds, scopeKey, scrollRef]);
+  }, [activateRound, hasRounds, scopeKey, scrollRef]);
+
+  useEffect(() => {
+    if (roundsRef.current.ids === roundIds) {
+      return;
+    }
+    roundsRef.current = { ids: roundIds, set: new Set(roundIds) };
+    scheduleSyncRef.current?.();
+  }, [roundIds]);
 
   useEffect(() => {
     const scrollElement = scrollRef.current;

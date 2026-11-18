@@ -9,7 +9,8 @@
 - `task-tool-names.ts` 统一声明对话任务工具名，供任务条与消息隐藏规则共同消费。
 - `task-list-tool-model.ts` 将 `TaskCreate` / `TaskList` / `TaskUpdate` 的结构化结果投影为会话级任务列表。
 - `todo-projection-model.ts` 单次扫描消息建立轮次索引，选择最新任务轮次后按显式展示策略投影任务条；Room legacy 面板按 `agent_id` 隔离多份进程，WorkGraph 节点局部进程另按 `agent_id + agent_round_id` 保留每次精确 Task run。
-- `use-conversation-todos.ts` 只负责单进程、Room 多 Agent 进程与精确 Agent round Task run 投影的 React memo 和结果引用稳定。
+- `use-conversation-todos.ts` 只负责单进程、Room 多 Agent 进程与精确 Agent round Task run 投影的 React memo 和结果引用稳定；分组投影缓存由 `todo-projection-model.ts` 按 sessionKey 自行失效。
+- `todo-projection-model.test.ts` 证明分组缓存与无缓存投影等价、未变化分组复用、换会话即失效。
 
 ## 不变量
 
@@ -25,4 +26,5 @@
 - 消息源只解析身份、内容候选和状态；旧内容、旧表单与 Map 写入规则不得重复实现。
 - 状态事件只有显式结构化描述可以改写任务标题；`task_notification` 只收口状态并保留已有任务身份，孤立通知最多使用短 `summary`，不得把结果正文投影进任务条。
 - 状态别名用数据表维护，不在视图或轮次扫描中复制分支。
+- Room 进程与 Task run 按 Agent / Agent round 分组投影；组内消息逐个同一引用时复用上次结果，流式帧只重算变化分组。缓存只是性能手段，结果必须与无缓存投影完全一致。
 - 无计划 runtime、有效计划和隐藏计划使用统一策略表；轮次选择不参与展示规则判断。
