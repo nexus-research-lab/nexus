@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useChatTypography } from "@/shared/theme/chat-typography";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
+import { useRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import { getConversationRoundNavigationTarget } from "../timeline/scroll/round-scroll";
@@ -59,14 +59,11 @@ export function ConversationVirtualFeed({
       resolveConversationRound(source, index),
     )),
   ), [source]);
-  const heightMap = useMemo(
-    () => estimateRoundHeights(
-      source.roundIds,
-      source.messageGroups,
-      metrics.containerWidth,
-      activeRoundIds,
-    ),
-    [activeRoundIds, metrics.containerWidth, source.messageGroups, source.roundIds],
+  const heightMap = useRoundHeights(
+    source.roundIds,
+    source.messageGroups,
+    metrics.containerWidth,
+    activeRoundIds,
   );
   const virtualizer = useVirtualizer({
     count: source.roundIds.length,
