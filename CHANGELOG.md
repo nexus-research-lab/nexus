@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-11-18
+
 ### Fixed
 
 - 长群聊流式回复时，任务进程只重算正在输出的智能体，轮次导航不再在每次更新时重建滚动监听、强制同步布局，进一步减少卡顿。
