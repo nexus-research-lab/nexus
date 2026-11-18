@@ -43,3 +43,27 @@ it("reuses text layout across tool updates and remeasures edits and width change
   const measuredText = vi.mocked(prepare).mock.calls.map(([text]) => text);
   expect(measuredText).toEqual(["abcd", "wxyz", "wxyz"]);
 });
+
+it("measures a round once it stops growing and releases rounds that leave the feed", () => {
+  vi.mocked(prepare).mockClear();
+  const round = (id: string, text: string): AssistantMessage => ({
+    message_id: `m-${id}`, session_key: "s", agent_id: "a", round_id: id,
+    timestamp: 0, role: "assistant", content: [{ type: "text", text }],
+  });
+  const groups = new Map([["a", [round("a", "aaaa")]], ["b", [round("b", "bbbb")]]]);
+  const { result, rerender } = renderHook(
+    ({ ids, active }) => useRoundHeights(ids, groups, 4, active),
+    { initialProps: { ids: ["a", "b"], active: new Set(["b"]) } },
+  );
+  // 活跃轮次只给固定基线，不测量正文。
+  expect(vi.mocked(prepare).mock.calls.map(([text]) => text)).toEqual(["aaaa"]);
+
+  rerender({ ids: ["a", "b"], active: new Set<string>() });
+  expect(result.current.get("b")).toBe(result.current.get("a"));
+  expect(vi.mocked(prepare).mock.calls.map(([text]) => text)).toEqual(["aaaa", "bbbb"]);
+
+  // "a" 移出加载窗口后缓存随之释放，重新进入时重新测量。
+  rerender({ ids: ["b"], active: new Set<string>() });
+  rerender({ ids: ["a", "b"], active: new Set<string>() });
+  expect(vi.mocked(prepare).mock.calls.map(([text]) => text)).toEqual(["aaaa", "bbbb", "aaaa"]);
+});
