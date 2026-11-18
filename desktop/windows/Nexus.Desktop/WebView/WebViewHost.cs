@@ -154,34 +154,22 @@ internal sealed class WebViewHost : IDisposable
         return Task.CompletedTask;
     }
 
+    // 手动重载必须重建控件：CompositionControl 的画面转运链路（远程桌面切换、显示设备变化后可能失效）
+    // 不会因同一 CoreWebView2 重新导航而恢复，页面能跑 JS 不代表用户看得到。
     public async Task ReloadAsync(string reason)
     {
         if (disposed)
         {
             return;
         }
-        if (webView.CoreWebView2 is null)
-        {
-            await recreateWebViewAsync(lastRoute, "manual_reload", reason);
-            return;
-        }
 
-        try
+        DesktopWebRoute route = await ResolveCurrentRouteAsync();
+        startupTimeline.Mark("webview.manual_reload", new Dictionary<string, string>
         {
-            ResumeProbeResult probe = await CaptureResumeProbeAsync();
-            UpdateLastRouteFromProbe(probe);
-            DesktopWebRoute route = probe.CurrentRoute ?? lastRoute;
-            startupTimeline.Mark("webview.manual_reload", new Dictionary<string, string>
-            {
-                ["path"] = route.Path,
-                ["reason"] = reason,
-            });
-            NavigateToRoute(route);
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
-        {
-            await recreateWebViewAsync(lastRoute, "manual_reload", exception.GetType().Name);
-        }
+            ["path"] = route.Path,
+            ["reason"] = reason,
+        });
+        await recreateWebViewAsync(route, "manual_reload", reason);
     }
 
     public async Task ClearCacheAndReloadAsync(string reason)
@@ -190,28 +178,39 @@ internal sealed class WebViewHost : IDisposable
         {
             return;
         }
-        if (webView.CoreWebView2 is null)
-        {
-            await recreateWebViewAsync(lastRoute, "manual_cache_clear", reason);
-            return;
-        }
 
+        DesktopWebRoute route = await ResolveCurrentRouteAsync();
         try
         {
-            ResumeProbeResult probe = await CaptureResumeProbeAsync();
-            UpdateLastRouteFromProbe(probe);
-            DesktopWebRoute route = probe.CurrentRoute ?? lastRoute;
-            await DesktopWebCacheInvalidator.ClearCachesManuallyAsync(
-                webView.CoreWebView2,
-                runtime,
-                startupTimeline,
-                reason);
-            NavigateToRoute(route);
+            if (webView.CoreWebView2 is CoreWebView2 core)
+            {
+                await DesktopWebCacheInvalidator.ClearCachesManuallyAsync(core, runtime, startupTimeline, reason);
+            }
         }
         catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
         {
-            await recreateWebViewAsync(lastRoute, "manual_cache_clear", exception.GetType().Name);
+            // 控件已失效时缓存无法通过它清理；重建本身仍是用户要的恢复路径。
         }
+        await recreateWebViewAsync(route, "manual_cache_clear", reason);
+    }
+
+    // 外部环境（显示设备、远程会话）变化后重建渲染面，保持当前路由。
+    public async Task RebuildSurfaceAsync(string reason)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        DesktopWebRoute route = await ResolveCurrentRouteAsync();
+        await recreateWebViewAsync(route, "surface_environment", reason);
+    }
+
+    private async Task<DesktopWebRoute> ResolveCurrentRouteAsync()
+    {
+        ResumeProbeResult probe = await CaptureResumeProbeAsync();
+        UpdateLastRouteFromProbe(probe);
+        return probe.CurrentRoute ?? lastRoute;
     }
 
     public async Task RecoverAfterWindowShownAsync(string reason)
