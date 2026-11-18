@@ -330,9 +330,28 @@ export function parseSessionKey(
     : createParsedSessionKey(normalizedKey);
 }
 
+// 流式帧里 Todo 等投影按消息逐条比较会话身份；key 种类很少，按原串缓存，
+// 避免每帧对全部历史消息重复 split/解析。上限只防异常输入撑大内存。
+const SESSION_IDENTITY_CACHE_LIMIT = 512;
+const sessionIdentityCache = new Map<string, string | null>();
+
 export function getSessionKeyIdentity(
   sessionKey: string | null | undefined,
 ): string | null {
+  const key = sessionKey ?? "";
+  const cached = sessionIdentityCache.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const identity = resolveSessionKeyIdentity(key);
+  if (sessionIdentityCache.size >= SESSION_IDENTITY_CACHE_LIMIT) {
+    sessionIdentityCache.clear();
+  }
+  sessionIdentityCache.set(key, identity);
+  return identity;
+}
+
+function resolveSessionKeyIdentity(sessionKey: string): string | null {
   const parsed = parseSessionKey(sessionKey);
   if (!parsed.raw) {
     return null;

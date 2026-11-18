@@ -151,7 +151,21 @@ function isPinnedWindowMessage(message: Message): boolean {
   );
 }
 
+// 消息对象不可变（流式更新产生新对象），按身份缓存估算值；否则每个流式帧都要
+// 对整个加载窗口逐条 JSON.stringify。WeakMap 随消息被回收自动释放。
+const messageBytesCache = new WeakMap<Message, number>();
+
 function estimateMessageBytes(message: Message): number {
+  const cached = messageBytesCache.get(message);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const bytes = measureMessageBytes(message);
+  messageBytesCache.set(message, bytes);
+  return bytes;
+}
+
+function measureMessageBytes(message: Message): number {
   try {
     // JS 字符串通常按 UTF-16 驻留；乘二比网络 JSON 大小更接近内存预算。
     return Math.max(JSON.stringify(message).length * 2, 256);

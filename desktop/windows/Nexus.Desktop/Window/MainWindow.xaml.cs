@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using Microsoft.Web.WebView2.Wpf;
+using Microsoft.Win32;
 using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
@@ -40,6 +41,10 @@ public partial class MainWindow : System.Windows.Window
     private bool closed;
     private bool closePromptShown;
     private bool webViewRecreateInFlight;
+    // 显示/会话变化后待重建渲染面的原因；窗口不可见时暂存，恢复可见后再重建。
+    private string? pendingSurfaceRebuildReason;
+    private int surfaceChangeGeneration;
+    private bool surfaceSettling;
 
     internal MainWindow(
         SidecarRuntimeConfig runtime,
@@ -64,6 +69,8 @@ public partial class MainWindow : System.Windows.Window
             ClearWebCacheFromTray,
             CheckForUpdatesFromTray,
             ExitFromTray);
+        SystemEvents.DisplaySettingsChanged += HandleDisplaySettingsChanged;
+        SystemEvents.SessionSwitch += HandleSessionSwitch;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -115,6 +122,9 @@ public partial class MainWindow : System.Windows.Window
     {
         closed = true;
         startupTimeline.Mark("main_window.closed");
+        // SystemEvents 是静态事件，不解绑会让已关闭窗口继续收到回调。
+        SystemEvents.DisplaySettingsChanged -= HandleDisplaySettingsChanged;
+        SystemEvents.SessionSwitch -= HandleSessionSwitch;
         trayController.Dispose();
         DisposeWebView();
         base.OnClosed(e);
@@ -130,7 +140,67 @@ public partial class MainWindow : System.Windows.Window
         base.OnActivated(e);
         UpdateAttention();
         webViewHost?.SetHostWindowInteractive(IsWebViewInteractive(), "activated");
-        _ = webViewHost?.RecoverAfterWindowShownAsync("activated");
+        if (!TryRebuildPendingSurface())
+        {
+            _ = webViewHost?.RecoverAfterWindowShownAsync("activated");
+        }
+    }
+
+    private void HandleDisplaySettingsChanged(object? sender, EventArgs e) =>
+        ScheduleSurfaceRebuild("display_settings_changed");
+
+    private void HandleSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        // 只有会话重新挂到某个显示端（远程连上、切回本地控制台）才会换显示设备；
+        // 锁屏/解锁不换设备，不为它丢弃页面状态。
+        if (e.Reason is SessionSwitchReason.RemoteConnect or SessionSwitchReason.ConsoleConnect)
+        {
+            ScheduleSurfaceRebuild("session_" + e.Reason.ToString().ToLowerInvariant());
+        }
+    }
+
+    // SystemEvents 回调在独立线程；远程连接会连发多次显示变化，防抖 1 秒后只重建一次。
+    private void ScheduleSurfaceRebuild(string reason)
+    {
+        Dispatcher.InvokeAsync(async () =>
+        {
+            if (closed)
+            {
+                return;
+            }
+
+            pendingSurfaceRebuildReason = reason;
+            int generation = ++surfaceChangeGeneration;
+            startupTimeline.Mark("webview.surface_environment_changed", new Dictionary<string, string>
+            {
+                ["reason"] = reason,
+                ["remote_session"] = SystemParameters.IsRemoteSession.ToString(),
+                ["work_area_width"] = SystemParameters.WorkArea.Width.ToString("0"),
+                ["work_area_height"] = SystemParameters.WorkArea.Height.ToString("0"),
+                ["interactive"] = IsWebViewInteractive().ToString(),
+            });
+            surfaceSettling = true;
+            await Task.Delay(1000);
+            if (generation == surfaceChangeGeneration)
+            {
+                surfaceSettling = false;
+                TryRebuildPendingSurface();
+            }
+        });
+    }
+
+    private bool TryRebuildPendingSurface()
+    {
+        // 防抖窗口内由计时器统一处理，激活事件不抢先重建。
+        if (surfaceSettling || pendingSurfaceRebuildReason is not string reason ||
+            webViewHost is null || !IsWebViewInteractive())
+        {
+            return false;
+        }
+
+        pendingSurfaceRebuildReason = null;
+        _ = webViewHost.RebuildSurfaceAsync(reason);
+        return true;
     }
 
     protected override void OnDeactivated(EventArgs e)
@@ -185,7 +255,7 @@ public partial class MainWindow : System.Windows.Window
         webViewHost?.SetHostWindowInteractive(
             interactive,
             interactive ? "window_restored" : "window_minimized");
-        if (WindowState != WindowState.Minimized)
+        if (WindowState != WindowState.Minimized && !TryRebuildPendingSurface())
         {
             _ = webViewHost?.RecoverAfterWindowShownAsync("state_changed");
         }
