@@ -13,6 +13,8 @@ import (
 type agentHistoryCache struct {
 	mu      sync.RWMutex
 	entries map[string]transcriptCacheEntry
+	// prewarming 记录正在后台预热的会话，避免同一会话重复解析。
+	prewarming map[string]struct{}
 }
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。
