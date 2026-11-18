@@ -183,6 +183,7 @@ Subscription Admin：
 ### Conversation
 
 - 使用独立的 client request/message、Session、round、Agent round、failure code、ACK 和重连对账协议。
+- 运行结果与资源清理结果独立：会话关闭须等待进程退出和读取循环结束；非零退出码、已结束的断流诊断不单独阻止新任务，后代清理失败及无法确认的关闭错误继续保留 session 关闭栅栏。清理完成不授权自动重放失败任务。
 - 首次 WebSocket error 不是终态；客户端不自动重发 prompt、工具或副作用命令。
 - 新一次 `submission_started` 不能证明旧 `delivery_unknown`、Provider retry 或连接故障已恢复；只有与原身份匹配的 ACK、round 进展或权威 Session 对账才能解除。
 - Provider/runtime 的终态错误原文不得伪装成 assistant 正常回复，只投影为结构化可靠性提示。该提示只出现在 Composer 状态栈，不写入 Feed、历史、未读或滚动几何。
@@ -191,6 +192,23 @@ Subscription Admin：
 
 - 使用各自的 revision、request ID、plan digest、审计或回执。
 - 缺少领域身份时，结果未知只能在当前页锁定和对账，不能用 HTTP 诊断号补造身份。
+
+### 宿主运行资源准入
+
+DM、Room slot 与 AutoDream 共用 app 装配的一个 runtime Manager。资源准入发生在创建 client 前和连接前；它是减少资源挤兑的软保护，不是进程内存、CPU 或温度的 OS 硬限制。
+
+| 环境变量 | 默认值 | 含义 |
+| --- | --- | --- |
+| `NEXUS_RUNTIME_MAX_SESSIONS` | `auto` | Manager 同时持有的 runtime 会话额度；`auto`（未设置、负数或无法解析）按每 2 GiB 物理内存一个会话推算，限制在 4–12，读不到总量取 4；在途 factory 预留、空闲 warm client、关闭中及清理失败的 client 均占用额度；同 key 复用不重复占用 |
+| `NEXUS_RUNTIME_MAX_SUBAGENTS` | `8` | 全 Manager 的子智能体额度，包含启动准入、续跑投递及活动任务 |
+| `NEXUS_RUNTIME_MEMORY_RESERVE_MB` | `1024` | 启用内存准入；Windows/Linux 保留此 MiB 值和总物理内存 15%（上限 2 GiB）中较大者；macOS 使用内核内存压力信号 |
+
+`0` 关闭对应限制；`NEXUS_RUNTIME_MAX_SUBAGENTS` 与 `NEXUS_RUNTIME_MEMORY_RESERVE_MB` 的负值同样关闭。配置从环境加载后在 app 初始化时生效；它不改写系统设置或已有 runtime 配置。
+
+- 会话额度用满或内存紧张时，只回收无活动 startup、无未完成 round、无后台任务、无活动子智能体的 LRU 会话。额度用满时按需逐个回收；内存紧张时每个等待者最多回收一个会话，压力可能来自宿主外程序，不能清空所有预热会话。其他会话清理失败时保留其栅栏和额度，当前请求继续等待，超时错误附带清理诊断。DM 与 Room slot 在准备 runtime 前登记 round，终态已展示但收尾未完成仍视为活动工作。回收沿用原关闭栅栏、进程退出确认及沙箱清理回执；不能用清理超时或未知结果释放额度。
+- 新启动最多同时受理 16 个事务，同一 session 排队与等待全局名额共用从入队起算的 30 秒预算。名额释放立即唤醒等候者，只有内存压力需要按秒重新采样。请求取消或宿主撤销准入会中止准备。已持久受理的 DM 由登记的 round 继续执行。按租约回滚已有 client 可以在队列满时进入，仍核对所有者与连接代次。
+- 子智能体额度同时计算 Agent 启动回调、正在投递的宿主续跑消息和运行时报告的活动子任务。宿主投递前预留名额，同一任务的多条消息共用名额。物理 runner 的代次区分同一 task ID 的多次执行，`task_updated` 与 `task_notification` 都携带代次，上一代的迟到终态不能释放新一代；已结束且无投递中的任务不保留状态条目。SDK 自行启动的工作在其事件到达后计入，宿主不能提前拒绝绕开准入接口的进程。
+- Windows 检查可用物理内存及可提交内存，Linux 使用宿主 `/proc/meminfo` 的 `MemAvailable`，macOS 仅在内核压力为 critical 时拒绝（warn 在常见内存规格下长期出现且仍有可回收内存）。探针读取失败时放行并记录一次警告：这是软准入，读不到读数不能让新任务全部失败；Linux cgroup 限额仍由原隔离策略负责。
 
 ## 8. 验证原则
 

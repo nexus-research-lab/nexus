@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
@@ -18,6 +19,7 @@ var errRuntimeClientChanged = errors.New("runtime client changed")
 // 调用方必须 Close；事务内可关闭并重建 session，而不会跨代释放互斥权。
 // 同一个事务由单一 goroutine 顺序使用，不支持方法之间或方法与 Close 并发。
 type ClientStartup struct {
+	resourceDeadline   time.Time
 	manager            *Manager
 	sessionKey         string
 	gate               *sessionStartupGate
@@ -46,13 +48,14 @@ func (m *Manager) BeginClientStartup(
 	sessionKey string,
 	ownerUserID string,
 ) (*ClientStartup, error) {
-	return m.beginClientStartup(ctx, sessionKey, ownerUserID)
+	return m.beginClientStartup(ctx, sessionKey, ownerUserID, true)
 }
 
 func (m *Manager) beginClientStartup(
 	ctx context.Context,
 	sessionKey string,
 	ownerUserID string,
+	admitNewWork bool,
 ) (*ClientStartup, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -64,6 +67,14 @@ func (m *Manager) beginClientStartup(
 	if m.shutdownDone != nil {
 		m.mu.Unlock()
 		return nil, ErrRuntimeManagerClosed
+	}
+	var resourceDeadline time.Time
+	if admitNewWork && (m.resourceLimits.MaxSessions > 0 || m.resourceLimits.MemoryAvailable != nil) {
+		resourceDeadline = time.Now().Add(runtimeResourceWaitTimeout)
+	}
+	if !resourceDeadline.IsZero() && m.activeStartups >= runtimeMaxPendingStartups {
+		m.mu.Unlock()
+		return nil, ErrRuntimeResourceBusy
 	}
 	ownerLease, err := m.beginOwnerStartupLocked(ownerUserID, sessionKey)
 	if err != nil {
@@ -89,18 +100,32 @@ func (m *Manager) beginClientStartup(
 	closeEpoch := gate.closeEpoch
 	m.mu.Unlock()
 
+	waitCtx := ctx
+	if !resourceDeadline.IsZero() {
+		var cancel context.CancelFunc
+		waitCtx, cancel = context.WithDeadline(ctx, resourceDeadline)
+		defer cancel()
+	}
 	select {
-	case <-ctx.Done():
+	case <-waitCtx.Done():
 		m.releaseClientStartup(sessionKey, gate, ownerLease, false)
-		return nil, ctx.Err()
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, errors.Join(ErrRuntimeResourceBusy, waitCtx.Err())
 	case <-gate.token:
+		if err := waitCtx.Err(); err != nil {
+			m.releaseClientStartup(sessionKey, gate, ownerLease, true)
+			return nil, errors.Join(ErrRuntimeResourceBusy, err)
+		}
 	}
 	startup := &ClientStartup{
-		manager:    m,
-		sessionKey: sessionKey,
-		gate:       gate,
-		ownerLease: ownerLease,
-		closeEpoch: closeEpoch,
+		resourceDeadline: resourceDeadline,
+		manager:          m,
+		sessionKey:       sessionKey,
+		gate:             gate,
+		ownerLease:       ownerLease,
+		closeEpoch:       closeEpoch,
 	}
 	m.mu.RLock()
 	valid := m.shutdownDone == nil && m.startupGates[sessionKey] == gate && gate.closeEpoch == closeEpoch &&
@@ -127,9 +152,11 @@ func (m *Manager) releaseClientStartup(
 	}
 	m.mu.Lock()
 	if held && m.startupGates[sessionKey] == gate {
+		gate.resourceReserved = false
 		m.removeClientlessSessionIfIdleLocked(sessionKey, nil, gate)
 	}
 	m.releaseOwnerStartupLocked(ownerLease)
+	m.notifyResourceChangeLocked()
 	m.activeStartups--
 	if m.activeStartups == 0 {
 		close(m.startupsDrained)
@@ -156,6 +183,7 @@ func (m *Manager) beginSessionCloseGateLocked(sessionKey string) *sessionStartup
 	gate.refs++
 	gate.closeBlocks++
 	gate.closeEpoch++
+	m.notifyResourceChangeLocked()
 	return gate
 }
 
@@ -165,6 +193,7 @@ func (m *Manager) releaseSessionCloseGate(sessionKey string, gate *sessionStartu
 	}
 	m.mu.Lock()
 	gate.closeBlocks--
+	m.notifyResourceChangeLocked()
 	gate.refs--
 	if gate.refs == 0 && m.startupGates[sessionKey] == gate {
 		delete(m.startupGates, sessionKey)
@@ -310,6 +339,9 @@ func (m *Manager) getOrCreateWithFactory(
 	}
 	cacheSurface, err := cacheSurfaceProfileFromOptions(ctx, options)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := startup.admitResources(ctx); err != nil {
 		return nil, nil, err
 	}
 	for {
@@ -668,6 +700,7 @@ func (m *Manager) replaceRuntimeClient(
 	state.ContextUsageByAgent = nil
 	// 新进程不持有旧 task/thread；只有再次观测到 task 事件后才允许保活。
 	state.HasSubagentHistory = false
+	state.SubagentRuns = nil
 	m.touchStateLocked(state)
 	m.mu.Unlock()
 	if err := m.runtimeAgentAdmissionError(sessionKey, ownerUserID, agentID); err != nil {
@@ -774,6 +807,9 @@ func (m *Manager) connectClient(
 ) error {
 	if expected == nil || expectedState == nil {
 		return agentclient.ErrNotConnected
+	}
+	if err := startup.admitResources(ctx); err != nil {
+		return err
 	}
 
 	m.mu.Lock()
@@ -884,7 +920,7 @@ func (m *Manager) CloseSessionIfLease(ctx context.Context, lease ClientLease) (b
 	if lease.manager != m || lease.client == nil || lease.state == nil {
 		return false, nil
 	}
-	startup, err := m.beginClientStartup(ctx, lease.sessionKey, lease.ownerUserID)
+	startup, err := m.beginClientStartup(ctx, lease.sessionKey, lease.ownerUserID, false)
 	if err != nil {
 		return false, err
 	}
@@ -1099,6 +1135,7 @@ func (m *Manager) clearRetiredClient(
 	state.ProcessPolicyFingerprint = ""
 	state.ContextUsageByAgent = nil
 	state.HasSubagentHistory = false
+	state.SubagentRuns = nil
 	// 活动 startup 可能已经在锁外重配置刚退休的 client。此时保留同一
 	// state，让它回锁后看到 Client 已清空并沿统一路径创建新 client。
 	if m.removeClientlessSessionIfIdleLocked(sessionKey, expectedState, nil) {

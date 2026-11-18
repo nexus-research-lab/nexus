@@ -17,6 +17,7 @@ import (
 	appruntime "github.com/nexus-research-lab/nexus/internal/app/runtime"
 	appworkgraph "github.com/nexus-research-lab/nexus/internal/app/workgraph"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/hostmemory"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	executionoperation "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation"
 	goalcommandcontract "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract"
@@ -231,6 +232,18 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
+	maxSessions := cfg.RuntimeMaxSessions
+	if maxSessions < 0 {
+		maxSessions = hostmemory.DefaultSessionLimit()
+	}
+	memoryLogger := logger.With("component", "runtime_resources")
+	runtimeManager.SetResourceLimits(runtimectx.ResourceLimits{
+		MaxSessions:  maxSessions,
+		MaxSubagents: cfg.RuntimeMaxSubagents,
+		MemoryAvailable: hostmemory.NewAdmissionProbe(cfg.RuntimeMemoryReserveMB, func(err error) {
+			memoryLogger.Warn("host memory probe unavailable; admitting runtime work without memory check", "error", err)
+		}),
+	})
 	runtimeManager.SetOwnerProcessReaper(workspaceisolation.OwnerProcessReaper{
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
 		LauncherPath: cfg.RuntimeLauncherPath,

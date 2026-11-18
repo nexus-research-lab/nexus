@@ -46,7 +46,7 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 
 	client := newFakeRoomClient()
 	client.onQuery = func(_ context.Context, _ string) error {
-		go sendFakeTerminalAssistantAndClose(client, "assistant-mcp-context", "ok", nil)
+		go sendFakeAssistantResult(client, "assistant-mcp-context", "ok")
 		return nil
 	}
 

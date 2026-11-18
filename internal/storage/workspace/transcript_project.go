@@ -1,5 +1,5 @@
 // INPUT: SDK transcript chain、Nexus round marker 与会话标识。
-// OUTPUT: 带稳定 root/source round 身份、保留空白 Goal 续跑边界的 Nexus 历史消息。
+// OUTPUT: 带稳定 root/source round 身份、保留空白 Goal 续跑边界的 Nexus 历史消息，以及可在用户轮次边界保存与恢复的投影状态。
 // POS: DM transcript 到产品历史的唯一投影入口。
 package workspace
 
@@ -74,26 +74,75 @@ func visitProjectedTranscript(
 	shouldSkip func(map[string]any) bool,
 	emit func(...protocol.Message),
 ) {
-	currentRoundID := ""
-	currentRoundPurpose := ""
-	var processor *message.Processor
-	var lastTimestamp int64
-	markerIndex := 0
-	lastVisibleUserContent := ""
-	var lastVisibleUserTimestamp int64
+	visitProjectedTranscriptFrom(workspacePath, sessionKey, agentID, chain, alignedMarkers, shouldSkip, &transcriptProjectionState{}, nil, emit)
+}
 
+// transcriptProjectionState 是投影循环跨条目的全部状态。processor 只在用户轮次切换时重建，
+// 重建后尚未处理任何条目时，它完全由 ProcessorRoundID/ParentID/SessionID 决定，
+// 因而此刻的状态可以保存为检查点并在之后恢复。
+type transcriptProjectionState struct {
+	CurrentRoundID           string
+	CurrentRoundPurpose      string
+	ProcessorActive          bool
+	ProcessorRoundID         string
+	ProcessorParentID        string
+	ProcessorSessionID       string
+	LastTimestamp            int64
+	MarkerIndex              int
+	LastVisibleUserContent   string
+	LastVisibleUserTimestamp int64
+
+	processor *message.Processor
+}
+
+func (state *transcriptProjectionState) resetProcessor(workspacePath, sessionKey, agentID, roundID, parentID, sessionID string) {
+	state.ProcessorActive = true
+	state.ProcessorRoundID = roundID
+	state.ProcessorParentID = parentID
+	state.ProcessorSessionID = sessionID
+	state.processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, roundID, parentID, sessionID)
+}
+
+// restoreProcessor 按检查点参数重建一个尚未处理任何条目的 processor。
+func (state *transcriptProjectionState) restoreProcessor(workspacePath, sessionKey, agentID string) {
+	state.processor = nil
+	if state.ProcessorActive {
+		state.processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, state.ProcessorRoundID, state.ProcessorParentID, state.ProcessorSessionID)
+	}
+}
+
+// visitProjectedTranscriptFrom 从 state 继续投影。checkpoint 非 nil 时，每当一个条目重建了
+// processor 且处理完毕，就以“已消费条目数”和此刻的状态回调一次，供调用方保存可恢复的检查点。
+func visitProjectedTranscriptFrom(
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	chain iter.Seq[transcriptEntry],
+	alignedMarkers []transcriptRoundMarker,
+	shouldSkip func(map[string]any) bool,
+	state *transcriptProjectionState,
+	checkpoint func(consumed int, state transcriptProjectionState),
+	emit func(...protocol.Message),
+) {
+	consumed := 0
+	resetPending := false
 	for entry := range chain {
+		if resetPending {
+			checkpoint(consumed, *state)
+			resetPending = false
+		}
+		consumed++
 		if shouldSkip(entry.Data) {
 			continue
 		}
 
-		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, lastTimestamp)
-		lastTimestamp = entryTimestamp
+		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, state.LastTimestamp)
+		state.LastTimestamp = entryTimestamp
 
 		if guidanceRows := buildTranscriptGuidanceMessages(
 			sessionKey,
 			agentID,
-			currentRoundID,
+			state.CurrentRoundID,
 			entry.Data,
 			entryTimestamp,
 		); len(guidanceRows) > 0 {
@@ -109,24 +158,24 @@ func visitProjectedTranscript(
 		switch decoded.Type {
 		case sdkprotocol.MessageTypeUser:
 			if isTranscriptToolResult(decoded) {
-				if processor == nil {
-					currentRoundID = textutil.FirstNonEmpty(stringFromAny(entry.Data["parentUuid"]), strings.TrimSpace(decoded.UUID))
-					processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
+				if state.processor == nil {
+					state.CurrentRoundID = textutil.FirstNonEmpty(stringFromAny(entry.Data["parentUuid"]), strings.TrimSpace(decoded.UUID))
+					state.resetProcessor(workspacePath, sessionKey, agentID, state.CurrentRoundID, "msg_user_"+state.CurrentRoundID, decoded.SessionID)
 				}
-				output := processor.Process(decoded)
+				output := state.processor.Process(decoded)
 				emit(stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
 				continue
 			}
 			if !shouldAlignTranscriptUserTurn(entry.Data) {
 				continue
 			}
-			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
+			marker := consumeTranscriptRoundMarker(alignedMarkers, &state.MarkerIndex)
 			// 普通空输入不建立轮次；匹配隐藏 Goal marker 的空输入必须先切换
 			// processor，避免成果继承上一次真实用户输入的 round。
 			if !shouldMaterializeTranscriptUserTurn(entry.Data) && !transcriptRoundMarkerPresent(marker) {
 				continue
 			}
-			currentRoundPurpose = textutil.FirstNonEmpty(
+			state.CurrentRoundPurpose = textutil.FirstNonEmpty(
 				strings.TrimSpace(marker.Purpose),
 				stringFromAny(entry.Data["purpose"]),
 			)
@@ -136,14 +185,15 @@ func visitProjectedTranscript(
 					entry.Data,
 					userContent,
 					entryTimestamp,
-					lastVisibleUserContent,
-					lastVisibleUserTimestamp,
+					state.LastVisibleUserContent,
+					state.LastVisibleUserTimestamp,
 				) {
 				continue
 			}
-			currentRoundID = textutil.FirstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
-			currentParentID := textutil.FirstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+currentRoundID)
-			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, currentParentID, decoded.SessionID)
+			state.CurrentRoundID = textutil.FirstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
+			currentParentID := textutil.FirstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+state.CurrentRoundID)
+			state.resetProcessor(workspacePath, sessionKey, agentID, state.CurrentRoundID, currentParentID, decoded.SessionID)
+			resetPending = checkpoint != nil
 			if marker.HiddenFromUser ||
 				boolValueAny(entry.Data["hidden_from_user"]) ||
 				isTranscriptGoalContextOnlyUserTurn(entry.Data) {
@@ -152,7 +202,7 @@ func visitProjectedTranscript(
 			userMessage := buildTranscriptUserMessage(
 				sessionKey,
 				agentID,
-				currentRoundID,
+				state.CurrentRoundID,
 				marker.SourceRoundID,
 				marker.UserMessageID,
 				decoded.SessionID,
@@ -167,21 +217,21 @@ func visitProjectedTranscript(
 				continue
 			}
 			emit(*userMessage)
-			lastVisibleUserContent = stringFromAny((*userMessage)["content"])
-			lastVisibleUserTimestamp = entryTimestamp
+			state.LastVisibleUserContent = stringFromAny((*userMessage)["content"])
+			state.LastVisibleUserTimestamp = entryTimestamp
 		case sdkprotocol.MessageTypeAssistant,
 			sdkprotocol.MessageTypeAttachment,
 			sdkprotocol.MessageTypeSystem,
 			sdkprotocol.MessageTypeTaskProgress:
 			// Echo 输出必须通过宿主准入后的 overlay 才能进入用户历史。
-			if currentRoundPurpose == "echo_followup" {
+			if state.CurrentRoundPurpose == "echo_followup" {
 				continue
 			}
-			if processor == nil {
-				currentRoundID = buildTranscriptRoundID(decoded.UUID)
-				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
+			if state.processor == nil {
+				state.CurrentRoundID = buildTranscriptRoundID(decoded.UUID)
+				state.resetProcessor(workspacePath, sessionKey, agentID, state.CurrentRoundID, "msg_user_"+state.CurrentRoundID, decoded.SessionID)
 			}
-			output := processor.Process(decoded)
+			output := state.processor.Process(decoded)
 			emit(stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
 		case sdkprotocol.MessageTypeResult:
 			// result 统一以 Nexus overlay 为真相源。
@@ -191,6 +241,9 @@ func visitProjectedTranscript(
 		default:
 			continue
 		}
+	}
+	if resetPending {
+		checkpoint(consumed, *state)
 	}
 }
 

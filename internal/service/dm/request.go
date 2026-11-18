@@ -249,12 +249,14 @@ func (e *dmChatExecution) prepareRunner() error {
 	defer admission.Release()
 	e.ctx = admission.Context()
 
-	preparation, err := e.prepareRuntime()
-	if err != nil {
-		return err
-	}
+	// 准备阶段也属于 round；连接与登记之间不能被资源压力回收当作空闲。
 	if !e.startRound() {
 		return runtimectx.ErrRuntimeSessionClosing
+	}
+	preparation, err := e.prepareRuntime()
+	if err != nil {
+		e.abortRegisteredRound()
+		return err
 	}
 	// session 与 round 已同时进入 Manager；后续认证转场可由 owner 级关闭完整撤销。
 	e.ctx = admissionBaseContext
@@ -296,7 +298,8 @@ func (e *dmChatExecution) acceptAndLaunch() error {
 }
 
 func (e *dmChatExecution) runAcceptedRound() {
-	admissionBaseContext := e.ctx
+	// 已 ACK 的请求由登记的 round 持有，前端断开不会撤销后续准备。
+	admissionBaseContext := e.roundCtx
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		admissionBaseContext,
 		e.service.Admission,
@@ -339,7 +342,18 @@ func (e *dmChatExecution) interruptRunningRound() error {
 }
 
 func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
-	runtimeCtx := e.runtimeContext()
+	runtimeCtx, cancel := context.WithCancel(runtimehost.ContextWithExactOwner(e.ctx, e.agent.OwnerUserID))
+	defer cancel()
+	if e.roundCtx != nil {
+		stop := context.AfterFunc(e.roundCtx, cancel)
+		defer stop()
+		if err := e.roundCtx.Err(); err != nil {
+			return dmRuntimePreparation{}, err
+		}
+	}
+	if err := runtimeCtx.Err(); err != nil {
+		return dmRuntimePreparation{}, err
+	}
 	slashInput := conversationsvc.IsSlashCommandInput(e.request.Content)
 	if slashInput && len(e.request.Attachments) > 0 {
 		return dmRuntimePreparation{}, slashCommandAttachmentError{}
@@ -396,7 +410,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 			clientPreparation.goalIDForUsage = goalID
 		}
 	}
-	if err = e.applyHistoryRewrite(clientPreparation.client); err != nil {
+	if err = e.applyHistoryRewrite(runtimeCtx, clientPreparation.client); err != nil {
 		return dmRuntimePreparation{}, err
 	}
 	recoveryContext := e.recoveryContextualInputs()
@@ -411,7 +425,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		atomicInput:         atomicInput,
 		recoveryContext:     recoveryContext,
 	}
-	return preparation, nil
+	return preparation, runtimeCtx.Err()
 }
 
 func (e *dmChatExecution) runtimeContext() context.Context {
@@ -479,8 +493,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.permissionMode = preparation.permissionMode
 }
 
-func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
-	runtimeCtx := e.runtimeContext()
+func (e *dmChatExecution) applyHistoryRewrite(runtimeCtx context.Context, client runtimectx.Client) error {
 	if e.request.rewriteOverlayOnly && len(e.request.RewriteRemoveMessageUUIDs) > 0 {
 		return errors.New("overlay-only rewrite cannot remove runtime messages")
 	}
@@ -517,6 +530,8 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 		RemoveMessageCount: e.request.RewriteRemoveMessageCount,
 	}); err != nil {
 		if hasLease {
+			// 此轮尚未开始 Query，先退出登记，避免回滚等待自己的完成信号。
+			e.abortRegisteredRound()
 			closeCtx, cancelClose := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 			_, closeErr := e.service.Runtime.CloseSessionIfLease(closeCtx, lease)
 			cancelClose()
@@ -542,6 +557,7 @@ func (e *dmChatExecution) startRound() bool {
 	roundBase := runtimehost.ContextWithExactOwner(context.WithoutCancel(e.ctx), e.agent.OwnerUserID)
 	roundCtx, cancel := context.WithCancel(roundBase)
 	if err := e.service.Runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
+		cancel()
 		return false
 	}
 	e.roundCtx = roundCtx

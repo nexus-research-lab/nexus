@@ -1,12 +1,14 @@
 // INPUT: runtime 消息中的动态标量、map 与 block。
-// OUTPUT: 消息投影共用的安全归一化值和副本。
+// OUTPUT: 消息投影共用的安全归一化值和副本；block 的 input/content 优先直接复用原始 JSON 值。
 // POS: message 包内无业务状态的解码辅助层。
 package message
 
 import (
 	"encoding/json"
 	"maps"
+	"math"
 	"strings"
+	"unicode/utf8"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
@@ -123,6 +125,97 @@ func decodeRawJSON(raw json.RawMessage) any {
 	return result
 }
 
+// decodeBlockJSONField 返回与 decodeRawJSON(encoded) 相同的值。SDK 的 encoded 字段由原始
+// payload[key] 序列化而来；原始值本身是 JSON 形状时直接规范化复制，免去大型工具输出
+// 的一次序列化与反序列化往返，其余情况仍走原路径。
+func decodeBlockJSONField(block sdkprotocol.ContentBlock, key string, encoded json.RawMessage) any {
+	if raw, exists := block.RawPayload()[key]; exists {
+		if value, ok := canonicalJSONValue(raw); ok {
+			return value
+		}
+	}
+	return decodeRawJSON(encoded)
+}
+
+// canonicalJSONValue 深拷贝 value，并得到与 json.Unmarshal(json.Marshal(value)) 相同的结果；
+// 遇到编码会改写内容（非法 UTF-8、非有限数、float32）或未知类型时返回 false。
+func canonicalJSONValue(value any) (any, bool) {
+	switch typed := value.(type) {
+	case nil, bool:
+		return typed, true
+	case string:
+		return typed, utf8.ValidString(typed)
+	case float64:
+		return typed, !math.IsNaN(typed) && !math.IsInf(typed, 0)
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case int32:
+		return float64(typed), true
+	case map[string]any:
+		if typed == nil {
+			return nil, true
+		}
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			if !utf8.ValidString(key) {
+				return nil, false
+			}
+			cloned, ok := canonicalJSONValue(item)
+			if !ok {
+				return nil, false
+			}
+			result[key] = cloned
+		}
+		return result, true
+	case []any:
+		if typed == nil {
+			return nil, true
+		}
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			cloned, ok := canonicalJSONValue(item)
+			if !ok {
+				return nil, false
+			}
+			result[index] = cloned
+		}
+		return result, true
+	case []map[string]any:
+		if typed == nil {
+			return nil, true
+		}
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			if item == nil {
+				result[index] = nil
+				continue
+			}
+			cloned, ok := canonicalJSONValue(item)
+			if !ok {
+				return nil, false
+			}
+			result[index] = cloned
+		}
+		return result, true
+	case []string:
+		if typed == nil {
+			return nil, true
+		}
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			if !utf8.ValidString(item) {
+				return nil, false
+			}
+			result[index] = item
+		}
+		return result, true
+	default:
+		return nil, false
+	}
+}
+
 func firstNonNilMap(values ...map[string]any) map[string]any {
 	for _, value := range values {
 		if len(value) > 0 {
@@ -217,12 +310,12 @@ func mergeNormalizedBlockPayload(payload map[string]any, block sdkprotocol.Conte
 		if value, ok := sdkprotocol.AsToolUseBlock(block); ok {
 			payload["id"] = value.ID
 			payload["name"] = value.Name
-			payload["input"] = firstNonNilMap(mapValue(decodeRawJSON(value.Input)), map[string]any{})
+			payload["input"] = firstNonNilMap(mapValue(decodeBlockJSONField(block, "input", value.Input)), map[string]any{})
 		}
 	case "tool_result":
 		if value, ok := sdkprotocol.AsToolResultBlock(block); ok {
 			payload["tool_use_id"] = value.ToolUseID
-			payload["content"] = decodeRawJSON(value.Content)
+			payload["content"] = decodeBlockJSONField(block, "content", value.Content)
 			payload["is_error"] = value.IsError
 			if value.ErrorCode != "" {
 				payload["error_code"] = value.ErrorCode

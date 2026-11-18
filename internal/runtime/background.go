@@ -91,6 +91,7 @@ func (m *Manager) finishBackgroundTask(sessionKey string, state *sessionState, t
 	}
 	m.mu.Lock()
 	delete(state.BackgroundTasks, taskID)
+	m.notifyResourceChangeLocked()
 	if len(state.BackgroundTasks) == 0 && state.BackgroundDone != nil {
 		close(state.BackgroundDone)
 		state.BackgroundDone = nil

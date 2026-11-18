@@ -97,6 +97,7 @@ func (m *Manager) RevokeAgentSessions(
 
 	m.mu.Lock()
 	m.revokedAgents[identity] = struct{}{}
+	m.notifyResourceChangeLocked()
 	for sessionKey, state := range m.sessions {
 		if state == nil || state.OwnerUserID != identity.ownerUserID {
 			continue

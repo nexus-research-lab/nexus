@@ -33,6 +33,7 @@ func (m *Manager) Close(ctx context.Context) error {
 	m.mu.Lock()
 	if m.shutdownDone == nil {
 		m.shutdownDone = make(chan struct{})
+		m.notifyResourceChangeLocked()
 		var cancellations []context.CancelFunc
 		for _, state := range m.sessions {
 			for _, round := range state.Rounds.items {

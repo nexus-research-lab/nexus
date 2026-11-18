@@ -144,7 +144,17 @@ type historyPageIndexBuild struct {
 	// DisabledCoverage 只在 Build 于 canonical read 前触发 source budget 时使用；
 	// Room ledger 自身超限时不能为了计算 marker 再解析 ledger 发现 dependencies。
 	DisabledCoverage string
+	// LargeDetails 由重建任务在发布 ready 前算好，零值表示未知、需要现场扫描。
+	LargeDetails historyPageLargeDetails
 }
+
+type historyPageLargeDetails uint8
+
+const (
+	historyPageLargeDetailsUnknown historyPageLargeDetails = iota
+	historyPageLargeDetailsAbsent
+	historyPageLargeDetailsPresent
+)
 
 type historyPageIndexRequest struct {
 	Limit                int
@@ -460,6 +470,9 @@ func (m *historyPageRebuildManager) run(
 	}
 	shouldPersist := future.err == nil && future.built.Cacheable &&
 		shouldPersistHistoryPageIndex(future.built)
+	if future.err == nil {
+		future.built.LargeDetails = classifyHistoryPageBuildLargeDetails(future.built)
+	}
 	persistBeforeReady := shouldPersist && (isRoomForegroundProjection(future.built.DisabledCoverage) || historyPageBuildHasLargeDetails(future.built))
 	var persistErr error
 	persistStarted := time.Now()

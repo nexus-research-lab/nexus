@@ -207,6 +207,7 @@ summary 文案：
 
 ### 3.2 transcript assistant 终态
 
+- 本节的终态只表示单条 assistant 回复完成。在线 round 必须等待 runtime wire `result`；`end_turn`、`stop_sequence`、`max_tokens` 和消息静默都不能替代整轮结果，缺少 `result` 的断流进入失败处理。
 - 终态只认 `message.stop_reason`：有值即终态 assistant，不要求存在独立 `result`；为空则是未完成快照。
 - 历史读取不能因“没有 result”把 transcript assistant 判成 interrupted；synthetic interrupted 只用于真正缺少终态且 round 已结束的场景。
 - 持久化层继续维护 assistant 的 `is_complete` 以兼容旧数据，但终态判定只看 `stop_reason`。

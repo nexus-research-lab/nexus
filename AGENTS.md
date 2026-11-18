@@ -50,7 +50,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   mcp/        - 宿主自有工具统一挂在单一 `nexus` MCP server；`nexus.command` 承载 Goal/Execution/Automation/Subagent
   cli/        - nexusctl / nexuscfg 本地命令行装配；模型侧命令不经过 CLI
   app/        - HTTP 与 CLI 共用的显式服务装配、资源所有权与进程生命周期
-  config/ storage/ infra/ migration/ version/ - 装配、持久化、基础设施与版本化迁移；infra/textutil 是只依赖标准库的字符串原语叶子包
+  config/ storage/ infra/ migration/ version/ - 装配、持久化、基础设施与版本化迁移；infra/textutil 是只依赖标准库的字符串原语叶子包；infra/hostmemory 提供由 app 注入 runtime 的平台内存探针
 docs/       - README.md 是索引；guides/ 面向用户与作者，operations/ 面向运维，testing/ 保存回归清单；验收证据留在本地或 CI artifact，不进入公开仓库，specs/ 保存当前维护者合同，explorations/ 保存 non-normative 在研专题
 </directory>
 ```

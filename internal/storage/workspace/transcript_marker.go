@@ -36,8 +36,15 @@ func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []
 
 	aligned := make([]transcriptRoundMarker, len(userTurns))
 	used := make([]bool, len(roundMarkers))
+	// 按清洗后的内容预建候选表：长会话中每个用户轮次只比较同内容的 marker，
+	// 避免 turns×markers 次重复清洗。候选按原下标升序，选择规则不变。
+	candidates := make(map[string][]int, len(roundMarkers))
+	for index, marker := range roundMarkers {
+		content := sanitizeTranscriptUserContent(marker.Content)
+		candidates[content] = append(candidates[content], index)
+	}
 	for index, turn := range userTurns {
-		markerIndex := findMatchingRoundMarker(roundMarkers, used, turn)
+		markerIndex := findMatchingRoundMarker(roundMarkers, candidates[turn.Content], used, turn)
 		if markerIndex < 0 {
 			continue
 		}
@@ -128,22 +135,21 @@ func transcriptUserTurnForMarker(data map[string]any, timestamp int64) (transcri
 	return transcriptUserTurn{Content: transcriptUserContent(data), Timestamp: timestamp, GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(data), Empty: empty}, true
 }
 
+// findMatchingRoundMarker 在 candidates（内容与 turn 相同、按下标升序的 marker）中选时间最近者。
 func findMatchingRoundMarker(
 	roundMarkers []transcriptRoundMarker,
+	candidates []int,
 	used []bool,
 	turn transcriptUserTurn,
 ) int {
-	content := turn.Content
-	if content == "" {
+	if turn.Content == "" {
 		return -1
 	}
 	bestIndex := -1
 	var bestDistance int64
-	for index, marker := range roundMarkers {
+	for _, index := range candidates {
+		marker := roundMarkers[index]
 		if index < len(used) && used[index] {
-			continue
-		}
-		if sanitizeTranscriptUserContent(marker.Content) != content {
 			continue
 		}
 		distance, ok := transcriptRoundMarkerDistance(turn.Timestamp, marker.Timestamp)

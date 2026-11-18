@@ -1,4 +1,4 @@
-// INPUT: SDK client factory 与 session/round 生命周期状态。
+// INPUT: SDK client factory、宿主资源准入配置与 session/round 生命周期状态。
 // OUTPUT: 并发安全的 runtime session 状态管理器。
 // POS: runtime client、round、guidance、结果回调与 Goal accounting 的共享状态根。
 package runtime
@@ -35,15 +35,17 @@ type sessionState struct {
 	OwnerUserID              string
 	ProcessPolicyFingerprint string
 	CacheSurface             CacheSurfaceProfile
+	SubagentRuns             map[string]*subagentRun
 	HasSubagentHistory       bool
 	LastUsedAt               time.Time
 }
 
 type sessionStartupGate struct {
-	token       chan struct{}
-	refs        int
-	closeBlocks int
-	closeEpoch  uint64
+	token            chan struct{}
+	refs             int
+	closeBlocks      int
+	closeEpoch       uint64
+	resourceReserved bool
 }
 
 // Manager 管理 session_key -> SDK client 与运行中 round。
@@ -64,6 +66,8 @@ type Manager struct {
 	shutdownErr           error
 	activeStartups        int
 	startupsDrained       chan struct{}
+	resourceLimits        ResourceLimits
+	resourceChanged       chan struct{}
 	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
 	// 放在 Manager 根上，避免 idle session 回收后立刻丢失高水位。
 	subagentUsageTotals map[string]int64

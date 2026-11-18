@@ -1,17 +1,18 @@
 // INPUT: runtime transcript JSONL 与父链/并行工具关联。
 // OUTPUT: 供历史投影消费的主链，以及与主链工具调用对应的并行结果和子任务附件。
-// POS: transcript 读取、规范化与执行链选择边界。
+// POS: transcript 读取、规范化与执行链选择边界；完整解析经 transcript_parallel_read.go 分块并行。
 package workspace
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"sort"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
@@ -27,40 +28,57 @@ func (s *AgentHistoryStore) readTranscriptEntriesAtContext(
 	root *confinedfs.Root,
 	relative string,
 ) ([]transcriptEntry, error) {
+	entries, _, _, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative)
+	return entries, err
+}
+
+// readTranscriptEntriesLineageAtContext 额外返回缓存路径与解析代系；
+// 未进入缓存（读取期间仍在写入或文件过大）时代系为 0。
+func (s *AgentHistoryStore) readTranscriptEntriesLineageAtContext(
+	ctx context.Context,
+	root *confinedfs.Root,
+	relative string,
+) ([]transcriptEntry, string, uint64, error) {
 	file, err := s.openTranscriptReadFile(root, relative)
 	if err != nil {
-		return nil, err
+		return nil, "", 0, err
 	}
 	defer file.Close()
 	info, err := file.Stat()
 	if err != nil {
-		return nil, err
+		return nil, "", 0, err
 	}
 	before, err := snapshotOpenedFile(ctx, file, info, historyPageSourceSnapshot{})
 	if err != nil {
-		return nil, err
+		return nil, "", 0, err
 	}
 	path := filepath.Join(root.Name(), relative)
-	if cached, ok := s.readTranscriptCache(path, before); ok {
-		return cached, nil
+	if cached, lineage, ok := s.readTranscriptCacheLineage(path, before); ok {
+		return cached, path, lineage, nil
 	}
-	entries, err := readTranscriptEntriesFileContext(ctx, file)
+	if extended, lineage, ok, err := s.extendTranscriptCache(ctx, path, file, before); err != nil {
+		return nil, "", 0, err
+	} else if ok {
+		return extended, path, lineage, nil
+	}
+	entries, nextIndex, err := readTranscriptEntriesParallelContext(ctx, file, before.Size)
 	if err != nil {
-		return nil, err
+		return nil, "", 0, err
 	}
 	info, err = file.Stat()
 	if err != nil {
-		return nil, err
+		return nil, "", 0, err
 	}
 	after, err := snapshotOpenedFile(ctx, file, info, historyPageSourceSnapshot{})
 	if err != nil {
-		return nil, err
+		return nil, "", 0, err
 	}
 	// 读取期间仍在写入的文件不进入缓存，由调用方原有 source 校验决定是否重试。
+	var lineage uint64
 	if before == after {
-		s.writeTranscriptCache(path, after, entries)
+		lineage = s.writeTranscriptCache(path, after, entries, nextIndex)
 	}
-	return entries, nil
+	return entries, path, lineage, nil
 }
 
 // openTranscriptReadFile 让 Room 引用投影和分页指纹也复用 owner ACL 修复。
@@ -72,20 +90,29 @@ func (s *AgentHistoryStore) openTranscriptReadFile(root *confinedfs.Root, relati
 }
 
 func readTranscriptEntriesFileContext(ctx context.Context, file *os.File) ([]transcriptEntry, error) {
-	reader := bufio.NewScanner(file)
+	entries, _, err := readTranscriptEntriesReaderContext(ctx, file, 0)
+	return entries, err
+}
+
+// readTranscriptEntriesReaderContext 从 startIndex 开始按行编号解析 JSONL，
+// 返回条目和下一个行号；空行与无法解析的行也占用行号，保证追加解析与完整解析编号一致。
+func readTranscriptEntriesReaderContext(ctx context.Context, input io.Reader, startIndex int) ([]transcriptEntry, int, error) {
+	reader := bufio.NewScanner(input)
 	reader.Buffer(make([]byte, 0, transcriptReadBufferBytes), transcriptScannerBufferBytes)
 
 	results := make([]transcriptEntry, 0)
-	for index := 0; reader.Scan(); index++ {
+	index := startIndex
+	for ; reader.Scan(); index++ {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		line := strings.TrimSpace(reader.Text())
-		if line == "" {
+		// Unmarshal 不保留输入，直接解析扫描器缓冲区，免去每行两次复制。
+		line := bytes.TrimSpace(reader.Bytes())
+		if len(line) == 0 {
 			continue
 		}
 		entry := map[string]any{}
-		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		if err := json.Unmarshal(line, &entry); err != nil {
 			continue
 		}
 		normalizeTranscriptEntryShape(entry)
@@ -98,9 +125,9 @@ func readTranscriptEntriesFileContext(ctx context.Context, file *os.File) ([]tra
 		})
 	}
 	if err := reader.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return results, ctx.Err()
+	return results, index, ctx.Err()
 }
 
 func normalizeTranscriptEntryShape(entry map[string]any) {

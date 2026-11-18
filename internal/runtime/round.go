@@ -307,6 +307,7 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 	}
 	m.markRoundTerminalLocked(state, roundID)
 	state.Rounds.cleanup(roundID)
+	m.notifyResourceChangeLocked()
 	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
 	observer := m.roundFinishedObserver
 	m.mu.Unlock()
