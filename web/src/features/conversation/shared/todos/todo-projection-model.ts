@@ -273,42 +273,114 @@ export function projectConversationTodos(
   return projectConversationTodoProjection(messages, sessionKey).todos;
 }
 
-export function projectConversationTodoProcesses(
-  messages: Message[],
-  sessionKey: string | null,
-): ConversationTodoProcess[] {
-  if (!sessionKey || messages.length === 0) {
-    return [];
-  }
+/**
+ * 分组投影的跨帧缓存。消息对象不可变，组内消息逐个同一引用时上次投影仍然成立；
+ * 流式帧只重算正在变化的 Agent / Agent round，其余组直接复用。投影依赖 session
+ * 过滤，缓存记录所属 sessionKey，换会话时整体失效。
+ */
+export interface TodoGroupProjectionCache {
+  groups: Map<string, TodoGroupCacheEntry>;
+  sessionKey: string | null;
+}
 
-  const messagesByAgent = new Map<string, {
-    indexes: number[];
-    messages: Message[];
-  }>();
+interface TodoGroupCacheEntry {
+  messages: Message[];
+  projection: ConversationTodoProjection;
+}
+
+interface TodoMessageGroup {
+  indexes: number[];
+  messages: Message[];
+}
+
+export function createTodoGroupProjectionCache(): TodoGroupProjectionCache {
+  return { groups: new Map(), sessionKey: null };
+}
+
+function hasSameMessages(left: Message[], right: Message[]): boolean {
+  return left.length === right.length
+    && left.every((message, index) => message === right[index]);
+}
+
+/** 按 key 分组后逐组投影；只保留本次仍存在的组，消失的组随之释放。 */
+function projectTodoGroups(
+  groups: Map<string, TodoMessageGroup>,
+  sessionKey: string,
+  cache: TodoGroupProjectionCache,
+): Map<string, ConversationTodoProjection> {
+  const previous = cache.sessionKey === sessionKey ? cache.groups : null;
+  const next = new Map<string, TodoGroupCacheEntry>();
+  const projections = new Map<string, ConversationTodoProjection>();
+  for (const [key, group] of groups) {
+    const prior = previous?.get(key);
+    const entry = prior && hasSameMessages(prior.messages, group.messages)
+      ? prior
+      : {
+        messages: group.messages,
+        projection: projectConversationTodoProjection(group.messages, sessionKey),
+      };
+    next.set(key, entry);
+    projections.set(key, entry.projection);
+  }
+  cache.groups = next;
+  cache.sessionKey = sessionKey;
+  return projections;
+}
+
+function groupSessionMessages(
+  messages: Message[],
+  sessionKey: string,
+  resolveKey: (message: Message) => string | null,
+): Map<string, TodoMessageGroup> {
+  const groups = new Map<string, TodoMessageGroup>();
   messages.forEach((message, messageIndex) => {
     if (!isSameSessionMessage(message, sessionKey)) {
       return;
     }
-    const agentId = message.agent_id.trim();
-    if (!agentId) {
+    const key = resolveKey(message);
+    if (!key) {
       return;
     }
-    const group = messagesByAgent.get(agentId) ?? {
-      indexes: [],
-      messages: [],
-    };
+    const group = groups.get(key) ?? { indexes: [], messages: [] };
     group.indexes.push(messageIndex);
     group.messages.push(message);
-    messagesByAgent.set(agentId, group);
+    groups.set(key, group);
   });
+  return groups;
+}
 
+function agentGroupKey(message: Message): string | null {
+  return message.agent_id.trim() || null;
+}
+
+// \u0000 不会出现在 ID 中，保证 agent 与 agent round 拼接后仍可唯一拆分。
+const AGENT_ROUND_KEY_SEPARATOR = "\u0000";
+
+function agentRoundGroupKey(message: Message): string | null {
+  const agentId = message.agent_id.trim();
+  const agentRoundId = message.agent_round_id?.trim() ?? "";
+  return agentId && agentRoundId
+    ? `${agentId}${AGENT_ROUND_KEY_SEPARATOR}${agentRoundId}`
+    : null;
+}
+
+export function projectConversationTodoProcesses(
+  messages: Message[],
+  sessionKey: string | null,
+  cache: TodoGroupProjectionCache = createTodoGroupProjectionCache(),
+): ConversationTodoProcess[] {
+  if (!sessionKey || messages.length === 0) {
+    cache.groups = new Map();
+    cache.sessionKey = sessionKey;
+    return [];
+  }
+
+  const groups = groupSessionMessages(messages, sessionKey, agentGroupKey);
+  const projections = projectTodoGroups(groups, sessionKey, cache);
   const processes: ConversationTodoProcess[] = [];
-  for (const [agentId, group] of messagesByAgent) {
-    const projection = projectConversationTodoProjection(
-      group.messages,
-      sessionKey,
-    );
-    if (projection.todos.length === 0) {
+  for (const [agentId, group] of groups) {
+    const projection = projections.get(agentId);
+    if (!projection || projection.todos.length === 0) {
       continue;
     }
     processes.push({
@@ -324,53 +396,30 @@ export function projectConversationTodoProcesses(
 export function projectConversationTaskRuns(
   messages: Message[],
   sessionKey: string | null,
+  cache: TodoGroupProjectionCache = createTodoGroupProjectionCache(),
 ): ConversationTaskRun[] {
   if (!sessionKey || messages.length === 0) {
+    cache.groups = new Map();
+    cache.sessionKey = sessionKey;
     return [];
   }
 
-  const groupsByAgent = new Map<string, Map<string, {
-    indexes: number[];
-    messages: Message[];
-  }>>();
-  messages.forEach((message, messageIndex) => {
-    if (!isSameSessionMessage(message, sessionKey)) {
-      return;
-    }
-    const agentId = message.agent_id.trim();
-    const agentRoundId = message.agent_round_id?.trim() ?? "";
-    if (!agentId || !agentRoundId) {
-      return;
-    }
-    const groupsByRound = groupsByAgent.get(agentId) ?? new Map();
-    const group = groupsByRound.get(agentRoundId) ?? {
-      indexes: [],
-      messages: [],
-    };
-    group.indexes.push(messageIndex);
-    group.messages.push(message);
-    groupsByRound.set(agentRoundId, group);
-    groupsByAgent.set(agentId, groupsByRound);
-  });
-
+  const groups = groupSessionMessages(messages, sessionKey, agentRoundGroupKey);
+  const projections = projectTodoGroups(groups, sessionKey, cache);
   const runs: ConversationTaskRun[] = [];
-  for (const [agentId, groupsByRound] of groupsByAgent) {
-    for (const [agentRoundId, group] of groupsByRound) {
-      const projection = projectConversationTodoProjection(
-        group.messages,
-        sessionKey,
-      );
-      if (projection.todos.length === 0) {
-        continue;
-      }
-      runs.push({
-        agentId,
-        agentRoundId,
-        latestTaskEventIndex:
-          group.indexes[projection.latestTaskEventIndex] ?? -1,
-        todos: projection.todos,
-      });
+  for (const [key, group] of groups) {
+    const projection = projections.get(key);
+    if (!projection || projection.todos.length === 0) {
+      continue;
     }
+    const [agentId, agentRoundId] = key.split(AGENT_ROUND_KEY_SEPARATOR);
+    runs.push({
+      agentId,
+      agentRoundId,
+      latestTaskEventIndex:
+        group.indexes[projection.latestTaskEventIndex] ?? -1,
+      todos: projection.todos,
+    });
   }
   return runs.sort((left, right) => (
     left.latestTaskEventIndex - right.latestTaskEventIndex
