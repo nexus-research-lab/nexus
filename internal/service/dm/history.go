@@ -1,6 +1,6 @@
 // INPUT: DM Session、SDK transcript identity、runtime/tool-surface fingerprint 与 round marker。
 // OUTPUT: 持久 Session runtime 状态、完整 transcript lineage 和可恢复历史投影。
-// POS: DM Session 历史与 SDK identity 的唯一写回事务。
+// POS: DM Session 历史与 SDK identity 的唯一写回事务；写入 round marker 后触发历史解析的后台预热。
 package dm
 
 import (
@@ -246,14 +246,20 @@ func (s *Service) recordRoundMarkerWithOptionsForOwner(
 	content string,
 	options workspacestore.RoundMarkerOptions,
 ) error {
-	return s.History.ForOwner(ownerUserID).AppendRoundMarkerWithOptions(
+	history := s.History.ForOwner(ownerUserID)
+	if err := history.AppendRoundMarkerWithOptions(
 		workspacePath,
 		sessionValue.SessionKey,
 		roundID,
 		content,
 		time.Now().UnixMilli(),
 		options,
-	)
+	); err != nil {
+		return err
+	}
+	// 模型回复期间在后台预热历史解析，轮次结束后的刷新只需处理本轮新增内容。
+	history.PrewarmTranscriptHistory(workspacePath, sessionValue)
+	return nil
 }
 
 func (s *Service) syncSDKSessionIDForOwner(

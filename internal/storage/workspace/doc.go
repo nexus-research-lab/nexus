@@ -18,7 +18,8 @@
 //   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型。
 //   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试；transcript reader 与分页指纹共用修复入口。
 //   - transcript_*.go：基于文件身份/大小/mtime/首尾指纹且由普通、分段、显式读取共用的 JSONL 解析缓存（纯追加只解析新增字节并沿用解析代系；完整解析大文件时按换行分块并行，行号与顺序解析一致）、
-//     DM 投影前缀检查点（同代系主链与 marker 前缀不变时只重放最后一个用户轮次之后的条目）、重复 UUID/自指链修复、reader、path、session、project、
+//     DM 投影前缀检查点（同代系主链与 marker 前缀不变时只重放最后一个用户轮次之后的条目；DM 轮次开始时可在后台有界预热，
+//     使重启后第一轮的刷新也走增量路径）、重复 UUID/自指链修复、reader、path、session、project、
 //     可见性安全的 marker 对齐（含 reminder 提取后的空白 Goal 续跑）、guidance 与 root/source round 投影；
 //     投影与 rewrite/fork 共用边界，派生读模型升级时清除旧轮次归属。
 //   - 有界定向消息队列用 client_message_id 读取完整入队账本，已消费输入在恢复时不会重复派发。
