@@ -19,7 +19,7 @@ import {
 } from "@/features/conversation/shared/feed/use-conversation-virtual-scroll-policy";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { getConversationRoundNavigationTarget } from "@/features/conversation/shared/timeline/scroll/round-scroll";
-import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
+import { useRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import {
   buildGroupConversationRoundAliases,
@@ -60,26 +60,21 @@ export function GroupConversationVirtualFeed({
     )),
   ), [source]);
 
-  const heightMap = useMemo(() => {
-    const baseHeights = estimateRoundHeights(
-      source.roundIds,
-      source.messageGroups,
-      metrics.containerWidth,
-      activeRoundIds,
-    );
-    return projectGroupRoundHeights({
+  const baseHeights = useRoundHeights(
+    source.roundIds,
+    source.messageGroups,
+    metrics.containerWidth,
+    activeRoundIds,
+  );
+  const heightMap = useMemo(
+    () => projectGroupRoundHeights({
       baseHeights,
       messageGroups: source.messageGroups,
       pendingSlotGroups: source.pendingSlotGroups,
       roundIds: source.roundIds,
-    });
-  }, [
-    activeRoundIds,
-    metrics.containerWidth,
-    source.messageGroups,
-    source.pendingSlotGroups,
-    source.roundIds,
-  ]);
+    }),
+    [baseHeights, source.messageGroups, source.pendingSlotGroups, source.roundIds],
+  );
   const virtualizer = useVirtualizer({
     count: source.roundIds.length,
     estimateSize: (index) => heightMap.get(source.roundIds[index]) ?? 200,
