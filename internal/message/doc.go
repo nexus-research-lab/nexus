@@ -10,7 +10,7 @@
 //   - tool_result.go / workspace_artifact.go / workgraph_artifact.go：工具结果消息、typed applied mutation 观察、fail-closed Goal 进展、工作区产物与受管 WorkGraph 草图卡片投影。
 //     Computer Use 观察和动作后观察的图片与 AX 内容只供即时模型响应，持久化投影保留摘要。
 //   - segment_assistant.go / projection_result.go：assistant 分段、工具输入与自然语言易失进度投影、结果摘要、排除思考/工具过程的末尾正文提取与 160 字短摘要，以及只公开已知耗时/actual token 的 Goal 完成收据挂载。
-//   - helpers.go：共享归一化与单路径 block 投影辅助。
+//   - helpers.go：共享归一化与单路径 block 投影辅助；block 的 input/content 优先复用原始 JSON 值，免去编解码往返。
 //   - history_result_summary.go：历史结果的物理 Agent round 配对、旧记录兼容与未匹配结果合成；不依赖存储或索引实现。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

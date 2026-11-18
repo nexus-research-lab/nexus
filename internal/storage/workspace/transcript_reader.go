@@ -1,10 +1,11 @@
 // INPUT: runtime transcript JSONL 与父链/并行工具关联。
 // OUTPUT: 供历史投影消费的主链，以及与主链工具调用对应的并行结果和子任务附件。
-// POS: transcript 读取、规范化与执行链选择边界。
+// POS: transcript 读取、规范化与执行链选择边界；完整解析经 transcript_parallel_read.go 分块并行。
 package workspace
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -12,7 +13,6 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
@@ -61,7 +61,7 @@ func (s *AgentHistoryStore) readTranscriptEntriesLineageAtContext(
 	} else if ok {
 		return extended, path, lineage, nil
 	}
-	entries, nextIndex, err := readTranscriptEntriesReaderContext(ctx, file, 0)
+	entries, nextIndex, err := readTranscriptEntriesParallelContext(ctx, file, before.Size)
 	if err != nil {
 		return nil, "", 0, err
 	}
@@ -106,12 +106,13 @@ func readTranscriptEntriesReaderContext(ctx context.Context, input io.Reader, st
 		if err := ctx.Err(); err != nil {
 			return nil, 0, err
 		}
-		line := strings.TrimSpace(reader.Text())
-		if line == "" {
+		// Unmarshal 不保留输入，直接解析扫描器缓冲区，免去每行两次复制。
+		line := bytes.TrimSpace(reader.Bytes())
+		if len(line) == 0 {
 			continue
 		}
 		entry := map[string]any{}
-		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		if err := json.Unmarshal(line, &entry); err != nil {
 			continue
 		}
 		normalizeTranscriptEntryShape(entry)

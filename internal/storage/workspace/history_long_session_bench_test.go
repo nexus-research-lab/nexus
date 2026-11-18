@@ -189,3 +189,47 @@ func resetHistoryReadModelsForBenchmark(tb testing.TB, fixture *longSessionFixtu
 	fixture.history = NewAgentHistoryStore(filepath.Dir(fixture.workspacePath))
 	fixture.appendRound(tb)
 }
+
+// simulateHistoryProcessRestart 丢弃所有进程内状态：解析缓存、投影检查点、读模型连接与落盘备忘。
+func simulateHistoryProcessRestart(tb testing.TB, fixture *longSessionFixture) {
+	tb.Helper()
+	path := historyReadModelPath(filepath.Dir(fixture.workspacePath))
+	if value, ok := historyReadModels.LoadAndDelete(path); ok {
+		model := value.(*historyReadModel)
+		model.mu.Lock()
+		if model.db != nil {
+			_ = model.db.Close()
+		}
+		model.mu.Unlock()
+	}
+	fixture.history = NewAgentHistoryStore(filepath.Dir(fixture.workspacePath))
+}
+
+// BenchmarkLongSessionHistoryRestartUnchanged 重启后打开未变化的长会话，应直接命中落盘读模型。
+func BenchmarkLongSessionHistoryRestartUnchanged(b *testing.B) {
+	fixture := newLongSessionFixture(b, benchmarkLongSessionRounds(), 8*1024)
+	fixture.readFirstPage(b)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		b.StopTimer()
+		simulateHistoryProcessRestart(b, fixture)
+		b.StartTimer()
+		fixture.readFirstPage(b)
+	}
+}
+
+// BenchmarkLongSessionHistoryRestartAppended 重启前 transcript 已追加但读模型未更新（崩溃或关闭前未落盘）。
+func BenchmarkLongSessionHistoryRestartAppended(b *testing.B) {
+	fixture := newLongSessionFixture(b, benchmarkLongSessionRounds(), 8*1024)
+	fixture.readFirstPage(b)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		b.StopTimer()
+		simulateHistoryProcessRestart(b, fixture)
+		fixture.appendRound(b)
+		b.StartTimer()
+		fixture.readFirstPage(b)
+	}
+}
