@@ -6,7 +6,7 @@
 
 - Native shell：C# + WPF，负责窗口、单实例、基础 `nexus://` 唤起和后续任务栏、系统菜单、通知、更新。
 - WebView：WebView2，只作为 React/Vite UI 的渲染面。
-- 窗口 chrome：WPF `WindowChrome` 保留四边缩放；独立 34-DIP 原生栏承载应用图标、前进/后退、文件/编辑/视图/帮助菜单和最小化、最大化/还原、关闭控件，且只有该栏空白区参与拖窗。`WebView2CompositionControl` 从下一行完整铺开并始终保持客户区，Web Header、搜索区和内容不再投影为非客户区；最小化或隐藏到托盘前显式切换 WPF `Visibility`，由 WebView2 映射到 controller 可见性，恢复时走同一路径重新启用输入。`/app` 无空白 Header、透明拖动条或 caption controls 留白。
+- 窗口 chrome：WPF `WindowChrome` 保留四边缩放；独立 34-DIP 原生栏承载应用图标、前进/后退、文件/编辑/视图/帮助菜单和最小化、最大化/还原、关闭控件，且只有该栏空白区参与拖窗。`WebView2CompositionControl` 从下一行完整铺开并始终保持客户区，Web Header、搜索区和内容不再投影为非客户区；最小化或隐藏到托盘前显式切换 WPF `Visibility`，由 WebView2 映射到 controller 可见性，恢复时走同一路径重新启用输入。标题栏/托盘的重载与清缓存一律重建 `WebView2CompositionControl`，不在原控件上重新导航；显示设置变化或远程桌面连上、切回本地控制台时防抖后重建一次，因为 CompositionControl 的画面转运在显示设备切换后可能失效，而页面 JS 照常运行，DOM 探针无法发现。`/app` 无空白 Header、透明拖动条或 caption controls 留白。
 - 原生反馈：菜单、更新和启动错误统一使用 Nexus 原生主题与模态对话框；系统 `MessageBox`、菜单默认模板和独立更新窗口不得形成第二套视觉语言。
 - `Theme/NexusNativeTheme.cs` 当前投影 Web 浅色主题；颜色所有权与校验方式见[前端工程规范](../../docs/specs/frontend-engineering-spec.md#41-design-token)。前端门禁会检查投影漂移，但不替代 Windows 实机的菜单、对话框与 WebView2 验收。
 - Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`，正式包优先使用 `Resources\bin\nxs.exe` 作为 `nxs` runtime。
