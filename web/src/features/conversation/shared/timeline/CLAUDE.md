@@ -1,7 +1,7 @@
 # Conversation Timeline
 
 - `timeline-model.ts` 定义时间线投影、消息/slot/permission/Room execution 锚点的根轮次分组和可见内容规则，是 feed 与 navigator 的共同数据源；隐藏消息、私域 Room execution 证据及其 live round 只在这里过滤一次。
-- `use-conversation-timeline.ts` 只负责分组结果的 React 记忆化，不承载加载协议。
+- `use-conversation-timeline.ts` 只负责分组结果的 React 记忆化，不承载加载协议；分组经 `stable-group-map.ts` 结构共享，逐元素同一引用的轮次跨流式帧保持数组身份，Room 节点投影复用同一入口。
 - `scroll/` 集中自动跟随、历史锚点、局部展开锚点、动画和轮次 DOM 导航协议。
 - `window-loader/` 分离可见候选选择、请求/重试运行时和 React 调度；旧会话完成不得修改新会话状态。
 - 可见窗口加载失败采用有限重试；失败轮次不能在当前会话内被永久忽略。

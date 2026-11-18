@@ -7,7 +7,7 @@ import { MarkdownText } from "../streaming/markdown-streaming";
 import { MARKDOWN_PLUGINS, REHYPE_PLUGINS } from "./markdown-renderer-shared";
 
 it("hides complete and streaming comments across empty lines without hiding code examples", () => {
-  const props = { components: undefined, streamingComponents: undefined, remarkPlugins: MARKDOWN_PLUGINS, rehypePlugins: REHYPE_PLUGINS, urlTransform: undefined };
+  const props = { components: undefined, remarkPlugins: MARKDOWN_PLUGINS, rehypePlugins: REHYPE_PLUGINS, urlTransform: undefined };
   const prefix = "Delivered the report.\n\n<!-- nexus-workgraph-result\n";
   const { container, rerender } = render(<MarkdownText {...props} content={prefix} isStreaming />);
   for (const content of [prefix, prefix + '{"version":1,\n\n"delivery":{"result_summary":"private protocol payload"}}', prefix + '{"version":1}\n-->']) {

@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前仍有展示 backlog 的 Markdown 流订阅者与浏览器动画帧驱动。
- * OUTPUT: 全应用只保留一个 RAF，以固定总字符预算公平唤醒全部可见流。
+ * OUTPUT: 全应用只保留一个 RAF，以固定总字符预算与有界提交数公平唤醒全部可见流。
  * POS: 多 Agent 流式正文的共享提交时钟；只调度展示内容，不预测或动画 DOM 高度。
  */
 
@@ -9,12 +9,14 @@ export type StreamFrameSubscriber = (
   revealGrant: number,
 ) => number;
 
-// 驱动最高 30Hz，且每个展示帧只允许一条流真正提交；长 Markdown 的同步
-// 解析和布局不会因高刷新率屏幕或并行 Agent 越过这一上限。
+// 驱动最高 30Hz。同一 RAF 内的多条流提交由 React 合成一次渲染与一次布局，
+// FOLLOW 也只写一次 scrollTop；因此并行 Agent 同帧提交，避免每条流退化为 30/N Hz。
+// 每帧最多提交 4 条流，长 Markdown 的同步解析不会随 Agent 数量无界增长。
 const STREAM_PRESENTATION_FRAME_INTERVAL_MS = 1000 / 30;
+const STREAM_PRESENTATION_MAX_COMMITS = 4;
 const STREAM_PRESENTATION_FRAME_EPSILON_MS = 0.5;
-// 字符时钟决定本帧需求；此上限只约束大块追赶的单次提交量，避免固定
-// 4 字符把整个 Room 锁在 120 字/s。并行流仍共享一个提交名额。
+// 字符时钟决定本帧需求；此上限约束同帧全部提交的总量，避免固定
+// 4 字符把整个 Room 锁在 120 字/s。
 const STREAM_PRESENTATION_REVEAL_CAP = 2048;
 
 interface StreamFrameDriver {
@@ -90,11 +92,13 @@ export class StreamFrameScheduler {
       ...currentSubscribers.slice(startIndex),
       ...currentSubscribers.slice(0, startIndex),
     ];
-    const revealGrant = Math.max(0, Math.floor(this.revealCap));
-    if (revealGrant === 0) {
+    let remainingGrant = Math.max(0, Math.floor(this.revealCap));
+    if (remainingGrant === 0) {
       return;
     }
     let firstVisitedIndex: number | null = null;
+    let lastCommittedIndex: number | null = null;
+    let commits = 0;
 
     for (let index = 0; index < orderedSubscribers.length; index += 1) {
       const subscriber = orderedSubscribers[index];
@@ -103,30 +107,32 @@ export class StreamFrameScheduler {
       }
 
       firstVisitedIndex ??= index;
-      const consumed = subscriber(timestamp, revealGrant);
+      const consumed = subscriber(timestamp, remainingGrant);
       if (
         !Number.isInteger(consumed)
         || consumed < 0
-        || consumed > revealGrant
+        || consumed > remainingGrant
       ) {
         throw new Error(
-          `Stream frame subscriber consumed ${consumed}; grant was ${revealGrant}`,
+          `Stream frame subscriber consumed ${consumed}; grant was ${remainingGrant}`,
         );
       }
-      if (consumed > 0) {
-        this.nextSubscriber = this.findNextActiveSubscriber(
-          orderedSubscribers,
-          index,
-        );
-        return;
+      if (consumed === 0) {
+        continue;
+      }
+      lastCommittedIndex = index;
+      remainingGrant -= consumed;
+      commits += 1;
+      if (remainingGrant === 0 || commits >= STREAM_PRESENTATION_MAX_COMMITS) {
+        break;
       }
     }
 
-    // buffering 流返回 0，不占本帧唯一一次实际提交；若所有流都暂不可消费，
-    // 下一帧仍轮转起点，避免首个 buffering 流长期占据探测顺序。
+    // 下一帧从最后一条实际提交之后开始；额度或提交数耗尽时未轮到的流优先。
+    // buffering 流返回 0，不占提交名额；若全部暂不可消费，仍轮转探测起点。
     this.nextSubscriber = this.findNextActiveSubscriber(
       orderedSubscribers,
-      firstVisitedIndex ?? 0,
+      lastCommittedIndex ?? firstVisitedIndex ?? 0,
     );
   }
 

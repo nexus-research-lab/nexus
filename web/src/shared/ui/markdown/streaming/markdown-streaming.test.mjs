@@ -37,14 +37,14 @@ test("并行 Markdown 流共用一个帧提交且空闲后停止调度", async (
   assert.deepEqual(
     commits,
     ["first:16"],
-    "one display frame must commit at most one busy stream",
+    "a stream that exhausts the shared cap ends the frame",
   );
   assert.equal(
     consumptions
       .filter((entry) => entry.timestamp === 16)
       .reduce((total, entry) => total + entry.grant, 0),
     2048,
-    "large block catch-up stays bounded per commit",
+    "large block catch-up stays bounded per frame",
   );
   assert.equal(frames.length, 2, "active streams schedule one shared next frame");
 
@@ -66,6 +66,37 @@ test("并行 Markdown 流共用一个帧提交且空闲后停止调度", async (
     [4],
     "the last idle stream must cancel the outstanding shared frame",
   );
+});
+
+test("并行低速流在同一展示帧提交，且每帧提交数有上限", async () => {
+  const { StreamFrameScheduler } = await import("@/shared/ui/markdown/streaming/stream-frame-scheduler.ts");
+  const frames = [];
+  const scheduler = new StreamFrameScheduler({
+    cancel: () => undefined,
+    request: (callback) => {
+      frames.push(callback);
+      return frames.length;
+    },
+  });
+  const served = [];
+  const unsubscribers = ["a", "b", "c", "d", "e"].map((name) => (
+    scheduler.subscribe((timestamp) => {
+      served.push(`${name}:${timestamp}`);
+      return 2;
+    })
+  ));
+
+  frames[0](16);
+  assert.deepEqual(
+    served,
+    ["a:16", "b:16", "c:16", "d:16"],
+    "parallel Agents must not degrade to 30/N Hz, but one frame commits at most four streams",
+  );
+  frames[1](50);
+  assert.equal(served[4], "e:50", "the stream left out by the commit cap goes first next frame");
+  for (const unsubscribe of unsubscribers) {
+    unsubscribe();
+  }
 });
 
 test("共享帧字符额度固定且按轮转顺序公平分配", async () => {

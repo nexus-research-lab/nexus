@@ -23,9 +23,14 @@ export const GroupConversationFeed = memo(function GroupConversationFeed(
   props: GroupConversationFeedProps,
 ) {
   const { isMobileLayout, refs, renderer, source } = props;
+    // Room 每个 Agent 回复是独立节点；阈值按用户轮次（root）计，避免多 Agent 群过早整树切换到虚拟列表。
+  const rootCount = useMemo(
+    () => new Set(source.roundIds.map((nodeId) => source.rootRoundIds?.get(nodeId) ?? nodeId)).size,
+    [source.rootRoundIds, source.roundIds],
+  );
   const shouldVirtualize = useConversationVirtualizationPolicy({
     active: source.liveLayoutActive,
-    count: source.roundIds.length,
+    count: rootCount,
     scopeKey: source.scopeKey,
     threshold: VIRTUAL_ROUND_THRESHOLD,
   }) && props.leadingContent == null && Boolean(refs.scrollRef);
