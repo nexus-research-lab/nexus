@@ -1,5 +1,5 @@
 // INPUT: transcript、overlay 与 round marker 状态。
-// OUTPUT: 规范化并保留 source round 的 Agent 历史消息。
+// OUTPUT: 规范化并保留 source round 的 Agent 历史消息；非 fork 读取经投影前缀检查点只重放新增轮次。
 // POS: workspace Agent 历史读取与物化入口。
 package workspace
 
@@ -296,7 +296,7 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 	defer root.Close()
 
 	throughMessageID = strings.TrimSpace(throughMessageID)
-	entries, err := s.readTranscriptEntriesAtContext(ctx, root, relative)
+	entries, cachePath, lineage, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative)
 	if err != nil {
 		return nil, err
 	}
@@ -307,9 +307,10 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 		if !found {
 			return nil, fmt.Errorf("fork transcript boundary %s not found", throughMessageID)
 		}
+		return projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers), nil
 	}
-	projectedRows := projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers)
-	return projectedRows, nil
+	// 长会话每轮只追加一个用户轮次，检查点让重建只投影最后一轮之后的条目。
+	return s.projectTranscriptChainCheckpointed(cachePath, lineage, workspacePath, sessionKey, agentID, chain, roundMarkers), nil
 }
 
 func transcriptChainThroughMessage(chain []transcriptEntry, messageID string) ([]transcriptEntry, bool) {

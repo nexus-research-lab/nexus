@@ -1,5 +1,6 @@
 // INPUT: 稳定 canonical source 快照、规范化 physical round groups 与分页请求。
-// OUTPUT: 宿主控制面 SQLite/B-Tree 中原子代际化、随历史投影版本重建的分页与大内容 detail 读模型。
+// OUTPUT: 宿主控制面 SQLite/B-Tree 中原子代际化、随历史投影版本重建的分页与大内容 detail 读模型；
+// 重建沿用上一代际，只重写签名变化的分组。
 // POS: workspace canonical 历史之上的唯一当前派生查询层；数据库可整体删除重建。
 package workspace
 
@@ -13,6 +14,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +41,8 @@ type historyReadModel struct {
 	path string
 	mu   sync.Mutex
 	db   *sql.DB
+	// memo 记录本进程最近一次提交的分组摘要，让未变化的分组跳过投影与序列化。
+	memo historyReadModelMemoStore
 }
 
 type historyReadModelScope struct {
@@ -297,9 +302,7 @@ func (m *historyReadModel) load(
 	}
 	if !valid {
 		_ = tx.Rollback()
-		if access.Refresh == nil {
-			_ = m.deleteScope(ctx, access.Scope)
-		}
+		// 失效代际不会被读取（每次读取先校验 source），保留它供下一次重建复用未变化的分组前缀。
 		return protocol.MessagePage{}, false, errHistoryPageIndexInvalid
 	}
 	metadata, metadataStart, metadataEnd, err := readHistoryReadModelMetadataWindow(
@@ -393,9 +396,7 @@ func (m *historyReadModel) loadRoundIndex(
 	}
 	if !valid {
 		_ = tx.Rollback()
-		if access.Refresh == nil {
-			_ = m.deleteScope(ctx, access.Scope)
-		}
+		// 失效代际不会被读取（每次读取先校验 source），保留它供下一次重建复用未变化的分组前缀。
 		return protocol.SessionRoundIndex{}, false, errHistoryPageIndexInvalid
 	}
 	items, err := readHistoryReadModelRoundIndex(ctx, tx, access.Scope)
@@ -857,18 +858,32 @@ func (m *historyReadModel) persist(
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_message_keys WHERE scope = ?`, access.Scope); err != nil {
-		return err
+	// 长会话每轮只改变尾部分组；沿用上一代际并保留签名相同的前缀，
+	// 避免每次重建都把全部分组重新写入 B-Tree 和 WAL。
+	var reusable []string
+	var memo []historyReadModelGroupMemo
+	if !built.Disabled {
+		previous, ok, readErr := readHistoryReadModelScope(ctx, tx, access.Scope)
+		if readErr == nil && ok && previous.DisabledReason == "" && previous.GroupCount > 0 {
+			signatures, signatureErr := readHistoryReadModelGroupSignatures(ctx, tx, access.Scope, previous.Generation, previous.GroupCount)
+			if signatureErr == nil {
+				generation = previous.Generation
+				reusable = signatures
+				memo = m.memo.load(access.Scope, generation)
+			}
+		}
 	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_groups WHERE scope = ?`, access.Scope); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_details WHERE scope = ?`, access.Scope); err != nil {
+	if reusable == nil {
+		if err = deleteHistoryReadModelRows(ctx, tx, access.Scope, "", 0); err != nil {
+			return err
+		}
+	} else if err = deleteHistoryReadModelOtherGenerations(ctx, tx, access.Scope, generation); err != nil {
 		return err
 	}
 	disabledReason := ""
 	disabledDigest := ""
 	disabledCoverage := ""
+	var written []historyReadModelGroupMemo
 	if built.Disabled {
 		disabledReason = historyPageIndexDisabledResourceLimit
 		disabledCoverage = built.DisabledCoverage
@@ -880,7 +895,7 @@ func (m *historyReadModel) persist(
 		if len(built.Groups) > historyReadModelMaxGroups {
 			return errHistoryPageIndexResourceLimit
 		}
-		if err = insertHistoryReadModelGroups(ctx, tx, access.Scope, generation, built.Groups); err != nil {
+		if written, err = writeHistoryReadModelGroupsMemo(ctx, tx, access.Scope, generation, built.Groups, 0, reusable, memo, true); err != nil {
 			return err
 		}
 	}
@@ -925,8 +940,13 @@ func (m *historyReadModel) persist(
 		}
 		root.Close()
 	}
+	// 提交前先撤掉旧备忘：提交结果不确定时宁可下一次走慢路径。
+	m.memo.forget(access.Scope)
 	if err = tx.Commit(); err != nil {
 		return err
+	}
+	if written != nil {
+		m.memo.store(access.Scope, generation, written)
 	}
 	_ = m.evictColdScopes(ctx, time.Now().Add(-historyReadModelRetention))
 	return nil
@@ -940,6 +960,32 @@ func insertHistoryReadModelGroups(
 	groups []historyPageIndexedGroup,
 	startSequence ...int,
 ) error {
+	start := 0
+	if len(startSequence) > 0 {
+		start = startSequence[0]
+	}
+	_, err := writeHistoryReadModelGroupsMemo(ctx, tx, scope, generation, groups, start, nil, nil, false)
+	return err
+}
+
+// writeHistoryReadModelGroupsMemo 从 start 开始写入分组。reusable 非 nil 时它是同一代际中
+// 已有分组的签名（下标即 sequence）：签名相同的前缀原样保留，第一个不同之处及其后全部重写。
+// 资源预算仍按全部分组累计，与完整写入保持同一上限语义。
+//
+// memo 是本进程上次写入同一代际时的分组摘要：结构哈希与备忘一致、且库内签名仍等于
+// 备忘签名的分组，直接沿用而不再投影和序列化。summarize 为真（或 reusable 非 nil）时
+// 返回本次每个分组的摘要，供提交成功后更新备忘。
+func writeHistoryReadModelGroupsMemo(
+	ctx context.Context,
+	tx *sql.Tx,
+	scope string,
+	generation string,
+	groups []historyPageIndexedGroup,
+	start int,
+	reusable []string,
+	memo []historyReadModelGroupMemo,
+	summarize bool,
+) ([]historyReadModelGroupMemo, error) {
 	statement, err := tx.PrepareContext(
 		ctx,
 		`INSERT INTO history_read_groups(
@@ -949,7 +995,7 @@ func insertHistoryReadModelGroups(
 		 ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer statement.Close()
 	detailStatement, err := tx.PrepareContext(
@@ -960,16 +1006,42 @@ func insertHistoryReadModelGroups(
 		 ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer detailStatement.Close()
+	keyStatement, err := tx.PrepareContext(
+		ctx,
+		`INSERT OR IGNORE INTO history_read_message_keys(scope,generation,message_id,sequence) VALUES(?,?,?,?)`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer keyStatement.Close()
+	preserving := reusable != nil
+	summarize = summarize || reusable != nil
+	var summaries []historyReadModelGroupMemo
+	if summarize {
+		summaries = make([]historyReadModelGroupMemo, 0, len(groups))
+	}
 	totalBytes := int64(0)
-	for index, group := range groups {
-		if len(startSequence) > 0 {
-			index += startSequence[0]
-		}
+	for offset, group := range groups {
+		index := start + offset
 		if err = ctx.Err(); err != nil {
-			return err
+			return nil, err
+		}
+		var hash uint64
+		if summarize {
+			hash = historyReadModelGroupHash(scope, generation, index, group)
+		}
+		if preserving && index < len(memo) && index < len(reusable) &&
+			memo[index].Hash == hash && memo[index].Signature == reusable[index] {
+			// 同一内容在同一代际、同一 sequence 上必然得到同一签名，而库内仍是该签名。
+			if memo[index].Bytes > historyReadModelMaxDataBytes-totalBytes {
+				return nil, errHistoryPageIndexResourceLimit
+			}
+			totalBytes += memo[index].Bytes
+			summaries = append(summaries, memo[index])
+			continue
 		}
 		projected, details, projectionErr := projectHistoryReadModelGroup(
 			scope,
@@ -978,32 +1050,60 @@ func insertHistoryReadModelGroups(
 			group,
 		)
 		if projectionErr != nil {
-			return projectionErr
+			return nil, projectionErr
 		}
 		payload, marshalErr := marshalHistoryPageJSONBounded(projected, historyReadModelMaxGroupBytes)
 		if marshalErr != nil {
-			return marshalErr
+			return nil, marshalErr
 		}
 		if int64(len(payload)) > historyReadModelMaxDataBytes-totalBytes {
-			return errHistoryPageIndexResourceLimit
+			return nil, errHistoryPageIndexResourceLimit
 		}
 		totalBytes += int64(len(payload))
 		for _, detail := range details {
 			if int64(len(detail.Payload)) > historyReadModelMaxDataBytes-totalBytes {
-				return errHistoryPageIndexResourceLimit
+				return nil, errHistoryPageIndexResourceLimit
 			}
 			totalBytes += int64(len(detail.Payload))
 		}
 		metadata := historyPageIndexMetadataForGroup(group)
 		syntheticJSON, marshalErr := json.Marshal(metadata.SyntheticInterrupts)
 		if marshalErr != nil {
-			return marshalErr
+			return nil, marshalErr
 		}
 		var first any
 		if metadata.FirstNonSyntheticTimestamp != nil {
 			first = *metadata.FirstNonSyntheticTimestamp
 		}
 		digest := sha256.Sum256(payload)
+		payloadDigest := hex.EncodeToString(digest[:])
+		if summarize {
+			groupBytes := int64(len(payload))
+			detailDigests := make([]historyReadModelDetailDigest, 0, len(details))
+			for _, detail := range details {
+				groupBytes += int64(len(detail.Payload))
+				detailDigests = append(detailDigests, historyReadModelDetailDigest{Ref: detail.Ref, Digest: detail.Digest})
+			}
+			signature := historyReadModelGroupSignature(
+				metadata.CursorRoundID,
+				metadata.CursorRoundTimestamp,
+				metadata.GroupKey,
+				metadata.FirstNonSyntheticTimestamp,
+				syntheticJSON,
+				payloadDigest,
+				detailDigests,
+			)
+			summaries = append(summaries, historyReadModelGroupMemo{Hash: hash, Signature: signature, Bytes: groupBytes})
+			if preserving && index < len(reusable) && reusable[index] == signature {
+				continue
+			}
+		}
+		if preserving {
+			preserving = false
+			if err = deleteHistoryReadModelRows(ctx, tx, scope, generation, index); err != nil {
+				return nil, err
+			}
+		}
 		if _, err = statement.ExecContext(
 			ctx,
 			scope,
@@ -1015,14 +1115,14 @@ func insertHistoryReadModelGroups(
 			first,
 			syntheticJSON,
 			payload,
-			hex.EncodeToString(digest[:]),
+			payloadDigest,
 		); err != nil {
-			return err
+			return nil, err
 		}
 		for _, row := range group.Items {
 			if id := stringFromAny(row["message_id"]); id != "" {
-				if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_read_message_keys(scope,generation,message_id,sequence) VALUES(?,?,?,?)`, scope, generation, id, index); err != nil {
-					return err
+				if _, err = keyStatement.ExecContext(ctx, scope, generation, id, index); err != nil {
+					return nil, err
 				}
 			}
 		}
@@ -1039,8 +1139,128 @@ func insertHistoryReadModelGroups(
 				detail.Payload,
 				detail.Digest,
 			); err != nil {
-				return err
+				return nil, err
 			}
+		}
+	}
+	// 新结果是旧前缀时，删掉多出的旧尾部分组。
+	if preserving && start+len(groups) < len(reusable) {
+		if err = deleteHistoryReadModelRows(ctx, tx, scope, generation, start+len(groups)); err != nil {
+			return nil, err
+		}
+	}
+	return summaries, nil
+}
+
+type historyReadModelDetailDigest struct {
+	Ref    string
+	Digest string
+}
+
+// historyReadModelGroupSignature 覆盖一行分组被读取时可见的全部字段：分页元数据、
+// 正文摘要以及按引用排序的 detail 摘要。正文只保存 detail 引用，必须单独比较 detail 内容。
+func historyReadModelGroupSignature(
+	cursorRoundID string,
+	cursorTimestamp int64,
+	groupKey string,
+	firstNonSynthetic *int64,
+	syntheticJSON []byte,
+	payloadDigest string,
+	details []historyReadModelDetailDigest,
+) string {
+	sort.Slice(details, func(left, right int) bool { return details[left].Ref < details[right].Ref })
+	hasher := sha256.New()
+	first := "null"
+	if firstNonSynthetic != nil {
+		first = strconv.FormatInt(*firstNonSynthetic, 10)
+	}
+	_, _ = fmt.Fprintf(hasher, "%d:%s|%d|%d:%s|%s|%d:%s|%s|", len(cursorRoundID), cursorRoundID, cursorTimestamp, len(groupKey), groupKey, first, len(syntheticJSON), syntheticJSON, payloadDigest)
+	for _, detail := range details {
+		_, _ = fmt.Fprintf(hasher, "%d:%s=%s;", len(detail.Ref), detail.Ref, detail.Digest)
+	}
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// readHistoryReadModelGroupSignatures 只读取摘要列，不加载正文与 detail 字节。
+// 行数与 group_count 不一致时返回错误，调用方退回完整重写。
+func readHistoryReadModelGroupSignatures(
+	ctx context.Context,
+	tx *sql.Tx,
+	scope string,
+	generation string,
+	count int,
+) ([]string, error) {
+	details := make(map[int][]historyReadModelDetailDigest)
+	detailRows, err := tx.QueryContext(ctx, `SELECT sequence, detail_ref, payload_digest FROM history_read_details WHERE scope=? AND generation=?`, scope, generation)
+	if err != nil {
+		return nil, err
+	}
+	for detailRows.Next() {
+		var sequence int
+		var detail historyReadModelDetailDigest
+		if err = detailRows.Scan(&sequence, &detail.Ref, &detail.Digest); err != nil {
+			detailRows.Close()
+			return nil, err
+		}
+		details[sequence] = append(details[sequence], detail)
+	}
+	if err = errors.Join(detailRows.Err(), detailRows.Close()); err != nil {
+		return nil, err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT sequence, cursor_round_id, cursor_timestamp, group_key, first_non_synthetic_timestamp, synthetic_interrupts_json, payload_digest
+		 FROM history_read_groups WHERE scope=? AND generation=? ORDER BY sequence`, scope, generation)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	signatures := make([]string, 0, count)
+	for rows.Next() {
+		var sequence int
+		var cursorRoundID, groupKey, payloadDigest string
+		var cursorTimestamp int64
+		var first sql.NullInt64
+		var syntheticJSON []byte
+		if err = rows.Scan(&sequence, &cursorRoundID, &cursorTimestamp, &groupKey, &first, &syntheticJSON, &payloadDigest); err != nil {
+			return nil, err
+		}
+		if sequence != len(signatures) {
+			return nil, errHistoryPageIndexInvalid
+		}
+		var firstValue *int64
+		if first.Valid {
+			firstValue = &first.Int64
+		}
+		signatures = append(signatures, historyReadModelGroupSignature(cursorRoundID, cursorTimestamp, groupKey, firstValue, syntheticJSON, payloadDigest, details[sequence]))
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(signatures) != count {
+		return nil, errHistoryPageIndexInvalid
+	}
+	return signatures, nil
+}
+
+// deleteHistoryReadModelRows 删除 scope 的分组行；generation 为空时删除所有代际。
+func deleteHistoryReadModelRows(ctx context.Context, tx *sql.Tx, scope string, generation string, fromSequence int) error {
+	for _, table := range []string{"history_read_message_keys", "history_read_groups", "history_read_details"} {
+		var err error
+		if generation == "" {
+			_, err = tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE scope = ?`, scope)
+		} else {
+			_, err = tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE scope = ? AND generation = ? AND sequence >= ?`, scope, generation, fromSequence)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func deleteHistoryReadModelOtherGenerations(ctx context.Context, tx *sql.Tx, scope string, generation string) error {
+	for _, table := range []string{"history_read_message_keys", "history_read_groups", "history_read_details"} {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE scope = ? AND generation <> ?`, scope, generation); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -1052,6 +1272,7 @@ func historyReadModelGeneration(scope string, sources []historyPageSourceSnapsho
 }
 
 func (m *historyReadModel) deleteScope(ctx context.Context, scope string) error {
+	m.memo.forget(scope)
 	db, err := m.database(ctx)
 	if err != nil {
 		return err

@@ -197,8 +197,8 @@ func TestTranscriptCacheCapsRetainedSourceBytes(t *testing.T) {
 	s := NewAgentHistoryStore(t.TempDir())
 	source := historyPageSourceSnapshot{Exists: true, Size: maxTranscriptCacheSourceBytes/2 + 1}
 	rows := []transcriptEntry{{Data: map[string]any{"uuid": "test"}}}
-	s.writeTranscriptCache("first", source, rows)
-	s.writeTranscriptCache("second", source, rows)
+	s.writeTranscriptCache("first", source, rows, len(rows))
+	s.writeTranscriptCache("second", source, rows, len(rows))
 	if _, ok := s.readTranscriptCache("first", source); ok {
 		t.Fatal("older weighted entry retained")
 	}
@@ -207,7 +207,7 @@ func TestTranscriptCacheCapsRetainedSourceBytes(t *testing.T) {
 	}
 	large := source
 	large.Size = maxTranscriptCacheSourceBytes + 1
-	s.writeTranscriptCache("second", large, rows)
+	s.writeTranscriptCache("second", large, rows, len(rows))
 	if _, ok := s.readTranscriptCache("second", large); ok {
 		t.Fatal("oversized file retained")
 	}
