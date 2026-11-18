@@ -199,16 +199,16 @@ DM、Room slot 与 AutoDream 共用 app 装配的一个 runtime Manager。资源
 
 | 环境变量 | 默认值 | 含义 |
 | --- | --- | --- |
-| `NEXUS_RUNTIME_MAX_SESSIONS` | `4` | Manager 同时持有的 runtime 会话额度；在途 factory 预留、空闲 warm client、关闭中及清理失败的 client 均占用额度；同 key 复用不重复占用 |
+| `NEXUS_RUNTIME_MAX_SESSIONS` | `auto` | Manager 同时持有的 runtime 会话额度；`auto`（未设置、负数或无法解析）按每 2 GiB 物理内存一个会话推算，限制在 4–12，读不到总量取 4；在途 factory 预留、空闲 warm client、关闭中及清理失败的 client 均占用额度；同 key 复用不重复占用 |
 | `NEXUS_RUNTIME_MAX_SUBAGENTS` | `8` | 全 Manager 的子智能体额度，包含启动准入、续跑投递及活动任务 |
-| `NEXUS_RUNTIME_MEMORY_RESERVE_MB` | `1024` | 启用内存准入；Windows/Linux 保留此 MiB 值和总物理内存 15% 中较大者；macOS 使用内核内存压力信号 |
+| `NEXUS_RUNTIME_MEMORY_RESERVE_MB` | `1024` | 启用内存准入；Windows/Linux 保留此 MiB 值和总物理内存 15%（上限 2 GiB）中较大者；macOS 使用内核内存压力信号 |
 
-非正值关闭对应限制。配置从环境加载后在 app 初始化时生效；它不改写系统设置或已有 runtime 配置。
+`0` 关闭对应限制；`NEXUS_RUNTIME_MAX_SUBAGENTS` 与 `NEXUS_RUNTIME_MEMORY_RESERVE_MB` 的负值同样关闭。配置从环境加载后在 app 初始化时生效；它不改写系统设置或已有 runtime 配置。
 
-- 会话额度用满或内存紧张时，只回收无活动 startup、无未完成 round、无后台任务、无活动子智能体的 LRU 会话。DM 与 Room slot 在准备 runtime 前登记 round，终态已展示但收尾未完成仍视为活动工作。回收沿用原关闭栅栏、进程退出确认及沙箱清理回执；不能用清理超时或未知结果释放额度。
+- 会话额度用满或内存紧张时，只回收无活动 startup、无未完成 round、无后台任务、无活动子智能体的 LRU 会话。额度用满时按需逐个回收；内存紧张时每个等待者最多回收一个会话，压力可能来自宿主外程序，不能清空所有预热会话。其他会话清理失败时保留其栅栏和额度，当前请求继续等待，超时错误附带清理诊断。DM 与 Room slot 在准备 runtime 前登记 round，终态已展示但收尾未完成仍视为活动工作。回收沿用原关闭栅栏、进程退出确认及沙箱清理回执；不能用清理超时或未知结果释放额度。
 - 新启动最多同时受理 16 个事务，同一 session 排队与等待全局名额共用从入队起算的 30 秒预算。名额释放立即唤醒等候者，只有内存压力需要按秒重新采样。请求取消或宿主撤销准入会中止准备。已持久受理的 DM 由登记的 round 继续执行。按租约回滚已有 client 可以在队列满时进入，仍核对所有者与连接代次。
-- 子智能体额度同时计算 Agent 启动回调、正在投递的宿主续跑消息和运行时报告的活动子任务。宿主投递前预留名额，同一任务的多条消息共用名额。物理 runner 的代次区分同一 task ID 的多次执行，上一代的迟到终态不能释放新一代。SDK 自行启动的工作在其事件到达后计入，宿主不能提前拒绝绕开准入接口的进程。
-- Windows 检查可用物理内存及可提交内存，Linux 使用宿主 `/proc/meminfo` 的 `MemAvailable`，macOS 仅在内核压力为 normal 时放行。探针读取失败明确拒绝新增工作，不静默当作内存充足；Linux cgroup 限额仍由原隔离策略负责。
+- 子智能体额度同时计算 Agent 启动回调、正在投递的宿主续跑消息和运行时报告的活动子任务。宿主投递前预留名额，同一任务的多条消息共用名额。物理 runner 的代次区分同一 task ID 的多次执行，`task_updated` 与 `task_notification` 都携带代次，上一代的迟到终态不能释放新一代；已结束且无投递中的任务不保留状态条目。SDK 自行启动的工作在其事件到达后计入，宿主不能提前拒绝绕开准入接口的进程。
+- Windows 检查可用物理内存及可提交内存，Linux 使用宿主 `/proc/meminfo` 的 `MemAvailable`，macOS 仅在内核压力为 critical 时拒绝（warn 在常见内存规格下长期出现且仍有可回收内存）。探针读取失败时放行并记录一次警告：这是软准入，读不到读数不能让新任务全部失败；Linux cgroup 限额仍由原隔离策略负责。
 
 ## 8. 验证原则
 

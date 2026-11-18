@@ -6,7 +6,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -21,11 +20,11 @@ const (
 )
 
 // ResourceLimits 由 app 在 Manager 启用前装配；非正额度或 nil 探针关闭对应限制。
-// MemoryAvailable 只读取宿主状态，允许并发调用；错误不能当作内存充足。
+// MemoryAvailable 只读取宿主状态，允许并发调用；读数失败时由探针自行放行并报告。
 type ResourceLimits struct {
 	MaxSessions     int
 	MaxSubagents    int
-	MemoryAvailable func() (bool, error)
+	MemoryAvailable func() bool
 }
 
 func (m *Manager) SetResourceLimits(limits ResourceLimits) {
@@ -39,14 +38,7 @@ func (m *Manager) memoryAdmissionError() error {
 	m.mu.RLock()
 	probe := m.resourceLimits.MemoryAvailable
 	m.mu.RUnlock()
-	if probe == nil {
-		return nil
-	}
-	available, err := probe()
-	if err != nil {
-		return fmt.Errorf("无法确认系统可用内存，暂缓启动: %w", err)
-	}
-	if !available {
+	if probe != nil && !probe() {
 		return ErrRuntimeMemoryPressure
 	}
 	return nil
@@ -57,14 +49,14 @@ func (m *Manager) memoryAdmissionError() error {
 func (s *ClientStartup) admitResources(ctx context.Context) error {
 	var waitCtx context.Context
 	m := s.manager
+	reclaimedForMemory := false
+	// 回收失败只作为超时诊断返回，不单独终止本请求。
+	var reclaimErr error
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		memoryErr := m.memoryAdmissionError()
-		if memoryErr != nil && !errors.Is(memoryErr, ErrRuntimeMemoryPressure) {
-			return memoryErr
-		}
 		m.mu.Lock()
 		err := s.validateCloseEpochLocked()
 		if err == nil {
@@ -97,18 +89,23 @@ func (s *ClientStartup) admitResources(ctx context.Context) error {
 			defer cancel()
 		}
 		if err := waitCtx.Err(); err != nil {
-			return errors.Join(blocked, err)
+			return errors.Join(blocked, err, reclaimErr)
 		}
-		// 与 TTL 清理共用关闭栅栏，失败会保留 client 和占用额度。
-		closed, err := m.closeIdleSessions(waitCtx, 0, 1)
-		if err != nil {
-			if waitCtx.Err() != nil {
-				return errors.Join(blocked, err, waitCtx.Err())
+		// 额度满时回收一个 LRU 空闲会话就能腾出名额。内存紧张时每个等待者
+		// 最多回收一次：压力可能来自宿主外的程序，持续回收只会清空预热会话。
+		if memoryErr == nil || !reclaimedForMemory {
+			reclaimedForMemory = reclaimedForMemory || memoryErr != nil
+			// 与 TTL 清理共用关闭栅栏；关闭失败的会话保留栅栏和额度，不会被再次选中，
+			// 本请求继续等待其他名额，而不因别的会话清理失败而失败。
+			closed, err := m.closeIdleSessions(waitCtx, 0, 1)
+			if err != nil {
+				reclaimErr = err
+				if waitCtx.Err() != nil {
+					return errors.Join(blocked, err, waitCtx.Err())
+				}
+			} else if closed > 0 {
+				continue
 			}
-			return fmt.Errorf("回收空闲运行资源失败: %w", err)
-		}
-		if closed > 0 {
-			continue
 		}
 		var sample <-chan time.Time
 		var timer *time.Timer
@@ -125,7 +122,7 @@ func (s *ClientStartup) admitResources(ctx context.Context) error {
 			timer.Stop()
 		}
 		if err := waitCtx.Err(); err != nil {
-			return errors.Join(blocked, err)
+			return errors.Join(blocked, err, reclaimErr)
 		}
 	}
 }

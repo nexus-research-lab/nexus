@@ -94,9 +94,8 @@ func (m *Manager) SendTaskMessage(ctx context.Context, sessionKey string, taskID
 		}
 	}
 	if !run.busy() {
-		if err != nil && run.observations == 0 {
-			delete(state.SubagentRuns, taskID)
-		}
+		// 已结束的任务不再保留条目；同一有序消息流里不会再出现更早代次的事件。
+		delete(state.SubagentRuns, taskID)
 		m.notifyResourceChangeLocked()
 	}
 	return err
@@ -165,7 +164,7 @@ func (m *Manager) ObserveSubagentRun(sessionKey string, client Client, msg sdkpr
 	case started != nil:
 		id, kind, toolID, status = started.TaskID, started.TaskType, started.ToolUseID, "running"
 	case finished != nil:
-		id, status = finished.TaskID, finished.Status
+		id, status, generation = finished.TaskID, finished.Status, finished.RunGeneration
 	default:
 		return
 	}
@@ -186,8 +185,12 @@ func (m *Manager) ObserveSubagentRun(sessionKey string, client Client, msg sdkpr
 	wasBusy := run.busy()
 	run.observe(generation, status)
 	state.HasSubagentHistory = true
-	if wasBusy && !run.busy() {
-		m.notifyResourceChangeLocked()
+	if !run.busy() {
+		// 长会话中已结束的子任务不累积；之后同一任务的续跑会按新代次重建条目。
+		delete(state.SubagentRuns, id)
+		if wasBusy {
+			m.notifyResourceChangeLocked()
+		}
 	}
 }
 

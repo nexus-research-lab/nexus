@@ -265,7 +265,7 @@ func Load() Config {
 		RuntimeRoundIdleTimeoutSeconds:   parseIntEnv(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200"), 1200),
 		RuntimeIdleSessionTTLSeconds:     parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600"), 600),
 		RuntimeIdleSessionSweepSeconds:   parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120"), 120),
-		RuntimeMaxSessions:               parseIntEnv(getEnv("NEXUS_RUNTIME_MAX_SESSIONS", "4"), 4),
+		RuntimeMaxSessions:               parseIntEnv(getEnv("NEXUS_RUNTIME_MAX_SESSIONS", "auto"), RuntimeMaxSessionsAuto),
 		RuntimeMaxSubagents:              parseIntEnv(getEnv("NEXUS_RUNTIME_MAX_SUBAGENTS", "8"), 8),
 		RuntimeMemoryReserveMB:           parseIntEnv(getEnv("NEXUS_RUNTIME_MEMORY_RESERVE_MB", "1024"), 1024),
 		RuntimeIsolationMode:             getEnv("NEXUS_RUNTIME_ISOLATION_MODE", "off"),
@@ -360,6 +360,10 @@ func normalizeLegacyDatabaseURL(raw string, stateRoot string, targetRoot string)
 	}
 	return prefix + normalizedPath
 }
+
+// RuntimeMaxSessionsAuto 表示由 app 按宿主物理内存推算会话额度；
+// 未设置、负数或无法解析的 NEXUS_RUNTIME_MAX_SESSIONS 均按自动处理，0 关闭会话额度。
+const RuntimeMaxSessionsAuto = -1
 
 func parseIntEnv(raw string, fallback int) int {
 	value, err := strconv.Atoi(raw)

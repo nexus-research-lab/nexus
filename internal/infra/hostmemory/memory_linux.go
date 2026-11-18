@@ -1,5 +1,5 @@
 // INPUT: /proc/meminfo 的总物理内存与无需换页即可使用的内存。
-// OUTPUT: 宿主物理内存余量是否足够；缺失 MemAvailable 时返回错误。
+// OUTPUT: 宿主物理内存总量及余量是否足够；缺失 MemAvailable 时返回错误。
 // POS: Linux 宿主内存探针；不代替 cgroup 内存限制。
 package hostmemory
 
@@ -14,12 +14,24 @@ import (
 )
 
 func memoryAvailable(reserveMiB uint64) (bool, error) {
-	f, err := os.Open("/proc/meminfo")
+	total, available, err := readMeminfo()
 	if err != nil {
 		return false, err
 	}
+	return enoughMemory(total, available, reserveMiB)
+}
+
+func totalMemory() (uint64, error) {
+	total, _, err := readMeminfo()
+	return total, err
+}
+
+func readMeminfo() (total, available uint64, err error) {
+	f, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, 0, err
+	}
 	defer f.Close()
-	var total, available uint64
 	var foundAvailable bool
 	scanner := bufio.NewScanner(io.LimitReader(f, 64<<10))
 	for scanner.Scan() {
@@ -28,11 +40,11 @@ func memoryAvailable(reserveMiB uint64) (bool, error) {
 			continue
 		}
 		if len(fields) != 3 || fields[2] != "kB" {
-			return false, errors.New("invalid /proc/meminfo memory units")
+			return 0, 0, errors.New("invalid /proc/meminfo memory units")
 		}
 		kib, err := strconv.ParseUint(fields[1], 10, 54)
 		if err != nil {
-			return false, fmt.Errorf("read /proc/meminfo: %w", err)
+			return 0, 0, fmt.Errorf("read /proc/meminfo: %w", err)
 		}
 		if fields[0] == "MemTotal:" {
 			total = kib << 10
@@ -41,10 +53,10 @@ func memoryAvailable(reserveMiB uint64) (bool, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return false, err
+		return 0, 0, err
 	}
 	if !foundAvailable {
-		return false, errors.New("/proc/meminfo has no MemAvailable")
+		return 0, 0, errors.New("/proc/meminfo has no MemAvailable")
 	}
-	return enoughMemory(total, available, reserveMiB)
+	return total, available, nil
 }

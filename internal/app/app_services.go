@@ -232,10 +232,17 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
+	maxSessions := cfg.RuntimeMaxSessions
+	if maxSessions < 0 {
+		maxSessions = hostmemory.DefaultSessionLimit()
+	}
+	memoryLogger := logger.With("component", "runtime_resources")
 	runtimeManager.SetResourceLimits(runtimectx.ResourceLimits{
-		MaxSessions:     cfg.RuntimeMaxSessions,
-		MaxSubagents:    cfg.RuntimeMaxSubagents,
-		MemoryAvailable: hostmemory.NewAdmissionProbe(cfg.RuntimeMemoryReserveMB),
+		MaxSessions:  maxSessions,
+		MaxSubagents: cfg.RuntimeMaxSubagents,
+		MemoryAvailable: hostmemory.NewAdmissionProbe(cfg.RuntimeMemoryReserveMB, func(err error) {
+			memoryLogger.Warn("host memory probe unavailable; admitting runtime work without memory check", "error", err)
+		}),
 	})
 	runtimeManager.SetOwnerProcessReaper(workspaceisolation.OwnerProcessReaper{
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),

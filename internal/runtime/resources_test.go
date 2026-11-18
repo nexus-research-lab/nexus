@@ -225,8 +225,11 @@ func TestResourceAdmissionRetainsFailedCleanupSlot(t *testing.T) {
 	if _, err := m.GetOrCreate(t.Context(), "old", bridge.Options{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.GetOrCreate(t.Context(), "new", bridge.Options{}); !errors.Is(err, want) {
-		t.Fatalf("cleanup failure lost: %v", err)
+	// 别的会话清理失败不立即让本请求失败；等待超时时仍带回清理诊断。
+	newCtx, cancelNew := context.WithTimeout(t.Context(), 40*time.Millisecond)
+	defer cancelNew()
+	if _, err := m.GetOrCreate(newCtx, "new", bridge.Options{}); !errors.Is(err, ErrRuntimeResourceBusy) || !errors.Is(err, want) {
+		t.Fatalf("cleanup failure failed fast or lost diagnostics: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
 	defer cancel()
@@ -256,9 +259,9 @@ func TestResourceAdmissionMemoryWaitRecoversOrStopsOnShutdown(t *testing.T) {
 			entered := make(chan struct{})
 			var once sync.Once
 			m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { calls.Add(1); return &fakeRuntimeClient{} }))
-			m.SetResourceLimits(ResourceLimits{MaxSessions: 1, MemoryAvailable: func() (bool, error) {
+			m.SetResourceLimits(ResourceLimits{MaxSessions: 1, MemoryAvailable: func() bool {
 				once.Do(func() { close(entered) })
-				return available.Load(), nil
+				return available.Load()
 			}})
 			done := make(chan error, 1)
 			go func() { _, err := m.GetOrCreate(ctx, "waiting", bridge.Options{}); done <- err }()
@@ -283,5 +286,60 @@ func TestResourceAdmissionMemoryWaitRecoversOrStopsOnShutdown(t *testing.T) {
 				t.Fatal("factory not admitted after memory recovered")
 			}
 		})
+	}
+}
+
+// 内存压力可能来自宿主外的程序；一个等待者最多回收一个空闲会话。
+func TestResourceAdmissionMemoryPressureReclaimsOncePerWaiter(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return &fakeRuntimeClient{} }))
+		keys := []string{"a", "b", "c"}
+		for _, key := range keys {
+			if _, err := m.GetOrCreate(t.Context(), key, bridge.Options{}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		m.SetResourceLimits(ResourceLimits{MemoryAvailable: func() bool { return false }})
+		if _, err := m.GetOrCreate(t.Context(), "new", bridge.Options{}); !errors.Is(err, ErrRuntimeMemoryPressure) {
+			t.Fatalf("memory pressure admitted startup: %v", err)
+		}
+		remaining := 0
+		for _, key := range keys {
+			if m.SessionClient(key) != nil {
+				remaining++
+			}
+		}
+		if remaining != len(keys)-1 {
+			t.Fatalf("memory pressure reclaimed %d sessions, want 1", len(keys)-remaining)
+		}
+	})
+}
+
+// 终态通知携带代次：上一代的迟到通知不释放续跑，结束的任务不在长会话里累积。
+func TestSubagentRunNotificationGenerationAndPruning(t *testing.T) {
+	client := &followupReceiptClient{}
+	m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return client }))
+	if _, err := m.GetOrCreate(t.Context(), "parent", bridge.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	runs := func() int { m.mu.RLock(); defer m.mu.RUnlock(); return len(m.sessions["parent"].SubagentRuns) }
+	m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskStarted: &sdkprotocol.TaskStartedMessage{TaskID: "child", TaskType: "local_agent"}})
+	m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskUpdated: &sdkprotocol.TaskUpdatedMessage{TaskID: "child", RunGeneration: 1, Patch: sdkprotocol.TaskUpdatedPatch{Status: "running"}}})
+	client.deliver = func() (sdkprotocol.TaskRunState, error) {
+		return sdkprotocol.TaskRunState{Generation: 2, Status: "running"}, nil
+	}
+	if err := m.SendTaskMessage(t.Context(), "parent", "child", "resume", ""); err != nil {
+		t.Fatal(err)
+	}
+	notify := func(gen int) {
+		m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskNotification: &sdkprotocol.TaskNotificationMessage{TaskID: "child", RunGeneration: gen, Status: "completed"}})
+	}
+	notify(1)
+	if got := runs(); got != 1 {
+		t.Fatalf("previous generation notification released resumed run: %d", got)
+	}
+	notify(2)
+	if got := runs(); got != 0 {
+		t.Fatalf("finished run retained: %d", got)
 	}
 }
