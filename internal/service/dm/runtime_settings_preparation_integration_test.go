@@ -257,6 +257,14 @@ func TestPrepareConnectorRuntimeMaterializesNXSForkBeforeUserQuery(t *testing.T)
 		t.Fatalf("Room SQL fork identity updates=%+v", updates)
 	}
 
+	// finished 事件在最后一笔历史写入前送达，测试目录须等运行时收尾后释放。
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := service.Runtime.CloseSession(closeCtx, sessionKey); err != nil {
+			t.Error(err)
+		}
+	})
 	sender := newDMTestSender("sender-eager-connector-tool-surface-fork")
 	permission.BindSession(sessionKey, sender)
 	if err = service.HandleChat(ctx, Request{
