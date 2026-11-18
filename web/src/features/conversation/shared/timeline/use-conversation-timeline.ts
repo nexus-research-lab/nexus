@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前已加载消息、slot/permission/execution 运行态、原始 round 索引与已解析历史窗口。
- * OUTPUT: feed、navigator 共用的记忆化 ConversationTimeline。
+ * OUTPUT: feed、navigator 共用的记忆化 ConversationTimeline；未变化轮次的分组数组跨流式帧保持身份。
  * POS: React 装配层；轮次过滤与排序规则留在 timeline-model。
  */
 import { useMemo } from "react";
@@ -29,6 +29,7 @@ import {
   projectVisibleRoomTimelineEvidence,
 } from "./timeline-model";
 import type { ConversationTimeline } from "./timeline-model";
+import { useStableGroupMap } from "./stable-group-map";
 
 export interface UseConversationTimelineOptions {
   chat_type: AgentConversationChatType;
@@ -82,18 +83,19 @@ export function useConversationTimeline({
     ],
   );
 
-  const messageGroups = useMemo(
+  // 流式帧只替换变化的消息；未变化轮次复用原数组，Feed/Thread 的 memo 才能跳过重渲染。
+  const messageGroups = useStableGroupMap(useMemo(
     () => groupMessagesByRound(visibleMessages),
     [visibleMessages],
-  );
-  const pendingSlotGroups = useMemo(
+  ));
+  const pendingSlotGroups = useStableGroupMap(useMemo(
     () =>
       isRoom
         ? groupPendingSlotsByRound(visibleRoomEvidence.pendingSlots)
         : new Map<string, RoomPendingAgentSlotState[]>(),
     [isRoom, visibleRoomEvidence.pendingSlots],
-  );
-  const pendingPermissionGroups = useMemo(
+  ));
+  const pendingPermissionGroups = useStableGroupMap(useMemo(
     () =>
       isRoom
         ? groupPendingPermissionsByRound(
@@ -101,8 +103,8 @@ export function useConversationTimeline({
           )
         : new Map<string, PendingPermission[]>(),
     [isRoom, visibleRoomEvidence.pendingPermissions],
-  );
-  const roomAgentExecutionStateGroups = useMemo(
+  ));
+  const roomAgentExecutionStateGroups = useStableGroupMap(useMemo(
     () =>
       isRoom
         ? groupRoomAgentExecutionStatesByRound(
@@ -110,7 +112,7 @@ export function useConversationTimeline({
           )
         : new Map<string, RoomAgentExecutionState[]>(),
     [isRoom, visibleRoomEvidence.executionStates],
-  );
+  ));
   const visibleLiveRoundIds = useMemo(
     () => isRoom
       ? filterVisibleRoomLiveRoundIds(

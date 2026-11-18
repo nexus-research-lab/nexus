@@ -115,7 +115,7 @@ y &= 2
 
   it("keeps list-contained display math with blank lines in the streaming block", () => {
     const content = "- 定义\n\n  \\[\n  x_i\n\n  + y_i\n  \\]\n\n- 后续";
-    const { container } = render(<MarkdownText components={undefined} streamingComponents={undefined} remarkPlugins={MARKDOWN_PLUGINS} rehypePlugins={REHYPE_PLUGINS} urlTransform={undefined} content={content} isStreaming />);
+    const { container } = render(<MarkdownText components={undefined} remarkPlugins={MARKDOWN_PLUGINS} rehypePlugins={REHYPE_PLUGINS} urlTransform={undefined} content={content} isStreaming />);
     expect(sources(container)).toEqual(["  x_i\n\n  + y_i"]);
     expect(container.querySelectorAll("li")).toHaveLength(2);
   });
@@ -124,7 +124,7 @@ y &= 2
     const closing = opening === "$$" ? "$$" : "\\]";
     const body = "x_i\n\n+ y_i";
     const prefix = `Before\n\n${opening}\n${body}`;
-    const props = { components: undefined, streamingComponents: undefined, remarkPlugins: MARKDOWN_PLUGINS, rehypePlugins: REHYPE_PLUGINS, urlTransform: undefined };
+    const props = { components: undefined, remarkPlugins: MARKDOWN_PLUGINS, rehypePlugins: REHYPE_PLUGINS, urlTransform: undefined };
     const { container, rerender } = render(<MarkdownText {...props} content={prefix} isStreaming />);
     expect(sources(container)).toEqual([]);
     const content = `${prefix}\n${closing}\n\nAfter`;

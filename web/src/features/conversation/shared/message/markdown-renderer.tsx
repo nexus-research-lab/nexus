@@ -73,24 +73,13 @@ export function MarkdownRenderer({
   );
   const displayedContent = smoothStreaming.content;
   const shouldRenderStreaming = smoothStreaming.isStreaming;
+  // 静态与流式区块共用一份组件表，区块收口不替换元素类型。
   const components = useMemo(
-    () => ({
-      stable: createMarkdownComponents(
-        resolveFilePath,
-        openFile,
-        { getFilePreviewUrl, renderLink },
-      ),
-      streaming: createMarkdownComponents(
-        resolveFilePath,
-        openFile,
-        {
-          getFilePreviewUrl,
-          renderLink,
-          streamCodeBlocks: true,
-          streamMermaid: true,
-        },
-      ),
-    }),
+    () => createMarkdownComponents(
+      resolveFilePath,
+      openFile,
+      { getFilePreviewUrl, renderLink },
+    ),
     [getFilePreviewUrl, openFile, renderLink, resolveFilePath],
   );
   const decoratedContent = useMemo(
@@ -114,14 +103,13 @@ export function MarkdownRenderer({
     >
       {contentSegments.map((segment, index) => (
         <MessageMarkdownSegment
-          components={components.stable}
+          components={components}
           key={`${segment.type}:${index}`}
           onOpenWorkspaceFile={openFile}
           renderLeadingSlashCommand={renderLeadingSlashCommand && index === 0}
           resolveFilePath={resolveFilePath}
           segment={segment}
           shouldStream={shouldRenderStreaming}
-          streamingComponents={components.streaming}
           workspaceAgentId={currentAgentId}
         />
       ))}
@@ -135,7 +123,6 @@ interface MessageMarkdownSegmentProps {
   resolveFilePath: ResolveWorkspaceFilePath;
   segment: MarkdownContentSegment;
   shouldStream: boolean;
-  streamingComponents: Components;
   workspaceAgentId?: string | null;
   renderLeadingSlashCommand: boolean;
 }
@@ -146,7 +133,6 @@ function MessageMarkdownSegment({
   resolveFilePath,
   segment,
   shouldStream,
-  streamingComponents,
   workspaceAgentId,
   renderLeadingSlashCommand,
 }: MessageMarkdownSegmentProps) {
@@ -164,26 +150,44 @@ function MessageMarkdownSegment({
   if (!segment.text.trim()) {
     return null;
   }
+  return (
+    <MessageMarkdownText
+      components={components}
+      onOpenWorkspaceFile={onOpenWorkspaceFile}
+      renderLeadingSlashCommand={renderLeadingSlashCommand}
+      resolveFilePath={resolveFilePath}
+      shouldStream={shouldStream}
+      text={segment.text}
+    />
+  );
+}
 
-  const sharedProps = {
-    components,
-    content: normalizeMarkdownContent(
-      renderLeadingSlashCommand
-        ? decorateLeadingSlashCommand(segment.text)
-        : segment.text,
+function MessageMarkdownText({
+  components,
+  onOpenWorkspaceFile,
+  renderLeadingSlashCommand,
+  resolveFilePath,
+  shouldStream,
+  text,
+}: Pick<MessageMarkdownSegmentProps, "components" | "onOpenWorkspaceFile" | "renderLeadingSlashCommand" | "resolveFilePath" | "shouldStream"> & { text: string }) {
+  // 全文规范化是多轮正则扫描；transport 每帧都会重渲染流式消息，只在展示正文变化时重算。
+  const content = useMemo(
+    () => normalizeMarkdownContent(
+      renderLeadingSlashCommand ? decorateLeadingSlashCommand(text) : text,
       resolveFilePath,
       onOpenWorkspaceFile,
       { is_streaming: shouldStream },
     ),
-    rehypePlugins: REHYPE_PLUGINS,
-    remarkPlugins: MARKDOWN_PLUGINS,
-    urlTransform: transformMessageMarkdownUrl,
-  };
+    [onOpenWorkspaceFile, renderLeadingSlashCommand, resolveFilePath, shouldStream, text],
+  );
   return (
     <MarkdownText
-      {...sharedProps}
+      components={components}
+      content={content}
       isStreaming={shouldStream}
-      streamingComponents={streamingComponents}
+      rehypePlugins={REHYPE_PLUGINS}
+      remarkPlugins={MARKDOWN_PLUGINS}
+      urlTransform={transformMessageMarkdownUrl}
     />
   );
 }

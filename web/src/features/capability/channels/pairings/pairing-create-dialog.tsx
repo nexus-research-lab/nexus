@@ -1,5 +1,5 @@
 /**
- * INPUT: Agent 目录、配对草稿与创建命令。
+ * INPUT: Agent 与已知配对目录、配对草稿与创建命令。
  * OUTPUT: plain 配对表单；缺项 Agent 保留原选择并阻止提交，不能自动改绑其他对象。
  * POS: IM 配对目录的手动创建边界；不在标题区解释匹配协议。
  */
@@ -19,6 +19,7 @@ import {
   type ImChannelType,
   type ImChatType,
   type ImPairingStatus,
+  type PairingView,
 } from "@/lib/api/capability/channel-api";
 import { UiButton } from "@/shared/ui/button/button";
 import { buildAgentSelectionOptions, includeUnavailableAgentSelection } from "@/lib/agent-selection-options";
@@ -43,6 +44,7 @@ import type { Agent } from "@/types/agent/agent";
 import {
   buildCreatePairingPayload,
   createPairingDraft,
+  pairingTarget,
   type CreatePairingDraft,
 } from "./pairing-model";
 import {
@@ -51,6 +53,8 @@ import {
 
 interface CreatePairingDialogProps {
   agents: Agent[];
+  pairings: PairingView[];
+  onManage: (item: PairingView) => void;
   blocked: boolean;
   failure: FeedbackBannerProps | null;
   onClose: () => void;
@@ -59,6 +63,8 @@ interface CreatePairingDialogProps {
 
 export function CreatePairingDialog({
   agents,
+  pairings,
+  onManage,
   blocked,
   failure,
   onClose,
@@ -72,6 +78,12 @@ export function CreatePairingDialog({
     agents[0]?.agent_id || "",
   ));
   const [saving, setSaving] = useState(false);
+  const [targetChoice, setTargetChoice] = useState("");
+  const candidates = pairings.filter((item) =>
+    item.channel_type === draft.channelType && item.chat_type === draft.chatType);
+  const manual = targetChoice === "manual" || candidates.length === 0;
+  const selected = candidates.find((item) => item.pairing_id === targetChoice);
+  const personalWechat = draft.channelType === "weixin-personal";
   const selectedAgentAvailable = agents.some((agent) => agent.agent_id === draft.agentId);
   const agentOptions = includeUnavailableAgentSelection(buildAgentSelectionOptions(agents, t), draft.agentId, t);
 
@@ -94,8 +106,13 @@ export function CreatePairingDialog({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (savingRef.current || blocked) return;
+    if (!manual) {
+      if (selected) onManage(selected);
+      return;
+    }
     const payload = buildCreatePairingPayload(draft);
-    if (!payload || !selectedAgentAvailable || savingRef.current || blocked) {
+    if (!payload || !selectedAgentAvailable) {
       return;
     }
     savingRef.current = true;
@@ -142,10 +159,14 @@ export function CreatePairingDialog({
                   disabled={saving || blocked}
                   ariaLabel={t("capability.pairing_select_channel")}
                   id={`${fieldId}-channel`}
-                  onChange={(value) => setField(
-                    "channelType",
-                    value as ImChannelType,
-                  )}
+                  onChange={(value) => {
+                    setTargetChoice("");
+                    setDraft((current) => ({
+                      ...current, channelType: value as ImChannelType,
+                      chatType: value === "weixin-personal" ? "dm" : current.chatType,
+                      accountId: "", threadId: "", externalRef: "", externalName: "",
+                    }));
+                  }}
                   options={options.channels}
                   size="sm"
                   value={draft.channelType}
@@ -153,112 +174,137 @@ export function CreatePairingDialog({
               </UiField>
               <UiField htmlFor={`${fieldId}-chat-type`} label={t("capability.pairing_chat_type")}>
                 <UiSelectMenu
-                  disabled={saving || blocked}
+                  disabled={saving || blocked || personalWechat}
                   ariaLabel={t("capability.pairing_select_chat_type")}
                   id={`${fieldId}-chat-type`}
-                  onChange={(value) => setField(
-                    "chatType",
-                    value as ImChatType,
-                  )}
-                  options={options.chatTypes}
+                  onChange={(value) => {
+                    setTargetChoice("");
+                    setDraft((current) => ({
+                      ...current, chatType: value as ImChatType, externalRef: "", externalName: "", threadId: "",
+                    }));
+                  }}
+                  options={personalWechat ? options.chatTypes.filter((item) => item.value === "dm") : options.chatTypes}
                   size="sm"
                   value={draft.chatType}
                 />
               </UiField>
             </div>
 
-            <UiField
-              description={t("capability.pairing_external_hint")}
-              htmlFor={`${fieldId}-external-ref`}
-              label={t("capability.pairing_external_id")}
-              required
-            >
-              <UiInput
-                disabled={saving || blocked}
-                id={`${fieldId}-external-ref`}
-                onChange={(event) => setField("externalRef", event.target.value)}
-                pattern=".*\S.*"
-                placeholder={draft.chatType === "group"
-                  ? t("capability.pairing_group_placeholder")
-                  : t("capability.pairing_user_placeholder")}
-                required
-                value={draft.externalRef}
-                variant="dialog"
-              />
-            </UiField>
-
-            <UiField htmlFor={`${fieldId}-name`} label={t("capability.pairing_display_name")}>
-              <UiInput
-                disabled={saving || blocked}
-                id={`${fieldId}-name`}
-                onChange={(event) => setField("externalName", event.target.value)}
-                placeholder={t("capability.pairing_name_placeholder")}
-                value={draft.externalName}
-                variant="dialog"
-              />
-            </UiField>
-
-            <UiField htmlFor={`${fieldId}-agent`} label={t("capability.pairing_agent")} required>
+            {candidates.length > 0 && (
+              <UiField htmlFor={`${fieldId}-known`} label={t("capability.pairing_known_target")}>
                 <UiSelectMenu
-                  disabled={saving || blocked || agents.length === 0}
-                  ariaLabel={t("capability.pairing_select_agent")}
-                  id={`${fieldId}-agent`}
-                  onChange={(value) => setField("agentId", value)}
-                  options={agentOptions}
+                  ariaLabel={t("capability.pairing_known_target")}
+                  disabled={saving || blocked}
+                  id={`${fieldId}-known`}
+                  onChange={setTargetChoice}
+                  options={[
+                    ...candidates.map((item) => ({
+                      value: item.pairing_id,
+                      label: [item.external_name !== item.external_ref && item.external_name, pairingTarget(item), item.account_id].filter(Boolean).join(" · "),
+                    })),
+                    { value: "manual", label: t("capability.pairing_manual_id") },
+                  ]}
                   size="sm"
-                  value={draft.agentId}
+                  value={targetChoice}
                 />
-            </UiField>
-
-            <UiDisclosure
-              label={t("capability.pairing_advanced")}
-              summaryTone="muted"
-              variant="section"
-            >
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              </UiField>
+            )}
+            {manual && (
+              <>
                 <UiField
-                  description={t("capability.pairing_account_hint")}
-                  htmlFor={`${fieldId}-account`}
-                  label={t("capability.pairing_account")}
+                  description={t("capability.pairing_external_hint")}
+                  htmlFor={`${fieldId}-external-ref`}
+                  label={t("capability.pairing_external_id")}
+                  required
                 >
                   <UiInput
                     disabled={saving || blocked}
-                    id={`${fieldId}-account`}
-                    onChange={(event) => setField("accountId", event.target.value)}
-                    placeholder={t("capability.pairing_account_placeholder")}
-                    value={draft.accountId}
+                    id={`${fieldId}-external-ref`}
+                    onChange={(event) => setField("externalRef", event.target.value)}
+                    pattern=".*\S.*"
+                    placeholder={draft.chatType === "group"
+                      ? t("capability.pairing_group_placeholder")
+                      : t("capability.pairing_user_placeholder")}
+                    required
+                    value={draft.externalRef}
                     variant="dialog"
                   />
                 </UiField>
-                <UiField htmlFor={`${fieldId}-thread`} label={t("capability.pairing_thread")}>
+
+                <UiField htmlFor={`${fieldId}-name`} label={t("capability.pairing_display_name")}>
                   <UiInput
                     disabled={saving || blocked}
-                    id={`${fieldId}-thread`}
-                    onChange={(event) => setField("threadId", event.target.value)}
-                    placeholder="Telegram topic / Discord thread"
-                    value={draft.threadId}
+                    id={`${fieldId}-name`}
+                    onChange={(event) => setField("externalName", event.target.value)}
+                    placeholder={t("capability.pairing_name_placeholder")}
+                    value={draft.externalName}
                     variant="dialog"
                   />
                 </UiField>
-                <UiField htmlFor={`${fieldId}-status`} label={t("capability.pairing_initial_status")}>
-                  <UiSelectMenu
-                    disabled={saving || blocked}
-                    ariaLabel={t("capability.pairing_select_initial_status")}
-                    id={`${fieldId}-status`}
-                    onChange={(value) => setField(
-                      "status",
-                      value as ImPairingStatus,
-                    )}
-                    options={options.initialStatuses}
-                    size="sm"
-                    value={draft.status}
-                  />
+
+                <UiField htmlFor={`${fieldId}-agent`} label={t("capability.pairing_agent")} required>
+                    <UiSelectMenu
+                      disabled={saving || blocked || agents.length === 0}
+                      ariaLabel={t("capability.pairing_select_agent")}
+                      id={`${fieldId}-agent`}
+                      onChange={(value) => setField("agentId", value)}
+                      options={agentOptions}
+                      size="sm"
+                      value={draft.agentId}
+                    />
                 </UiField>
-              </div>
-              <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
-                {t("capability.pairing_manual_hint")}
-              </p>
-            </UiDisclosure>
+
+                <UiDisclosure
+                  label={t("capability.pairing_advanced")}
+                  summaryTone="muted"
+                  variant="section"
+                >
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <UiField
+                      description={t("capability.pairing_account_hint")}
+                      htmlFor={`${fieldId}-account`}
+                      label={t("capability.pairing_account")}
+                    >
+                      <UiInput
+                        disabled={saving || blocked}
+                        id={`${fieldId}-account`}
+                        onChange={(event) => setField("accountId", event.target.value)}
+                        placeholder={t("capability.pairing_account_placeholder")}
+                        value={draft.accountId}
+                        variant="dialog"
+                      />
+                    </UiField>
+                    <UiField htmlFor={`${fieldId}-thread`} label={t("capability.pairing_thread")}>
+                      <UiInput
+                        disabled={saving || blocked}
+                        id={`${fieldId}-thread`}
+                        onChange={(event) => setField("threadId", event.target.value)}
+                        placeholder="Telegram topic / Discord thread"
+                        value={draft.threadId}
+                        variant="dialog"
+                      />
+                    </UiField>
+                    <UiField htmlFor={`${fieldId}-status`} label={t("capability.pairing_initial_status")}>
+                      <UiSelectMenu
+                        disabled={saving || blocked}
+                        ariaLabel={t("capability.pairing_select_initial_status")}
+                        id={`${fieldId}-status`}
+                        onChange={(value) => setField(
+                          "status",
+                          value as ImPairingStatus,
+                        )}
+                        options={options.initialStatuses}
+                        size="sm"
+                        value={draft.status}
+                      />
+                    </UiField>
+                  </div>
+                  <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
+                    {t("capability.pairing_manual_hint")}
+                  </p>
+                </UiDisclosure>
+              </>
+            )}
           </UiDialogBody>
 
           <UiDialogFooter appearance="plain">
@@ -270,7 +316,7 @@ export function CreatePairingDialog({
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={saving || blocked || !selectedAgentAvailable}
+              disabled={saving || blocked || (manual ? !selectedAgentAvailable : !selected)}
               tone="primary"
               type="submit"
               variant="solid"
@@ -278,7 +324,7 @@ export function CreatePairingDialog({
               {saving ? (
                 <Loader2 className={getUiSpinnerClassName({ size: "md" })} />
               ) : null}
-              {saving ? t("capability.pairing_creating") : t("capability.pairing_new")}
+              {saving ? t("capability.pairing_creating") : t(selected ? "capability.pairing_manage_existing" : "capability.pairing_new")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogFormShell>

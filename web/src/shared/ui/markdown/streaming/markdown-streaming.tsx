@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * INPUT: 已平滑显示的 Markdown 正文、流式状态与静态/流式组件集。
- * OUTPUT: 组件身份稳定、与共享展示帧同步提交的 Markdown 子树。
- * POS: 防止打字机排空后重挂载 Markdown 块；不再为每条流创建独立延迟提交。
+ * INPUT: 已平滑显示的 Markdown 正文、流式状态与唯一组件表。
+ * OUTPUT: 组件身份稳定、与共享展示帧同步提交的 Markdown 子树；尾块流式态经 Context 下发。
+ * POS: 防止区块收口或打字机排空后重挂载 Markdown 块；不再为每条流创建独立延迟提交。
  */
 import {
   memo,
@@ -14,6 +14,7 @@ import {
 } from "react";
 import ReactMarkdown from "react-markdown";
 
+import { MarkdownBlockStreamingProvider } from "../core/markdown-block-streaming-context";
 import { MarkdownStreamBlockParser } from "./markdown-stream-blocks";
 
 type ReactMarkdownProps = ComponentProps<typeof ReactMarkdown>;
@@ -28,7 +29,6 @@ interface MarkdownTextBlockProps {
 
 interface MarkdownTextProps extends MarkdownTextBlockProps {
   isStreaming: boolean;
-  streamingComponents: ReactMarkdownProps["components"];
 }
 
 const MarkdownTextBlock = memo(
@@ -66,7 +66,6 @@ export function MarkdownText({
   content,
   components,
   isStreaming,
-  streamingComponents: streamingComponents,
   rehypePlugins: rehypePlugins,
   remarkPlugins: remarkPlugins,
   urlTransform,
@@ -91,22 +90,21 @@ export function MarkdownText({
 
   return (
     <>
-      {blocks.map((block) => {
-        return (
+      {blocks.map((block) => (
+        // 元素类型在区块收口前后保持不变；只有 Provider 值变化，代码块与图表原位切换。
+        <MarkdownBlockStreamingProvider
+          key={block.start_offset}
+          value={isStreaming && block.state === "streaming"}
+        >
           <MarkdownTextBlock
-            key={block.start_offset}
             content={block.content}
-            components={
-              isStreaming && block.state === "streaming"
-                ? streamingComponents
-                : components
-            }
+            components={components}
             rehypePlugins={rehypePlugins}
             remarkPlugins={remarkPlugins}
             urlTransform={urlTransform}
           />
-        );
-      })}
+        </MarkdownBlockStreamingProvider>
+      ))}
     </>
   );
 }

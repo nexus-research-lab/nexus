@@ -11,6 +11,7 @@ import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
 
 import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
+import { useStableGroupMap } from "@/features/conversation/shared/timeline/stable-group-map";
 import { useRoomThreadSource } from "../../../thread/live/use-room-thread-source";
 import type { GroupChatPanelProps } from "../group-chat-panel-types";
 import type { GroupChatPanelViewModel } from "../view/group-chat-panel-view";
@@ -69,7 +70,7 @@ export function useGroupChatPanelModel({
   useEffect(() => {
     onExecutionTaskRunsChange?.(session.taskRuns);
   }, [onExecutionTaskRunsChange, session.taskRuns]);
-  const feedTimeline = useMemo(
+  const projectedTimeline = useMemo(
     () => projectGroupAgentTimeline({
       messageGroups: session.timeline.message_groups,
       pendingPermissionGroups: session.timeline.pending_permission_groups,
@@ -80,6 +81,18 @@ export function useGroupChatPanelModel({
     }),
     [session.timeline],
   );
+  // Agent 节点每次投影都会重建数组；并行流式时只让真正变化的节点重渲染。
+  const nodeMessages = useStableGroupMap(projectedTimeline.messageGroups);
+  const nodePermissions = useStableGroupMap(projectedTimeline.pendingPermissionGroups);
+  const nodeSlots = useStableGroupMap(projectedTimeline.pendingSlotGroups);
+  const nodeExecutionStates = useStableGroupMap(projectedTimeline.roomAgentExecutionStateGroups);
+  const feedTimeline = useMemo(() => ({
+    ...projectedTimeline,
+    messageGroups: nodeMessages,
+    pendingPermissionGroups: nodePermissions,
+    pendingSlotGroups: nodeSlots,
+    roomAgentExecutionStateGroups: nodeExecutionStates,
+  }), [nodeExecutionStates, nodeMessages, nodePermissions, nodeSlots, projectedTimeline]);
   const directory = useRoomAgentDirectory(roomMembers);
   const composer = useGroupChatComposerModel({
     agentId,

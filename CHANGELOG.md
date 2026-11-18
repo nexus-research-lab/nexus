@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 新增 IM 配对时可按渠道选择已知联系人或群聊并管理已有配对；首次联系提供获取对象的提示，个人微信仅显示私聊。
 - 限制多个会话与子智能体同时启动造成的资源挤兑：共享 runtime 默认最多保留 4 个会话、同时受理 8 个子智能体；内存紧张或会话名额用满时优先回收空闲会话并有界等待，同一会话排队与全局等待共用 30 秒预算，回滚可在满队列执行。续跑消息投递前预留名额，按任务代次释放。同步 DM 准备响应取消，已持久受理的任务可在连接断开后继续。
 - 智能体轮次只在收到 runtime `result` 后结束；模型回复结束后继续用工具或续写时保持运行，缺少结果的断流不再误报成功。
 - 修复运行时退出后长期提示 `runtime session is closing`：Bridge 区分执行失败与资源清理失败，已确认清理完成的非零退出不再阻塞后续任务，真实清理失败仍保留关闭保护。
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show who is online in online rooms: members and Agents whose host is connected get a presence dot in the member dialog and room header, and Agents receive the same presence snapshot with each task. Requires nexus-relay with member presence.
 - Let online-room Agents read the room's shared files: each task syncs shared files (bounded, cached by file ID) into the room conversation and lists them with their local paths; files that cannot be synced are listed as not synced instead of failing the task.
 - Keep the reading position stable in online rooms while delivery cards, attachments or earlier history change the feed height.
+- Smooth streaming replies in DM and Room: finished Markdown blocks no longer remount when they close, parallel Agents commit in the same display frame instead of each slowing to 30/N Hz, unchanged rounds and Agent cards skip re-rendering during streaming, and multi-Agent rooms switch to the virtual feed by user turns instead of Agent replies.
 
 ## [0.2.8] - 2026-11-04
 

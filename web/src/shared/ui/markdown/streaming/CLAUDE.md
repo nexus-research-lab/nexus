@@ -1,9 +1,9 @@
 # Markdown 流式渲染
 
 - `markdown-stream-blocks.ts`: 把不完整输入切成可稳定渲染的区块；增量解析器缓存前缀，保留最后两块重扫以支持列表续写，非前缀修正重新解析。
-- `markdown-streaming.tsx`: 以一个持久 `MarkdownText` 身份组合静态区块与当前增量区块；本次挂载一旦进入流式态，终态继续按相同 `start_offset` 分块并切换为静态组件，避免代码、图片等后续块重挂载；所有流已由共享帧调度器合批，禁止再用每实例延迟值制造第二批异步高度提交，初次加载的历史消息直接走静态单块。
+- `markdown-streaming.tsx`: 以一个持久 `MarkdownText` 身份组合静态区块与当前增量区块；本次挂载一旦进入流式态，终态继续按相同 `start_offset` 分块。静态与流式区块共用唯一组件表，尾块流式态只经 `core/markdown-block-streaming-context.ts` 下发，区块收口不替换元素类型，段落、代码外壳、图片与图表不重挂载；所有流已由共享帧调度器合批，禁止再用每实例延迟值制造第二批异步高度提交，初次加载的历史消息直接走静态单块。
 - `adaptive-stream-clock.ts`: 低速输入保持约 18–90 grapheme/s 与短暂抗抖缓冲；积压达到 180 字符时按 350ms 目标延迟提高片段大小，并允许合并已完成块。终态设定一次 500ms 排空截止点，实际完成仍受共享调度额度与浏览器帧可用性约束；信用不得超过已到达 backlog。
-- `stream-frame-scheduler.ts`: 所有可见流共用最高 30Hz RAF，每帧只允许一条流提交并按身份轮转；字符需求由各流时钟决定，大块追赶每次最多 2048 grapheme，返回 0 的 buffering/节流流不占名额，空 backlog 立即退订。
+- `stream-frame-scheduler.ts`: 所有可见流共用最高 30Hz RAF；同帧最多 4 条流提交并共享 2048 grapheme 总额度，React 把它们合成一次渲染、布局与 FOLLOW 写入，避免并行 Agent 各自退化为 30/N Hz。下一帧从最后实际提交之后轮转，返回 0 的 buffering/节流流不占名额，空 backlog 立即退订。
 - `stream-text-units.ts`: 追加时通过 `lib/text-graphemes.ts` 重分前一个尾单元与新 delta，保证跨 transport chunk 的 emoji ZWJ、肤色修饰符与组合附标仍作为一个展示单元；基础切分不在流式层重复实现。
 - `use-smooth-streaming-markdown-content.ts`: 通过唯一 `useSmoothStreamingMarkdownState` 同时返回正文与真实渲染态，只对追加快照做单调追赶；增量字符原地追加到目标缓冲，大块 live 追加以有界字符预算或完成块合并追赶，长尾按长度将提交间隔延长到最多 96ms，终态继续排空已有 backlog；历史首挂、非前缀修正、页面重新可见或减少动态效果时立即对齐真实正文。
 
@@ -15,7 +15,7 @@
 live 流的最后一个 grapheme 在下一单元确认边界前保持在 target backlog 中，runtime 终态后必须立即纳入正常排空；若恢复态已经显示的尾单元被新 delta 扩展，只能原子重写相同长度的已显示前缀，新增后缀仍走原 backlog，禁止用全量同步制造高度跳变。
 结构化消息入口必须在 live 文本为空时就挂载 MarkdownRenderer；首批正文因此是对空目标的追加，历史或恢复消息则用已有正文首挂并直接呈现。
 Room 的阅读位置仍由会话滚动层维护；Markdown 平滑只改善阅读节奏，不得承担滚动补偿或掩盖布局抖动。
-流式时钟不得根据一次短传输间隙切换到终态速度；只有 runtime 明确结束后才能排空保留缓冲。字符推进由共享帧调度器以最高 30Hz 唤醒，每帧最多一条流实际提交且聚合展示量不得随并行 Agent 数量线性放大；空 backlog 时可退订并在下一次追加时复用原 `AdaptiveStreamClock`。
+流式时钟不得根据一次短传输间隙切换到终态速度；只有 runtime 明确结束后才能排空保留缓冲。字符推进由共享帧调度器以最高 30Hz 唤醒，每帧提交数与聚合展示量都有固定上限，不随并行 Agent 数量线性放大；空 backlog 时可退订并在下一次追加时复用原 `AdaptiveStreamClock`。
 正文流式层不得添加 opacity、transform、光标或光晕动画；视觉连续性只由字符时钟、稳定区块身份与会话层原有贴底逻辑提供。
 
 显示公式的独占行分隔（含列表/引用前缀）与代码块一样拥有内部空行；不可在中途冻结为多个 Markdown 块。完成后继续复用相同起点和节点，正文语法与未闭合降级仍由 core 处理。

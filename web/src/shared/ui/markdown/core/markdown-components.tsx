@@ -9,8 +9,6 @@ import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { ReactNode } from "react";
 import { type Components } from "react-markdown";
 
-import { CodeBlock } from "../code/code-block";
-import { LazyMermaidView } from "../mermaid/lazy-mermaid-view";
 import { WorkspaceFileButton } from "../workspace/markdown-workspace-file-button";
 import {
   resolveWorkspaceArtifactPath,
@@ -24,12 +22,11 @@ import {
   buildMarkdownCodePresentation,
   type MarkdownCodeNode,
 } from "./markdown-code-model";
+import { StreamingAwareCodeBlock, StreamingAwareMermaid } from "./markdown-streaming-code";
 
 interface CreateMarkdownComponentsOptions {
   compactMermaid?: boolean;
   showMermaidHeader?: boolean;
-  streamCodeBlocks?: boolean;
-  streamMermaid?: boolean;
   // 返回 null/undefined 时继续通用安全链接渲染；领域协议放行由消费侧 URL transform 决定。
   renderLink?: (href: string, children: ReactNode) => ReactNode | null;
   getFilePreviewUrl?: (path: string) => string;
@@ -137,18 +134,16 @@ export function createMarkdownComponents(
       );
       if (presentation.kind === "mermaid") {
         return (
-          <LazyMermaidView
+          <StreamingAwareMermaid
             chart={presentation.value}
             compact={options.compactMermaid ?? true}
-            isStreaming={options.streamMermaid}
             showHeader={options.showMermaidHeader}
           />
         );
       }
       if (presentation.kind === "block") {
         return (
-          <CodeBlock
-            isStreaming={options.streamCodeBlocks}
+          <StreamingAwareCodeBlock
             language={presentation.language}
             value={presentation.value}
           />

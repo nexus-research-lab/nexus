@@ -132,6 +132,12 @@ export function PairingsDirectory() {
       {controller.createOpen ? (
         <CreatePairingDialog
           agents={controller.agents}
+          pairings={controller.items}
+          onManage={(item) => {
+            controller.clearFilters();
+            controller.setFilter("query", item.pairing_id);
+            controller.closeCreate();
+          }}
           blocked={controller.busy}
           failure={controller.createRecoveryFeedback
             ? completeFeedbackBanner(

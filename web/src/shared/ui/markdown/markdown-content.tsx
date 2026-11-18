@@ -83,11 +83,15 @@ export function UiMarkdownContent({
       variant,
     ],
   );
-  const normalizedContent = normalizeMarkdownContent(
-    displayedContent,
-    resolveFilePath,
-    onOpenWorkspaceFile,
-    { is_streaming: shouldRenderStreaming },
+  // 全文规范化是多轮正则扫描；只在展示正文或解析能力变化时重算。
+  const normalizedContent = useMemo(
+    () => normalizeMarkdownContent(
+      displayedContent,
+      resolveFilePath,
+      onOpenWorkspaceFile,
+      { is_streaming: shouldRenderStreaming },
+    ),
+    [displayedContent, onOpenWorkspaceFile, resolveFilePath, shouldRenderStreaming],
   );
   const plugins = useMemo(() => ({
     rehypePlugins: variant === "summary" ? [] : REHYPE_PLUGINS,
@@ -97,7 +101,7 @@ export function UiMarkdownContent({
   }), [summaryMathLabel, variant]);
   const sharedProps = {
     ...plugins,
-    components: components.stable,
+    components,
     content: normalizedContent,
     urlTransform: defaultUrlTransform,
   };
@@ -112,7 +116,6 @@ export function UiMarkdownContent({
       <MarkdownText
         {...sharedProps}
         isStreaming={shouldRenderStreaming}
-        streamingComponents={components.streaming}
       />
     </div>
   );
@@ -132,11 +135,6 @@ function resolveNoWorkspaceFile(): null {
   return null;
 }
 
-interface MarkdownComponentSet {
-  stable: Components;
-  streaming: Components;
-}
-
 function createMarkdownComponentSet({
   getFilePreviewUrl,
   mermaidShowHeader,
@@ -145,31 +143,18 @@ function createMarkdownComponentSet({
   summaryMonochrome,
   summaryStrongAsText,
   variant,
-}: CreateMarkdownComponentSetOptions): MarkdownComponentSet {
+}: CreateMarkdownComponentSetOptions): Components {
   if (variant === "summary") {
-    const summary = createMarkdownSummaryComponents(
+    return createMarkdownSummaryComponents(
       resolveFilePath,
       onOpenWorkspaceFile,
       { monochrome: summaryMonochrome, strongAsText: summaryStrongAsText },
     );
-    return { stable: summary, streaming: summary };
   }
-  return {
-    stable: createMarkdownComponents(
-      resolveFilePath,
-      onOpenWorkspaceFile,
-      { getFilePreviewUrl, compactMermaid: false, showMermaidHeader: mermaidShowHeader },
-    ),
-    streaming: createMarkdownComponents(
-      resolveFilePath,
-      onOpenWorkspaceFile,
-      {
-        getFilePreviewUrl,
-        compactMermaid: false,
-        showMermaidHeader: mermaidShowHeader,
-        streamCodeBlocks: true,
-        streamMermaid: true,
-      },
-    ),
-  };
+  // 静态与流式区块共用一份组件表；流式差异由 MarkdownText 的区块 Context 提供。
+  return createMarkdownComponents(
+    resolveFilePath,
+    onOpenWorkspaceFile,
+    { getFilePreviewUrl, compactMermaid: false, showMermaidHeader: mermaidShowHeader },
+  );
 }
