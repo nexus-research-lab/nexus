@@ -5,7 +5,8 @@ L3 | 父级: `web/src/hooks/CLAUDE.md`
 ## 成员清单
 
 - `use-assistant-content-merge.ts`: 合并并去重一轮内多条 Assistant 消息的内容块，维护流式输出索引
-- `use-message-height.ts`: 将终态消息一次投影为可见文本和工具块指标，批量估算虚拟列表轮次高度；活跃轮次和生成式 UI 使用各自的保守固定基线
+- `use-message-height.ts` 在 DM 与群聊虚拟列表中估算轮次高度。相同列宽下复用当前列表中正文片段未变的测量结果，工具块按当前消息计数，活跃轮次使用固定基线。
+- `use-message-height.test.ts` 覆盖同一轮次更新正文、工具块或列宽时的估高复用与失效，以及活跃轮次结束后首次测量、移出窗口的轮次释放缓存。
 - `use-session-loader.ts`: 加载 Session 消息并管理请求生命周期
 - `use-session-round-index.ts`: 按 exact Session 读取轮次索引；失败保留最后成功快照并暴露 stale/error/retry，scope 或权限失效清空
 

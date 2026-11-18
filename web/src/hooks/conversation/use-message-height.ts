@@ -1,4 +1,10 @@
+/**
+ * INPUT: 虚拟列表当前轮次的消息、活动状态和列宽。
+ * OUTPUT: 供虚拟列表使用的各轮次初始高度。
+ * POS: DM 与群聊共用的轮次估高逻辑。
+ */
 import { prepare, layout } from "@chenglou/pretext";
+import { useMemo } from "react";
 
 import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
@@ -13,26 +19,26 @@ type ContentBlockOf<Type extends ContentBlockType> = Extract<
 type MessageRole = Message["role"];
 type MessageOf<Role extends MessageRole> = Extract<Message, { role: Role }>;
 
-interface MutableRoundHeightMetrics {
+interface RoundHeightMetrics {
   textParts: string[];
   toolBlockCount: number;
 }
 
-interface RoundHeightMetrics {
-  text: string;
-  toolBlockCount: number;
+interface RoundTextEstimate {
+  parts: string[];
+  height: number;
 }
 
 type ContentBlockMetricCollectorMap = {
   [Type in ContentBlockType]: (
     block: ContentBlockOf<Type>,
-    metrics: MutableRoundHeightMetrics,
+    metrics: RoundHeightMetrics,
   ) => void;
 };
 type MessageMetricCollectorMap = {
   [Role in MessageRole]: (
     message: MessageOf<Role>,
-    metrics: MutableRoundHeightMetrics,
+    metrics: RoundHeightMetrics,
   ) => void;
 };
 
@@ -107,26 +113,23 @@ function estimateTextHeight(text: string, containerWidth: number): number {
 }
 
 function projectRoundHeightMetrics(messages: Message[]): RoundHeightMetrics {
-  const metrics: MutableRoundHeightMetrics = {
+  const metrics: RoundHeightMetrics = {
     textParts: [],
     toolBlockCount: 0,
   };
   for (const message of messages) {
     const collectMetrics = MESSAGE_METRIC_COLLECTORS[message.role] as (
       value: Message,
-      target: MutableRoundHeightMetrics,
+      target: RoundHeightMetrics,
     ) => void;
     collectMetrics(message, metrics);
   }
-  return {
-    text: metrics.textParts.join("\n"),
-    toolBlockCount: metrics.toolBlockCount,
-  };
+  return metrics;
 }
 
 function collectUserMessageMetrics(
   message: MessageOf<"user">,
-  metrics: MutableRoundHeightMetrics,
+  metrics: RoundHeightMetrics,
 ): void {
   if (!isAutomationTriggerUserMessage(message)) {
     metrics.textParts.push(message.content);
@@ -135,12 +138,12 @@ function collectUserMessageMetrics(
 
 function collectAssistantMessageMetrics(
   message: MessageOf<"assistant">,
-  metrics: MutableRoundHeightMetrics,
+  metrics: RoundHeightMetrics,
 ): void {
   for (const block of message.content) {
     const collectMetrics = CONTENT_BLOCK_METRIC_COLLECTORS[block.type] as ((
       value: ContentBlock,
-      target: MutableRoundHeightMetrics,
+      target: RoundHeightMetrics,
     ) => void) | undefined;
     collectMetrics?.(block, metrics);
   }
@@ -154,42 +157,71 @@ function estimateCodeBlockHeight(text: string): number {
   }, 0);
 }
 
-/**
- * 批量估算轮次高度，共享 pretext 缓存并避免逐项触发 DOM 测量。
- */
-export function estimateRoundHeights(
+function estimateRoundText(
+  parts: string[],
+  containerWidth: number,
+  previous: RoundTextEstimate | undefined,
+): RoundTextEstimate {
+  if (
+    previous && previous.parts.length === parts.length
+    && parts.every((part, index) => part === previous.parts[index])
+  ) {
+    return previous;
+  }
+  const text = parts.join("\n");
+  const prose = text.replace(/```[\s\S]*?```/g, "");
+  return {
+    parts,
+    height: estimateCodeBlockHeight(text) + estimateTextHeight(prose, containerWidth),
+  };
+}
+
+function createRoundHeightEstimator(containerWidth: number) {
+  // 渲染期写入闭包是有意为之：缓存只按正文片段逐段相等命中，被丢弃的并发渲染
+  // 或 React 丢弃 memo 只会降低命中率，不会返回过期高度。不要在此缓存其他状态。
+  let previous = new Map<string, RoundTextEstimate>();
+  return (
+    roundIds: string[],
+    messageGroups: Map<string, Message[]>,
+    activeRoundIds: ReadonlySet<string>,
+  ): Map<string, number> => {
+    if (containerWidth <= 0) return new Map(roundIds.map((id) => [id, 200]));
+    const heights = new Map<string, number>();
+    const next = new Map<string, RoundTextEstimate>();
+    for (const id of roundIds) {
+      if (activeRoundIds.has(id)) {
+        heights.set(id, ACTIVE_ROUND_ESTIMATED_HEIGHT);
+        continue;
+      }
+      const { textParts, toolBlockCount } = projectRoundHeightMetrics(
+        messageGroups.get(id) ?? [],
+      );
+      let height = ROUND_CHROME_HEIGHT + toolBlockCount * TOOL_BLOCK_HEIGHT;
+      if (textParts.length > 0) {
+        const estimate = estimateRoundText(textParts, containerWidth, previous.get(id));
+        next.set(id, estimate);
+        height += estimate.height;
+      }
+      heights.set(id, Math.max(80, height));
+    }
+    // 只保留当前 Feed 的终态轮次，历史窗口淘汰的正文片段可随即释放。
+    previous = next;
+    return heights;
+  };
+}
+
+export function useRoundHeights(
   roundIds: string[],
   messageGroups: Map<string, Message[]>,
   containerWidth: number,
-  activeRoundIds: ReadonlySet<string> = new Set(),
+  activeRoundIds: ReadonlySet<string>,
 ): Map<string, number> {
-  const result = new Map<string, number>();
-
-  if (containerWidth <= 0) {
-    roundIds.forEach((id) => result.set(id, 200));
-    return result;
-  }
-
-  for (const id of roundIds) {
-    if (activeRoundIds.has(id)) {
-      result.set(id, ACTIVE_ROUND_ESTIMATED_HEIGHT);
-      continue;
-    }
-    const messages = messageGroups.get(id) ?? [];
-    const metrics = projectRoundHeightMetrics(messages);
-    const codeBlockHeight = estimateCodeBlockHeight(metrics.text);
-    const proseText = metrics.text.replace(/```[\s\S]*?```/g, "");
-    const proseHeight = estimateTextHeight(proseText, containerWidth);
-
-    const height = Math.max(
-      80,
-      ROUND_CHROME_HEIGHT +
-        proseHeight +
-        codeBlockHeight +
-        metrics.toolBlockCount * TOOL_BLOCK_HEIGHT,
-    );
-    result.set(id, height);
-  }
-
-  return result;
+  const estimate = useMemo(
+    () => createRoundHeightEstimator(containerWidth),
+    [containerWidth],
+  );
+  return useMemo(
+    () => estimate(roundIds, messageGroups, activeRoundIds),
+    [estimate, roundIds, messageGroups, activeRoundIds],
+  );
 }
