@@ -179,6 +179,7 @@ export function pairingSessionKey(item: PairingView): string {
 
 function pairingSearchValues(item: PairingView, labels: { channels: typeof CHANNEL_LABELS; chatTypes: typeof CHAT_TYPE_LABELS }): string[] {
   return [
+    item.pairing_id,
     item.external_name ?? "",
     item.external_ref,
     item.account_id ?? "",
