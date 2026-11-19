@@ -28,49 +28,51 @@ func (s *AgentHistoryStore) readTranscriptEntriesAtContext(
 	root *confinedfs.Root,
 	relative string,
 ) ([]transcriptEntry, error) {
-	entries, _, _, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative)
-	return cloneTranscriptEntries(entries), err
+	read, _, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative, transcriptReadFull)
+	return cloneTranscriptEntries(read.Entries), err
 }
 
 // readTranscriptEntriesLineageAtContext 额外返回缓存路径与解析代系；
 // 未进入缓存（读取期间仍在写入或文件过大）时代系为 0。
-// 返回的条目可能与缓存共享，调用方只能读取，投影前须深拷贝要交给 Processor 的部分。
+// 返回的条目可能与缓存共享，调用方只能读取，投影前须深拷贝要交给 Processor 的部分；
+// 只有 transcriptReadProjection 会拿到骨架条目（见 transcriptCacheRead.SlimEnd）。
 func (s *AgentHistoryStore) readTranscriptEntriesLineageAtContext(
 	ctx context.Context,
 	root *confinedfs.Root,
 	relative string,
-) ([]transcriptEntry, string, uint64, error) {
+	mode transcriptReadMode,
+) (transcriptCacheRead, string, error) {
 	file, err := s.openTranscriptReadFile(root, relative)
 	if err != nil {
-		return nil, "", 0, err
+		return transcriptCacheRead{}, "", err
 	}
 	defer file.Close()
 	info, err := file.Stat()
 	if err != nil {
-		return nil, "", 0, err
+		return transcriptCacheRead{}, "", err
 	}
 	before, err := snapshotOpenedFile(ctx, file, info, historyPageSourceSnapshot{})
 	if err != nil {
-		return nil, "", 0, err
+		return transcriptCacheRead{}, "", err
 	}
 	path := filepath.Join(root.Name(), relative)
-	if cached, lineage, ok := s.readTranscriptCacheLineage(path, before); ok {
-		return cached, path, lineage, nil
+	if cached, ok := s.readTranscriptCacheLineage(path, before, mode); ok {
+		return cached, path, nil
 	}
-	if extended, lineage, ok, err := s.extendTranscriptCache(ctx, path, file, before); err != nil {
-		return nil, "", 0, err
+	if extended, ok, err := s.extendTranscriptCache(ctx, path, file, before, mode); err != nil {
+		return transcriptCacheRead{}, "", err
 	} else if ok {
-		return extended, path, lineage, nil
+		return extended, path, nil
 	}
 	// 新一轮开始时后台预热与前台恢复上下文读取常在同一时刻落到完整解析，只让一方真正解析。
 	if wait, done := s.beginTranscriptParse(path); wait != nil {
 		select {
 		case <-wait:
 		case <-ctx.Done():
-			return nil, "", 0, ctx.Err()
+			return transcriptCacheRead{}, "", ctx.Err()
 		}
-		if cached, lineage, ok := s.readTranscriptCacheLineage(path, before); ok {
-			return cached, path, lineage, nil
+		if cached, ok := s.readTranscriptCacheLineage(path, before, transcriptWaitMode(mode)); ok {
+			return cached, path, nil
 		}
 	} else {
 		defer done()
@@ -78,22 +80,31 @@ func (s *AgentHistoryStore) readTranscriptEntriesLineageAtContext(
 	s.cache.fullParses.Add(1)
 	entries, nextIndex, err := readTranscriptEntriesParallelContext(ctx, file, before.Size)
 	if err != nil {
-		return nil, "", 0, err
+		return transcriptCacheRead{}, "", err
 	}
 	info, err = file.Stat()
 	if err != nil {
-		return nil, "", 0, err
+		return transcriptCacheRead{}, "", err
 	}
 	after, err := snapshotOpenedFile(ctx, file, info, historyPageSourceSnapshot{})
 	if err != nil {
-		return nil, "", 0, err
+		return transcriptCacheRead{}, "", err
 	}
 	// 读取期间仍在写入的文件不进入缓存，由调用方原有 source 校验决定是否重试。
-	var lineage uint64
+	read := transcriptCacheRead{Entries: entries}
 	if before == after {
-		lineage = s.writeTranscriptCache(path, after, entries, nextIndex)
+		read.Lineage = s.writeTranscriptCache(path, after, entries, nextIndex, mode)
 	}
-	return entries, path, lineage, nil
+	return read, path, nil
+}
+
+// transcriptWaitMode 决定等到别人的完整解析后怎样查缓存：Fresh 读取方只接受完整条目，
+// 缓存里仍是那份无法服务它的骨架时自行解析。
+func transcriptWaitMode(mode transcriptReadMode) transcriptReadMode {
+	if mode == transcriptReadFresh {
+		return transcriptReadFull
+	}
+	return mode
 }
 
 // beginTranscriptParse 登记一次完整解析：已有同一文件的解析在进行时返回其完成信号，

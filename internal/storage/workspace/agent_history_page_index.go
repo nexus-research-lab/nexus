@@ -48,13 +48,9 @@ func (s *AgentHistoryStore) historyPageAccess(
 			return s.validateAgentHistoryPageSources(ctx, workspacePath, sessionValue, expected)
 		},
 		Build: func(ctx context.Context) (historyPageIndexBuild, error) {
-			return s.buildAgentHistoryPageIndexWithSourceLimit(
-				ctx,
-				workspacePath,
-				sessionValue,
-				historyPageSourceMaxBytes,
-				scope,
-			)
+			// DM 不设源字节上限：超长会话也要建读模型，之后每轮只做尾轮增量；
+			// 禁用读模型只会让每次翻页都在前台完整读一遍且结果不落盘。
+			return s.buildAgentHistoryPageIndexWithTail(ctx, workspacePath, sessionValue, scope)
 		},
 		ReadRoundIndex: func(ctx context.Context, active []string) (protocol.SessionRoundIndex, error) {
 			return s.readCanonicalRoundIndexContext(ctx, workspacePath, sessionValue, active)
@@ -289,14 +285,14 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndex(
 	workspacePath string,
 	sessionValue protocol.Session,
 ) (historyPageIndexBuild, error) {
-	return s.buildAgentHistoryPageIndexWithSourceLimit(ctx, workspacePath, sessionValue, 0, "")
+	return s.buildAgentHistoryPageIndexWithTail(ctx, workspacePath, sessionValue, "")
 }
 
-func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
+// buildAgentHistoryPageIndexWithTail 完整重建读模型；tailScope 非空时同时建立尾轮增量状态。
+func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithTail(
 	ctx context.Context,
 	workspacePath string,
 	sessionValue protocol.Session,
-	sourceLimit int64,
 	tailScope string,
 ) (historyPageIndexBuild, error) {
 	var latest historyPageIndexBuild
@@ -304,18 +300,6 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
 		before, err := s.collectAgentHistoryPageSources(ctx, workspacePath, sessionValue)
 		if err != nil {
 			return historyPageIndexBuild{}, err
-		}
-		if historyPageSourcesExceedLimit(before, sourceLimit) {
-			after, afterErr := s.collectAgentHistoryPageSources(ctx, workspacePath, sessionValue)
-			if afterErr != nil {
-				return historyPageIndexBuild{}, afterErr
-			}
-			latest = historyPageIndexBuild{Sources: after, Disabled: true}
-			if snapshotsEqual(before, after) {
-				latest.Cacheable = true
-				return latest, nil
-			}
-			continue
 		}
 		parts, err := s.readHistoryRowPartsContext(ctx, workspacePath, sessionValue, 0)
 		if err != nil {

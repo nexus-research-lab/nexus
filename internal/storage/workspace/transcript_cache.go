@@ -18,6 +18,33 @@ var transcriptCacheAccesses atomic.Uint64
 // 按源文件字节为解析缓存计重，避免深拷贝几份大型 transcript 后长期驻留。
 const maxTranscriptCacheSourceBytes = 64 << 20
 
+// transcriptSlimSourceBytes 以上的 transcript 在建立投影检查点后，把检查点之前的条目
+// 收缩为骨架（见 transcript_skeleton.go）：缓存体量不再随会话内容线性增长，
+// 超长会话也能保留缓存走增量路径。测试可调低以覆盖骨架路径。
+var transcriptSlimSourceBytes int64 = maxTranscriptCacheSourceBytes / 2
+
+// transcriptReadMode 区分读取方能否消费骨架条目、能否让超大 transcript 进入缓存。
+type transcriptReadMode int
+
+const (
+	// transcriptReadFull 需要完整条目；骨架缓存视为未命中，可收缩尺寸的 transcript 不写缓存，
+	// 避免与 DM 投影互相覆盖代系。
+	transcriptReadFull transcriptReadMode = iota
+	// transcriptReadProjection 是 DM 检查点投影：接受骨架，完整解析结果总是进入缓存，
+	// 随后由检查点收缩；未能建立检查点的超大条目由调用方释放。
+	transcriptReadProjection
+	// transcriptReadFresh 跳过缓存重新完整解析，用于骨架缓存无法服务本次投影时。
+	transcriptReadFresh
+)
+
+// transcriptCacheRead 是一次读取得到的条目视图。Entries 可能与缓存共享，只读；
+// Index 小于 SlimEnd 的条目是骨架，只能用于建链、工具关联与 marker 对齐。
+type transcriptCacheRead struct {
+	Entries []transcriptEntry
+	Lineage uint64
+	SlimEnd int
+}
+
 type transcriptCacheEntry struct {
 	Source historyPageSourceSnapshot
 	// LastAccess 是单调递增的访问序号，挂钟时间粒度不够区分紧挨着的两次写入。
@@ -29,63 +56,80 @@ type transcriptCacheEntry struct {
 	Lineage uint64
 	// Projection 是该代系最近一次 DM 投影的前缀检查点，可为空。
 	Projection *transcriptProjectionCheckpoint
+	// SlimEnd 之前（按 Index）的条目已收缩为骨架；0 表示全部完整。
+	SlimEnd int
+}
+
+func (entry transcriptCacheEntry) read() transcriptCacheRead {
+	return transcriptCacheRead{Entries: entry.Entries, Lineage: entry.Lineage, SlimEnd: entry.SlimEnd}
 }
 
 func (s *AgentHistoryStore) readTranscriptCache(path string, source historyPageSourceSnapshot) ([]transcriptEntry, bool) {
-	entries, _, ok := s.readTranscriptCacheLineage(path, source)
-	return cloneTranscriptEntries(entries), ok
+	read, ok := s.readTranscriptCacheLineage(path, source, transcriptReadFull)
+	return cloneTranscriptEntries(read.Entries), ok
 }
 
 // readTranscriptCacheLineage 返回缓存内共享的条目：调用方只能读取，需要修改的部分自行深拷贝。
-
-func (s *AgentHistoryStore) readTranscriptCacheLineage(path string, source historyPageSourceSnapshot) ([]transcriptEntry, uint64, bool) {
+func (s *AgentHistoryStore) readTranscriptCacheLineage(
+	path string,
+	source historyPageSourceSnapshot,
+	mode transcriptReadMode,
+) (transcriptCacheRead, bool) {
+	if mode == transcriptReadFresh {
+		return transcriptCacheRead{}, false
+	}
 	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
 	entry, exists := s.cache.entries[path]
-	if exists && entry.Source == source {
-		entry.LastAccess = transcriptCacheAccesses.Add(1)
-		s.cache.entries[path] = entry
+	if !exists || entry.Source != source || (entry.SlimEnd > 0 && mode != transcriptReadProjection) {
+		return transcriptCacheRead{}, false
 	}
-	s.cache.mu.Unlock()
-	if !exists || entry.Source != source {
-		return nil, 0, false
-	}
-	return entry.Entries, entry.Lineage, true
+	entry.LastAccess = transcriptCacheAccesses.Add(1)
+	s.cache.entries[path] = entry
+	return entry.read(), true
 }
 
-// writeTranscriptCache 接管一次完整解析的结果并返回新代系；文件过大不缓存时返回 0。
+// writeTranscriptCache 接管一次完整解析的结果并返回新代系；不缓存时返回 0。
 // 写入后 entries 与缓存共享，调用方不得再修改。
-func (s *AgentHistoryStore) writeTranscriptCache(path string, source historyPageSourceSnapshot, entries []transcriptEntry, nextIndex int) uint64 {
-	return s.storeTranscriptCache(path, source, slices.Clip(entries), nextIndex, nextTranscriptCacheLineage(), nil)
-}
-
-// storeTranscriptCache 接管 entries 的所有权；调用方之后不得修改其中任何条目。
-func (s *AgentHistoryStore) storeTranscriptCache(
+func (s *AgentHistoryStore) writeTranscriptCache(
 	path string,
 	source historyPageSourceSnapshot,
 	entries []transcriptEntry,
 	nextIndex int,
-	lineage uint64,
-	projection *transcriptProjectionCheckpoint,
+	mode transcriptReadMode,
 ) uint64 {
-	if source.Size > maxTranscriptCacheSourceBytes {
-		s.cache.mu.Lock()
-		delete(s.cache.entries, path)
-		s.cache.mu.Unlock()
+	if mode == transcriptReadFull && source.Size > transcriptSlimSourceBytes {
 		return 0
 	}
-	entry := transcriptCacheEntry{
-		Source:     source,
-		LastAccess: transcriptCacheAccesses.Add(1),
-		Entries:    entries,
-		NextIndex:  nextIndex,
-		Lineage:    lineage,
-		Projection: projection,
-	}
+	return s.storeTranscriptCache(path, transcriptCacheEntry{
+		Source: source, Entries: slices.Clip(entries), NextIndex: nextIndex, Lineage: nextTranscriptCacheLineage(),
+	}, mode != transcriptReadFull)
+}
+
+// storeTranscriptCache 接管 entry.Entries 的所有权；调用方之后不得修改其中任何条目。
+// 超过完整缓存上限的条目只有 allowLarge（DM 投影随后会收缩它）时才进入缓存。
+func (s *AgentHistoryStore) storeTranscriptCache(path string, entry transcriptCacheEntry, allowLarge bool) uint64 {
 	s.cache.mu.Lock()
 	defer s.cache.mu.Unlock()
+	if entry.Source.Size > maxTranscriptCacheSourceBytes && !allowLarge && entry.SlimEnd == 0 {
+		delete(s.cache.entries, path)
+		return 0
+	}
+	entry.LastAccess = transcriptCacheAccesses.Add(1)
 	s.cache.entries[path] = entry
 	s.pruneTranscriptCacheLocked()
-	return lineage
+	return entry.Lineage
+}
+
+// releaseUnslimmedTranscript 释放 DM 投影后仍未收缩的超大条目：没有检查点可依附时，
+// 完整条目不能长期驻留。
+func (s *AgentHistoryStore) releaseUnslimmedTranscript(path string, lineage uint64) {
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
+	if entry, exists := s.cache.entries[path]; exists && entry.Lineage == lineage &&
+		entry.SlimEnd == 0 && entry.Source.Size > maxTranscriptCacheSourceBytes {
+		delete(s.cache.entries, path)
+	}
 }
 
 // extendTranscriptCache 在 transcript 只追加时复用缓存条目，只解析新增字节。
@@ -96,25 +140,29 @@ func (s *AgentHistoryStore) extendTranscriptCache(
 	path string,
 	file *os.File,
 	current historyPageSourceSnapshot,
-) ([]transcriptEntry, uint64, bool, error) {
+	mode transcriptReadMode,
+) (transcriptCacheRead, bool, error) {
+	if mode == transcriptReadFresh {
+		return transcriptCacheRead{}, false, nil
+	}
 	s.cache.mu.Lock()
 	cached, exists := s.cache.entries[path]
 	s.cache.mu.Unlock()
 	previous := cached.Source
-	if !exists || !previous.Exists || !current.Exists || previous.FileIdentity == "" ||
+	if !exists || (cached.SlimEnd > 0 && mode != transcriptReadProjection) || !previous.Exists || !current.Exists || previous.FileIdentity == "" ||
 		previous.FileIdentity != current.FileIdentity || previous.Size <= 0 || current.Size <= previous.Size {
-		return nil, 0, false, nil
+		return transcriptCacheRead{}, false, nil
 	}
 	fingerprint, err := historyPageFileEdgeFingerprint(ctx, file, previous.Size)
 	if err != nil {
-		return nil, 0, false, err
+		return transcriptCacheRead{}, false, err
 	}
 	var boundary [1]byte
 	if fingerprint != previous.EdgeFingerprint {
-		return nil, 0, false, nil
+		return transcriptCacheRead{}, false, nil
 	}
 	if _, err = file.ReadAt(boundary[:], previous.Size-1); err != nil || boundary[0] != '\n' {
-		return nil, 0, false, nil
+		return transcriptCacheRead{}, false, nil
 	}
 	appended, nextIndex, err := readTranscriptEntriesReaderContext(
 		ctx,
@@ -122,19 +170,19 @@ func (s *AgentHistoryStore) extendTranscriptCache(
 		cached.NextIndex,
 	)
 	if err != nil {
-		return nil, 0, false, err
+		return transcriptCacheRead{}, false, err
 	}
 	info, err := file.Stat()
 	if err != nil {
-		return nil, 0, false, err
+		return transcriptCacheRead{}, false, err
 	}
 	after, err := snapshotOpenedFile(ctx, file, info, historyPageSourceSnapshot{})
 	if err != nil {
-		return nil, 0, false, err
+		return transcriptCacheRead{}, false, err
 	}
 	if after != current {
 		// 读取期间仍在写入；交给完整解析路径，与原有缓存准入保持一致。
-		return nil, 0, false, nil
+		return transcriptCacheRead{}, false, nil
 	}
 	// 缓存条目不可变，新缓存、旧缓存与调用方共享同一批条目；cap 恰好等于 len，
 	// 任何一方 append 都会重新分配，不会写进别人的底层数组。
@@ -142,8 +190,9 @@ func (s *AgentHistoryStore) extendTranscriptCache(
 	combined = append(combined, cached.Entries...)
 	combined = append(combined, appended...)
 	// 前缀条目未变，沿用代系与投影检查点；并发扩展同一路径时后写者覆盖，结果等价。
-	lineage := s.storeTranscriptCache(path, current, combined, nextIndex, cached.Lineage, cached.Projection)
-	return combined, lineage, true, nil
+	cached.Source, cached.Entries, cached.NextIndex = current, combined, nextIndex
+	lineage := s.storeTranscriptCache(path, cached, mode != transcriptReadFull)
+	return transcriptCacheRead{Entries: combined, Lineage: lineage, SlimEnd: cached.SlimEnd}, true, nil
 }
 
 func cloneTranscriptEntries(entries []transcriptEntry) []transcriptEntry {
@@ -187,12 +236,21 @@ func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
 	}
 }
 
+// transcriptSkeletonWeight 是单个骨架条目的估算驻留字节。
+const transcriptSkeletonWeight = 256
+
 // weight 按源文件字节估算驻留内存；投影检查点与解析条目体量相当，按同等权重再计一次。
+// 骨架条目按固定小权重计，其余条目按平均每条源字节计。
 func (entry transcriptCacheEntry) weight() int64 {
-	if entry.Projection != nil {
-		return entry.Source.Size * 2
+	full := entry.Source.Size
+	if entry.SlimEnd > 0 && len(entry.Entries) > 0 {
+		slim := sort.Search(len(entry.Entries), func(i int) bool { return entry.Entries[i].Index >= entry.SlimEnd })
+		full = full*int64(len(entry.Entries)-slim)/int64(len(entry.Entries)) + int64(slim)*transcriptSkeletonWeight
 	}
-	return entry.Source.Size
+	if entry.Projection != nil && entry.Projection.Rows != nil {
+		return full + entry.Source.Size
+	}
+	return full
 }
 
 func (s *AgentHistoryStore) invalidateTranscriptCachePrefix(prefix string) {

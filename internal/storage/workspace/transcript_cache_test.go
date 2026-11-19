@@ -197,8 +197,8 @@ func TestTranscriptCacheKeepsLatestCheckpointedEntryOverBudget(t *testing.T) {
 	s := NewAgentHistoryStore(t.TempDir())
 	source := historyPageSourceSnapshot{Exists: true, Size: maxTranscriptCacheSourceBytes/2 + 1}
 	rows := []transcriptEntry{{Data: map[string]any{"uuid": "test"}}}
-	s.writeTranscriptCache("other", source, rows, len(rows))
-	lineage := s.writeTranscriptCache("active", source, rows, len(rows))
+	s.writeTranscriptCache("other", source, rows, len(rows), transcriptReadProjection)
+	lineage := s.writeTranscriptCache("active", source, rows, len(rows), transcriptReadProjection)
 	// 带检查点后单个条目的权重就超过预算，仍要保留它，只淘汰其他会话。
 	s.storeTranscriptProjectionCheckpoint("active", &transcriptProjectionCheckpoint{Lineage: lineage, Epoch: 1})
 	if !s.transcriptProjectionEpochCached(1) {
@@ -213,8 +213,8 @@ func TestTranscriptCacheCapsRetainedSourceBytes(t *testing.T) {
 	s := NewAgentHistoryStore(t.TempDir())
 	source := historyPageSourceSnapshot{Exists: true, Size: maxTranscriptCacheSourceBytes/2 + 1}
 	rows := []transcriptEntry{{Data: map[string]any{"uuid": "test"}}}
-	s.writeTranscriptCache("first", source, rows, len(rows))
-	s.writeTranscriptCache("second", source, rows, len(rows))
+	s.writeTranscriptCache("first", source, rows, len(rows), transcriptReadProjection)
+	s.writeTranscriptCache("second", source, rows, len(rows), transcriptReadProjection)
 	if _, ok := s.readTranscriptCache("first", source); ok {
 		t.Fatal("older weighted entry retained")
 	}
@@ -223,7 +223,12 @@ func TestTranscriptCacheCapsRetainedSourceBytes(t *testing.T) {
 	}
 	large := source
 	large.Size = maxTranscriptCacheSourceBytes + 1
-	s.writeTranscriptCache("second", large, rows, len(rows))
+	// 非投影读取不缓存可收缩尺寸的 transcript；投影读取的超大条目未收缩前由调用方释放。
+	if lineage := s.writeTranscriptCache("third", source, rows, len(rows), transcriptReadFull); lineage != 0 {
+		t.Fatal("full read cached a slimmable transcript")
+	}
+	lineage := s.writeTranscriptCache("second", large, rows, len(rows), transcriptReadProjection)
+	s.releaseUnslimmedTranscript("second", lineage)
 	if _, ok := s.readTranscriptCache("second", large); ok {
 		t.Fatal("oversized file retained")
 	}

@@ -694,6 +694,11 @@ func (e *dmChatExecution) persistRound() error {
 			"DM 轮次标记持久化失败",
 		)
 	}
+	// 发送前读取恢复上下文本身就会建立投影检查点；只有跳过该读取的轮次才需要后台预热，
+	// 否则两者在重启后的首轮同时完整解析同一份 transcript。
+	if !e.readsRecoveryHistory() {
+		e.service.History.ForOwner(e.agent.OwnerUserID).PrewarmTranscriptHistory(e.agent.WorkspacePath, e.session)
+	}
 	if e.request.Internal {
 		return nil
 	}

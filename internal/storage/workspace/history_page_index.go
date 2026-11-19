@@ -263,10 +263,16 @@ func readDisabledHistoryPage(ctx context.Context, access historyPageIndexAccess,
 		}
 		return page, nil
 	}
-	if historyPageSourceDigestForCoverage(built.Sources, coverage) != digest {
+	// DM 读模型已不再因源字节超限而禁用；旧版本留下的禁用 scope 即使源未变化也要后台重建一次，
+	// 否则超长会话的每次翻页都会继续完整读取。
+	if !isRoomCoverage(coverage) || historyPageSourceDigestForCoverage(built.Sources, coverage) != digest {
 		_, _ = historyPageRebuilds.tryStart(ctx, access)
 	}
 	return page, nil
+}
+
+func isRoomCoverage(coverage string) bool {
+	return coverage == historyPageDisabledCoverageRoomLedger || coverage == historyPageDisabledCoverageRoomProjection
 }
 
 func historyPageIndexingPage() protocol.MessagePage {

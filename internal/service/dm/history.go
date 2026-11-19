@@ -257,8 +257,6 @@ func (s *Service) recordRoundMarkerWithOptionsForOwner(
 	); err != nil {
 		return err
 	}
-	// 模型回复期间在后台预热历史解析，轮次结束后的刷新只需处理本轮新增内容。
-	history.PrewarmTranscriptHistory(workspacePath, sessionValue)
 	return nil
 }
 

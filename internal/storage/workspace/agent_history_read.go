@@ -323,14 +323,12 @@ func (s *AgentHistoryStore) readTranscriptMessagesFromContext(
 	defer root.Close()
 
 	throughMessageID = strings.TrimSpace(throughMessageID)
-	entries, cachePath, lineage, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative)
-	if err != nil {
-		return nil, transcriptProjectionInfo{}, err
-	}
-	chain := buildPrimaryTranscriptChain(entries)
 	if throughMessageID != "" {
-		var found bool
-		chain, found = transcriptChainThroughMessage(chain, throughMessageID)
+		read, _, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative, transcriptReadFull)
+		if err != nil {
+			return nil, transcriptProjectionInfo{}, err
+		}
+		chain, found := transcriptChainThroughMessage(buildPrimaryTranscriptChain(read.Entries), throughMessageID)
 		if !found {
 			return nil, transcriptProjectionInfo{}, fmt.Errorf("fork transcript boundary %s not found", throughMessageID)
 		}
@@ -338,8 +336,20 @@ func (s *AgentHistoryStore) readTranscriptMessagesFromContext(
 		return rows[min(max(from, 0), len(rows)):], transcriptProjectionInfo{}, nil
 	}
 	// 长会话每轮只追加一个用户轮次，检查点让重建只投影最后一轮之后的条目。
-	rows, info := s.projectTranscriptChainCheckpointed(cachePath, lineage, workspacePath, sessionKey, agentID, chain, roundMarkers, from)
-	return rows, info, nil
+	// 骨架缓存服务不了本次读取（检查点失效或需要前缀行）时完整重读一次。
+	for _, mode := range []transcriptReadMode{transcriptReadProjection, transcriptReadFresh} {
+		read, cachePath, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative, mode)
+		if err != nil {
+			return nil, transcriptProjectionInfo{}, err
+		}
+		chain := buildPrimaryTranscriptChain(read.Entries)
+		rows, info, ok := s.projectTranscriptChainCheckpointed(cachePath, read.Lineage, read.SlimEnd, workspacePath, sessionKey, agentID, chain, roundMarkers, from)
+		s.releaseUnslimmedTranscript(cachePath, read.Lineage)
+		if ok {
+			return rows, info, nil
+		}
+	}
+	return nil, transcriptProjectionInfo{}, fmt.Errorf("transcript skeleton cache could not serve a fresh read")
 }
 
 func transcriptChainThroughMessage(chain []transcriptEntry, messageID string) ([]transcriptEntry, bool) {

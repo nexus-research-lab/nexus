@@ -14,8 +14,13 @@ import (
 // 以及上一条可见用户消息之后最多 5 条 automation 投递（每条投递各自成轮）。
 const recoveryHistoryRounds = 8
 
+// readsRecoveryHistory 表示本轮发送前会读取历史准备恢复上下文。
+func (e *dmChatExecution) readsRecoveryHistory() bool {
+	return !e.request.Internal && e.request.RewriteTargetRoundID == ""
+}
+
 func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInputBlock {
-	if e.request.Internal || e.request.RewriteTargetRoundID != "" {
+	if !e.readsRecoveryHistory() {
 		return runtimehost.QueueRecoveryInputs(e.ctx)
 	}
 	page, err := e.service.History.ReadMessagesPageContext(

@@ -5,9 +5,13 @@ package workspace
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -37,26 +41,104 @@ func assertTailRefresh(t *testing.T, f *longSessionFixture, incremental bool) {
 	}
 	reference.readFirstPage(t)
 	if want := dumpHistoryReadModelWithIndex(t, reference); !reflect.DeepEqual(got, want) {
-		t.Fatalf("incremental read model diverged from full rebuild\ngot  %v\nwant %v", got, want)
+		for i := range max(len(got), len(want)) {
+			var g, w string
+			if i < len(got) {
+				g = got[i]
+			}
+			if i < len(want) {
+				w = want[i]
+			}
+			if g != w {
+				at := 0
+				for at < min(len(g), len(w)) && g[at] == w[at] {
+					at++
+				}
+				from := max(at-200, 0)
+				t.Logf("row %d differs at %d\ngot  %.400s\nwant %.400s", i, at, g[from:], w[min(from, len(w)):])
+				break
+			}
+		}
+		t.Fatalf("incremental read model diverged from full rebuild (%d vs %d rows)", len(got), len(want))
 	}
 }
 
+// dumpHistoryReadModelWithIndex 导出分组正文、detail、round index 与 sources。
+// 增量刷新沿用已发布的 generation，完整重建按当前 sources 派生新 generation；
+// detail 引用内嵌 generation，比对前统一替换掉，其余字节必须一致。
 func dumpHistoryReadModelWithIndex(t *testing.T, f *longSessionFixture) []string {
 	t.Helper()
-	dump := dumpHistoryReadModelScope(t, f)
+	dumpHistoryReadModelScope(t, f)
 	access := f.history.historyPageAccess(f.workspacePath, f.session)
-	db, err := access.ReadModel.database(context.Background())
+	ctx := context.Background()
+	db, err := access.ReadModel.database(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var index, sources string
-	if err = db.QueryRowContext(context.Background(), `SELECT round_index_json, sources_json FROM history_read_scopes WHERE scope=?`, access.Scope).Scan(&index, &sources); err != nil {
+	var generation, index, sources string
+	if err = db.QueryRowContext(ctx, `SELECT generation, round_index_json, sources_json FROM history_read_scopes WHERE scope=?`, access.Scope).Scan(&generation, &index, &sources); err != nil {
 		t.Fatal(err)
 	}
-	return append(dump.Rows, index, sources)
+	// detail_ref 由 generation 派生，按出现顺序换成占位符；detail 表按内容摘要比对。
+	refs := map[string]string{}
+	refPattern := regexp.MustCompile(`"detail_ref":"([0-9a-f]+)"`)
+	normalize := func(value string) string {
+		value = refPattern.ReplaceAllStringFunc(value, func(match string) string {
+			ref := refPattern.FindStringSubmatch(match)[1]
+			if _, ok := refs[ref]; !ok {
+				refs[ref] = fmt.Sprintf("ref-%d", len(refs))
+			}
+			return `"detail_ref":"` + refs[ref] + `"`
+		})
+		return strings.ReplaceAll(value, generation, "<generation>")
+	}
+	dump := []string{}
+	collect := func(query string) {
+		rows, err := db.QueryContext(ctx, query, access.Scope, generation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		columns, _ := rows.Columns()
+		for rows.Next() {
+			values := make([]any, len(columns))
+			pointers := make([]any, len(columns))
+			for i := range values {
+				pointers[i] = &values[i]
+			}
+			if err = rows.Scan(pointers...); err != nil {
+				t.Fatal(err)
+			}
+			dump = append(dump, normalize(fmt.Sprintf("%s", values)))
+		}
+		if err = rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	collect(`SELECT sequence, cursor_round_id, cursor_timestamp, group_key, first_non_synthetic_timestamp, synthetic_interrupts_json, payload
+		FROM history_read_groups WHERE scope=? AND generation=? ORDER BY sequence`)
+	collect(`SELECT sequence, kind, media_type, byte_size, payload_digest
+		FROM history_read_details WHERE scope=? AND generation=? ORDER BY sequence, payload_digest`)
+	return append(dump, index, sources)
 }
 
 func TestAgentHistoryTailRefreshMatchesFullRebuild(t *testing.T) {
+	t.Run("full cache", testAgentHistoryTailRefresh)
+	// 骨架缓存：检查点之前的条目只剩建链与对齐字段，增量与完整重建仍须逐字段一致。
+	t.Run("skeleton cache", func(t *testing.T) {
+		forceTranscriptSkeleton(t)
+		testAgentHistoryTailRefresh(t)
+	})
+}
+
+func forceTranscriptSkeleton(t *testing.T) {
+	t.Helper()
+	previous := transcriptSlimSourceBytes
+	transcriptSlimSourceBytes = 0
+	t.Cleanup(func() { transcriptSlimSourceBytes = previous })
+}
+
+func testAgentHistoryTailRefresh(t *testing.T) {
 	t.Run("appended rounds", func(t *testing.T) {
 		f := newLongSessionFixture(t, 6, 64)
 		f.readFirstPage(t)
@@ -201,6 +283,48 @@ func TestAgentHistoryTailRefreshMatchesFullRebuild(t *testing.T) {
 	})
 }
 
+func TestLargeDMHistoryKeepsReadModelAndRefreshesIncrementally(t *testing.T) {
+	// 每轮 1MB 的工具结果，transcript 超过旧版 64MB 读模型上限。
+	f := newLongSessionFixture(t, historyPageSourceMaxBytes>>20+2, 1<<20)
+	if info, err := os.Stat(f.transcript); err != nil || info.Size() <= historyPageSourceMaxBytes {
+		t.Fatalf("fixture transcript too small: %v", err)
+	}
+	f.readFirstPage(t)
+	access := f.history.historyPageAccess(f.workspacePath, f.session)
+	db, err := access.ReadModel.database(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, ok, err := readHistoryReadModelScope(context.Background(), db, access.Scope)
+	if err != nil || !ok || scope.DisabledReason != "" || scope.GroupCount == 0 {
+		t.Fatalf("large DM read model unavailable: ok=%v err=%v disabled=%q groups=%d", ok, err, scope.DisabledReason, scope.GroupCount)
+	}
+	f.appendRound(t)
+	assertTailRefresh(t, f, true)
+
+	// 增量刷新沿用已发布 generation：新旧分组里的 detail 引用都必须仍能读出完整内容。
+	page := f.readFirstPage(t)
+	refs := regexp.MustCompile(`"detail_ref":"([0-9a-f]+)"`).FindAllStringSubmatch(fmt.Sprint(mustJSON(t, page.Items)), -1)
+	if len(refs) < 2 {
+		t.Fatalf("expected detail refs on the first page, got %d", len(refs))
+	}
+	for _, ref := range refs {
+		detail, err := f.history.ReadMessageDetailContext(context.Background(), f.workspacePath, f.session, ref[1])
+		if err != nil || detail.ByteSize < 1<<20 {
+			t.Fatalf("detail %s unreadable after incremental refresh: size=%d err=%v", ref[1], detail.ByteSize, err)
+		}
+	}
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
 func TestConcurrentTranscriptReadsParseOnce(t *testing.T) {
 	f := newLongSessionFixture(t, 40, 4096)
 	// 全新 store 没有解析缓存，模拟重启后预热与前台读取同时落到完整解析。
@@ -216,6 +340,58 @@ func TestConcurrentTranscriptReadsParseOnce(t *testing.T) {
 	wg.Wait()
 	if parses := history.cache.fullParses.Load(); parses != 1 {
 		t.Fatalf("full parses = %d, want 1", parses)
+	}
+}
+
+func TestTranscriptSkeletonKeepsChainAndAlignment(t *testing.T) {
+	forceTranscriptSkeleton(t)
+	f := newLongSessionFixture(t, 12, 2048)
+	f.readFirstPage(t)
+	f.appendRound(t)
+	assertTailRefresh(t, f, true)
+
+	var entry transcriptCacheEntry
+	f.history.cache.mu.RLock()
+	for _, candidate := range f.history.cache.entries {
+		entry = candidate
+	}
+	f.history.cache.mu.RUnlock()
+	if entry.SlimEnd == 0 || entry.Projection == nil || entry.Projection.Rows != nil {
+		t.Fatalf("skeleton cache not established: slim_end=%d", entry.SlimEnd)
+	}
+	if weight := entry.weight(); weight >= entry.Source.Size/2 {
+		t.Fatalf("skeleton cache weight %d not below half of source %d", weight, entry.Source.Size)
+	}
+
+	// 骨架前缀与完整条目建出的主链、并行工具关联和 marker 对齐必须一致。
+	transcript, err := os.Open(f.transcript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer transcript.Close()
+	fullEntries, _, err := readTranscriptEntriesParallelContext(context.Background(), transcript, entry.Source.Size)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slimChain := buildPrimaryTranscriptChain(entry.Entries)
+	fullChain := buildPrimaryTranscriptChain(fullEntries)
+	indexes := func(chain []transcriptEntry) []int {
+		out := make([]int, len(chain))
+		for i, item := range chain {
+			out[i] = item.Index
+		}
+		return out
+	}
+	if !reflect.DeepEqual(indexes(slimChain), indexes(fullChain)) {
+		t.Fatal("skeleton changed the primary chain")
+	}
+	overlay, err := f.history.readOverlayHistoryStateContext(context.Background(), f.workspacePath, f.session.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	markers := overlay.RoundMarkers
+	if !reflect.DeepEqual(alignTranscriptRoundMarkers(slimChain, markers), alignTranscriptRoundMarkers(fullChain, markers)) {
+		t.Fatal("skeleton changed marker alignment")
 	}
 }
 

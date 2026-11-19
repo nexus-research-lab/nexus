@@ -31,7 +31,9 @@ type transcriptProjectionCheckpoint struct {
 	ChainIndexes []int
 	Markers      []transcriptRoundMarker
 	State        transcriptProjectionState
-	Rows         []protocol.Message
+	// Rows 是前 RowCount 行投影结果；骨架缓存下为 nil，此时检查点只能服务 from >= RowCount 的读取。
+	Rows     []protocol.Message
+	RowCount int
 }
 
 type transcriptProjectionKey struct {
@@ -77,6 +79,12 @@ func (s *AgentHistoryStore) storeTranscriptProjectionCheckpoint(path string, che
 	if !exists || entry.Lineage != checkpoint.Lineage {
 		return
 	}
+	// 大 transcript 不保留前缀投影行，并把检查点覆盖的条目收缩为骨架：之后的增量投影
+	// 只需要检查点之后的完整条目，前缀只用于建链与对齐。
+	if entry.Source.Size > transcriptSlimSourceBytes && len(checkpoint.ChainIndexes) > 0 {
+		checkpoint.Rows = nil
+		entry.Entries, entry.SlimEnd = slimTranscriptEntries(entry.Entries, entry.SlimEnd, checkpoint.ChainIndexes[len(checkpoint.ChainIndexes)-1]+1)
+	}
 	entry.Projection = checkpoint
 	s.cache.entries[path] = entry
 	s.pruneTranscriptCacheLocked()
@@ -94,30 +102,38 @@ type transcriptProjectionInfo struct {
 
 // projectTranscriptChainCheckpointed 返回 projectTranscriptChain 结果中从 from 开始的行；
 // 当缓存检查点覆盖的主链前缀、marker 前缀和投影身份都未变化时，只投影其后的条目。
+// 条目含骨架（slimEnd > 0）而检查点无法服务本次读取时返回 ok=false，调用方须完整重读。
 func (s *AgentHistoryStore) projectTranscriptChainCheckpointed(
 	path string,
 	lineage uint64,
+	slimEnd int,
 	workspacePath string,
 	sessionKey string,
 	agentID string,
 	chain []transcriptEntry,
 	roundMarkers []transcriptRoundMarker,
 	from int,
-) ([]protocol.Message, transcriptProjectionInfo) {
+) ([]protocol.Message, transcriptProjectionInfo, bool) {
 	key := transcriptProjectionKey{WorkspacePath: workspacePath, SessionKey: sessionKey, AgentID: agentID}
 	aligned := alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkipTranscriptEntry)
 
 	state := transcriptProjectionState{}
 	start := 0
 	var memoRows []protocol.Message
+	memoCount := 0
 	info := transcriptProjectionInfo{}
+	from = max(from, 0)
 	if previous := s.readTranscriptProjectionCheckpoint(path, lineage); previous != nil &&
-		transcriptProjectionCheckpointApplies(previous, key, chain, aligned) {
+		transcriptProjectionCheckpointApplies(previous, key, chain, aligned) &&
+		(previous.Rows != nil || from >= previous.RowCount) &&
+		(len(previous.ChainIndexes) == len(chain) || chain[len(previous.ChainIndexes)].Index >= slimEnd) {
 		start = len(previous.ChainIndexes)
 		state = previous.State
 		state.restoreProcessor(workspacePath, sessionKey, agentID)
-		memoRows = previous.Rows
-		info = transcriptProjectionInfo{Epoch: previous.Epoch, Stable: len(memoRows), Frozen: len(memoRows)}
+		memoRows, memoCount = previous.Rows, previous.RowCount
+		info = transcriptProjectionInfo{Epoch: previous.Epoch, Stable: memoCount, Frozen: memoCount}
+	} else if slimEnd > 0 {
+		return nil, transcriptProjectionInfo{}, false
 	}
 
 	tail := make([]protocol.Message, 0, len(chain)-start)
@@ -147,16 +163,20 @@ func (s *AgentHistoryStore) projectTranscriptChainCheckpointed(
 		for i, entry := range chain[:consumed] {
 			indexes[i] = entry.Index
 		}
-		// 旧检查点行不可变，新检查点直接共享它们，只深拷贝新增的部分。
-		rows := make([]protocol.Message, 0, len(memoRows)+latestRows)
-		rows = append(rows, memoRows...)
-		for _, row := range tail[:latestRows] {
-			rows = append(rows, cloneProjectedMessage(row))
+		// 旧检查点行不可变，新检查点直接共享它们，只深拷贝新增的部分；
+		// 前缀行已被丢弃（骨架缓存）时新检查点同样只记行数。
+		var rows []protocol.Message
+		if memoRows != nil || memoCount == 0 {
+			rows = make([]protocol.Message, 0, memoCount+latestRows)
+			rows = append(rows, memoRows...)
+			for _, row := range tail[:latestRows] {
+				rows = append(rows, cloneProjectedMessage(row))
+			}
 		}
 		if info.Epoch == 0 {
 			info.Epoch = nextTranscriptCacheLineage()
 		}
-		info.Frozen = len(rows)
+		info.Frozen = memoCount + latestRows
 		s.storeTranscriptProjectionCheckpoint(path, &transcriptProjectionCheckpoint{
 			Lineage:      lineage,
 			Epoch:        info.Epoch,
@@ -165,18 +185,18 @@ func (s *AgentHistoryStore) projectTranscriptChainCheckpointed(
 			Markers:      slices.Clone(aligned[:latest.MarkerIndex]),
 			State:        latest,
 			Rows:         rows,
+			RowCount:     info.Frozen,
 		})
 	}
 
-	from = max(from, 0)
-	projected := make([]protocol.Message, 0, max(len(memoRows)+len(tail)-from, 0))
-	for index := from; index < len(memoRows); index++ {
+	projected := make([]protocol.Message, 0, max(memoCount+len(tail)-from, 0))
+	for index := from; index < memoCount; index++ {
 		projected = append(projected, cloneProjectedMessage(memoRows[index]))
 	}
-	if tailFrom := max(from-len(memoRows), 0); tailFrom < len(tail) {
+	if tailFrom := max(from-memoCount, 0); tailFrom < len(tail) {
 		projected = append(projected, tail[tailFrom:]...)
 	}
-	return projected, info
+	return projected, info, true
 }
 
 func transcriptProjectionCheckpointApplies(
