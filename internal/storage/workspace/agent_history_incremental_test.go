@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -166,6 +167,20 @@ func TestAgentHistoryTailRefreshMatchesFullRebuild(t *testing.T) {
 		assertTailRefresh(t, f, true)
 	})
 
+	t.Run("cancelled refresh keeps the tail", func(t *testing.T) {
+		f := newLongSessionFixture(t, 4, 64)
+		f.readFirstPage(t)
+		f.appendRound(t)
+		access := f.history.historyPageAccess(f.workspacePath, f.session)
+		cancelled, cancel := context.WithCancel(context.Background())
+		cancel()
+		if _, ok := f.history.refreshAgentHistoryTail(cancelled, f.workspacePath, f.session, access.Scope); ok {
+			t.Fatal("cancelled refresh must not succeed")
+		}
+		// 取消不说明前缀变化，状态放回后下一次刷新仍走增量。
+		assertTailRefresh(t, f, true)
+	})
+
 	t.Run("replaced overlay", func(t *testing.T) {
 		f := newLongSessionFixture(t, 4, 64)
 		f.readFirstPage(t)
@@ -184,6 +199,24 @@ func TestAgentHistoryTailRefreshMatchesFullRebuild(t *testing.T) {
 		f.appendRound(t)
 		assertTailRefresh(t, f, false)
 	})
+}
+
+func TestConcurrentTranscriptReadsParseOnce(t *testing.T) {
+	f := newLongSessionFixture(t, 40, 4096)
+	// 全新 store 没有解析缓存，模拟重启后预热与前台读取同时落到完整解析。
+	history := NewAgentHistoryStore(filepath.Dir(f.workspacePath))
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			if _, err := history.readHistoryRowsContext(context.Background(), f.workspacePath, f.session); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if parses := history.cache.fullParses.Load(); parses != 1 {
+		t.Fatalf("full parses = %d, want 1", parses)
+	}
 }
 
 // assertTailRefreshResultOnly 只比对结果，不约束走哪条路径。

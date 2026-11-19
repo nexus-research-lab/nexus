@@ -61,6 +61,20 @@ func (s *AgentHistoryStore) readTranscriptEntriesLineageAtContext(
 	} else if ok {
 		return extended, path, lineage, nil
 	}
+	// 新一轮开始时后台预热与前台恢复上下文读取常在同一时刻落到完整解析，只让一方真正解析。
+	if wait, done := s.beginTranscriptParse(path); wait != nil {
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return nil, "", 0, ctx.Err()
+		}
+		if cached, lineage, ok := s.readTranscriptCacheLineage(path, before); ok {
+			return cached, path, lineage, nil
+		}
+	} else {
+		defer done()
+	}
+	s.cache.fullParses.Add(1)
 	entries, nextIndex, err := readTranscriptEntriesParallelContext(ctx, file, before.Size)
 	if err != nil {
 		return nil, "", 0, err
@@ -79,6 +93,27 @@ func (s *AgentHistoryStore) readTranscriptEntriesLineageAtContext(
 		lineage = s.writeTranscriptCache(path, after, entries, nextIndex)
 	}
 	return entries, path, lineage, nil
+}
+
+// beginTranscriptParse 登记一次完整解析：已有同一文件的解析在进行时返回其完成信号，
+// 否则返回 done，由调用方解析结束后调用。等待方被唤醒后自行查缓存，未命中再独立解析。
+func (s *AgentHistoryStore) beginTranscriptParse(path string) (<-chan struct{}, func()) {
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
+	if running, exists := s.cache.parsing[path]; exists {
+		return running, nil
+	}
+	if s.cache.parsing == nil {
+		s.cache.parsing = make(map[string]chan struct{})
+	}
+	signal := make(chan struct{})
+	s.cache.parsing[path] = signal
+	return nil, func() {
+		s.cache.mu.Lock()
+		delete(s.cache.parsing, path)
+		s.cache.mu.Unlock()
+		close(signal)
+	}
 }
 
 // openTranscriptReadFile 让 Room 引用投影和分页指纹也复用 owner ACL 修复。

@@ -6,6 +6,7 @@ package workspace
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
@@ -15,6 +16,10 @@ type agentHistoryCache struct {
 	entries map[string]transcriptCacheEntry
 	// prewarming 记录正在后台预热的会话，避免同一会话重复解析。
 	prewarming map[string]struct{}
+	// parsing 记录正在完整解析的 transcript，同一文件的并发读取等待它写入缓存后复用。
+	parsing map[string]chan struct{}
+	// fullParses 统计完整解析次数，供回归测试确认并发读取没有重复解析。
+	fullParses atomic.Uint64
 	// tails 保存 DM 读模型的尾轮增量状态。
 	tails agentHistoryTailStore
 }

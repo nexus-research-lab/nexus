@@ -32,7 +32,11 @@ const (
 	historyRowSourceCount
 )
 
-var errAgentHistoryTailUnavailable = errors.New("agent history tail unavailable")
+var (
+	errAgentHistoryTailUnavailable = errors.New("agent history tail unavailable")
+	// errAgentHistoryTailRetry 表示本次读取与写入撞车，尾轮状态本身仍然有效。
+	errAgentHistoryTailRetry = errors.New("agent history sources changed during refresh")
+)
 
 // historyRowKeys 收集规范化阶段会跨行关联的身份：compact 与投递回执按 message_id，
 // 未完成轮次、result 配对与分组按 round/group key，引导去重按 source_round_id。
@@ -119,7 +123,13 @@ type agentHistoryTail struct {
 	Prior             historyRowKeys
 	PriorMaxTimestamp int64
 	HasPrior          bool
+	// added 是切分时新并入前缀的身份，发布时才合入 Prior：刷新中途失败时旧状态不受影响。
+	added historyRowKeys
+	// retries 统计连续撞上写入而放回的次数，超过上限后放弃状态，避免反复白读。
+	retries int
 }
+
+const maxAgentHistoryTailRetries = 3
 
 type agentHistoryTailStore struct {
 	mu      sync.Mutex
@@ -215,9 +225,27 @@ func splitAgentHistoryTail(
 	if err != nil || !reflect.DeepEqual(rebuilt, groups[cut:]) {
 		return nil, false
 	}
-	prior.merge(added)
-	next.Prior, next.PriorMaxTimestamp, next.HasPrior = prior, priorMax, hasPrior
+	next.Prior, next.added = prior, added
+	next.PriorMaxTimestamp, next.HasPrior = priorMax, hasPrior
 	return next, true
+}
+
+// publish 把切分时新并入前缀的身份合入 Prior 后登记状态。Prior 与上一个状态共享，
+// 调用方此时已独占且不再使用上一个状态（take 取出，读模型已推进）。
+func (s *agentHistoryTailStore) publish(scope string, tail *agentHistoryTail) {
+	tail.Prior.merge(tail.added)
+	tail.added = historyRowKeys{}
+	s.store(scope, tail)
+}
+
+// restore 把仍然有效的状态放回；期间已有新状态登记时以新状态为准。
+func (s *agentHistoryTailStore) restore(scope string, tail *agentHistoryTail) {
+	s.mu.Lock()
+	_, exists := s.entries[scope]
+	s.mu.Unlock()
+	if !exists {
+		s.store(scope, tail)
+	}
 }
 
 // agentHistoryTailCut 返回尾部第一个分组的下标：最后一组，或仍会被重新投影的行所在的最早分组。
@@ -259,7 +287,7 @@ func (s *AgentHistoryStore) rememberAgentHistoryTail(
 	tail.Sources, tail.GroupCount = sources, len(groups)
 	tail.Epoch, tail.TranscriptFrozen = parts.Projection.Epoch, parts.Projection.Frozen
 	tail.MarkerCount, tail.OverlayCount = len(parts.Markers), len(parts.Overlay)
-	s.cache.tails.store(scope, tail)
+	s.cache.tails.publish(scope, tail)
 }
 
 func (s *AgentHistoryStore) refreshAgentHistoryTail(
@@ -268,14 +296,24 @@ func (s *AgentHistoryStore) refreshAgentHistoryTail(
 	sessionValue protocol.Session,
 	scopeKey string,
 ) (historyPageIndexBuild, bool) {
-	built, err := s.tryRefreshAgentHistoryTail(ctx, workspacePath, sessionValue, scopeKey)
-	if err != nil {
-		if !errors.Is(err, errAgentHistoryTailUnavailable) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			logx.FromContext(ctx).Info("DM 历史增量读取回退重建", "session_key", sessionValue.SessionKey, "error", err)
+	// take 让本次刷新独占状态（Prior 共享且会在发布时扩充），失败时按原因决定是否放回。
+	tail := s.cache.tails.take(scopeKey)
+	built, err := s.tryRefreshAgentHistoryTail(ctx, workspacePath, sessionValue, scopeKey, tail)
+	if err == nil {
+		return built, true
+	}
+	// 撞上并发写入或请求取消时状态仍能证明前缀不变，放回供下一次刷新使用。
+	if errors.Is(err, errAgentHistoryTailRetry) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if tail.retries < maxAgentHistoryTailRetries {
+			tail.retries++
+			s.cache.tails.restore(scopeKey, tail)
 		}
 		return historyPageIndexBuild{}, false
 	}
-	return built, true
+	if !errors.Is(err, errAgentHistoryTailUnavailable) {
+		logx.FromContext(ctx).Info("DM 历史增量读取回退重建", "session_key", sessionValue.SessionKey, "error", err)
+	}
+	return historyPageIndexBuild{}, false
 }
 
 func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
@@ -283,9 +321,9 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 	workspacePath string,
 	sessionValue protocol.Session,
 	scopeKey string,
+	tail *agentHistoryTail,
 ) (historyPageIndexBuild, error) {
 	started := time.Now()
-	tail := s.cache.tails.take(scopeKey)
 	// 检查点被淘汰时不必先读一遍历史再失败，直接交给全量重建。
 	if tail == nil || !s.transcriptProjectionEpochCached(tail.Epoch) {
 		return historyPageIndexBuild{}, errAgentHistoryTailUnavailable
@@ -312,7 +350,11 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 	if err != nil {
 		return historyPageIndexBuild{}, err
 	}
-	if !parts.Tracked || parts.Projection.Epoch != tail.Epoch || parts.Projection.Stable < tail.TranscriptFrozen ||
+	// 读取 transcript 期间 runtime 恰好写入时解析结果不进缓存、没有检查点，属于撞车而非前缀变化。
+	if !parts.Tracked {
+		return historyPageIndexBuild{}, errAgentHistoryTailRetry
+	}
+	if parts.Projection.Epoch != tail.Epoch || parts.Projection.Stable < tail.TranscriptFrozen ||
 		len(parts.Markers) < tail.MarkerCount || len(parts.Overlay) < tail.OverlayCount {
 		return historyPageIndexBuild{}, fmt.Errorf("projection prefix changed: %w", errHistoryPageIndexInvalid)
 	}
@@ -353,7 +395,7 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 		return historyPageIndexBuild{}, err
 	}
 	if !snapshotsEqual(after, current) {
-		return historyPageIndexBuild{}, fmt.Errorf("sources changed during refresh: %w", errHistoryPageIndexInvalid)
+		return historyPageIndexBuild{}, errAgentHistoryTailRetry
 	}
 	start := previous.GroupCount - tail.TailGroups
 	if err = replaceHistoryReadModelTail(ctx, db, scopeKey, previous, start, groups, current, roundIndex.Items, nil); err != nil {
@@ -364,7 +406,7 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 		next.Sources, next.GroupCount = current, start+len(groups)
 		next.Epoch, next.TranscriptFrozen = parts.Projection.Epoch, parts.Projection.Frozen
 		next.MarkerCount, next.OverlayCount = len(parts.Markers), len(parts.Overlay)
-		s.cache.tails.store(scopeKey, next)
+		s.cache.tails.publish(scopeKey, next)
 	}
 	logx.FromContext(ctx).Info("DM 历史增量更新完成",
 		"session_key", sessionValue.SessionKey,
