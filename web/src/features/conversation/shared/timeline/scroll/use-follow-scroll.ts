@@ -201,7 +201,6 @@ export function useFollowScroll({
       const restoredScrollTop = viewportAnchorRef.current.restore(
         container,
         feedRef.current,
-        { userScrollActive: isUserScrollActive() },
       );
       if (restoredScrollTop !== null) {
         lastScrollTopRef.current = restoredScrollTop;
@@ -224,7 +223,7 @@ export function useFollowScroll({
     viewportAnchorRef.current.capture(container, feedRef.current);
     setScrollToBottomVisibility(resizeState.showScrollToBottom);
     return true;
-  }, [cancelAnimation, isUserScrollActive, setScrollToBottomVisibility]);
+  }, [cancelAnimation, setScrollToBottomVisibility]);
 
   const scheduleScrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
@@ -345,10 +344,7 @@ export function useFollowScroll({
     const restoredScrollTop = viewportAnchorRef.current.restore(
       container,
       feedRef.current,
-      {
-        allowVirtualFeed: topologyChanged,
-        userScrollActive: isUserScrollActive(),
-      },
+      { allowVirtualFeed: topologyChanged },
     );
     if (restoredScrollTop !== null) {
       lastScrollTopRef.current = restoredScrollTop;
@@ -361,7 +357,6 @@ export function useFollowScroll({
     cancelAnimation,
     contentKey,
     initialScrollAnchor,
-    isUserScrollActive,
     messageCount,
     scheduleFollowLatest,
     scheduleScrollToBottom,
@@ -424,7 +419,6 @@ export function useFollowScroll({
       const restoredScrollTop = viewportAnchorRef.current.restore(
         currentContainer,
         feedRef.current,
-        { userScrollActive: isUserScrollActive() },
       );
       if (restoredScrollTop !== null) {
         lastScrollTopRef.current = restoredScrollTop;
@@ -441,7 +435,6 @@ export function useFollowScroll({
     return () => observer.disconnect();
   }, [
     messageCount,
-    isUserScrollActive,
     scheduleFollowLatest,
     sessionKey,
     setScrollToBottomVisibility,

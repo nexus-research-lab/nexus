@@ -17,7 +17,7 @@ L4 | 父级: web/src/features/conversation/shared
 
 高度估算必须同时依赖轮次身份、消息分组和容器宽度；不得用 ref 或仅用数组长度规避 Hook 依赖。
 DM 与 Room、静态与虚拟 Feed 必须复用 `conversation-panel-styles.ts` 的内容轨道宽度，保证超宽屏扩展和虚拟高度估算使用同一真实容器。
-虚拟尺寸变化服从共享 scroll owner：bottom 或轮次导航事务活跃时 Virtualizer 不写 `scrollTop`；FOLLOW 中正负 measured delta 均由 Virtualizer 保持底部；READING 空闲时完整位于视口上方的轮次继续补偿，用户直接滚动的短暂 epoch 内不得反向写回，横跨视口的流式长回复不得推走阅读位置。局部展开/收起不得在 Virtualizer 之外再补写同一尺寸 delta。
+虚拟尺寸变化服从共享 scroll owner：bottom 或轮次导航事务活跃时 Virtualizer 不写 `scrollTop`；FOLLOW 中正负 measured delta 均由 Virtualizer 保持底部；READING 中完整位于视口上方的轮次始终补偿（包括用户直接滚动期间，否则向上加载的历史会把视口推回新窗口开头），补偿叠加到实时 scrollTop 而非上次观测的 offset；直接滚动 epoch 内横跨或位于视口下方的变化不得反向写回，横跨视口的流式长回复不得推走阅读位置。局部展开/收起不得在 Virtualizer 之外再补写同一尺寸 delta。
 静态 Feed 只在 live epoch 结束后的稳定窗口跨过虚拟化阈值；Virtualizer 必须继承同一滚动容器的既有 `scrollTop`，不得在并行输出中途替换 renderer 或以默认零偏移覆盖用户正在阅读的位置。
 `leadingContent` 只承载不属于 transcript 的本地视图前导，并必须进入静态 Feed 根节点，与消息轮次共同按真实高度布局并接受调用方指定的初始滚动锚点；只有前导且没有消息轮次时静态 Feed 必须至少填满 viewport，让欢迎页可按真实可见区居中，嵌入式顶部接待说明仍保持自身起始对齐；存在该前导时不得切换为未计入其高度的虚拟画布，禁止把前导放在 Feed 外制造两段内容栈。
 活跃轮次的虚拟估高不能消费尚未 reveal 的完整 backend target；先使用保守基线，再由真实 Markdown/工具 DOM 的正向 measured delta 驱动增长。终态历史仍按完整内容估高。

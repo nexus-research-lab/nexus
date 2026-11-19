@@ -2,6 +2,8 @@
  * INPUT: 会话 Feed、滚动视口与稳定的 conversation round DOM 身份。
  * OUTPUT: 内容在当前可见轮次之前增减高度或 Feed renderer 切换时，保持该轮次的视口内位置不变。
  * POS: DM/Room/Thread 的连续阅读锚点；普通虚拟项测高继续由 Virtualizer 负责补偿。
+ * 用户滚动期间同样生效：快照随每次 scroll 事件刷新，restore 只补偿首个可见轮次
+ * 之前的布局位移，不会回写手势本身的位移。
  */
 import { CONVERSATION_ROUND_SELECTOR } from "./round-scroll";
 
@@ -16,7 +18,6 @@ interface ConversationViewportAnchorSnapshot {
 
 interface ConversationViewportRestoreOptions {
   allowVirtualFeed?: boolean;
-  userScrollActive?: boolean;
 }
 
 export class ConversationViewportAnchor {
@@ -56,7 +57,6 @@ export class ConversationViewportAnchor {
     if (
       !snapshot
       || !feed
-      || options.userScrollActive
       || (
         feed.dataset.conversationVirtualFeed === "true"
         && !options.allowVirtualFeed
