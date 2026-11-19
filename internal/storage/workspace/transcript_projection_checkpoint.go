@@ -127,7 +127,8 @@ func (s *AgentHistoryStore) projectTranscriptChainCheckpointed(
 		workspacePath,
 		sessionKey,
 		agentID,
-		slices.Values(chain[start:]),
+		// 条目与解析缓存共享，投影会改写条目，只拷贝检查点之后真正要投影的部分。
+		slices.Values(cloneTranscriptEntries(chain[start:])),
 		aligned,
 		shouldSkipTranscriptEntry,
 		&state,
