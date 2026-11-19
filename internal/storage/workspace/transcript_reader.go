@@ -29,11 +29,12 @@ func (s *AgentHistoryStore) readTranscriptEntriesAtContext(
 	relative string,
 ) ([]transcriptEntry, error) {
 	entries, _, _, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative)
-	return entries, err
+	return cloneTranscriptEntries(entries), err
 }
 
 // readTranscriptEntriesLineageAtContext 额外返回缓存路径与解析代系；
 // 未进入缓存（读取期间仍在写入或文件过大）时代系为 0。
+// 返回的条目可能与缓存共享，调用方只能读取，投影前须深拷贝要交给 Processor 的部分。
 func (s *AgentHistoryStore) readTranscriptEntriesLineageAtContext(
 	ctx context.Context,
 	root *confinedfs.Root,
