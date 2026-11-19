@@ -139,6 +139,9 @@ type Request struct {
 	// Goal service has validated and claimed the exact continuation plan; an
 	// ordinary Internal request must remain agent_internal and fail closed.
 	goalContinuationAuthority *runtimectx.GoalContinuationAuthority
+	// runtimeWake is host-only. Only the DM idle drain sets it when the runtime
+	// starts a turn by itself; the round then consumes that turn without a query.
+	runtimeWake *runtimeWakeStart
 }
 
 // DeferredAssistantCandidate 是后台 round 提交前的最终 assistant 快照。

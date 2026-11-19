@@ -48,11 +48,21 @@ func (s *Service) handleChatLocked(
 	request Request,
 	mode chatExecutionMode,
 ) error {
-	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
-		return err
+	for {
+		if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+			return err
+		}
+		err := s.handleChat(ctx, request, mode)
+		s.inputQueueDispatchMu.Unlock()
+		// 撞上自唤醒交接时释放派发锁让交接完成，再从路由阶段重试：届时自唤醒 round 已登记，输入按运行中规则排队或引导。
+		var pending *runtimeWakePendingError
+		if !errors.As(err, &pending) {
+			return err
+		}
+		if waitErr := pending.wait(ctx); waitErr != nil {
+			return waitErr
+		}
 	}
-	defer s.inputQueueDispatchMu.Unlock()
-	return s.handleChat(ctx, request, mode)
 }
 
 // handleChat 要求调用方已为显式输入持有 inputQueueDispatchMu；内部输入由各调度器自行保证互斥。
@@ -63,6 +73,9 @@ func (s *Service) handleChat(
 ) error {
 	execution, err := s.prepareChatExecution(ctx, request)
 	if err != nil {
+		return err
+	}
+	if err := execution.yieldToRuntimeWake(); err != nil {
 		return err
 	}
 	if !request.Internal && request.ExecutionOrigin != "queue" {
@@ -82,6 +95,10 @@ func (s *Service) handleChat(
 	}
 	if err = execution.prepareRunner(); err != nil {
 		return err
+	}
+	if execution.runner.runtimeWakeClientMismatch() {
+		execution.abortRegisteredRound()
+		return errRuntimeWakeLost
 	}
 	if err = execution.admitContinuationStart(); err != nil {
 		execution.abortRegisteredRound()
@@ -253,6 +270,10 @@ func (e *dmChatExecution) prepareRunner() error {
 	if !e.startRound() {
 		return runtimectx.ErrRuntimeSessionClosing
 	}
+	if err := e.yieldToRuntimeWake(); err != nil {
+		e.abortRegisteredRound()
+		return err
+	}
 	preparation, err := e.prepareRuntime()
 	if err != nil {
 		e.abortRegisteredRound()
@@ -286,6 +307,10 @@ func (e *dmChatExecution) acceptAndLaunch() error {
 	}
 	if !e.startRound() {
 		return runtimectx.ErrRuntimeSessionClosing
+	}
+	if err := e.yieldToRuntimeWake(); err != nil {
+		e.abortRegisteredRound()
+		return err
 	}
 	e.runner = e.newRoundRunner()
 	if err := e.persistRound(); err != nil {
@@ -460,6 +485,7 @@ func (e *dmChatExecution) newRoundRunner() *roundRunner {
 		GoalRoundState:             runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false), UsageStartedAt: time.Now()},
 		permissionHandler:          e.request.PermissionHandler,
 		automationRun:              e.request.AutomationRun.NormalizedCopy(),
+		runtimeWake:                e.request.runtimeWake,
 	}
 }
 
@@ -648,7 +674,7 @@ func (e *dmChatExecution) persistRound() error {
 		ClientMessageID: e.request.ClientMessageID,
 		DeliveryPolicy:  string(e.deliveryPolicy),
 		Attachments:     e.request.Attachments,
-		HiddenFromUser:  e.request.Internal || e.request.InputOptions.HiddenFromUser,
+		HiddenFromUser:  e.markerHiddenFromUser(),
 		Synthetic:       e.request.InputOptions.Synthetic || e.request.Internal,
 		Purpose:         e.request.InputOptions.Purpose,
 		Metadata:        e.request.InputOptions.Metadata,
@@ -718,6 +744,15 @@ func (e *dmChatExecution) persistRound() error {
 		}
 	}
 	return nil
+}
+
+// markerHiddenFromUser 决定 round marker 是否进入用户可见历史。
+// runtime 自唤醒虽是内部输入，但需要作为“触发分隔条”展示，并据此与 transcript 对齐。
+func (e *dmChatExecution) markerHiddenFromUser() bool {
+	if e.request.runtimeWake != nil {
+		return false
+	}
+	return e.request.Internal || e.request.InputOptions.HiddenFromUser
 }
 
 func dmRequestHasCanonicalUserInput(request Request) bool {
@@ -801,6 +836,9 @@ func (e *dmChatExecution) broadcastAcceptance() {
 }
 
 func (e *dmChatExecution) broadcastRoundStarted(ctx context.Context) {
+	if wake := e.request.runtimeWake; wake != nil {
+		e.service.broadcastRuntimeWakeMarker(ctx, e.session, e.request.RoundID, e.request.UserMessageID, wake.trigger)
+	}
 	if e.request.BroadcastUserMessage {
 		e.service.broadcastUserRoundMarker(
 			ctx,

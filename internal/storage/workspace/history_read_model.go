@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 9 // 重建旧的大 Room disabled 标记并启用成员检查点。
+	historyReadModelSchemaVersion = 11 // runtime 自唤醒的 <task-notification> 投影为触发行，不再显示原始标签。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000

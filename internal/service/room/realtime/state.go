@@ -205,9 +205,11 @@ type activeRoomSlot struct {
 	Trigger               roomTrigger
 	TriggerAttachments    []protocol.ChatAttachment
 	AtomicRuntimeInput    string
-	WorkBinding           *protocol.ExecutionWorkBinding
-	ReviewBinding         *protocol.ExecutionReviewBinding
-	mutable               roomSlotMutableState
+	// runtimeWake 非空表示本 slot 接管成员 runtime 自行开启的 turn。
+	runtimeWake   *roomRuntimeWakeStart
+	WorkBinding   *protocol.ExecutionWorkBinding
+	ReviewBinding *protocol.ExecutionReviewBinding
+	mutable       roomSlotMutableState
 }
 
 func (s *activeRoomSlot) ensureWorkBindingState() *runtimectx.WorkBindingState {

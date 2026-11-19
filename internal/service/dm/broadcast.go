@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -21,6 +22,20 @@ func (s *Service) broadcastEventWithTimeout(ctx context.Context, sessionKey stri
 	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
 	defer cancel()
 	s.Permission.BroadcastEvent(broadcastCtx, sessionKey, event)
+}
+
+// broadcastRuntimeWakeMarker 推送 runtime 自唤醒 round 的触发行；形状与历史投影一致。
+func (s *Service) broadcastRuntimeWakeMarker(
+	ctx context.Context,
+	sessionValue protocol.Session,
+	roundID string,
+	userMessageID string,
+	trigger messagepkg.RuntimeWakeTrigger,
+) {
+	message := dmdomain.BuildUserRoundMarker(sessionValue, roundID, "", userMessageID, trigger.Content(), "", nil)
+	message = messagepkg.DecorateRuntimeWakeUserMessage(message, trigger)
+	event := dmdomain.WrapSessionMessageEvent(sessionValue, message, "durable", roundID)
+	s.broadcastEventWithTimeout(ctx, sessionValue.SessionKey, event)
 }
 
 func (s *Service) broadcastUserRoundMarker(

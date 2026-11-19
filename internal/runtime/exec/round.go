@@ -1,5 +1,5 @@
 // INPUT: runtime query、SDK 消息流、人工交互暂停信号与 map/persist/emit 回调。
-// OUTPUT: 由 wire result 确认的单轮终态；本地后处理失败时仍携带 provider terminal usage。
+// OUTPUT: 由 wire result 确认的单轮终态；本地后处理失败时仍携带 provider terminal usage；runtime 自唤醒 turn 跳过 query 直接接管。
 // POS: runtime exec 包的 query → receive → map → persist → emit 主状态机。
 package exec
 
@@ -24,7 +24,7 @@ func ExecuteRound(
 	if err != nil {
 		return RoundExecutionResult{}, err
 	}
-	if err = execution.query(); err != nil {
+	if err = execution.start(); err != nil {
 		return RoundExecutionResult{}, err
 	}
 	return execution.receive()
@@ -66,6 +66,22 @@ func newRoundExecution(ctx context.Context, request RoundExecutionRequest) (*rou
 	}, nil
 }
 
+// start 让 turn 进入运行态：普通 round 发送 query；接管 runtime 自开 turn 时 turn 已在运行，
+// 只执行 AfterQuery（激活绑定、补发排队输入），保证两条路径的 round 启动语义一致。
+func (e *roundExecution) start() error {
+	if !e.request.ResumeRuntimeTurn {
+		return e.query()
+	}
+	return e.afterQuery()
+}
+
+func (e *roundExecution) afterQuery() error {
+	if e.request.AfterQuery == nil {
+		return nil
+	}
+	return e.request.AfterQuery()
+}
+
 func (e *roundExecution) query() error {
 	content := roundQueryContent(e.request)
 	var (
@@ -95,15 +111,18 @@ func (e *roundExecution) query() error {
 		}
 		return err
 	}
-	if e.request.AfterQuery == nil {
-		return nil
-	}
-	return e.request.AfterQuery()
+	return e.afterQuery()
 }
 
 func (e *roundExecution) receive() (RoundExecutionResult, error) {
 	e.startReceiving()
 	defer e.stopIdleTimer()
+	for _, incoming := range e.request.InitialMessages {
+		outcome, err := e.handleIncoming(incoming)
+		if err != nil || outcome.done {
+			return outcome.result, err
+		}
+	}
 	for {
 		if e.interruptedDrainRequired() {
 			return e.receiveInterruptedTerminal(nil)

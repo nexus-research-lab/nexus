@@ -22,6 +22,8 @@
 //
 // 运行开始、消息、命令回执、附件、结束及 compact 证据共用 orchestration/runtimehook.Observer；Goal 快照转换共用 goal/runtimeusage，子任务证据合并与确认由 Goal 观察值负责。本包保留可信身份、锁、结算屏障和会话编排。
 //
+//   - runtime_wake.go：idle drain 收到 runtime 自行开启的顶层 turn（system/init）时退出 drain，以不发 query 的内部 round 接管同一消息流，拥有完整 hook/权限/终态生命周期；启动失败回退旧 drain。
+//
 //   - workgraph_dispatch.go：持久队列承接精确工作/审核绑定，遵守队列暂停与出队授权；round.go 对支持消息策略的内部轮次关闭自动记忆抽取。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

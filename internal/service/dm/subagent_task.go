@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -26,6 +27,12 @@ func (r *roundRunner) startIdleSubagentNotificationDrain() {
 }
 
 func (r *roundRunner) handleIdleSubagentMessage(ctx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
+	// runtime 自行开启新 turn 时交给独立 round，不再把新输出塞进已结束的旧轮次。
+	if messagepkg.IsRuntimeTurnStart(incoming) {
+		r.handoffRuntimeWake(incoming)
+		return false
+	}
+	r.observeIdleTaskNotification(incoming)
 	r.service.ExecutionObserver().ObserveMessage(r.orchestrationActor(), incoming)
 	events, durableMessages, _, _, err := r.mapper.Map(incoming)
 	if err != nil {

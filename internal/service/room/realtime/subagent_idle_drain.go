@@ -1,5 +1,6 @@
 // INPUT: 已结束 Room round 的后台子 Agent runtime 消息与捕获的 Room authority epoch。
-// OUTPUT: 经即时撤权检查的 durable history、Goal child actual usage、事件投影与 post-round 释放信号。
+// OUTPUT: 经即时撤权检查的 durable history、Goal child actual usage、事件投影与 post-round 释放信号；
+// runtime 自行开启新 turn 时退出 drain 并交接给自唤醒 round（见 runtime_wake.go）。
 // POS: Room slot 终态后 idle task 消息与后台输出的最终权限边界。
 package realtime
 
@@ -9,6 +10,7 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
@@ -34,16 +36,22 @@ func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, round
 		mapper.SetMessageDecorator(func(message protocol.Message) {
 			s.decorateRoomMessage(roundValue, slot, message)
 		})
+		wakeObserver := &roomIdleWakeObserver{}
 		s.Runtime.StartIdleMessageDrain(
 			slot.RuntimeSessionKey,
 			func(drainCtx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
-				return s.handleIdleSubagentMessage(
-					runtimehost.ContextWithExactOwner(drainCtx, roundValue.OwnerUserID),
-					roundValue,
-					slot,
-					mapper,
-					incoming,
-				)
+				ctx := runtimehost.ContextWithExactOwner(drainCtx, roundValue.OwnerUserID)
+				if messagepkg.IsRuntimeTurnStart(incoming) {
+					if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+						s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
+						return false
+					}
+					// runtime 自行开启了新 turn：退出 drain，交给独立 round 接管，输出不再挂到已结束的上一轮。
+					s.handoffRoomRuntimeWake(roundValue, slot, wakeObserver.take(), incoming)
+					return false
+				}
+				wakeObserver.observe(incoming)
+				return s.handleIdleSubagentMessage(ctx, roundValue, slot, mapper, incoming)
 			},
 		)
 	}

@@ -5,7 +5,8 @@
 // 成员清单：
 //   - round.go：ExecuteRound 阶段编排与单轮接收状态；人工交互期间暂停空闲计时，
 //     正常结束与显式中断均以 wire result 确认边界，assistant 回复结束不释放轮次；
-//     本地后处理失败时保留已观察到的 terminal usage。
+//     本地后处理失败时保留已观察到的 terminal usage；ResumeRuntimeTurn 跳过 query，
+//     先处理交接前已取出的 InitialMessages，再接管 runtime 自行开启的 turn。
 //   - model.go：RoundExecutionRequest/Result、RoundMapper、RoundMapResult、runtime 类型别名与 ErrRoundInterrupted。
 //   - stream_diagnostics.go / stream_error.go：流停止诊断、流关闭与空闲超时错误，
 //     以及隔离内部诊断与会话展示文案的投影入口。

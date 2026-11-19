@@ -114,6 +114,8 @@ type Host struct {
 	RuntimeSlashExpander    RuntimeSlashExpander
 	// Announcements 记录易变宿主事实已告知模型的快照，变化时才追加上下文。
 	Announcements *ContextAnnouncements
+	// RuntimeWakeGates 由 Service 指针持有，交接期间阻挡同会话的普通 round 抢跑。
+	RuntimeWakeGates RuntimeWakeGates
 }
 
 // NewHost 创建会话宿主共用的基础依赖与 workspace 存储；其余依赖由 app 装配注入。

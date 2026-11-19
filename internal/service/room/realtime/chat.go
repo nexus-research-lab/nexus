@@ -175,13 +175,27 @@ func (s *Service) handleChat(ctx context.Context, request ChatRequest) (err erro
 	}
 	recordStage := s.roomChatStageRecorder(ctx, request, "dispatch_lock")
 	defer func() { recordStage("", err) }()
-	lease := s.lockRoomDispatch(sessionKey, conversationID)
-	defer lease.Unlock()
-	if err = ctx.Err(); err != nil {
+	for {
+		lease := s.lockRoomDispatch(sessionKey, conversationID)
+		// 自唤醒交接需要同一把派发锁；普通输入先释放锁等交接完成，再按“成员正在运行”的规则路由。
+		if pending := s.yieldToRoomRuntimeWake(request, conversationID); pending != nil {
+			lease.Unlock()
+			select {
+			case <-pending:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		if err = ctx.Err(); err != nil {
+			lease.Unlock()
+			return err
+		}
+		recordStage("handoff", nil)
+		err = s.handleChatLocked(ctx, request)
+		lease.Unlock()
 		return err
 	}
-	recordStage("handoff", nil)
-	return s.handleChatLocked(ctx, request)
 }
 
 // handleChatLocked 在已经持有 conversation 派发闸门时执行输入交接。
@@ -191,6 +205,9 @@ func (s *Service) handleChatLocked(ctx context.Context, request ChatRequest) (er
 	execution, err := s.prepareRoomChat(ctx, request)
 	if err != nil {
 		return err
+	}
+	if wake := request.runtimeWake; wake != nil && wake.lost(s.Runtime.SessionClient(wake.runtimeSessionKey)) {
+		return errRoomRuntimeWakeLost
 	}
 	if !request.Internal && request.ExecutionOrigin != "queue" {
 		if err := s.setRoomInputQueuePaused(execution.ctx, execution.contextValue, execution.targetAgentIDs, false); err != nil {
@@ -347,6 +364,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 	)
 
 	userMessage := newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy)
+	userMessage = decorateRoomRuntimeWakeUserMessage(request, userMessage)
 	annotateRoomUserMessage(contextValue, userMessage)
 	return &roomChatExecution{
 		service:            s,
@@ -801,6 +819,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 			TriggerAttachments:    e.attachments,
 			AtomicRuntimeInput:    strings.TrimSpace(e.atomicRuntimeInput),
 		}
+		applyRuntimeWakeSlot(e.request, slot)
 		slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
 		slot.setStatus("pending")
 		slot.doneChannel()
@@ -1069,6 +1088,10 @@ func initialRoomTriggerType(request ChatRequest, targetResolution string) string
 func shouldBroadcastRoomChatAck(request ChatRequest) bool {
 	if !request.Internal {
 		return true
+	}
+	if request.runtimeWake != nil {
+		// 公区唤醒要让前端立刻建出成员占位，与触发行对齐。
+		return request.runtimeWake.publishesPublicOutput()
 	}
 	return strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation"
 }
