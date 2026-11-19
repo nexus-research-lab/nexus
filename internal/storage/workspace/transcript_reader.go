@@ -1,5 +1,5 @@
 // INPUT: runtime transcript JSONL 与父链/并行工具关联。
-// OUTPUT: 供历史投影消费的主链，以及与主链工具调用对应的并行结果和子任务附件。
+// OUTPUT: 供历史投影消费的主链（经 logicalParentUuid 跨 compact_boundary 续接，压缩摘要视为 meta），以及与主链工具调用对应的并行结果和子任务附件。
 // POS: transcript 读取、规范化与执行链选择边界；完整解析经 transcript_parallel_read.go 分块并行。
 package workspace
 
@@ -193,7 +193,7 @@ func indexTranscriptEntries(entries []transcriptEntry) (map[string]transcriptEnt
 	}
 	parentUUIDs := make(map[string]struct{}, len(byUUID))
 	for uuid, entry := range byUUID {
-		if parentUUID := stringFromAny(entry.Data["parentUuid"]); parentUUID != "" && parentUUID != uuid {
+		if parentUUID := transcriptChainParentUUID(entry.Data); parentUUID != "" && parentUUID != uuid {
 			parentUUIDs[parentUUID] = struct{}{}
 		}
 	}
@@ -241,7 +241,7 @@ func walkTranscriptParentChain(leaf transcriptEntry, byUUID map[string]transcrip
 		}
 		seen[uuid] = struct{}{}
 		chain = append(chain, current)
-		parentUUID := stringFromAny(current.Data["parentUuid"])
+		parentUUID := transcriptChainParentUUID(current.Data)
 		if parentUUID == "" {
 			break
 		}
@@ -252,6 +252,16 @@ func walkTranscriptParentChain(leaf transcriptEntry, byUUID map[string]transcrip
 		current = parent
 	}
 	return chain
+}
+
+// transcriptChainParentUUID 返回条目在主链上的上一跳。
+// compact_boundary 的 parentUuid 为 null，只用 logicalParentUuid 指回压缩前的链尾；
+// 只认 parentUuid 会让每次自动压缩都把之前的整段历史从读模型里截掉。
+func transcriptChainParentUUID(entry map[string]any) string {
+	return textutil.FirstNonEmpty(
+		stringFromAny(entry["parentUuid"]),
+		stringFromAny(entry["logicalParentUuid"]),
+	)
 }
 
 func shouldSkipTranscriptEntry(entry map[string]any) bool {
@@ -270,8 +280,13 @@ func shouldSkipExplicitTranscriptEntry(entry map[string]any) bool {
 		stringFromAny(entry["teamName"]) != ""
 }
 
+// isMetaTranscriptEntry 识别只供模型或 transcript 内部使用的条目。
+// 压缩摘要（isCompactSummary）是 runtime 注入的伪 user 输入，既不能展示，
+// 也不能当作用户轮次去消费 round marker，否则后续轮次会整体错位。
 func isMetaTranscriptEntry(entry map[string]any) bool {
-	return boolValueAny(entry["isMeta"]) || boolValueAny(entry["is_meta"])
+	return boolValueAny(entry["isMeta"]) || boolValueAny(entry["is_meta"]) ||
+		boolValueAny(entry["isCompactSummary"]) ||
+		boolValueAny(entry["isVisibleInTranscriptOnly"])
 }
 
 func isInternalTranscriptContinuationEntry(entry map[string]any) bool {

@@ -23,6 +23,7 @@ import { useConversationRoundNavigation } from "./use-conversation-round-navigat
 import { useConversationVirtualMetrics } from "./use-conversation-virtual-metrics";
 import {
   resolveConversationVirtualPlaceholderHeight,
+  scrollConversationVirtualElement,
   shouldAdjustConversationVirtualScrollPosition,
   useConversationVirtualInitialOffset,
   useConversationVirtualItemKey,
@@ -70,6 +71,7 @@ export function ConversationVirtualFeed({
     estimateSize: (index) => heightMap.get(source.roundIds[index]) ?? 200,
     getItemKey,
     getScrollElement: () => refs.scrollRef.current,
+    scrollToFn: scrollConversationVirtualElement,
     initialOffset,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 5,

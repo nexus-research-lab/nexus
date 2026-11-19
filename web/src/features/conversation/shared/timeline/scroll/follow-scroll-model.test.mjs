@@ -363,16 +363,16 @@ test("READING preserves the first visible Room round during static growth", asyn
   const anchor = new ConversationViewportAnchor();
 
   anchor.capture(container, feed);
+  const visibleTopBeforeGrowth = visible.getBoundingClientRect().top;
   documentTops.visible += 40;
   assert.equal(
-    anchor.restore(container, feed, { userScrollActive: true }),
-    null,
-    "a live user gesture absorbs the current geometry instead of writing scrollTop",
+    anchor.restore(container, feed),
+    440,
+    "history loaded above the reading round during a scroll gesture must not push the viewport back",
   );
-  assert.equal(scrollTop, 400);
-  const visibleTopBeforeGrowth = visible.getBoundingClientRect().top;
+  assert.equal(visible.getBoundingClientRect().top, visibleTopBeforeGrowth);
   documentTops.visible += 120;
-  assert.equal(anchor.restore(container, feed), 520);
+  assert.equal(anchor.restore(container, feed), 560);
   assert.equal(
     visible.getBoundingClientRect().top,
     visibleTopBeforeGrowth,
@@ -392,7 +392,7 @@ test("READING preserves the first visible Room round during static growth", asyn
     null,
     "Virtualizer remains the only owner of virtual item size compensation",
   );
-  assert.equal(scrollTop, 520);
+  assert.equal(scrollTop, 560);
 });
 
 test("history prepend preserves scrolling performed while the page was loading", async () => {

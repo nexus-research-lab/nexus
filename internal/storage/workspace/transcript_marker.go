@@ -1,5 +1,5 @@
 // INPUT: 已筛选 transcript 链、durable round marker 与用户输入时间。
-// OUTPUT: 与正式历史投影一一对应、识别空白 Goal 续跑且不会跨可见性错绑的 round marker。
+// OUTPUT: 与正式历史投影一一对应、识别空白 Goal 续跑与 runtime 自唤醒、且不会跨可见性错绑的 round marker。
 // POS: transcript 用户轮次与 Nexus durable round 身份的唯一对齐边界。
 package workspace
 
@@ -99,6 +99,8 @@ type transcriptUserTurn struct {
 	Timestamp       int64
 	GoalContextOnly bool
 	Empty           bool
+	// RuntimeWake 表示 runtime 自唤醒注入的输入，只能与自唤醒 marker 互相对齐。
+	RuntimeWake bool
 }
 
 func collectTranscriptUserTurns(
@@ -132,7 +134,14 @@ func transcriptUserTurnForMarker(data map[string]any, timestamp int64) (transcri
 	if empty {
 		timestamp = transcriptEntryTimestamp(data, -1, 0)
 	}
-	return transcriptUserTurn{Content: transcriptUserContent(data), Timestamp: timestamp, GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(data), Empty: empty}, true
+	_, runtimeWake := transcriptRuntimeWakeTrigger(data, transcriptRoundMarker{})
+	return transcriptUserTurn{
+		Content:         transcriptUserContent(data),
+		Timestamp:       timestamp,
+		GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(data),
+		Empty:           empty,
+		RuntimeWake:     runtimeWake,
+	}, true
 }
 
 // findMatchingRoundMarker 在 candidates（内容与 turn 相同、按下标升序的 marker）中选时间最近者。
@@ -204,6 +213,9 @@ func findCompatibleFallbackRoundMarker(
 }
 
 func roundMarkerFallbackCompatible(turn transcriptUserTurn, marker transcriptRoundMarker) bool {
+	if turn.RuntimeWake || isRuntimeWakeRoundMarker(marker) {
+		return turn.RuntimeWake && isRuntimeWakeRoundMarker(marker)
+	}
 	if turn.Empty {
 		return turn.Timestamp > 0 && marker.Timestamp > 0 && marker.HiddenFromUser &&
 			strings.TrimSpace(marker.Purpose) == "goal_continuation" && strings.TrimSpace(marker.Content) == ""
@@ -213,6 +225,10 @@ func roundMarkerFallbackCompatible(turn transcriptUserTurn, marker transcriptRou
 			(marker.Synthetic || strings.TrimSpace(marker.Purpose) == "goal_continuation")
 	}
 	return !marker.HiddenFromUser
+}
+
+func isRuntimeWakeRoundMarker(marker transcriptRoundMarker) bool {
+	return strings.TrimSpace(marker.Purpose) == message.RuntimeWakePurpose || message.IsRuntimeWakeMetadata(marker.Metadata)
 }
 
 func transcriptRoundMarkerDistance(turnTimestamp int64, markerTimestamp int64) (int64, bool) {

@@ -49,6 +49,11 @@ type RoundExecutionRequest struct {
 	Client           Client
 	Mapper           RoundMapper
 	IdleTimeout      time.Duration
+	// ResumeRuntimeTurn 表示 runtime 已自行开启本 turn（如后台任务完成后自唤醒）：
+	// 跳过 query，直接接管消息流直到该 turn 的 result。
+	ResumeRuntimeTurn bool
+	// InitialMessages 是交接前已从共享消息流取出的本 turn 消息，先于流中后续消息处理。
+	InitialMessages []sdkprotocol.ReceivedMessage
 
 	// IdlePauseState 把人工交互等已知阻塞阶段从消息流空闲检测中剔除。
 	// changed 关闭后调用方会重新读取状态，状态恢复时重新获得完整 IdleTimeout。

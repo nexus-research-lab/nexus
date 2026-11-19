@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -154,7 +155,7 @@ func mergeAssistantContentBlocks(current any, next any) ([]map[string]any, bool)
 		return result, true
 	}
 	for _, block := range incoming {
-		result = upsertAssistantContentBlock(result, block)
+		result = message.UpsertAssistantContentBlock(result, block)
 	}
 	return result, true
 }
@@ -194,47 +195,6 @@ func cloneMessageMap(payload map[string]any) map[string]any {
 		return nil
 	}
 	return maps.Clone(payload)
-}
-
-func upsertAssistantContentBlock(blocks []map[string]any, incoming map[string]any) []map[string]any {
-	block := cloneMessageMap(incoming)
-	if len(block) == 0 {
-		return blocks
-	}
-	incomingType := stringFromAny(block["type"])
-	for index, current := range blocks {
-		currentType := stringFromAny(current["type"])
-		if currentType != incomingType {
-			continue
-		}
-		switch incomingType {
-		case "thinking":
-			blocks[index] = block
-			return blocks
-		case "text":
-			blocks[index] = block
-			return blocks
-		case "tool_use":
-			if stringFromAny(current["id"]) == stringFromAny(block["id"]) {
-				blocks[index] = block
-				return blocks
-			}
-		case "tool_result":
-			if stringFromAny(current["tool_use_id"]) == stringFromAny(block["tool_use_id"]) {
-				blocks[index] = block
-				return blocks
-			}
-		case "task_progress":
-			if stringFromAny(current["task_id"]) == stringFromAny(block["task_id"]) {
-				blocks[index] = block
-				return blocks
-			}
-		default:
-			blocks[index] = block
-			return blocks
-		}
-	}
-	return append(blocks, block)
 }
 
 func normalizeMapValue(value any) map[string]any {

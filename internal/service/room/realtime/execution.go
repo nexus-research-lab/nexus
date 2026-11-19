@@ -201,6 +201,12 @@ func (s *Service) runSlot(
 
 	result, err := execution.executeRound(client)
 	if err != nil {
+		if errors.Is(err, errRoomRuntimeWakeLost) {
+			// 原进程已被替换，没有可接续的输出；按取消收尾，不向用户报错。
+			logger.Info("Room runtime 自唤醒准备期间进程已切换，放弃接续")
+			s.handleSlotCancelled(slotCtx, roundValue, slot, mapper, result)
+			return
+		}
 		if errors.Is(err, exec.ErrRoundInterrupted) {
 			if partialErr := execution.persistInterruptedAssistant(); partialErr != nil {
 				logger.Error("Room interrupted 流式内容持久化失败", "err", partialErr)
@@ -306,6 +312,11 @@ func roomOrchestrationActor(
 }
 
 func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecutionResult, error) {
+	if e.slot.runtimeWake != nil {
+		defer e.service.releaseExecutionCoordination(e.orchestrationActor())
+		e.slot.beginNoReplyCandidate()
+		return e.executeRuntimeWakeRound(client, e.agentRound(client, nil, roomSlotRuntimeInputOptions(e.round, e.slot)))
+	}
 	if err := e.loadPublicHistory(); err != nil {
 		return exec.RoundExecutionResult{}, err
 	}
@@ -319,7 +330,16 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		inputOptions.SkipAutoMemory = false
 	}
 	e.slot.beginNoReplyCandidate()
-	return e.service.ExecuteAgentRound(e.ctx, runtimehost.AgentRound{
+	return e.service.ExecuteAgentRound(e.ctx, e.agentRound(client, payload, inputOptions))
+}
+
+// agentRound 组装 slot 的单 Agent round；普通派发与自唤醒接管共用同一套回调。
+func (e *slotExecution) agentRound(
+	client runtimectx.Client,
+	payload any,
+	inputOptions sdkprotocol.OutboundMessageOptions,
+) runtimehost.AgentRound {
+	return runtimehost.AgentRound{
 		Actor:             e.orchestrationActor,
 		RuntimeSessionKey: e.slot.RuntimeSessionKey,
 		HookRoundID:       e.slot.AgentRoundID,
@@ -345,7 +365,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		ForkPending:          func() bool { return strings.TrimSpace(e.forkSourceSessionID) != "" },
 		Logger:               e.logger,
 		StreamLogger:         e.streamLogger,
-	})
+	}
 }
 
 func (e *slotExecution) syncRuntimeIdentity(sessionID string) error {
@@ -666,6 +686,10 @@ func (s *Service) recordPrivateRoundMarker(roundValue *activeRoomRound, slot *ac
 	options := roomRoundMarkerOptions(roundValue)
 	// 私有会话内 slot 自成一轮，round 与 agent round 同源。
 	options.AgentRoundID = slot.AgentRoundID
+	if slot.runtimeWake != nil {
+		// 自唤醒边界在成员私有历史里作为触发行展示。
+		options.HiddenFromUser = false
+	}
 	return s.History.ForOwner(roundValue.OwnerUserID).AppendRoundMarkerWithOptions(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,

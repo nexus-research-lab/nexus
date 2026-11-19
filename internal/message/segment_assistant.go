@@ -453,22 +453,31 @@ func blockFieldMatcher(field string) assistantBlockMatcher {
 }
 
 func (s *AssistantSegment) upsertBlock(incoming map[string]any) {
+	s.content = UpsertAssistantContentBlock(s.content, incoming)
+}
+
+// UpsertAssistantContentBlock 是同一 assistant 消息内容块的唯一合并规则：
+// 直播段与历史 message_id 压缩共用，保证两条路径对同一组快照得出相同正文。
+// 不同正文的 text 块按前缀判定是否同一块，绝不互相覆盖。
+func UpsertAssistantContentBlock(blocks []map[string]any, incoming map[string]any) []map[string]any {
 	block := cloneMap(incoming)
+	if len(block) == 0 {
+		return blocks
+	}
 	incomingType := textutil.AnyString(block["type"])
 	matcher := assistantBlockMatchers[incomingType]
 	if matcher == nil {
-		s.content = append(s.content, block)
-		return
+		return append(blocks, block)
 	}
-	for index, current := range s.content {
+	for index, current := range blocks {
 		currentType := textutil.AnyString(current["type"])
 		if currentType != incomingType || !matcher(current, block) {
 			continue
 		}
-		s.content[index] = block
-		return
+		blocks[index] = block
+		return blocks
 	}
-	s.content = append(s.content, block)
+	return append(blocks, block)
 }
 
 func workspaceFileArtifactKey(block map[string]any) string {

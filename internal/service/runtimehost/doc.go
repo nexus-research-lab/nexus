@@ -11,6 +11,7 @@
 //   - runtime_client.go：runtime 偏好与选择、Skill、nexus MCP 合并、desktop scratch、client 选项与 hook 装配，以及带失效 resume 回退的启动状态机 RuntimeConnect。
 //   - agent_round.go：单 Agent round 执行骨架 ExecuteAgentRound、已协商 runtime 的结果声明注入/冻结 binding 回调，以及 PostToolUse 引导协议与引导确认判定。
 //   - round_latency.go：每轮主线程首包耗时观测（system init、message_start、首个思考块、首个回答块）。
+//   - runtime_wake_gate.go：runtime 自唤醒交接闸门；drain 识别到自行开启的 turn 后，同会话普通 round 等交接完成再路由，避免抢走自唤醒输出。
 //   - context_announcements.go：易变宿主事实（如 Connector 状态）按会话记录已告知快照，变化或 compact 后才重新告知。
 //   - goal.go：Goal 续跑准备/派发/失败回写、/goal 命令建 Goal、用量增量与上限标记、用量 scope 绑定与 round 认领、带退避的用量重试、完成收据读取、可信投递策略与 SDK 诊断日志装配。
 //

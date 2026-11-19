@@ -1,5 +1,5 @@
 // INPUT: 已准备的 DM round、runtime 消息、工具面指纹与终态结果。
-// OUTPUT: durable 历史、内部轮次的维护策略、SDK session 工具面基线、ACK 门控的引导确认、Goal 结算及用户队列优先的后续派发。
+// OUTPUT: durable 历史、内部轮次的维护策略、SDK session 工具面基线、ACK 门控的引导确认、Goal 结算、用户队列优先的后续派发，以及承接 runtime 自唤醒 turn 的免 query 执行。
 // POS: DM 单轮执行生命周期的主状态机。
 package dm
 
@@ -17,6 +17,7 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -78,6 +79,10 @@ type roundRunner struct {
 	permissionMode              sdkpermission.Mode
 	permissionHandler           sdkpermission.Handler
 	deferredRuntimeMessageUUIDs []string
+	// runtimeWake 非空表示本轮承接 runtime 自行开启的 turn，不发送 query。
+	runtimeWake *runtimeWakeStart
+	// idleWakeTrigger 由本轮结束后的 idle drain 写入，受 Mu 保护。
+	idleWakeTrigger messagepkg.RuntimeWakeTrigger
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
 	goalUsageRetryBaseDelay time.Duration
@@ -208,6 +213,8 @@ func (r *roundRunner) executeRound(
 		AtomicInput:       r.atomicInput,
 		ContextualInputs:  r.contextualInputs(),
 		InputOptions:      r.runtimeInputOptions(),
+		ResumeRuntimeTurn: r.runtimeWake != nil,
+		InitialMessages:   r.runtimeWakeInitialMessages(),
 		InterruptReason: func() string {
 			return r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},

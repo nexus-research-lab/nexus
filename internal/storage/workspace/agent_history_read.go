@@ -12,6 +12,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -267,6 +268,9 @@ func materializeRoundMarkerMessages(
 		}
 		if marker.ControlOnly {
 			row["control_only"] = true
+		}
+		if message.IsRuntimeWakeMetadata(marker.Metadata) {
+			message.DecorateRuntimeWakeUserMessage(row, message.RuntimeWakeTriggerFromMetadata(marker.Content, marker.Metadata))
 		}
 		rows = append(rows, row)
 	}

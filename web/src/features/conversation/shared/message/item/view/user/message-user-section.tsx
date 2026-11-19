@@ -1,6 +1,6 @@
 /**
  * INPUT: 单条 durable user message、发送方向与编辑、复制、附件回调。
- * OUTPUT: 可独立渲染的用户消息区块。
+ * OUTPUT: 可独立渲染的用户消息区块；runtime 自唤醒行改为触发分隔条。
  * POS: DM / Room 共用的 user message 视图。
  */
 import { useCallback } from "react";
@@ -18,8 +18,10 @@ import { UserMessageEditor } from "./user-message-editor";
 import { UserMessageHeader } from "./user-message-header";
 import {
   projectAvailableUserMessageAction,
+  projectRuntimeWakePresentation,
   projectUserMessagePresentation,
 } from "./user-message-model";
+import { UserRuntimeWakeTrigger } from "./user-runtime-wake-trigger";
 import { useUserMessageEditor } from "./use-user-message-editor";
 
 interface MessageUserSectionProps {
@@ -37,6 +39,10 @@ interface MessageUserSectionProps {
 
 export function MessageUserSection(props: MessageUserSectionProps) {
   const { message } = props;
+  const runtimeWake = projectRuntimeWakePresentation(message);
+  if (runtimeWake) {
+    return <UserRuntimeWakeTrigger compact={props.compact} presentation={runtimeWake} />;
+  }
   return <MessageUserSectionContent key={JSON.stringify([message.session_key, message.agent_id, message.message_id, message.round_id])} {...props} />;
 }
 

@@ -1,5 +1,5 @@
 // INPUT: SDK transcript chain、Nexus round marker 与会话标识。
-// OUTPUT: 带稳定 root/source round 身份、保留空白 Goal 续跑边界的 Nexus 历史消息，以及可在用户轮次边界保存与恢复的投影状态。
+// OUTPUT: 带稳定 root/source round 身份、保留空白 Goal 续跑边界与 runtime 自唤醒触发行的 Nexus 历史消息，以及可在用户轮次边界保存与恢复的投影状态。
 // POS: DM transcript 到产品历史的唯一投影入口。
 package workspace
 
@@ -216,6 +216,9 @@ func visitProjectedTranscriptFrom(
 			if userMessage == nil {
 				continue
 			}
+			if trigger, ok := transcriptRuntimeWakeTrigger(entry.Data, marker); ok {
+				message.DecorateRuntimeWakeUserMessage(*userMessage, trigger)
+			}
 			emit(*userMessage)
 			state.LastVisibleUserContent = stringFromAny((*userMessage)["content"])
 			state.LastVisibleUserTimestamp = entryTimestamp
@@ -317,7 +320,24 @@ func transcriptUserContent(entry map[string]any) string {
 	if command := transcriptSlashCommandContent(entry); command != "" {
 		return command
 	}
+	if trigger, ok := transcriptRuntimeWakeTrigger(entry, transcriptRoundMarker{}); ok {
+		return trigger.Content()
+	}
 	return sanitizeTranscriptUserContent(transcriptRawUserContent(entry))
+}
+
+// transcriptRuntimeWakeTrigger 识别 runtime 自唤醒注入的用户条目（Claude Code 的 <task-notification>）。
+// 对齐到的 marker 带有 live 侧的触发元数据时以其为准，保证刷新前后展示一致；原始标签永不展示。
+func transcriptRuntimeWakeTrigger(entry map[string]any, marker transcriptRoundMarker) (message.RuntimeWakeTrigger, bool) {
+	trigger, parsed := message.ParseTaskNotificationPrompt(transcriptRawUserContent(entry))
+	origin, _ := entry["origin"].(map[string]any)
+	if !parsed && stringFromAny(origin["kind"]) != "task-notification" {
+		return message.RuntimeWakeTrigger{}, false
+	}
+	if message.IsRuntimeWakeMetadata(marker.Metadata) {
+		return message.RuntimeWakeTriggerFromMetadata(marker.Content, marker.Metadata), true
+	}
+	return trigger, true
 }
 
 func transcriptRawUserContent(entry map[string]any) string {

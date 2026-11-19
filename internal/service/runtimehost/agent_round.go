@@ -35,8 +35,11 @@ type AgentRound struct {
 	// ContextualInputs 跟在执行上下文块之后注入。
 	ContextualInputs []runtimectx.ContextualInputBlock
 	InputOptions     sdkprotocol.OutboundMessageOptions
-	InterruptReason  func() string
-	AfterQuery       func() error
+	// ResumeRuntimeTurn / InitialMessages 接管 runtime 自行开启的 turn，见 exec.RoundExecutionRequest。
+	ResumeRuntimeTurn bool
+	InitialMessages   []sdkprotocol.ReceivedMessage
+	InterruptReason   func() string
+	AfterQuery        func() error
 	// ObserveMessage 在共用观察之后接收每条 SDK 消息。
 	ObserveMessage       func(sdkprotocol.ReceivedMessage)
 	SyncSessionID        func(string) error
@@ -83,13 +86,15 @@ func (h *Host) ExecuteAgentRound(ctx context.Context, round AgentRound) (exec.Ro
 	latency := newRoundLatency(round.Logger)
 	defer latency.Report()
 	result, executeErr := exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
-		Content:          round.Content,
-		AtomicInput:      round.AtomicInput,
-		ContextualInputs: append(executionInputs, round.ContextualInputs...),
-		InputOptions:     round.InputOptions,
-		Client:           round.Client,
-		Mapper:           round.Mapper,
-		IdleTimeout:      h.Config.RuntimeRoundIdleTimeout(),
+		Content:           round.Content,
+		AtomicInput:       round.AtomicInput,
+		ContextualInputs:  append(executionInputs, round.ContextualInputs...),
+		InputOptions:      round.InputOptions,
+		ResumeRuntimeTurn: round.ResumeRuntimeTurn,
+		InitialMessages:   round.InitialMessages,
+		Client:            round.Client,
+		Mapper:            round.Mapper,
+		IdleTimeout:       h.Config.RuntimeRoundIdleTimeout(),
 		IdlePauseState: func() (bool, <-chan struct{}) {
 			return h.Permission.PendingRequestState(round.RuntimeSessionKey)
 		},
