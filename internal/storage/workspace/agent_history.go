@@ -15,6 +15,8 @@ type agentHistoryCache struct {
 	entries map[string]transcriptCacheEntry
 	// prewarming 记录正在后台预热的会话，避免同一会话重复解析。
 	prewarming map[string]struct{}
+	// tails 保存 DM 读模型的尾轮增量状态。
+	tails agentHistoryTailStore
 }
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。

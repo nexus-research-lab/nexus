@@ -86,6 +86,58 @@ func persistHistoryReadTail(ctx context.Context, tx *sql.Tx, scope, generation s
 	return err
 }
 
+// replaceHistoryReadModelTail 在同一 generation 内用 groups 替换 sequence>=start 的分组，
+// 并推进 scope 的 sources、round index 与分组数；scope 已被其他写入者推进时放弃。
+func replaceHistoryReadModelTail(
+	ctx context.Context,
+	db *sql.DB,
+	scopeKey string,
+	previous historyReadModelScope,
+	start int,
+	groups []historyPageIndexedGroup,
+	sources []historyPageSourceSnapshot,
+	roundIndex []protocol.SessionRoundIndexItem,
+	extra func(*sql.Tx) error,
+) error {
+	if start < 0 || start+len(groups) > historyReadModelMaxGroups {
+		return errHistoryPageIndexResourceLimit
+	}
+	sourcesJSON, err := json.Marshal(sources)
+	if err != nil {
+		return err
+	}
+	indexJSON, err := marshalHistoryPageJSONBounded(roundIndex, historyReadModelMaxPageBytes)
+	if err != nil {
+		return err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	actual, ok, err := readHistoryReadModelScope(ctx, tx, scopeKey)
+	if err != nil || !ok || actual.Generation != previous.Generation || !snapshotsEqual(actual.Sources, previous.Sources) {
+		return errHistoryPageIndexInvalid
+	}
+	for _, table := range []string{"history_read_message_keys", "history_read_groups", "history_read_details"} {
+		if _, err = tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE scope=? AND generation=? AND sequence>=?`, scopeKey, previous.Generation, start); err != nil {
+			return err
+		}
+	}
+	if err = insertHistoryReadModelGroups(ctx, tx, scopeKey, previous.Generation, groups, start); err != nil {
+		return err
+	}
+	if extra != nil {
+		if err = extra(tx); err != nil {
+			return err
+		}
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE history_read_scopes SET sources_json=?,round_index_json=?,group_count=? WHERE scope=?`, sourcesJSON, indexJSON, start+len(groups), scopeKey); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func historyReadTailDigest(rows []byte, frozen []byte) string {
 	hasher := sha256.New()
 	_, _ = fmt.Fprintf(hasher, "%d:", len(rows))
@@ -359,46 +411,9 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if valid, checkErr := s.validateRoomHistoryPageSources(ctx, owner, conversation, expected); checkErr != nil || !valid {
 		return errHistoryPageIndexInvalid
 	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	actual, ok, err := readHistoryReadModelScope(ctx, tx, scopeKey)
-	if err != nil || !ok || actual.Generation != previous.Generation || !snapshotsEqual(actual.Sources, previous.Sources) {
-		return errHistoryPageIndexInvalid
-	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_message_keys WHERE scope=? AND generation=? AND sequence>=?`, scopeKey, previous.Generation, start); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_groups WHERE scope=? AND generation=? AND sequence>=?`, scopeKey, previous.Generation, start); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_details WHERE scope=? AND generation=? AND sequence>=?`, scopeKey, previous.Generation, start); err != nil {
-		return err
-	}
-	if start+len(groups) > historyReadModelMaxGroups {
-		return errHistoryPageIndexResourceLimit
-	}
-	if err = insertHistoryReadModelGroups(ctx, tx, scopeKey, previous.Generation, groups, start); err != nil {
-		return err
-	}
-	sources, err := json.Marshal(expected)
-	if err != nil {
-		return err
-	}
-	index, err := marshalHistoryPageJSONBounded(mergedIndex, historyReadModelMaxPageBytes)
-	if err != nil {
-		return err
-	}
-	if err = persistHistoryReadTail(ctx, tx, scopeKey, previous.Generation, nextTail, nextFrozen); err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE history_read_scopes SET sources_json=?,round_index_json=?,group_count=? WHERE scope=?`, sources, index, start+len(groups), scopeKey)
-	if err != nil {
-		return err
-	}
-	if err = tx.Commit(); err != nil {
+	if err = replaceHistoryReadModelTail(ctx, db, scopeKey, previous, start, groups, expected, mergedIndex, func(tx *sql.Tx) error {
+		return persistHistoryReadTail(ctx, tx, scopeKey, previous.Generation, nextTail, nextFrozen)
+	}); err != nil {
 		return err
 	}
 	logx.FromContext(ctx).Info("Room 历史增量更新完成", "conversation_id", conversation, "source_bytes", current.Size, "appended_bytes", current.Size-old.Size, "replaced_groups", len(groups), "unchanged_groups", start, "changed_dependencies", len(changedDependencies), "duration_ms", time.Since(started).Milliseconds())

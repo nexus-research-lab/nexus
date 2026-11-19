@@ -112,8 +112,11 @@ func TestHistoryReadModelPersistReusesUnchangedGroups(t *testing.T) {
 	access := f.history.historyPageAccess(f.workspacePath, f.session)
 	previous := dumpHistoryReadModelScope(t, f)
 	writes := trackHistoryReadModelGroupWrites(t, f)
+	// 本测试覆盖全量重建的落盘备忘；丢掉尾轮状态，避免刷新走 DM 增量路径。
+	forceFullRebuild := func() { f.history.cache.tails.take(access.Scope) }
 	for round := 0; round < 4; round++ {
 		f.appendRound(t)
+		forceFullRebuild()
 		f.readFirstPage(t)
 		current := dumpHistoryReadModelScope(t, f)
 		// 追加一轮只新增末尾分组，之前的分组行原地保留。
@@ -138,6 +141,7 @@ func TestHistoryReadModelPersistReusesUnchangedGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.appendRound(t)
+	forceFullRebuild()
 	f.readFirstPage(t)
 	repaired := dumpHistoryReadModelScope(t, f)
 	if strings.Contains(strings.Join(repaired.Rows, "\n"), "corrupt") {

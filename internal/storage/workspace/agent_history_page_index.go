@@ -34,6 +34,9 @@ func (s *AgentHistoryStore) historyPageAccess(
 		Scope:     scope,
 		LogAttrs:  []any{"session_key", strings.TrimSpace(sessionValue.SessionKey)},
 		ReadModel: s.readModel,
+		Refresh: func(ctx context.Context) (historyPageIndexBuild, bool) {
+			return s.refreshAgentHistoryTail(ctx, workspacePath, sessionValue, scope)
+		},
 		OpenRoot: func(create bool) (*confinedfs.Root, error) {
 			return s.openAgentHistoryPageIndexRoot(
 				workspacePath,
@@ -50,6 +53,7 @@ func (s *AgentHistoryStore) historyPageAccess(
 				workspacePath,
 				sessionValue,
 				historyPageSourceMaxBytes,
+				scope,
 			)
 		},
 		ReadRoundIndex: func(ctx context.Context, active []string) (protocol.SessionRoundIndex, error) {
@@ -285,7 +289,7 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndex(
 	workspacePath string,
 	sessionValue protocol.Session,
 ) (historyPageIndexBuild, error) {
-	return s.buildAgentHistoryPageIndexWithSourceLimit(ctx, workspacePath, sessionValue, 0)
+	return s.buildAgentHistoryPageIndexWithSourceLimit(ctx, workspacePath, sessionValue, 0, "")
 }
 
 func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
@@ -293,6 +297,7 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
 	workspacePath string,
 	sessionValue protocol.Session,
 	sourceLimit int64,
+	tailScope string,
 ) (historyPageIndexBuild, error) {
 	var latest historyPageIndexBuild
 	for attempt := 0; attempt < historyPageBuildAttempts; attempt++ {
@@ -312,11 +317,11 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
 			}
 			continue
 		}
-		rows, err := s.readHistoryRowsContext(ctx, workspacePath, sessionValue)
+		parts, err := s.readHistoryRowPartsContext(ctx, workspacePath, sessionValue, 0)
 		if err != nil {
 			return historyPageIndexBuild{}, err
 		}
-		groups, err := buildHistoryPageIndexedGroups(ctx, rows, false)
+		groups, err := buildHistoryPageIndexedGroups(ctx, parts.merged(), false)
 		if err != nil {
 			return historyPageIndexBuild{}, err
 		}
@@ -340,6 +345,8 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
 		}
 		if snapshotsEqual(before, after) {
 			latest.Cacheable = true
+			// 尾轮状态绑定 Sources 与分组数，发布失败时下次刷新会因不匹配而回退。
+			s.rememberAgentHistoryTail(ctx, tailScope, parts, groups, after)
 			return latest, nil
 		}
 	}
