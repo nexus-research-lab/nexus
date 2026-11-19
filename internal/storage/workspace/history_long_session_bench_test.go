@@ -63,6 +63,12 @@ func newLongSessionFixture(tb testing.TB, rounds int, toolBytes int) *longSessio
 
 func (f *longSessionFixture) appendRound(tb testing.TB) {
 	tb.Helper()
+	f.appendTranscript(tb, f.startRound(tb)...)
+}
+
+// startRound 写入下一轮的 marker，并返回该轮尚未写入的 transcript 行，供测试分段追加。
+func (f *longSessionFixture) startRound(tb testing.TB) []map[string]any {
+	tb.Helper()
 	round := f.rounds
 	f.rounds++
 	roundID := fmt.Sprintf("round-%05d", round)
@@ -89,6 +95,12 @@ func (f *longSessionFixture) appendRound(tb testing.TB) {
 			"message": map[string]any{"id": uuid("m2"), "role": "assistant", "stop_reason": "end_turn",
 				"content": []map[string]any{{"type": "text", "text": strings.Repeat("answer ", 128)}}}},
 	}
+	f.lastUUID = uuid("a2")
+	return rows
+}
+
+func (f *longSessionFixture) appendTranscript(tb testing.TB, rows ...map[string]any) {
+	tb.Helper()
 	file, err := os.OpenFile(f.transcript, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		tb.Fatal(err)
@@ -102,7 +114,6 @@ func (f *longSessionFixture) appendRound(tb testing.TB) {
 	if err := file.Close(); err != nil {
 		tb.Fatal(err)
 	}
-	f.lastUUID = uuid("a2")
 }
 
 func nilIfEmpty(value string) any {

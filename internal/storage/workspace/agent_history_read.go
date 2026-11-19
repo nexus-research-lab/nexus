@@ -64,25 +64,54 @@ func (s *AgentHistoryStore) readHistoryRowsContext(
 	workspacePath string,
 	sessionValue protocol.Session,
 ) ([]protocol.Message, error) {
-	overlayState, err := s.readOverlayHistoryStateContext(ctx, workspacePath, sessionValue.SessionKey)
+	parts, err := s.readHistoryRowPartsContext(ctx, workspacePath, sessionValue, 0)
 	if err != nil {
 		return nil, err
 	}
-	sessionIDs := historyTranscriptSessionIDs(sessionValue)
-	if len(sessionIDs) == 0 {
-		rows := buildOverlayOnlyHistoryRows(
+	return parts.merged(), nil
+}
+
+// agentHistoryRowParts 是合并前按来源分开的原始历史行，合并顺序固定为
+// transcript、marker、overlay。Transcript 从调用方给定的 from 行开始。
+type agentHistoryRowParts struct {
+	Transcript []protocol.Message
+	Markers    []protocol.Message
+	Overlay    []protocol.Message
+	Projection transcriptProjectionInfo
+	// Tracked 表示单 transcript、非 fork 读取且留有投影检查点，可做尾轮增量。
+	Tracked bool
+}
+
+func (p agentHistoryRowParts) merged() []protocol.Message {
+	return mergeTranscriptAndOverlayRows(p.Transcript, p.Overlay, p.Markers)
+}
+
+func (s *AgentHistoryStore) readHistoryRowPartsContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionValue protocol.Session,
+	transcriptFrom int,
+) (agentHistoryRowParts, error) {
+	overlayState, err := s.readOverlayHistoryStateContext(ctx, workspacePath, sessionValue.SessionKey)
+	if err != nil {
+		return agentHistoryRowParts{}, err
+	}
+	parts := agentHistoryRowParts{
+		Transcript: []protocol.Message{},
+		Markers: materializeRoundMarkerMessages(
 			sessionValue.SessionKey,
 			sessionValue.AgentID,
-			overlayState.MessageRows,
 			overlayState.RoundMarkers,
-		)
-		return rows, nil
+		),
+		Overlay: overlayState.MessageRows,
 	}
-
-	transcriptRows := make([]protocol.Message, 0)
+	sessionIDs := historyTranscriptSessionIDs(sessionValue)
+	if len(sessionIDs) == 0 {
+		return parts, nil
+	}
 	segmented, _ := sessionValue.Options[protocol.OptionRuntimeSegmentedTranscript].(bool)
 	if segmented {
-		transcriptRows, err = s.readSegmentedTranscriptMessagesContext(
+		parts.Transcript, err = s.readSegmentedTranscriptMessagesContext(
 			ctx,
 			workspacePath,
 			sessionValue.SessionKey,
@@ -90,40 +119,29 @@ func (s *AgentHistoryStore) readHistoryRowsContext(
 			sessionIDs,
 			overlayState.RoundMarkers,
 		)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		sessionID := sessionIDs[0]
-		_, forkMessageID := pendingForkTranscript(sessionValue)
-		rows, readErr := s.readTranscriptMessagesContext(
-			ctx,
-			workspacePath,
-			sessionValue.SessionKey,
-			sessionValue.AgentID,
-			sessionID,
-			overlayState.RoundMarkers,
-			forkMessageID,
-		)
-		if readErr != nil {
-			if !errors.Is(readErr, os.ErrNotExist) {
-				return nil, readErr
-			}
-		} else {
-			transcriptRows = append(transcriptRows, rows...)
-		}
+		return parts, err
 	}
-
-	rows := mergeTranscriptAndOverlayRows(
-		transcriptRows,
-		overlayState.MessageRows,
-		materializeRoundMarkerMessages(
-			sessionValue.SessionKey,
-			sessionValue.AgentID,
-			overlayState.RoundMarkers,
-		),
+	_, forkMessageID := pendingForkTranscript(sessionValue)
+	rows, info, readErr := s.readTranscriptMessagesFromContext(
+		ctx,
+		workspacePath,
+		sessionValue.SessionKey,
+		sessionValue.AgentID,
+		sessionIDs[0],
+		overlayState.RoundMarkers,
+		forkMessageID,
+		transcriptFrom,
 	)
-	return rows, nil
+	if readErr != nil {
+		if !errors.Is(readErr, os.ErrNotExist) {
+			return agentHistoryRowParts{}, readErr
+		}
+		return parts, nil
+	}
+	parts.Transcript = rows
+	parts.Projection = info
+	parts.Tracked = forkMessageID == "" && info.Epoch != 0
+	return parts, nil
 }
 
 func (s *AgentHistoryStore) readSegmentedTranscriptMessagesContext(
@@ -185,19 +203,6 @@ func pendingForkTranscript(sessionValue protocol.Session) (string, string) {
 	sourceSessionID, _ := sessionValue.Options[protocol.OptionRuntimeForkSourceSessionID].(string)
 	messageID, _ := sessionValue.Options[protocol.OptionRuntimeForkMessageID].(string)
 	return strings.TrimSpace(sourceSessionID), strings.TrimSpace(messageID)
-}
-
-func buildOverlayOnlyHistoryRows(
-	sessionKey string,
-	agentID string,
-	overlayRows []protocol.Message,
-	roundMarkers []transcriptRoundMarker,
-) []protocol.Message {
-	markerRows := materializeRoundMarkerMessages(sessionKey, agentID, roundMarkers)
-	combined := make([]protocol.Message, 0, len(markerRows)+len(overlayRows))
-	combined = append(combined, markerRows...)
-	combined = append(combined, overlayRows...)
-	return combined
 }
 
 func mergeTranscriptAndOverlayRows(
@@ -286,35 +291,55 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 	roundMarkers []transcriptRoundMarker,
 	throughMessageID string,
 ) ([]protocol.Message, error) {
+	rows, _, err := s.readTranscriptMessagesFromContext(
+		ctx, workspacePath, sessionKey, agentID, sessionID, roundMarkers, throughMessageID, 0,
+	)
+	return rows, err
+}
+
+// readTranscriptMessagesFromContext 返回投影结果中从 from 开始的行及前缀稳定性；
+// fork 截断读取不使用检查点，Epoch 恒为 0。
+func (s *AgentHistoryStore) readTranscriptMessagesFromContext(
+	ctx context.Context,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	sessionID string,
+	roundMarkers []transcriptRoundMarker,
+	throughMessageID string,
+	from int,
+) ([]protocol.Message, transcriptProjectionInfo, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, transcriptProjectionInfo{}, err
 	}
 	transcriptPath, err := s.resolveTranscriptPathContext(ctx, workspacePath, sessionID)
 	if err != nil {
-		return nil, err
+		return nil, transcriptProjectionInfo{}, err
 	}
 	root, relative, _, err := s.openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
-		return nil, err
+		return nil, transcriptProjectionInfo{}, err
 	}
 	defer root.Close()
 
 	throughMessageID = strings.TrimSpace(throughMessageID)
 	entries, cachePath, lineage, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative)
 	if err != nil {
-		return nil, err
+		return nil, transcriptProjectionInfo{}, err
 	}
 	chain := buildPrimaryTranscriptChain(entries)
 	if throughMessageID != "" {
 		var found bool
 		chain, found = transcriptChainThroughMessage(chain, throughMessageID)
 		if !found {
-			return nil, fmt.Errorf("fork transcript boundary %s not found", throughMessageID)
+			return nil, transcriptProjectionInfo{}, fmt.Errorf("fork transcript boundary %s not found", throughMessageID)
 		}
-		return projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers), nil
+		rows := projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers)
+		return rows[min(max(from, 0), len(rows)):], transcriptProjectionInfo{}, nil
 	}
 	// 长会话每轮只追加一个用户轮次，检查点让重建只投影最后一轮之后的条目。
-	return s.projectTranscriptChainCheckpointed(cachePath, lineage, workspacePath, sessionKey, agentID, chain, roundMarkers), nil
+	rows, info := s.projectTranscriptChainCheckpointed(cachePath, lineage, workspacePath, sessionKey, agentID, chain, roundMarkers, from)
+	return rows, info, nil
 }
 
 func transcriptChainThroughMessage(chain []transcriptEntry, messageID string) ([]transcriptEntry, bool) {
