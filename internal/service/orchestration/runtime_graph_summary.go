@@ -240,7 +240,6 @@ func applyRuntimeToolResultEvidence(
 			message.User.ToolUseResult,
 			message.Raw["toolUseResult"],
 			raw["structured_output"],
-			raw["content"],
 			toolResult.Content,
 		)
 		if hasMutationResult {
@@ -252,7 +251,6 @@ func applyRuntimeToolResultEvidence(
 			message.User.ToolUseResult,
 			message.Raw["toolUseResult"],
 			raw["structured_output"],
-			raw["content"],
 			toolResult.Content,
 		); ok {
 			evidence.commandIdentity = identity
@@ -262,7 +260,7 @@ func applyRuntimeToolResultEvidence(
 			mapString(raw, "error_code"),
 			mapString(raw, "code"),
 		)
-		summary, truncated := compactRuntimeGraphSummary(runtimeGraphResultText(toolResult.Content))
+		summary, truncated := compactRuntimeGraphSummary(runtimeGraphResultText(toolResult))
 		if mutationResult.Message != "" {
 			summary, truncated = compactRuntimeGraphSummary(mutationResult.Message)
 		}
@@ -285,13 +283,14 @@ func applyRuntimeToolResultEvidence(
 	}
 }
 
-func runtimeGraphResultText(raw json.RawMessage) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	var value any
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return ""
+// runtimeGraphResultText 直接读取 bridge 已解码的内容；手工构造的 json.RawMessage 才需解码。
+func runtimeGraphResultText(toolResult sdkprotocol.ToolResultBlock) string {
+	value := toolResult.Content
+	if _, encoded := value.(json.RawMessage); encoded {
+		value = nil
+		if err := toolResult.DecodeContent(&value); err != nil {
+			return ""
+		}
 	}
 	return runtimeGraphReadableValue(value, 0)
 }

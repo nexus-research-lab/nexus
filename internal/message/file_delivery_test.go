@@ -17,7 +17,7 @@ func TestFileDeliveryPersistsExactAgentRound(t *testing.T) {
 			text, _ := json.Marshal(map[string]any{"kind": "file_delivery", "version": 1, "agent_id": agent, "agent_round_id": agent + "-round", "paths": []string{"report.pptx", "data.xlsx"}})
 			content, _ := json.Marshal(string(text))
 			out := p.Process(sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeUser, User: &sdkprotocol.UserMessage{Message: sdkprotocol.ConversationEnvelope{Content: []sdkprotocol.ContentBlock{
-				sdkprotocol.ToolResultBlock{ToolUseID: "delivery", Content: content},
+				sdkprotocol.ToolResultBlock{ToolUseID: "delivery", Content: json.RawMessage(content)},
 			}}}})
 			if len(out.DurableMessages) != 1 {
 				t.Fatalf("missing durable delivery: %+v", out)

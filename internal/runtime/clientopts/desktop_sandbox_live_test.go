@@ -292,7 +292,7 @@ func liveSandboxTurn(t *testing.T, ctx context.Context, session *agentclient.Ses
 		if message.User != nil {
 			for _, block := range message.User.Message.Content {
 				if result, ok := sdkprotocol.AsToolResultBlock(block); ok {
-					trace.results += string(result.Content)
+					trace.results += string(result.ContentJSON())
 					if result.IsError {
 						trace.errors++
 					}
