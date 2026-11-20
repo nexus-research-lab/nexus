@@ -137,6 +137,15 @@ func decodeBlockJSONField(block sdkprotocol.ContentBlock, key string, encoded js
 	return decodeRawJSON(encoded)
 }
 
+// toolResultContentValue 返回与 decodeRawJSON(block.ContentJSON()) 相同的值。bridge 的 Content
+// 已是解码值时直接规范化复制；手工构造的 json.RawMessage 等其余形态仍走编码再解码。
+func toolResultContentValue(block sdkprotocol.ToolResultBlock) any {
+	if value, ok := canonicalJSONValue(block.Content); ok {
+		return value
+	}
+	return decodeRawJSON(block.ContentJSON())
+}
+
 // canonicalJSONValue 深拷贝 value，并得到与 json.Unmarshal(json.Marshal(value)) 相同的结果；
 // 遇到编码会改写内容（非法 UTF-8、非有限数、float32）或未知类型时返回 false。
 func canonicalJSONValue(value any) (any, bool) {
@@ -315,7 +324,7 @@ func mergeNormalizedBlockPayload(payload map[string]any, block sdkprotocol.Conte
 	case "tool_result":
 		if value, ok := sdkprotocol.AsToolResultBlock(block); ok {
 			payload["tool_use_id"] = value.ToolUseID
-			payload["content"] = decodeBlockJSONField(block, "content", value.Content)
+			payload["content"] = toolResultContentValue(value)
 			payload["is_error"] = value.IsError
 			if value.ErrorCode != "" {
 				payload["error_code"] = value.ErrorCode

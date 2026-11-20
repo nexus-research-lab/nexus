@@ -81,7 +81,7 @@ func TestDecodeBlockJSONFieldMatchesEncodedContent(t *testing.T) {
 	}
 	for _, block := range message.User.Message.Content {
 		if result, ok := sdkprotocol.AsToolResultBlock(block); ok {
-			if got, want := decodeBlockJSONField(block, "content", result.Content), decodeRawJSON(result.Content); !reflect.DeepEqual(got, want) {
+			if got, want := toolResultContentValue(result), decodeRawJSON(result.ContentJSON()); !reflect.DeepEqual(got, want) {
 				t.Fatalf("tool_result content: got %#v want %#v", got, want)
 			}
 		}
@@ -93,7 +93,7 @@ func TestDecodeBlockJSONFieldMatchesEncodedContent(t *testing.T) {
 	}
 	// SDK 外部构造、没有原始 payload 的 block 仍按编码字段解码。
 	block := sdkprotocol.ToolResultBlock{Content: json.RawMessage(`{"a":1}`)}
-	if got := decodeBlockJSONField(block, "content", block.Content); !reflect.DeepEqual(got, map[string]any{"a": float64(1)}) {
+	if got := toolResultContentValue(block); !reflect.DeepEqual(got, map[string]any{"a": float64(1)}) {
 		t.Fatalf("encoded fallback: %#v", got)
 	}
 }
