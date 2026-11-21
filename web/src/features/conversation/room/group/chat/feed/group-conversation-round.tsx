@@ -6,7 +6,6 @@
 import type { Ref } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
-import { resolveConversationVirtualPlaceholderHeight } from "@/features/conversation/shared/feed/use-conversation-virtual-scroll-policy";
 
 import { hasRoomAgentRoundEntries } from "../../round/round-agent-model";
 import { GroupRoundCardGroup } from "../../thread/round-card/group-round-card-group";
@@ -18,14 +17,12 @@ import {
 
 interface GroupConversationRoundProps {
   measureRef?: Ref<HTMLDivElement>;
-  placeholderHeight?: number;
   renderer: GroupConversationRoundRenderer;
   state: GroupConversationRoundState;
 }
 
 export function GroupConversationRound({
   measureRef,
-  placeholderHeight,
   renderer,
   state,
 }: GroupConversationRoundProps) {
@@ -45,25 +42,17 @@ export function GroupConversationRound({
     pendingPermissions,
     roomAgentExecutionStates,
   );
-  const resolvedPlaceholderHeight = resolveConversationVirtualPlaceholderHeight(
-    isLoaded,
-    placeholderHeight,
-  );
 
   return (
     <div
       ref={measureRef}
       className="nexus-chat-round relative"
-      style={resolvedPlaceholderHeight
-        ? { minHeight: resolvedPlaceholderHeight }
-        : undefined}
       data-index={measureRef ? index : undefined}
       data-conversation-round-id={roundId}
       data-conversation-root-round-id={
         rootRoundId === roundId ? undefined : rootRoundId
       }
       data-conversation-round-index={index}
-      data-conversation-round-loaded={isLoaded ? "true" : "false"}
     >
       {!isLoaded ? null : hasRoomEntries ? (
         <GroupRoundCardGroup

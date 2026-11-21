@@ -1,11 +1,12 @@
 /**
  * INPUT: 会话 Feed、滚动视口与稳定的 conversation round DOM 身份。
- * OUTPUT: 内容在当前可见轮次之前增减高度或 Feed renderer 切换时，保持该轮次的视口内位置不变。
- * POS: DM/Room/Thread 的连续阅读锚点；普通虚拟项测高继续由 Virtualizer 负责补偿。
+ * OUTPUT: 静态 Feed 中内容在当前可见轮次之前增减高度时，保持该轮次的视口内位置不变。
+ * POS: DM/Room/Thread 静态 Feed 的连续阅读锚点；虚拟 Feed 的切换、窗口拓扑与测高位移只由 Virtualizer 补偿。
  * 用户滚动期间同样生效：快照随每次 scroll 事件刷新，restore 只补偿首个可见轮次
  * 之前的布局位移，不会回写手势本身的位移。
  */
 import { CONVERSATION_ROUND_SELECTOR } from "./round-scroll";
+import { shiftConversationScrollTop } from "./scroll-controller";
 
 const VIEWPORT_ANCHOR_TOLERANCE_PX = 0.5;
 
@@ -16,8 +17,12 @@ interface ConversationViewportAnchorSnapshot {
   roundId: string;
 }
 
-interface ConversationViewportRestoreOptions {
-  allowVirtualFeed?: boolean;
+interface ConversationViewportCaptureOptions {
+  /**
+   * 默认情况下停在内容起点的视口不建立锚点（起点保持贴顶）。历史窗口变更在途时
+   * 传入 true：即将前插的内容必须把起点处的首个 round 留在原位。
+   */
+  includeTop?: boolean;
 }
 
 export class ConversationViewportAnchor {
@@ -26,10 +31,11 @@ export class ConversationViewportAnchor {
   capture(
     container: HTMLDivElement,
     feed: HTMLDivElement | null,
+    options: ConversationViewportCaptureOptions = {},
   ): void {
     if (
       !feed
-      || container.scrollTop <= 0
+      || (container.scrollTop <= 0 && !options.includeTop)
     ) {
       this.reset();
       return;
@@ -51,23 +57,21 @@ export class ConversationViewportAnchor {
   restore(
     container: HTMLDivElement,
     feed: HTMLDivElement | null,
-    options: ConversationViewportRestoreOptions = {},
+    options: ConversationViewportCaptureOptions = {},
   ): number | null {
     const snapshot = this.snapshot;
     if (
       !snapshot
       || !feed
-      || (
-        feed.dataset.conversationVirtualFeed === "true"
-        && !options.allowVirtualFeed
-      )
+      // 虚拟 Feed 的滚动位置只有 Virtualizer 一个写入者。
+      || feed.dataset.conversationVirtualFeed === "true"
     ) {
-      this.capture(container, feed);
+      this.capture(container, feed, options);
       return null;
     }
     const element = resolveSnapshotElement(feed, snapshot);
     if (!element) {
-      this.capture(container, feed);
+      this.capture(container, feed, options);
       return null;
     }
     snapshot.element = element;
@@ -77,16 +81,18 @@ export class ConversationViewportAnchor {
       - snapshot.offsetTop
     );
     if (Math.abs(offsetDelta) <= VIEWPORT_ANCHOR_TOLERANCE_PX) {
-      this.capture(container, feed);
+      this.capture(container, feed, options);
       return null;
     }
 
     const previousScrollTop = container.scrollTop;
-    container.scrollTop = previousScrollTop + offsetDelta;
-    this.capture(container, feed);
-    return container.scrollTop === previousScrollTop
-      ? null
-      : container.scrollTop;
+    const nextScrollTop = shiftConversationScrollTop(
+      container,
+      "anchor",
+      offsetDelta,
+    );
+    this.capture(container, feed, options);
+    return nextScrollTop === previousScrollTop ? null : nextScrollTop;
   }
 
   reset(): void {

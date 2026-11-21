@@ -58,7 +58,6 @@ vi.mock("./use-conversation-session-navigation", () => ({
 
 const EMPTY_TIMELINE: ConversationTimeline = {
   feed_round_ids: [],
-  indexed_window: { roundIds: [], unloadedRoundIds: [] },
   live_round_ids: [],
   loaded_round_ids: [],
   message_groups: new Map(),

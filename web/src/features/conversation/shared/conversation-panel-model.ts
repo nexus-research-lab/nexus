@@ -26,6 +26,7 @@ interface ConversationPanelScrollSource {
   isFollowingLatest: () => boolean;
   reconcileFollowLatest: () => void;
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
+  onScroll: () => void;
   onTouchEnd: () => void;
   onTouchMove: (event: TouchEvent<HTMLDivElement>) => void;
   onTouchStart: (event: TouchEvent<HTMLDivElement>) => void;
@@ -76,11 +77,9 @@ interface ConversationViewportSessionSource {
     UseAgentConversationReturn,
     "is_history_loading" | "reliability"
   >;
-  history: {
-    handleScroll: () => void;
-  };
   scroll: Pick<
     ConversationPanelScrollSource,
+    | "onScroll"
     | "onPointerDown"
     | "onTouchEnd"
     | "onTouchMove"
@@ -153,6 +152,9 @@ function buildConversationNavigatorModel(
   return {
     agentNameMap,
     onLoadRoundWindow: conversation.load_round_window,
+    // 落点就是新的阅读位置：重新记录阅读锚点，否则落点之后的内容提交会把
+    // 视口恢复到跳转之前记录的轮次。
+    onNavigateEnd: scroll.pauseFollowLatest,
     onNavigateStart: scroll.pauseFollowLatest,
     roundScrollRef,
     scopeKey: sessionKey,
@@ -176,13 +178,13 @@ function buildConversationScrollToLatestModel(
 function buildConversationViewportModel(
   session: ConversationViewportSessionSource,
 ): ConversationViewportModel {
-  const { conversation, history, scroll } = session;
+  const { conversation, scroll } = session;
   return {
     isHistoryLoading: conversation.is_history_loading,
     isFollowingLatest: scroll.isFollowingLatest,
     reconcileFollowLatest: scroll.reconcileFollowLatest,
     onPointerDown: scroll.onPointerDown,
-    onScroll: history.handleScroll,
+    onScroll: scroll.onScroll,
     onTouchEnd: scroll.onTouchEnd,
     onTouchMove: scroll.onTouchMove,
     onTouchStart: scroll.onTouchStart,

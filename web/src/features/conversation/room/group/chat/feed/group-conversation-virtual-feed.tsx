@@ -3,7 +3,7 @@
  * OUTPUT: 使用稳定身份、可拉取的未加载占位、真实内容高度和 pending slot 估高的群聊虚拟消息流。
  * POS: Room 会话超过虚拟化阈值后的 Feed 渲染入口。
  */
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useChatTypography } from "@/shared/theme/chat-typography";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -12,14 +12,16 @@ import { ConversationVirtualCanvas } from "@/features/conversation/shared/feed/c
 import { useConversationRoundNavigation } from "@/features/conversation/shared/feed/use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "@/features/conversation/shared/feed/use-conversation-virtual-metrics";
 import {
-  resolveConversationVirtualPlaceholderHeight,
   scrollConversationVirtualElement,
   shouldAdjustConversationVirtualScrollPosition,
-  useConversationVirtualInitialOffset,
+  useConversationVirtualTopologyAnchor,
+  useConversationVirtualHandoff,
+  useConversationVirtualRemeasure,
   useConversationVirtualItemKey,
 } from "@/features/conversation/shared/feed/use-conversation-virtual-scroll-policy";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { getConversationRoundNavigationTarget } from "@/features/conversation/shared/timeline/scroll/round-scroll";
+import { scrollConversationElementTo } from "@/features/conversation/shared/timeline/scroll/scroll-controller";
 import { useRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import {
@@ -49,7 +51,6 @@ export function GroupConversationVirtualFeed({
     refs.feedRef,
   );
   const getItemKey = useConversationVirtualItemKey(source.roundIds);
-  const initialOffset = useConversationVirtualInitialOffset(refs.scrollRef);
   const roundIdAliases = useMemo(
     () => buildGroupConversationRoundAliases(source),
     [source],
@@ -76,22 +77,38 @@ export function GroupConversationVirtualFeed({
     }),
     [baseHeights, source.messageGroups, source.pendingSlotGroups, source.roundIds],
   );
+  const estimateSize = (index: number) => heightMap.get(source.roundIds[index]) ?? 200;
+  const shouldHoldReading = () => !(
+    (refs.isFollowingLatest?.() ?? false)
+    || (refs.isBottomScrollActive?.() ?? false)
+    || Boolean(
+      refs.scrollRef.current
+      && getConversationRoundNavigationTarget(refs.scrollRef.current),
+    )
+  );
+  const handoff = useConversationVirtualHandoff(
+    refs.scrollRef,
+    { estimateSize, getItemKey, roundIds: source.roundIds },
+    shouldHoldReading,
+  );
   const virtualizer = useVirtualizer({
     count: source.roundIds.length,
-    estimateSize: (index) => heightMap.get(source.roundIds[index]) ?? 200,
+    estimateSize,
     getItemKey,
     getScrollElement: () => refs.scrollRef.current,
     scrollToFn: scrollConversationVirtualElement,
-    initialOffset,
+    initialOffset: handoff.initialOffset,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
-  useEffect(() => {
-    // 排版变量提交后清除未挂载行的旧高度，已挂载行继续由 ResizeObserver 测量。
-    const frame = requestAnimationFrame(() => virtualizer.measure());
-    return () => cancelAnimationFrame(frame);
-  }, [typography, virtualizer]);
+  const getTopologyAnchorIndex = useConversationVirtualTopologyAnchor(
+    virtualizer,
+    source.roundIds,
+    shouldHoldReading,
+    handoff.readingAnchor,
+  );
+  useConversationVirtualRemeasure(virtualizer, typography);
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
     item,
     delta,
@@ -107,16 +124,20 @@ export function GroupConversationVirtualFeed({
         refs.scrollRef.current
         && getConversationRoundNavigationTarget(refs.scrollRef.current),
       ),
+      topologyAnchorIndex: getTopologyAnchorIndex(),
       userScrollActive: refs.isUserScrollActive?.() ?? false,
     },
   );
   const scrollToIndex = useCallback(
     (index: number, options?: { behavior?: ScrollBehavior }) => {
       if (index === 0) {
-        refs.scrollRef.current?.scrollTo({
-          behavior: options?.behavior ?? "smooth",
-          top: 0,
-        });
+        const scrollElement = refs.scrollRef.current;
+        if (scrollElement) {
+          scrollConversationElementTo(scrollElement, "navigation", {
+            behavior: options?.behavior ?? "smooth",
+            top: 0,
+          });
+        }
         return;
       }
       virtualizer.scrollToIndex(index, {
@@ -157,10 +178,6 @@ export function GroupConversationVirtualFeed({
             <GroupConversationRound
               key={state.roundId}
               measureRef={virtualizer.measureElement}
-              placeholderHeight={resolveConversationVirtualPlaceholderHeight(
-                state.isLoaded,
-                heightMap.get(state.roundId),
-              )}
               renderer={renderer}
               state={state}
             />

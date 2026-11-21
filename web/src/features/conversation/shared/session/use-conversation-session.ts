@@ -22,10 +22,8 @@ import {
   buildConversationScrollTopologyKey,
   isConversationLiveLayoutActive,
 } from "../timeline/scroll/follow-scroll-model";
-import { useConversationHistoryLoader } from "../timeline/use-history-loader";
 import { useConversationTimeline } from "../timeline/use-conversation-timeline";
-import { useVisibleRoundWindowLoader } from "../timeline/window-loader/use-visible-window-loader";
-import { buildVisibleRoundRevision } from "../timeline/window-loader/visible-window-revision";
+import { useContinuousWindowLoader } from "../timeline/window-loader/use-continuous-window-loader";
 
 interface UseConversationSessionOptions {
   chatType: AgentConversationChatType;
@@ -116,7 +114,7 @@ export function useConversationSession({
   const scroll = useFollowScroll({
     atomicLayoutKey,
     contentKey: scrollContentKey,
-    historyPrependToken: conversation.history_prepend_token,
+    detachedFromLatest: conversation.history_gap_after_round_id !== null,
     initialScrollAnchor,
     liveLayoutActive,
     messageCount: visibleMessages.length,
@@ -142,59 +140,51 @@ export function useConversationSession({
     round_index_items: roundIndexResource.items,
   });
   const roundIndexItems = timeline.round_index_items;
-  const useIndexedTimeline = Boolean(sessionKey) && (
-    roundIndexResource.isLoading
-    || roundIndexResource.error !== null
-    || roundIndexItems.length > 0
-  );
-  const indexedHistory = useVisibleRoundWindowLoader({
-    enabled: useIndexedTimeline,
-    loadRoundWindow: conversation.load_round_window,
-    loadedRoundIds: timeline.loaded_round_ids,
-    revision: buildVisibleRoundRevision({
-      feedRoundCount: timeline.feed_round_ids.length,
-      liveRoundCount: conversation.live_round_ids.length,
-      loadedRoundIds: timeline.loaded_round_ids,
-      messageCount: visibleMessages.length,
-      pendingAgentSlotCount: conversation.pending_agent_slots.length,
-      pendingPermissionCount: conversation.pending_permissions.length,
-      roomAgentExecutionStateCount:
-        conversation.room_agent_execution_states.length,
-    }),
+  const feedRoundIds = timeline.feed_round_ids;
+  const windowLoader = useContinuousWindowLoader({
+    enabled: Boolean(sessionKey),
+    feedRef: scroll.feedRef,
+    gapAfterRoundId: conversation.history_gap_after_round_id,
+    hasOlderHistory: conversation.has_more_history,
+    isBottomScrollActive: scroll.isBottomScrollActive,
+    isFollowingLatest: scroll.isFollowingLatest,
+    isSessionLoading: conversation.is_session_loading,
+    loadNewerMessages: conversation.load_newer_messages,
+    loadOlderMessages: conversation.load_older_messages,
+    returnToLatestMessages: conversation.return_to_latest_messages,
+    revision: `${feedRoundIds.length}:${feedRoundIds[0] ?? ""}:${feedRoundIds.at(-1) ?? ""}`,
     scopeKey: sessionKey,
     scrollRef: scroll.scrollRef,
-    windowRoundIds: timeline.indexed_window.roundIds,
+    setEvictionEdge: conversation.set_history_eviction_edge,
+    setWindowChangePending: scroll.setWindowChangePending,
+    windowRoundIds: feedRoundIds,
   });
-  const history = useConversationHistoryLoader({
-    cancelHistoryPrependRestore: scroll.cancelHistoryPrependRestore,
-    enabled: !useIndexedTimeline,
-    hasMoreHistory: conversation.has_more_history,
-    isHistoryLoading: conversation.is_history_loading,
-    isFollowingLatest: scroll.isFollowingLatest,
-    isLoading: conversation.is_loading,
-    loadOlderMessages: conversation.load_older_messages,
-    messageCount: visibleMessages.length,
-    onScroll: scroll.onScroll,
-    prepareHistoryPrependRestore: scroll.prepareHistoryPrependRestore,
-    scrollRef: scroll.scrollRef,
-  });
+  const followScrollToBottom = scroll.scrollToBottom;
+  const hasHistoryGap = conversation.history_gap_after_round_id !== null;
+  const returnToLatestMessages = conversation.return_to_latest_messages;
+  const scrollToBottom = useCallback((behavior?: ScrollBehavior) => {
+    if (hasHistoryGap) {
+      // 驻留窗口已脱离最新：先把最新一页接回来，FOLLOW 随提交贴到真实底部。
+      void returnToLatestMessages();
+    }
+    followScrollToBottom(behavior);
+  }, [followScrollToBottom, hasHistoryGap, returnToLatestMessages]);
   const visibleConversation = useMemo(
     () => ({
       ...conversation,
       is_history_loading:
-        conversation.is_history_loading || indexedHistory.isLoading,
+        conversation.is_history_loading || windowLoader.isLoading,
       messages: visibleMessages,
     }),
-    [conversation, indexedHistory.isLoading, visibleMessages],
+    [conversation, visibleMessages, windowLoader.isLoading],
   );
 
   return {
     conversation: visibleConversation,
-    history,
     roundIndexResource,
     roundIndexItems,
     roundScrollRef,
-    scroll,
+    scroll: { ...scroll, scrollToBottom },
     sessionKey,
     timeline,
   };

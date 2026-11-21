@@ -4,6 +4,7 @@
  * POS: 会话 FOLLOW 与用户触发平滑定位的唯一 scrollTop 写入执行器。
  */
 import { getScrollBottomTop } from "./follow-scroll-model";
+import { writeConversationScrollTop } from "./scroll-controller";
 
 const SPRING_ANGULAR_FREQUENCY = 24;
 const DEFAULT_FRAME_DELTA_SECONDS = 1 / 60;
@@ -179,8 +180,9 @@ export class BottomScrollAnimator {
   }
 
   private setPosition(container: HTMLDivElement, scrollTop: number): void {
-    container.scrollTop = scrollTop;
-    this.observePosition(container.scrollTop);
+    this.observePosition(
+      writeConversationScrollTop(container, "follow", scrollTop),
+    );
   }
 
   private resetMotion(): void {

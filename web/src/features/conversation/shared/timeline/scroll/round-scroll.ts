@@ -4,6 +4,7 @@
  * POS: DM/Room 轮次精确定位边界；不拥有导航目标或未读状态。
  */
 import type { MutableRefObject } from "react";
+import { scrollConversationElementTo } from "./scroll-controller";
 
 export const CONVERSATION_ROUND_SELECTOR = "[data-conversation-round-id]";
 const CONVERSATION_ROUND_USER_ANCHOR_SELECTOR =
@@ -119,7 +120,7 @@ export function scrollToConversationRoundElement(
       scrollElement.scrollTop + targetRect.top - containerRect.top - offset,
     ),
   );
-  scrollElement.scrollTo({
+  scrollConversationElementTo(scrollElement, "navigation", {
     behavior: options?.behavior ?? "smooth",
     top: nextScrollTop,
   });

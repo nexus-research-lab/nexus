@@ -72,6 +72,7 @@ type GroupChatSession = Omit<
 > & {
   conversation: ConversationPanelSessionSource["conversation"] & Pick<
     UseAgentConversationReturn,
+    | "history_gap_after_round_id"
     | "live_round_ids"
     | "messages"
     | "input_queue_items"
@@ -257,6 +258,7 @@ function buildFeedModel({
       stoppingAgentRoundIds: conversation.stopping_agent_round_ids,
     },
     source: {
+      historyGapAfterRoundId: conversation.history_gap_after_round_id,
       liveLayoutActive: scroll.liveLayoutActive,
       liveRoundIds: conversation.live_round_ids,
       messageGroups: feedTimeline.messageGroups,

@@ -1,15 +1,17 @@
 # Conversation Timeline Scroll
 
+- `scroll-controller.ts` 是会话视口 `scrollTop` 的唯一写入边界：FOLLOW、阅读锚点、viewport、会话起始、轮次导航、Virtualizer 与局部展开都以具名写入者经它提交；相对补偿叠加到写入瞬间的实时 `scrollTop`，同一帧内出现不同写入者的实际位移会被记录为冲突（开发环境告警，浏览器测试断言为空）。本目录及 Feed 不得直接赋值 `scrollTop` 或调用 `scrollTo`。
 - `use-follow-scroll.ts` 只编排 FOLLOW、READING、首次滚动锚点、内容变化和滚动资源：普通会话的全部尺寸变化按父 Feed 聚合后的真实高度贴底；显式 `top` 起始的编辑 Session 首次挂载必须先重置旧 FOLLOW/READING 状态并提交 `scrollTop=0`，之后未溢出时从上向下增长、溢出后才由 FOLLOW 跟随最新回复；READING 永不调用跟随执行器。
 - Feed 高度始终来自真实内容；禁止锁存 live epoch 的历史最高高度。自动过程收口与终态切换不留下顶部或尾部空白；静态 FOLLOW/READING 和 Virtualizer 各自按真实尺寸维护滚动锚点。
 - `scroll-animation.ts` 独占共享 FOLLOW 与显式回到底部的 `scrollTop` 写入：静态尾部增长在 layout effect / ResizeObserver 中同步写入真实 bottom，不创建 RAF；用户触发的回到底部只对点击时已有距离保留 smooth 阻尼，后续内容高度提交必须取消该事务并把真实 bottom 交还 FOLLOW。初始化/新拓扑的 `auto` 必须保留到虚拟测高连续稳定后再交权。
 - `history-prepend-anchor.ts` 管理历史前插的一次性锚点事务；提交时必须把新增高度叠加到用户等待期间形成的最新 `scrollTop`，取消、失败和会话切换必须清理快照。
-- `conversation-viewport-anchor.ts` 按稳定 round 身份持续记录首个可见轮次；节点拓扑变化或静态/虚拟 Feed 切换后重新寻找同一节点并补偿视口，普通虚拟项测高仍由 Virtualizer 补偿。
+- `conversation-viewport-anchor.ts` 按稳定 round 身份持续记录静态 Feed 的首个可见轮次；节点拓扑变化（含连续窗口前插与相反端淘汰）后重新寻找同一节点并补偿视口。它在虚拟 Feed 中只记录、不写入：静态/虚拟切换、窗口拓扑和测高位移都由 Virtualizer 一个写入者补偿，切换那一帧允许出现一次 anchor → virtualizer 的所有权交接。窗口请求在途时即使停在窗口顶部也要记录锚点。只有 FOLLOW 的拓扑提交属于 bottom 事务；READING 的拓扑变化不得被标记为 bottom 而放弃补偿。
 - `use-follow-scroll-interactions.ts` 只把滚轮、pointer、触摸、键盘和原生滚动转换为跟随意图，并公开短暂的直接操控 epoch；该 epoch 内 READING 只接受首个可见轮次之前的内容位移补偿（静态锚点随 scroll 事件刷新，Virtualizer 只补偿完整位于视口上方的项），不得回写手势本身的位移。
 - `follow-scroll-model.ts` 保存 live layout epoch、实际滚动溢出、真实 bottom、局部详情方向虚化判定、测高写入所有权与三类版本投影：`contentKey` 覆盖流式正文增长，`topologyKey` 覆盖消息/slot 以及精确 `agent_id + agent_round_id` 的 permission-first 节点身份增删与移动，`atomicLayoutKey` 覆盖权限模块和终态组件切换。
 - 内容版本必须覆盖并行 Agent 的非末尾流式正文增长。静态 Feed 只观察父内容轨道，让同一布局周期内多个 Agent 的高度变化合并为一次真实 bottom 写入；虚拟 Feed 把普通 item 测高交给 Virtualizer；独立的滚动容器 ResizeObserver 处理 Composer、虚拟键盘及 App/浏览器窗口造成的 viewport 高度变化。
 - 用户已向上脱离 FOLLOW 时，Room 权限模块、终态正文与新成员回复都只恢复当前阅读锚点；仍在 FOLLOW 时，任何 Agent 的增长都属于同一个 live timeline，必须保持真实 bottom。共享 bottom 事务、Virtualizer 与浏览器 clamp 任一时刻只能有一个 `scrollTop` 写入者；测量期间短暂离开数值 bottom 不得替用户切换到 READING。
 - 历史分页加载提示必须是零布局高度的 viewport 浮层，不能在请求开始/结束时插入或移除 Feed 前置高度。
+- 驻留窗口与最新内容之间存在断点时，视口底部只是断点而不是会话底部：滚到这里不恢复 FOLLOW，回到底部入口保持可见；窗口重新连到最新且读者仍在底部时才补上 FOLLOW。否则每一页新历史提交都会把读者带到页末，一路连到最新。
 - 用户向上滚动的暂停意图必须粘住；只有明确向下回到底部、点击回到底部或切换会话才恢复跟随，各输入路径不得在面板投影中丢失。
 - 主 Feed 与 Thread 视口必须保留稳定 scrollbar gutter；滚动条出现或消失不得改变 Markdown 内容列宽并触发整段重新换行。
 - 回到底部入口只占自身浮动命中区；显隐不得调整 viewport，也不得用全宽层覆盖正文、Composer 或 Thread 分割线。

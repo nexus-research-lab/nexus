@@ -13,11 +13,9 @@ import {
   type ConversationRoundState,
   type ConversationRoundSource,
 } from "./conversation-feed-model";
-import { resolveConversationVirtualPlaceholderHeight } from "./use-conversation-virtual-scroll-policy";
 
 interface ConversationRoundProps {
   measureRef?: Ref<HTMLDivElement>;
-  placeholderHeight?: number;
   renderer: ConversationRoundRenderer;
   source: ConversationRoundSource;
   state: ConversationRoundState;
@@ -25,7 +23,6 @@ interface ConversationRoundProps {
 
 export function ConversationRound({
   measureRef,
-  placeholderHeight,
   renderer,
   source,
   state,
@@ -33,10 +30,6 @@ export function ConversationRound({
   const workspaceAgentId = resolveRoundWorkspaceAgentId(
     state.messages,
     renderer.workspaceAgentId,
-  );
-  const resolvedPlaceholderHeight = resolveConversationVirtualPlaceholderHeight(
-    state.isLoaded,
-    placeholderHeight,
   );
   const showHistoryDivider = state.index > 0 && state.messages.some(
     (message) => message.role === "assistant"
@@ -47,13 +40,9 @@ export function ConversationRound({
     <div
       ref={measureRef}
       className="nexus-chat-round"
-      style={resolvedPlaceholderHeight
-        ? { minHeight: resolvedPlaceholderHeight }
-        : undefined}
       data-index={measureRef ? state.index : undefined}
       data-conversation-round-id={state.roundId}
       data-conversation-round-index={state.index}
-      data-conversation-round-loaded={state.isLoaded ? "true" : "false"}
     >
       {showHistoryDivider ? (
         <div

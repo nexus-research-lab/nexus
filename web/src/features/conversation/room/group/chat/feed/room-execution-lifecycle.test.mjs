@@ -348,7 +348,7 @@ test("Room public activity survives the pause between reply text and tool work",
 
 test("resolved history rounds remain only when visible content was projected", async () => {
   const {
-    buildIndexedConversationWindow,
+    buildResidentRoundIds,
     filterResolvedEmptyRoundIndexItems,
   } = await import("@/features/conversation/shared/timeline/timeline-model.ts");
   const visible = roundIndexItem("round-visible");
@@ -360,9 +360,14 @@ test("resolved history rounds remain only when visible content was projected", a
     [],
   );
   assert.deepEqual(
-    buildIndexedConversationWindow(unresolvedItems, [visible.roundId]).roundIds,
+    unresolvedItems.map((item) => item.roundId),
     [visible.roundId, internal.roundId],
-    "an unresolved neighbor remains as an invisible history load anchor",
+    "an unresolved neighbor stays in the round index",
+  );
+  assert.deepEqual(
+    buildResidentRoundIds(unresolvedItems, [visible.roundId]),
+    [visible.roundId],
+    "only resident rounds enter the feed; unloaded neighbors leave no placeholder",
   );
 
   const resolvedEmptyItems = filterResolvedEmptyRoundIndexItems(

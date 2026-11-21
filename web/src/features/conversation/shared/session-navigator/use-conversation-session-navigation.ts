@@ -16,6 +16,7 @@ interface UseConversationSessionNavigationParams {
   localization: Pick<I18nContextValue, "locale" | "t">;
   timeline: ConversationTimeline;
   onLoadRoundWindow?: (roundId: string) => Promise<boolean>;
+  onNavigateEnd?: () => void;
   onNavigateStart?: () => void;
   roundScrollRef?: ConversationRoundScrollHandleRef;
   scopeKey: string | null;
@@ -32,6 +33,7 @@ export function useConversationSessionNavigation({
   localization,
   timeline,
   onLoadRoundWindow,
+  onNavigateEnd,
   onNavigateStart,
   roundScrollRef,
   scopeKey,
@@ -53,6 +55,7 @@ export function useConversationSessionNavigation({
   const { jumpToRound } = useRoundJump({
     activateRound,
     onLoadRoundWindow,
+    onNavigateEnd,
     onNavigateStart,
     roundScrollRef,
     scopeKey,

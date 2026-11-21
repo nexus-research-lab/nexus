@@ -29,6 +29,8 @@ interface GroupConversationFeedRefs {
 }
 
 export interface GroupConversationRoundSource {
+  /** 驻留窗口与最新内容之间的断点；窗口止于该轮次时它不是会话的最后一轮。 */
+  historyGapAfterRoundId?: string | null;
   liveLayoutActive: boolean;
   liveRoundIds: string[];
   messageGroups: Map<string, Message[]>;
@@ -93,7 +95,10 @@ export function resolveGroupConversationRound(
   const pendingSlots = source.pendingSlotGroups.get(roundId) ?? [];
   const roomAgentExecutionStates =
     source.roomAgentExecutionStateGroups.get(roundId) ?? [];
-  const isLast = index === source.roundIds.length - 1;
+  const isLast = (
+    index === source.roundIds.length - 1
+    && rootRoundId !== source.historyGapAfterRoundId
+  );
   const isLive = isLast && source.liveRoundIds.includes(rootRoundId);
 
   return {

@@ -42,6 +42,8 @@ export interface ConversationRoundRenderer {
 }
 
 export interface ConversationRoundSource {
+  /** 驻留窗口与最新内容之间的断点；窗口止于该轮次时它不是会话的最后一轮。 */
+  historyGapAfterRoundId?: string | null;
   liveLayoutActive: boolean;
   liveRoundIds: string[];
   messageGroups: Map<string, Message[]>;
@@ -76,7 +78,10 @@ export function resolveConversationRound(
 ): ConversationRoundState {
   const roundId = source.roundIds[index];
   const messages = source.messageGroups.get(roundId) ?? [];
-  const isLast = index === source.roundIds.length - 1;
+  const isLast = (
+    index === source.roundIds.length - 1
+    && roundId !== source.historyGapAfterRoundId
+  );
   const isLive = isLast && source.liveRoundIds.includes(roundId);
   return {
     index,

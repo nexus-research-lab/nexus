@@ -915,3 +915,307 @@ test("conversation delete actions replace the date meta slot", async ({ page }) 
     expect(button.x + button.width).toBeLessThanOrEqual(bounds.x + bounds.width);
   }
 });
+
+// handoff：与真实长会话一致，首屏是静态 Feed，上滚途中驻留轮次越过阈值才切换为虚拟 Feed。
+for (const renderer of ["static", "virtual", "handoff"] as const) {
+  test(`${renderer} continuous window keeps the reading position through prepend, eviction and reload`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.goto("/ui-gallery.html");
+    await page.evaluate(async (renderer) => {
+      const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+      const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+      const virtualPath = "/node_modules/.vite-browser-test/deps/@tanstack_react-virtual.js";
+      const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
+      const loaderPath = "/src/features/conversation/shared/timeline/window-loader/use-continuous-window-loader.ts";
+      const policyPath = "/src/features/conversation/shared/feed/use-conversation-virtual-scroll-policy.ts";
+      const controllerPath = "/src/features/conversation/shared/timeline/scroll/scroll-controller.ts";
+      const canvasPath = "/src/features/conversation/shared/feed/conversation-virtual-canvas.tsx";
+      const virtualizationPath = "/src/features/conversation/shared/feed/use-conversation-virtualization-policy.ts";
+      const { default: React } = await import(reactPath);
+      const { default: { createRoot } } = await import(domPath);
+      const { useVirtualizer } = await import(virtualPath);
+      const { useFollowScroll } = await import(hookPath);
+      const { useContinuousWindowLoader } = await import(loaderPath);
+      const { ConversationVirtualCanvas } = await import(canvasPath);
+      const { useConversationVirtualizationPolicy } = await import(virtualizationPath);
+      const {
+        scrollConversationVirtualElement,
+        shouldAdjustConversationVirtualScrollPosition,
+        useConversationVirtualHandoff,
+        useConversationVirtualRemeasure,
+        useConversationVirtualTopologyAnchor,
+      } = await import(policyPath);
+      const { getConversationScrollWriteConflicts } = await import(controllerPath);
+      const h = React.createElement;
+      const TOTAL = 160;
+      const CAP = 40;
+      // 与真实会话一致：一页只有几轮，实测高度远大于虚拟估高。
+      const PAGE = 3;
+      const VIRTUAL_THRESHOLD = { handoff: 30, static: Infinity, virtual: 0 };
+      const heightOf = (index: number) => 220 + (index % 5) * 90;
+      const wait = () => new Promise((resolve) => setTimeout(resolve, 30));
+      type RoundWindow = { first: number; last: number };
+
+      type FeedProps = {
+        indexes: number[];
+        roundIds: string[];
+        scroll: ReturnType<typeof useFollowScroll>;
+      };
+      const roundStyle = (index: number) => ({
+        boxSizing: "border-box",
+        borderBottom: "1px solid #ddd",
+        flexShrink: 0,
+        height: heightOf(index),
+      });
+
+      function StaticFeed({ indexes, scroll }: FeedProps) {
+        return h("div", {
+          ref: scroll.feedRef,
+          style: { display: "flex", flexDirection: "column" },
+        }, indexes.map((index, position) => h("div", {
+          "data-conversation-round-id": String(index),
+          "data-conversation-round-index": position,
+          key: index,
+          style: roundStyle(index),
+        }, `Round ${index}`)));
+      }
+
+      function VirtualFeed({ indexes, roundIds, scroll }: FeedProps) {
+        const shouldHoldReading = () => !scroll.isFollowingLatest() && !scroll.isBottomScrollActive();
+        const handoff = useConversationVirtualHandoff(scroll.scrollRef, {
+          estimateSize: () => 60,
+          getItemKey: (index: number) => roundIds[index],
+          roundIds,
+        }, shouldHoldReading);
+        const virtualizer = useVirtualizer({
+          count: indexes.length,
+          estimateSize: () => 60,
+          getItemKey: (index: number) => roundIds[index],
+          getScrollElement: () => scroll.scrollRef.current,
+          initialOffset: handoff.initialOffset,
+          measureElement: (element: HTMLElement) => element.getBoundingClientRect().height,
+          overscan: 2,
+          scrollToFn: scrollConversationVirtualElement,
+        });
+        const getTopologyAnchorIndex = useConversationVirtualTopologyAnchor(
+          virtualizer,
+          roundIds,
+          shouldHoldReading,
+          handoff.readingAnchor,
+        );
+        useConversationVirtualRemeasure(virtualizer, "typography");
+        virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
+          item: { end: number; index: number },
+          delta: number,
+          instance: unknown,
+        ) => shouldAdjustConversationVirtualScrollPosition(item, delta, instance, {
+          bottomScrollActive: scroll.isBottomScrollActive(),
+          followingLatest: scroll.isFollowingLatest(),
+          navigationActive: false,
+          topologyAnchorIndex: getTopologyAnchorIndex(),
+          userScrollActive: scroll.isUserScrollActive(),
+        });
+        // 与真实 Feed 相同的画布：已挂载的行按真实高度流式排布，整体平移到首个 item 的起点。
+        const items: Array<{ index: number; start: number }> = virtualizer.getVirtualItems();
+        const totalSize = virtualizer.getTotalSize();
+        return h("div", {
+          ref: scroll.feedRef,
+          "data-conversation-virtual-feed": "true",
+          style: { position: "relative", height: totalSize },
+        }, h(ConversationVirtualCanvas, { offset: items[0]?.start ?? 0, totalSize }, items.map((item) => h("div", {
+          "data-conversation-round-id": String(indexes[item.index]),
+          "data-conversation-round-index": item.index,
+          "data-index": item.index,
+          key: indexes[item.index],
+          ref: virtualizer.measureElement,
+          style: roundStyle(indexes[item.index]),
+        }, `Round ${indexes[item.index]}`))));
+      }
+
+      let isFollowingLatest = () => false;
+      function Harness() {
+        // 与真实会话一致：滚动容器先挂载，首屏历史随后异步到达。
+        const [loaded, setLoaded] = React.useState(false);
+        React.useEffect(() => setLoaded(true), []);
+        const [roundWindow, setRoundWindow] = React.useState({ first: TOTAL - 20, last: TOTAL - 1 });
+        const windowRef = React.useRef(roundWindow);
+        windowRef.current = roundWindow;
+        const indexes = React.useMemo(() => (loaded ? Array.from(
+          { length: roundWindow.last - roundWindow.first + 1 },
+          (_, offset) => roundWindow.first + offset,
+        ) : []), [loaded, roundWindow]);
+        const roundIds = React.useMemo(() => indexes.map(String), [indexes]);
+        const revision = loaded ? `${roundWindow.first}:${roundWindow.last}` : "loading";
+        const scroll = useFollowScroll({
+          contentKey: revision,
+          detachedFromLatest: loaded && roundWindow.last < TOTAL - 1,
+          messageCount: indexes.length,
+          sessionKey: "continuous-window",
+          topologyKey: revision,
+        });
+        isFollowingLatest = scroll.isFollowingLatest;
+        const commit = React.useCallback(async (next: (current: RoundWindow) => RoundWindow) => {
+          await wait();
+          const current = windowRef.current;
+          const result = next(current);
+          setRoundWindow(result);
+          return result.first !== current.first || result.last !== current.last;
+        }, []);
+        useContinuousWindowLoader({
+          enabled: loaded,
+          feedRef: scroll.feedRef,
+          gapAfterRoundId: roundWindow.last < TOTAL - 1 ? String(roundWindow.last) : null,
+          hasOlderHistory: roundWindow.first > 0,
+          isBottomScrollActive: scroll.isBottomScrollActive,
+          isFollowingLatest: scroll.isFollowingLatest,
+          isSessionLoading: false,
+          // 向前扩展从最新一端淘汰，向后扩展从最旧一端淘汰。
+          loadNewerMessages: () => commit(({ last }: RoundWindow) => {
+            const nextLast = Math.min(TOTAL - 1, last + PAGE);
+            return { first: Math.max(windowRef.current.first, nextLast - CAP + 1), last: nextLast };
+          }),
+          loadOlderMessages: () => commit(({ first, last }: RoundWindow) => {
+            const nextFirst = Math.max(0, first - PAGE);
+            return { first: nextFirst, last: Math.min(last, nextFirst + CAP - 1) };
+          }),
+          returnToLatestMessages: () => commit(() => ({ first: TOTAL - 20, last: TOTAL - 1 })),
+          revision,
+          scopeKey: "continuous-window",
+          scrollRef: scroll.scrollRef,
+          setEvictionEdge: () => undefined,
+          setWindowChangePending: scroll.setWindowChangePending,
+          windowRoundIds: roundIds,
+        });
+        const feed = { indexes, roundIds, scroll };
+        const virtualEnabled = useConversationVirtualizationPolicy({
+          active: false,
+          count: indexes.length,
+          scopeKey: "window",
+          threshold: VIRTUAL_THRESHOLD[renderer],
+        });
+        return h("div", { style: { position: "fixed", inset: 0, zIndex: 99999, background: "white" } },
+          h("div", {
+            "data-window-first": roundWindow.first,
+            "data-window-last": roundWindow.last,
+            "data-window-scroll": true,
+            ref: scroll.scrollRef,
+            onPointerDown: scroll.onPointerDown,
+            onScroll: scroll.onScroll,
+            onWheel: scroll.onWheel,
+            style: { height: 500, overflowY: "auto", overflowAnchor: "none" },
+            "data-window-renderer": virtualEnabled ? "virtual" : "static",
+          }, loaded ? h(virtualEnabled ? VirtualFeed : StaticFeed, feed) : null),
+        );
+      }
+      const host = document.createElement("div");
+      document.body.append(host);
+      createRoot(host).render(h(Harness));
+
+      // 每帧记录视口顶端在完整会话中的绝对位置：窗口怎样增删都不应让它跳变。
+      const offsets = [0];
+      for (let index = 0; index < TOTAL; index += 1) {
+        offsets.push(offsets[index] + heightOf(index));
+      }
+      const probe = {
+        conflicts: () => [] as unknown[],
+        following: () => isFollowingLatest(),
+        samples: [] as number[],
+      };
+      (window as unknown as { __continuousWindow: typeof probe }).__continuousWindow = probe;
+      const sample = () => {
+        const viewport = document.querySelector<HTMLElement>("[data-window-scroll]");
+        if (viewport) {
+          probe.conflicts = () => [...getConversationScrollWriteConflicts(viewport)];
+          const top = viewport.getBoundingClientRect().top;
+          const first = [...viewport.querySelectorAll<HTMLElement>("[data-conversation-round-id]")]
+            .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+            .filter(({ rect }) => rect.bottom > top + 1)
+            .sort((left, right) => left.rect.top - right.rect.top)[0];
+          if (first && first.rect.top <= top + 1) {
+            probe.samples.push(
+              offsets[Number(first.element.dataset.conversationRoundId)] + top - first.rect.top,
+            );
+          }
+        }
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    }, renderer);
+
+    const viewport = page.locator("[data-window-scroll]");
+    const state = () => page.evaluate(() => {
+      const element = document.querySelector<HTMLElement>("[data-window-scroll]")!;
+      const probe = (window as unknown as {
+        __continuousWindow: { conflicts: () => unknown[]; following: () => boolean; samples: number[] };
+      }).__continuousWindow;
+      return {
+        bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+        conflicts: probe.conflicts(),
+        first: Number(element.dataset.windowFirst),
+        following: probe.following(),
+        last: Number(element.dataset.windowLast),
+        samples: probe.samples.splice(0),
+        scrollTop: element.scrollTop,
+      };
+    });
+    const wheelUntil = async (deltaY: number, done: (current: Awaited<ReturnType<typeof state>>) => boolean) => {
+      const samples: number[] = [];
+      for (let step = 0; step < 600; step += 1) {
+        // 触控板式的连续小步滚动，中间不等待加载完成。
+        await page.mouse.wheel(0, deltaY);
+        await page.mouse.wheel(0, deltaY);
+        await page.waitForTimeout(16);
+        const current = await state();
+        samples.push(...current.samples);
+        if (done(current)) {
+          return { current, samples };
+        }
+      }
+      throw new Error("the reader never reached the requested edge");
+    };
+
+    await expect.poll(async () => {
+      const current = await state();
+      return current.scrollTop > 0 && current.bottomGap <= 1;
+    }).toBe(true);
+    await viewport.hover();
+    await state();
+
+    const up = await wheelUntil(-150, (current) => current.first === 0 && current.scrollTop === 0);
+    expect(up.current.last).toBe(39);
+    // 静态 Feed 的最后一次前插与切换到 Virtualizer 可能落在同一帧，这是一次所有权交接。
+    const isHandoff = (conflict: unknown) => {
+      const { first, second } = conflict as { first: string; second: string };
+      return renderer === "handoff" && first === "anchor" && second === "virtualizer";
+    };
+    expect(up.current.conflicts.filter((conflict) => !isHandoff(conflict))).toEqual([]);
+    expect(up.current.conflicts.length).toBeLessThanOrEqual(1);
+    await expect(viewport).toHaveAttribute("data-window-renderer", renderer === "static" ? "static" : "virtual");
+    for (let index = 1; index < up.samples.length; index += 1) {
+      const moved = up.samples[index] - up.samples[index - 1];
+      expect(moved, `upward frame ${index}`).toBeLessThanOrEqual(2);
+      expect(moved, `upward frame ${index}`).toBeGreaterThan(-700);
+    }
+
+    // 一步滚到驻留窗口的底部，赶在下一页到达之前。这里只是断点而不是会话底部：
+    // 新页提交时读者留在原处，不会被 FOLLOW 一页页带向最新。
+    await page.mouse.wheel(0, 1_000_000);
+    await expect.poll(async () => (await state()).last).toBe(42);
+    await state();
+    await page.waitForTimeout(600);
+    const rested = await state();
+    expect(rested.last).toBe(42);
+    expect(rested.following).toBe(false);
+    expect(Math.max(...rested.samples) - Math.min(...rested.samples)).toBeLessThanOrEqual(2);
+
+    const down = await wheelUntil(150, (current) => current.last === 159 && current.bottomGap <= 1);
+    expect(down.current.first).toBe(120);
+    expect(down.current.following).toBe(true);
+    for (let index = 1; index < down.samples.length; index += 1) {
+      const moved = down.samples[index] - down.samples[index - 1];
+      expect(moved, `downward frame ${index}`).toBeGreaterThanOrEqual(-2);
+      expect(moved, `downward frame ${index}`).toBeLessThan(700);
+    }
+    expect(down.current.conflicts).toEqual(up.current.conflicts);
+  });
+}

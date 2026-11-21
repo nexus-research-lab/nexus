@@ -79,9 +79,7 @@ export function useAgentSessionSnapshots({
       ?? [];
     backgroundMessagesRef.current.set(
       targetSessionKey,
-      boundLoadedMessages(upsertMessage(currentMessages, message), {
-        preference: "latest",
-      }),
+      boundLoadedMessages(upsertMessage(currentMessages, message)),
     );
   }, []);
 
@@ -100,7 +98,6 @@ export function useAgentSessionSnapshots({
     setMessages((currentMessages) => {
       restoredMessages = boundLoadedMessages(
         mergeLoadedMessages(snapshot.messages, currentMessages),
-        { preference: "latest" },
       );
       return restoredMessages;
     });
