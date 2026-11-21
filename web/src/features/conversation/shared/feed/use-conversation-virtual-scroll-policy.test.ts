@@ -1,9 +1,44 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  resolveConversationVirtualHandoff,
   scrollConversationVirtualElement,
   shouldAdjustConversationVirtualScrollPosition,
 } from "./use-conversation-virtual-scroll-policy";
+
+describe("static to virtual feed handoff", () => {
+  const round = (index: number, top: number, bottom: number) => ({
+    dataset: { conversationRoundIndex: String(index) },
+    getBoundingClientRect: () => ({ bottom, top }),
+  });
+  const viewport = (rounds: ReturnType<typeof round>[]) => ({
+    getBoundingClientRect: () => ({ top: 100 }),
+    querySelectorAll: () => rounds,
+    scrollTop: 1_380,
+  }) as unknown as HTMLElement;
+  // 真实高度 480/480/420，估高统一 60：静态 scrollTop 1380 落在估高区间之外。
+  const rounds = [round(0, -1_280, -800), round(1, -800, -320), round(2, -320, 100), round(3, 100, 520)];
+
+  it("starts the Virtualizer inside the round being read instead of at the static scrollTop", () => {
+    expect(resolveConversationVirtualHandoff(viewport(rounds), () => 60, true)).toEqual({
+      initialOffset: 180,
+      readingAnchor: { index: 3, offsetTop: 0 },
+    });
+    // 已读入该轮 300px，但估高只有 60：初始偏移仍留在该轮的估高范围内。
+    const scrolledInto = [...rounds.slice(0, 2), round(2, -620, -200), round(3, -200, 220)];
+    expect(resolveConversationVirtualHandoff(viewport(scrolledInto), () => 60, true)).toEqual({
+      initialOffset: 239,
+      readingAnchor: { index: 3, offsetTop: -300 },
+    });
+  });
+
+  it("inherits the scrollTop when FOLLOW owns the position", () => {
+    expect(resolveConversationVirtualHandoff(viewport(rounds), () => 60, false)).toEqual({
+      initialOffset: 1_380,
+      readingAnchor: null,
+    });
+  });
+});
 
 describe("virtual conversation size changes", () => {
   const instance = { scrollOffset: 600, scrollRect: { height: 400 }, getTotalSize: () => 1000 };

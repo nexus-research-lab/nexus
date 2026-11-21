@@ -15,7 +15,7 @@ import {
   scrollConversationVirtualElement,
   shouldAdjustConversationVirtualScrollPosition,
   useConversationVirtualTopologyAnchor,
-  useConversationVirtualInitialOffset,
+  useConversationVirtualHandoff,
   useConversationVirtualItemKey,
 } from "@/features/conversation/shared/feed/use-conversation-virtual-scroll-policy";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
@@ -50,7 +50,6 @@ export function GroupConversationVirtualFeed({
     refs.feedRef,
   );
   const getItemKey = useConversationVirtualItemKey(source.roundIds);
-  const initialOffset = useConversationVirtualInitialOffset(refs.scrollRef);
   const roundIdAliases = useMemo(
     () => buildGroupConversationRoundAliases(source),
     [source],
@@ -77,25 +76,37 @@ export function GroupConversationVirtualFeed({
     }),
     [baseHeights, source.messageGroups, source.pendingSlotGroups, source.roundIds],
   );
-  const virtualizer = useVirtualizer({
-    count: source.roundIds.length,
-    estimateSize: (index) => heightMap.get(source.roundIds[index]) ?? 200,
-    getItemKey,
-    getScrollElement: () => refs.scrollRef.current,
-    scrollToFn: scrollConversationVirtualElement,
-    initialOffset,
-    measureElement: (element) => element.getBoundingClientRect().height,
-    overscan: 5,
-    scrollPaddingStart: metrics.scrollPaddingStart,
-  });
-  const getTopologyAnchorIndex = useConversationVirtualTopologyAnchor(virtualizer, source.roundIds, () => !(
+  const estimateSize = (index: number) => heightMap.get(source.roundIds[index]) ?? 200;
+  const shouldHoldReading = () => !(
     (refs.isFollowingLatest?.() ?? false)
     || (refs.isBottomScrollActive?.() ?? false)
     || Boolean(
       refs.scrollRef.current
       && getConversationRoundNavigationTarget(refs.scrollRef.current),
     )
-  ));
+  );
+  const handoff = useConversationVirtualHandoff(
+    refs.scrollRef,
+    estimateSize,
+    shouldHoldReading,
+  );
+  const virtualizer = useVirtualizer({
+    count: source.roundIds.length,
+    estimateSize,
+    getItemKey,
+    getScrollElement: () => refs.scrollRef.current,
+    scrollToFn: scrollConversationVirtualElement,
+    initialOffset: handoff.initialOffset,
+    measureElement: (element) => element.getBoundingClientRect().height,
+    overscan: 5,
+    scrollPaddingStart: metrics.scrollPaddingStart,
+  });
+  const getTopologyAnchorIndex = useConversationVirtualTopologyAnchor(
+    virtualizer,
+    source.roundIds,
+    shouldHoldReading,
+    handoff.readingAnchor,
+  );
   useEffect(() => {
     // 排版变量提交后清除未挂载行的旧高度，已挂载行继续由 ResizeObserver 测量。
     const frame = requestAnimationFrame(() => virtualizer.measure());

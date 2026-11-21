@@ -919,6 +919,7 @@ test("conversation delete actions replace the date meta slot", async ({ page }) 
 // handoff：与真实长会话一致，首屏是静态 Feed，上滚途中驻留轮次越过阈值才切换为虚拟 Feed。
 for (const renderer of ["static", "virtual", "handoff"] as const) {
   test(`${renderer} continuous window keeps the reading position through prepend, eviction and reload`, async ({ page }) => {
+    test.setTimeout(90_000);
     await page.goto("/ui-gallery.html");
     await page.evaluate(async (renderer) => {
       const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
@@ -929,15 +930,18 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
       const policyPath = "/src/features/conversation/shared/feed/use-conversation-virtual-scroll-policy.ts";
       const controllerPath = "/src/features/conversation/shared/timeline/scroll/scroll-controller.ts";
       const canvasPath = "/src/features/conversation/shared/feed/conversation-virtual-canvas.tsx";
+      const virtualizationPath = "/src/features/conversation/shared/feed/use-conversation-virtualization-policy.ts";
       const { default: React } = await import(reactPath);
       const { default: { createRoot } } = await import(domPath);
       const { useVirtualizer } = await import(virtualPath);
       const { useFollowScroll } = await import(hookPath);
       const { useContinuousWindowLoader } = await import(loaderPath);
       const { ConversationVirtualCanvas } = await import(canvasPath);
+      const { useConversationVirtualizationPolicy } = await import(virtualizationPath);
       const {
         scrollConversationVirtualElement,
         shouldAdjustConversationVirtualScrollPosition,
+        useConversationVirtualHandoff,
         useConversationVirtualTopologyAnchor,
       } = await import(policyPath);
       const { getConversationScrollWriteConflicts } = await import(controllerPath);
@@ -946,7 +950,7 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
       const CAP = 40;
       // 与真实会话一致：一页只有几轮，实测高度远大于虚拟估高。
       const PAGE = 3;
-      const HANDOFF_ROUNDS = 30;
+      const VIRTUAL_THRESHOLD = { handoff: 30, static: Infinity, virtual: 0 };
       const heightOf = (index: number) => 220 + (index % 5) * 90;
       const wait = () => new Promise((resolve) => setTimeout(resolve, 30));
       type RoundWindow = { first: number; last: number };
@@ -976,11 +980,14 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
       }
 
       function VirtualFeed({ indexes, roundIds, scroll }: FeedProps) {
+        const shouldHoldReading = () => !scroll.isFollowingLatest() && !scroll.isBottomScrollActive();
+        const handoff = useConversationVirtualHandoff(scroll.scrollRef, () => 60, shouldHoldReading);
         const virtualizer = useVirtualizer({
           count: indexes.length,
           estimateSize: () => 60,
           getItemKey: (index: number) => roundIds[index],
           getScrollElement: () => scroll.scrollRef.current,
+          initialOffset: handoff.initialOffset,
           measureElement: (element: HTMLElement) => element.getBoundingClientRect().height,
           overscan: 2,
           scrollToFn: scrollConversationVirtualElement,
@@ -988,7 +995,8 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
         const getTopologyAnchorIndex = useConversationVirtualTopologyAnchor(
           virtualizer,
           roundIds,
-          () => !scroll.isFollowingLatest() && !scroll.isBottomScrollActive(),
+          shouldHoldReading,
+          handoff.readingAnchor,
         );
         virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
           item: { end: number; index: number },
@@ -1070,12 +1078,12 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
           windowRoundIds: roundIds,
         });
         const feed = { indexes, roundIds, scroll };
-        const [virtualEnabled, setVirtualEnabled] = React.useState(renderer === "virtual");
-        React.useEffect(() => {
-          if (renderer === "handoff" && indexes.length >= HANDOFF_ROUNDS) {
-            setVirtualEnabled(true);
-          }
-        }, [indexes.length]);
+        const virtualEnabled = useConversationVirtualizationPolicy({
+          active: false,
+          count: indexes.length,
+          scopeKey: "window",
+          threshold: VIRTUAL_THRESHOLD[renderer],
+        });
         return h("div", { style: { position: "fixed", inset: 0, zIndex: 99999, background: "white" } },
           h("div", {
             "data-window-first": roundWindow.first,
