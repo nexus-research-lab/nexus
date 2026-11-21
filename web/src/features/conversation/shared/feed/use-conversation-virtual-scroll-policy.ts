@@ -4,7 +4,13 @@
  * POS: DM 与 Room 虚拟消息流共用的身份、尺寸变化和单写入者协议。
  */
 import type { Virtualizer } from "@tanstack/react-virtual";
-import { useCallback, useLayoutEffect, useRef, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type RefObject,
+} from "react";
 
 import {
   scrollConversationElementTo,
@@ -122,6 +128,26 @@ export function useConversationVirtualHandoff(
     );
   }
   return handoffRef.current;
+}
+
+/**
+ * 排版偏好改变后，未挂载行的旧测高不再可信：下一帧清除高度缓存，已挂载行继续由
+ * ResizeObserver 测量。挂载时不得清除：从静态 Feed 切换过来的首批测高正是恢复
+ * 阅读位置的依据，清掉会让下一帧按估高重新排布。
+ */
+export function useConversationVirtualRemeasure(
+  instance: { measure: () => void },
+  typography: unknown,
+): void {
+  const measuredTypographyRef = useRef(typography);
+  useEffect(() => {
+    if (Object.is(measuredTypographyRef.current, typography)) {
+      return;
+    }
+    measuredTypographyRef.current = typography;
+    const frame = requestAnimationFrame(() => instance.measure());
+    return () => cancelAnimationFrame(frame);
+  }, [instance, typography]);
 }
 
 /**

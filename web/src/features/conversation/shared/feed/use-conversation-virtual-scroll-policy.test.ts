@@ -1,10 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   resolveConversationVirtualHandoff,
   scrollConversationVirtualElement,
   shouldAdjustConversationVirtualScrollPosition,
+  useConversationVirtualRemeasure,
 } from "./use-conversation-virtual-scroll-policy";
+
+describe("typography remeasure", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps the first measurements on mount and clears them only after typography changes", () => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
+    const instance = { measure: vi.fn() };
+    const { rerender } = renderHook(
+      ({ typography }) => useConversationVirtualRemeasure(instance, typography),
+      { initialProps: { typography: "comfortable" } },
+    );
+    vi.runAllTimers();
+    // 挂载后的首批测高是静态 Feed 交接阅读位置的依据。
+    expect(instance.measure).not.toHaveBeenCalled();
+
+    rerender({ typography: "comfortable" });
+    vi.runAllTimers();
+    expect(instance.measure).not.toHaveBeenCalled();
+
+    rerender({ typography: "compact" });
+    vi.runAllTimers();
+    expect(instance.measure).toHaveBeenCalledOnce();
+  });
+});
 
 describe("static to virtual feed handoff", () => {
   const round = (index: number, top: number, bottom: number) => ({

@@ -3,7 +3,7 @@
  * OUTPUT: 使用稳定身份、可拉取的未加载占位、真实轨道估高和可见锚点策略的虚拟消息流。
  * POS: 普通会话超过虚拟化阈值后的 Feed 渲染入口。
  */
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useChatTypography } from "@/shared/theme/chat-typography";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -27,6 +27,7 @@ import {
   shouldAdjustConversationVirtualScrollPosition,
   useConversationVirtualTopologyAnchor,
   useConversationVirtualHandoff,
+  useConversationVirtualRemeasure,
   useConversationVirtualItemKey,
 } from "./use-conversation-virtual-scroll-policy";
 
@@ -97,11 +98,7 @@ export function ConversationVirtualFeed({
     shouldHoldReading,
     handoff.readingAnchor,
   );
-  useEffect(() => {
-    // 排版变量提交后清除未挂载行的旧高度，已挂载行继续由 ResizeObserver 测量。
-    const frame = requestAnimationFrame(() => virtualizer.measure());
-    return () => cancelAnimationFrame(frame);
-  }, [typography, virtualizer]);
+  useConversationVirtualRemeasure(virtualizer, typography);
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
     item,
     delta,
