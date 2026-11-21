@@ -48,6 +48,13 @@ func mergeCompactedMessage(current protocol.Message, next protocol.Message) prot
 	if currentRole == "assistant" && nextRole == "assistant" {
 		return mergeAssistantSnapshots(current, next)
 	}
+	// 宿主写入 overlay 的副本只带接收时间；同一条消息在 transcript 里的位置才是它的定序依据。
+	if line, positioned := current[message.TranscriptLineField]; positioned {
+		if _, positioned = next[message.TranscriptLineField]; !positioned {
+			next[message.TranscriptLineField] = line
+			next["timestamp"] = current["timestamp"]
+		}
+	}
 	return next
 }
 

@@ -96,7 +96,7 @@ func (s *AgentHistoryStore) projectTranscriptChainCheckpointed(
 		transcriptProjectionCheckpointApplies(previous, key, chain, aligned) {
 		start = len(previous.ChainIndexes)
 		state = previous.State
-		state.restoreProcessor(workspacePath, sessionKey, agentID)
+		state.restoreReducer(transcriptReducerScope(workspacePath, sessionKey, agentID))
 		memoRows = previous.Rows
 		result.Starts = append(result.Starts, previous.Start)
 	}
@@ -125,7 +125,7 @@ func (s *AgentHistoryStore) projectTranscriptChainCheckpointed(
 	)
 
 	if lineage != 0 && len(result.Starts) > reused {
-		latest.processor = nil
+		latest.reducer = nil
 		last := result.Starts[len(result.Starts)-1]
 		indexes := make([]int, last.Position+1)
 		for i, entry := range chain[:len(indexes)] {
