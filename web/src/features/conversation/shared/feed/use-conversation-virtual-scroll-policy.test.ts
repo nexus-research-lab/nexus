@@ -82,8 +82,8 @@ describe("typography remeasure", () => {
 });
 
 describe("static to virtual feed handoff", () => {
-  const round = (index: number, top: number, bottom: number) => ({
-    dataset: { conversationRoundIndex: String(index) },
+  const round = (id: number, top: number, bottom: number) => ({
+    dataset: { conversationRoundId: `round-${id}` },
     getBoundingClientRect: () => ({ bottom, top }),
   });
   const viewport = (rounds: ReturnType<typeof round>[]) => ({
@@ -91,27 +91,41 @@ describe("static to virtual feed handoff", () => {
     querySelectorAll: () => rounds,
     scrollTop: 1_380,
   }) as unknown as HTMLElement;
+  const virtualRounds = (roundIds: string[]) => ({
+    estimateSize: () => 60,
+    getItemKey: (index: number) => `node-${roundIds[index]}`,
+    roundIds,
+  });
   // 真实高度 480/480/420，估高统一 60：静态 scrollTop 1380 落在估高区间之外。
   const rounds = [round(0, -1_280, -800), round(1, -800, -320), round(2, -320, 100), round(3, 100, 520)];
+  const roundIds = ["round-0", "round-1", "round-2", "round-3"];
 
   it("starts the Virtualizer inside the round being read instead of at the static scrollTop", () => {
-    expect(resolveConversationVirtualHandoff(viewport(rounds), () => 60, true)).toEqual({
+    expect(resolveConversationVirtualHandoff(viewport(rounds), virtualRounds(roundIds), true)).toEqual({
       initialOffset: 180,
-      readingAnchor: { index: 3, offsetTop: 0 },
+      readingAnchor: { key: "node-round-3", offsetTop: 0 },
     });
     // 已读入该轮 300px，但估高只有 60：初始偏移仍留在该轮的估高范围内。
     const scrolledInto = [...rounds.slice(0, 2), round(2, -620, -200), round(3, -200, 220)];
-    expect(resolveConversationVirtualHandoff(viewport(scrolledInto), () => 60, true)).toEqual({
+    expect(resolveConversationVirtualHandoff(viewport(scrolledInto), virtualRounds(roundIds), true)).toEqual({
       initialOffset: 239,
-      readingAnchor: { index: 3, offsetTop: -300 },
+      readingAnchor: { key: "node-round-3", offsetTop: -300 },
     });
   });
 
-  it("inherits the scrollTop when FOLLOW owns the position", () => {
-    expect(resolveConversationVirtualHandoff(viewport(rounds), () => 60, false)).toEqual({
-      initialOffset: 1_380,
-      readingAnchor: null,
+  it("finds the round being read by identity when a history page lands with the switch", () => {
+    // 静态 DOM 还是旧窗口，新列表前面已经多了一页：同一轮次的下标后移了 3。
+    const prepended = ["round-a", "round-b", "round-c", ...roundIds];
+    expect(resolveConversationVirtualHandoff(viewport(rounds), virtualRounds(prepended), true)).toEqual({
+      initialOffset: 360,
+      readingAnchor: { key: "node-round-3", offsetTop: 0 },
     });
+  });
+
+  it("inherits the scrollTop when FOLLOW owns the position or the round left the window", () => {
+    const inherited = { initialOffset: 1_380, readingAnchor: null };
+    expect(resolveConversationVirtualHandoff(viewport(rounds), virtualRounds(roundIds), false)).toEqual(inherited);
+    expect(resolveConversationVirtualHandoff(viewport(rounds), virtualRounds(["round-0"]), true)).toEqual(inherited);
   });
 });
 

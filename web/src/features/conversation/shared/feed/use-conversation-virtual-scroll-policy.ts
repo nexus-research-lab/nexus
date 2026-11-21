@@ -12,6 +12,7 @@ import {
   type RefObject,
 } from "react";
 
+import { CONVERSATION_ROUND_SELECTOR } from "../timeline/scroll/round-scroll";
 import {
   scrollConversationElementTo,
   shiftConversationScrollTop,
@@ -74,8 +75,16 @@ export function resolveConversationVirtualInitialOffset(
 }
 
 export interface ConversationVirtualReadingAnchor {
-  index: number;
+  /** 正在阅读的轮次在 Virtualizer 中的 item key。 */
+  key: string;
   offsetTop: number;
+}
+
+export interface ConversationVirtualRounds {
+  estimateSize: (index: number) => number;
+  getItemKey: (index: number) => string;
+  /** 按 item 下标排列、与静态 Feed 的 data-conversation-round-id 一致的轮次身份。 */
+  roundIds: readonly string[];
 }
 
 export interface ConversationVirtualHandoff {
@@ -87,35 +96,44 @@ export interface ConversationVirtualHandoff {
  * 静态 Feed 的 scrollTop 按真实高度累计，Virtualizer 的首个渲染区间却按估高计算；
  * 直接继承 scrollTop 可能让正在阅读的轮次落在区间之外。阅读中切换时改用该轮次的
  * 估高起点作为初始偏移，保证它在首批行内，再由拓扑锚点按真实 DOM 位置恢复。
+ * 切换可能与一次窗口前插落在同一次提交，静态 DOM 里的下标对不上新列表，
+ * 所以按轮次身份在新列表里找回它。
  */
 export function resolveConversationVirtualHandoff(
   scrollElement: HTMLElement | null,
-  estimateSize: (index: number) => number,
+  rounds: ConversationVirtualRounds,
   holdReading: boolean,
 ): ConversationVirtualHandoff {
-  const readingAnchor = holdReading && scrollElement
-    ? captureStaticReadingAnchor(scrollElement)
+  const reading = holdReading && scrollElement
+    ? captureStaticReadingRound(scrollElement)
     : null;
-  if (!readingAnchor) {
+  const readingIndex = reading ? rounds.roundIds.indexOf(reading.roundId) : -1;
+  if (!reading || readingIndex < 0) {
     return {
       initialOffset: resolveConversationVirtualInitialOffset(scrollElement),
       readingAnchor: null,
     };
   }
   let start = 0;
-  for (let index = 0; index < readingAnchor.index; index += 1) {
-    start += estimateSize(index);
+  for (let index = 0; index < readingIndex; index += 1) {
+    start += rounds.estimateSize(index);
   }
   const scrolledInto = Math.min(
-    Math.max(0, -readingAnchor.offsetTop),
-    Math.max(0, estimateSize(readingAnchor.index) - 1),
+    Math.max(0, -reading.offsetTop),
+    Math.max(0, rounds.estimateSize(readingIndex) - 1),
   );
-  return { initialOffset: start + scrolledInto, readingAnchor };
+  return {
+    initialOffset: start + scrolledInto,
+    readingAnchor: {
+      key: rounds.getItemKey(readingIndex),
+      offsetTop: reading.offsetTop,
+    },
+  };
 }
 
 export function useConversationVirtualHandoff(
   scrollRef: RefObject<HTMLDivElement | null>,
-  estimateSize: (index: number) => number,
+  rounds: ConversationVirtualRounds,
   shouldHoldReading: () => boolean,
 ): ConversationVirtualHandoff {
   const handoffRef = useRef<ConversationVirtualHandoff | null>(null);
@@ -123,7 +141,7 @@ export function useConversationVirtualHandoff(
     // 首次 render 时静态 Feed 仍在 DOM 中，这是读取切换前阅读位置的唯一时机。
     handoffRef.current = resolveConversationVirtualHandoff(
       scrollRef.current,
-      estimateSize,
+      rounds,
       shouldHoldReading(),
     );
   }
@@ -397,20 +415,18 @@ function resolvePendingAnchorIndex(
   return index < 0 ? null : index;
 }
 
-function captureStaticReadingAnchor(
+function captureStaticReadingRound(
   scrollElement: HTMLElement,
-): ConversationVirtualReadingAnchor | null {
+): { offsetTop: number; roundId: string } | null {
   const viewportTop = scrollElement.getBoundingClientRect().top;
   const rounds = scrollElement.querySelectorAll<HTMLElement>(
-    "[data-conversation-round-index]",
+    CONVERSATION_ROUND_SELECTOR,
   );
   for (const round of rounds) {
     const bounds = round.getBoundingClientRect();
-    if (bounds.bottom > viewportTop + VIRTUAL_ANCHOR_TOLERANCE_PX) {
-      return {
-        index: Number(round.dataset.conversationRoundIndex),
-        offsetTop: bounds.top - viewportTop,
-      };
+    const roundId = round.dataset.conversationRoundId;
+    if (roundId && bounds.bottom > viewportTop + VIRTUAL_ANCHOR_TOLERANCE_PX) {
+      return { offsetTop: bounds.top - viewportTop, roundId };
     }
   }
   return null;
@@ -424,9 +440,7 @@ function restoreStaticReadingAnchor<
   scrollElement: Element,
   anchor: ConversationVirtualReadingAnchor,
 ): void {
-  const round = instance.elementsCache.get(
-    instance.options.getItemKey(anchor.index),
-  );
+  const round = instance.elementsCache.get(anchor.key);
   if (!round?.isConnected) {
     return;
   }

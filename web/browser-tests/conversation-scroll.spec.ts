@@ -982,7 +982,11 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
 
       function VirtualFeed({ indexes, roundIds, scroll }: FeedProps) {
         const shouldHoldReading = () => !scroll.isFollowingLatest() && !scroll.isBottomScrollActive();
-        const handoff = useConversationVirtualHandoff(scroll.scrollRef, () => 60, shouldHoldReading);
+        const handoff = useConversationVirtualHandoff(scroll.scrollRef, {
+          estimateSize: () => 60,
+          getItemKey: (index: number) => roundIds[index],
+          roundIds,
+        }, shouldHoldReading);
         const virtualizer = useVirtualizer({
           count: indexes.length,
           estimateSize: () => 60,

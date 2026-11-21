@@ -78,7 +78,7 @@ export function ConversationVirtualFeed({
   );
   const handoff = useConversationVirtualHandoff(
     refs.scrollRef,
-    estimateSize,
+    { estimateSize, getItemKey, roundIds: source.roundIds },
     shouldHoldReading,
   );
   const virtualizer = useVirtualizer({
