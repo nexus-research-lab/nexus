@@ -1,4 +1,6 @@
+import type { Virtualizer } from "@tanstack/react-virtual";
 import { renderHook } from "@testing-library/react";
+import { useLayoutEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,7 +8,54 @@ import {
   scrollConversationVirtualElement,
   shouldAdjustConversationVirtualScrollPosition,
   useConversationVirtualRemeasure,
+  useConversationVirtualTopologyAnchor,
 } from "./use-conversation-virtual-scroll-policy";
+
+describe("window topology anchor", () => {
+  const layout = (sizes: number[]) => {
+    let start = 0;
+    return sizes.map((size) => ({ end: (start += size), size, start: start - size }));
+  };
+
+  it("keeps the round being read in place when eviction shrinks the feed under a reader at the bottom", () => {
+    const viewport = { maximum: 1_400, scrollTop: 1_400 };
+    const element = document.createElement("div");
+    Object.defineProperties(element, {
+      clientHeight: { get: () => 400 },
+      scrollHeight: { get: () => viewport.maximum + 400 },
+      scrollTop: {
+        get: () => Math.min(viewport.scrollTop, viewport.maximum),
+        set: (top: number) => { viewport.scrollTop = Math.min(Math.max(0, top), viewport.maximum); },
+      },
+    });
+    const instance = {
+      elementsCache: new Map([["round-5", document.createElement("div")]]),
+      measurementsCache: layout([300, 300, 300, 300, 300, 300]),
+      scrollElement: element,
+      scrollOffset: 1_400,
+    };
+    const { rerender } = renderHook(
+      ({ maximum, nodeIds }) => {
+        // 浏览器在提交后的首次布局里按新的画布高度夹住 scrollTop，早于锚点的 layout effect。
+        useLayoutEffect(() => { viewport.maximum = maximum; });
+        return useConversationVirtualTopologyAnchor(
+          instance as unknown as Virtualizer<HTMLDivElement, Element>,
+          nodeIds,
+          () => true,
+        );
+      },
+      { initialProps: { maximum: 1_400, nodeIds: ["round-1", "round-2", "round-3", "round-4", "round-5", "round-6"] } },
+    );
+    // 贴底阅读 round-5（起点 1200，露出视口上方 200px）。
+
+    // 向后加载：淘汰 round-1、round-2（600px），新页 round-7 估高 200，画布变短 400px。
+    instance.measurementsCache = layout([300, 300, 300, 300, 200]);
+    rerender({ maximum: 1_000, nodeIds: ["round-3", "round-4", "round-5", "round-6", "round-7"] });
+
+    // round-5 起点变为 600，仍应露出视口上方 200px。
+    expect(element.scrollTop).toBe(800);
+  });
+});
 
 describe("typography remeasure", () => {
   afterEach(() => vi.useRealTimers());

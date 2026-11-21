@@ -307,6 +307,7 @@ export function useConversationVirtualTopologyAnchor<
 ): () => number | null {
   const anchorRef = useRef<VirtualTopologyAnchor | null>(null);
   const pendingIndexRef = useRef<number | null>(null);
+  const pendingScrollTopRef = useRef<number | null>(null);
   const measuredRowsRef = useRef(new WeakSet<Element>());
   // Virtualizer 拿到视口尺寸后才渲染行：首批行挂载并恢复切换前的阅读位置之前不记录锚点。
   const settledRef = useRef(false);
@@ -316,6 +317,10 @@ export function useConversationVirtualTopologyAnchor<
   pendingIndexRef.current = shouldHold()
     ? resolvePendingAnchorIndex(anchorRef.current, nodeIds, settledRef.current)
     : null;
+  // 拓扑变化提交前 DOM 仍是旧画布：此刻的 scrollTop 还没有被新的画布高度夹住。
+  pendingScrollTopRef.current = (
+    pendingIndexRef.current !== null && instance.scrollElement instanceof Element
+  ) ? instance.scrollElement.scrollTop : null;
 
   useLayoutEffect(() => {
     const scrollElement = instance.scrollElement;
@@ -326,7 +331,11 @@ export function useConversationVirtualTopologyAnchor<
     if (held && element && nextIndex !== null) {
       const delta = (measurements[nextIndex]?.start ?? held.start) - held.start;
       if (delta !== 0) {
-        shiftConversationScrollTop(element, "virtualizer", delta);
+        shiftConversationScrollTop(
+          element,
+          "virtualizer",
+          delta + resolveClampedScrollDistance(element, pendingScrollTopRef.current),
+        );
       }
     }
     // 新行的测高补偿仍要按锚点下标判断，所以在清除 pending 下标之前测量。
@@ -350,6 +359,25 @@ export function useConversationVirtualTopologyAnchor<
   });
 
   return useCallback(() => pendingIndexRef.current, []);
+}
+
+/**
+ * 窗口提交后画布变短（起点淘汰的真实高度大于新页的估高）时，浏览器先把
+ * scrollTop 夹到新的最大值。拓扑位移要以提交前的位置为基准，否则被夹掉的
+ * 距离会再扣一次，读者落到原阅读位置上方。
+ */
+function resolveClampedScrollDistance(
+  element: Element,
+  scrollTopBeforeCommit: number | null,
+): number {
+  if (scrollTopBeforeCommit === null) {
+    return 0;
+  }
+  const scrollTop = element.scrollTop;
+  const atMaximum = (
+    scrollTop >= element.scrollHeight - element.clientHeight - VIRTUAL_ANCHOR_TOLERANCE_PX
+  );
+  return atMaximum ? Math.max(0, scrollTopBeforeCommit - scrollTop) : 0;
 }
 
 function resolvePendingAnchorIndex(
