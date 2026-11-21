@@ -375,7 +375,7 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 		after := append([]historyPageSourceSnapshot{ledgerAfter}, dependenciesAfter...)
 		latest = historyPageIndexBuild{
 			TailRows:   tailRows,
-			FrozenRefs: frozenRefs,
+			TailState:  frozenRefs,
 			Groups:     groups,
 			RoundIndex: roundIndex.Items,
 			Sources:    after,

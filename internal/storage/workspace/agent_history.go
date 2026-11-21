@@ -6,6 +6,7 @@ package workspace
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
@@ -13,10 +14,8 @@ import (
 type agentHistoryCache struct {
 	mu      sync.RWMutex
 	entries map[string]transcriptCacheEntry
-	// prewarming 记录正在后台预热的会话，避免同一会话重复解析。
-	prewarming map[string]struct{}
-	// tails 保存 DM 读模型的尾轮增量状态。
-	tails agentHistoryTailStore
+	// tailRefreshes 统计成功的 DM 读模型增量刷新次数，用于诊断是否走了快路径。
+	tailRefreshes atomic.Uint64
 	// overlays 保存 session overlay 的增量回放状态。
 	overlays overlayReplayStore
 }

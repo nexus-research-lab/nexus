@@ -17,14 +17,14 @@ import (
 // assertTailRefresh 读取首页并与全新 store 的完整重建比对；incremental 指明本次是否必须走增量路径。
 func assertTailRefresh(t *testing.T, f *longSessionFixture, incremental bool) {
 	t.Helper()
-	before := f.history.cache.tails.refreshed.Load()
+	before := f.history.cache.tailRefreshes.Load()
 	f.readFirstPage(t)
-	if got := f.history.cache.tails.refreshed.Load() > before; got != incremental {
+	if got := f.history.cache.tailRefreshes.Load() > before; got != incremental {
 		t.Fatalf("incremental refresh = %v, want %v", got, incremental)
 	}
 	got := dumpHistoryReadModelWithIndex(t, f)
 
-	// 全新 store 没有解析缓存、投影检查点与尾轮状态，得到的是完全独立的参照结果。
+	// 全新 store 没有解析缓存与投影检查点，并先删除已发布的 scope，得到的是完全独立的参照结果。
 	reference := &longSessionFixture{
 		history:       NewAgentHistoryStore(filepath.Dir(f.workspacePath)),
 		workspacePath: f.workspacePath,
@@ -199,5 +199,18 @@ func assertTailRefreshResultOnly(t *testing.T, f *longSessionFixture) {
 	reference.readFirstPage(t)
 	if want := dumpHistoryReadModelWithIndex(t, reference); !reflect.DeepEqual(got, want) {
 		t.Fatalf("read model diverged from full rebuild\ngot  %v\nwant %v", got, want)
+	}
+}
+
+// dropAgentHistoryTailState 清除 scope 已发布的尾轮状态，下一次刷新只能完整重建。
+func dropAgentHistoryTailState(t *testing.T, f *longSessionFixture) {
+	t.Helper()
+	access := f.history.historyPageAccess(f.workspacePath, f.session)
+	db, err := access.ReadModel.database(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.ExecContext(context.Background(), `DELETE FROM history_read_tail WHERE scope=?`, access.Scope); err != nil {
+		t.Fatal(err)
 	}
 }

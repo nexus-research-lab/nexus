@@ -173,7 +173,7 @@ func TestTranscriptCacheReprojectsMarkersAndSegments(t *testing.T) {
 	}
 
 	session := protocol.Session{SessionKey: "agent:agent-a:ws:dm:cache", AgentID: "agent-a", SessionID: &ids[1], TranscriptSessionIDs: ids, Options: map[string]any{protocol.OptionRuntimeSegmentedTranscript: true}}
-	if _, err = h.buildAgentHistoryPageIndex(context.Background(), workspace, session); err != nil {
+	if _, err = h.buildAgentHistoryPageIndex(context.Background(), workspace, session, false); err != nil {
 		t.Fatal(err)
 	}
 	if &cached[0] != &h.cache.entries[path].Entries[0] {
@@ -200,8 +200,8 @@ func TestTranscriptCacheKeepsLatestCheckpointedEntryOverBudget(t *testing.T) {
 	s.writeTranscriptCache("other", source, rows, len(rows))
 	lineage := s.writeTranscriptCache("active", source, rows, len(rows))
 	// 带检查点后单个条目的权重就超过预算，仍要保留它，只淘汰其他会话。
-	s.storeTranscriptProjectionCheckpoint("active", &transcriptProjectionCheckpoint{Lineage: lineage, Epoch: 1})
-	if !s.transcriptProjectionEpochCached(1) {
+	s.storeTranscriptProjectionCheckpoint("active", &transcriptProjectionCheckpoint{Lineage: lineage})
+	if s.readTranscriptProjectionCheckpoint("active", lineage) == nil {
 		t.Fatal("active checkpoint evicted by its own weight")
 	}
 	if _, ok := s.readTranscriptCache("other", source); ok {

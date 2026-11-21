@@ -245,24 +245,6 @@ func BenchmarkLongSessionHistoryRestartAppended(b *testing.B) {
 	}
 }
 
-// BenchmarkLongSessionHistoryRestartPrewarmed 重启后第一轮：轮次开始时已在后台预热，结束后刷新首页。
-func BenchmarkLongSessionHistoryRestartPrewarmed(b *testing.B) {
-	fixture := newLongSessionFixture(b, benchmarkLongSessionRounds(), 8*1024)
-	fixture.readFirstPage(b)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		b.StopTimer()
-		simulateHistoryProcessRestart(b, fixture)
-		if !fixture.history.prewarmTranscriptHistory(context.Background(), fixture.workspacePath, fixture.session) {
-			b.Fatal("prewarm did not build a projection checkpoint")
-		}
-		fixture.appendRound(b)
-		b.StartTimer()
-		fixture.readFirstPage(b)
-	}
-}
-
 // BenchmarkLongSessionOverlayAfterAppend 追加一轮 marker 后读取 overlay 状态与 round 导航，
 // 单独衡量每轮刷新里 overlay 两条读取链路的成本。
 func BenchmarkLongSessionOverlayAfterAppend(b *testing.B) {

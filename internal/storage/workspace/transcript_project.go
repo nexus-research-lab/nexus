@@ -79,20 +79,29 @@ func visitProjectedTranscript(
 
 // transcriptProjectionState 是投影循环跨条目的全部状态。processor 只在用户轮次切换时重建，
 // 重建后尚未处理任何条目时，它完全由 ProcessorRoundID/ParentID/SessionID 决定，
-// 因而此刻的状态可以保存为检查点并在之后恢复。
+// 因而此刻的状态可以保存为检查点并在之后恢复。JSON 形状随读模型持久化，改动需提升读模型版本。
 type transcriptProjectionState struct {
-	CurrentRoundID           string
-	CurrentRoundPurpose      string
-	ProcessorActive          bool
-	ProcessorRoundID         string
-	ProcessorParentID        string
-	ProcessorSessionID       string
-	LastTimestamp            int64
-	MarkerIndex              int
-	LastVisibleUserContent   string
-	LastVisibleUserTimestamp int64
+	CurrentRoundID           string `json:"current_round_id,omitempty"`
+	CurrentRoundPurpose      string `json:"current_round_purpose,omitempty"`
+	ProcessorActive          bool   `json:"processor_active,omitempty"`
+	ProcessorRoundID         string `json:"processor_round_id,omitempty"`
+	ProcessorParentID        string `json:"processor_parent_id,omitempty"`
+	ProcessorSessionID       string `json:"processor_session_id,omitempty"`
+	LastTimestamp            int64  `json:"last_timestamp,omitempty"`
+	MarkerIndex              int    `json:"marker_index,omitempty"`
+	LastVisibleUserContent   string `json:"last_visible_user_content,omitempty"`
+	LastVisibleUserTimestamp int64  `json:"last_visible_user_timestamp,omitempty"`
 
 	processor *message.Processor
+}
+
+// transcriptRoundStart 是一个用户轮次的起点：处理第 Position 个条目时重建了 processor。
+// State 是处理该条目之前的状态，Rows 是此前已产出的行数。从该条目重新投影只需要这两者，
+// 因为重放它会再次重建 processor，不依赖此前 processor 的内部状态。
+type transcriptRoundStart struct {
+	Position int
+	Rows     int
+	State    transcriptProjectionState
 }
 
 func (state *transcriptProjectionState) resetProcessor(workspacePath, sessionKey, agentID, roundID, parentID, sessionID string) {
@@ -111,8 +120,8 @@ func (state *transcriptProjectionState) restoreProcessor(workspacePath, sessionK
 	}
 }
 
-// visitProjectedTranscriptFrom 从 state 继续投影。checkpoint 非 nil 时，每当一个条目重建了
-// processor 且处理完毕，就以“已消费条目数”和此刻的状态回调一次，供调用方保存可恢复的检查点。
+// visitProjectedTranscriptFrom 从 state 继续投影。roundStart 非 nil 时，每当一个条目重建了
+// processor 且处理完毕，就以该轮次起点和处理完该条目后的状态回调一次，供调用方保存可恢复的检查点。
 func visitProjectedTranscriptFrom(
 	workspacePath string,
 	sessionKey string,
@@ -121,17 +130,24 @@ func visitProjectedTranscriptFrom(
 	alignedMarkers []transcriptRoundMarker,
 	shouldSkip func(map[string]any) bool,
 	state *transcriptProjectionState,
-	checkpoint func(consumed int, state transcriptProjectionState),
+	roundStart func(start transcriptRoundStart, next transcriptProjectionState),
 	emit func(...protocol.Message),
 ) {
-	consumed := 0
-	resetPending := false
+	position, emitted := -1, 0
+	var pending *transcriptRoundStart
+	output := emit
+	emit = func(rows ...protocol.Message) {
+		emitted += len(rows)
+		output(rows...)
+	}
 	for entry := range chain {
-		if resetPending {
-			checkpoint(consumed, *state)
-			resetPending = false
+		if pending != nil {
+			roundStart(*pending, *state)
+			pending = nil
 		}
-		consumed++
+		position++
+		before := *state
+		before.processor = nil
 		if shouldSkip(entry.Data) {
 			continue
 		}
@@ -193,7 +209,9 @@ func visitProjectedTranscriptFrom(
 			state.CurrentRoundID = textutil.FirstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
 			currentParentID := textutil.FirstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+state.CurrentRoundID)
 			state.resetProcessor(workspacePath, sessionKey, agentID, state.CurrentRoundID, currentParentID, decoded.SessionID)
-			resetPending = checkpoint != nil
+			if roundStart != nil {
+				pending = &transcriptRoundStart{Position: position, Rows: emitted, State: before}
+			}
 			if marker.HiddenFromUser ||
 				boolValueAny(entry.Data["hidden_from_user"]) ||
 				isTranscriptGoalContextOnlyUserTurn(entry.Data) {
@@ -245,8 +263,8 @@ func visitProjectedTranscriptFrom(
 			continue
 		}
 	}
-	if resetPending {
-		checkpoint(consumed, *state)
+	if pending != nil {
+		roundStart(*pending, *state)
 	}
 }
 

@@ -1,5 +1,5 @@
 // INPUT: DM session 身份、overlay/runtime transcript 与分页索引共享内核。
-// OUTPUT: resolver selection-aware 且读取前受 source budget 约束的 DM 快照、generation 与删除安全索引根。
+// OUTPUT: resolver selection-aware 的 DM 快照、generation、可持久化的尾轮增量状态与删除安全索引根。
 // POS: AgentHistoryStore 的 seekable history page 适配层。
 package workspace
 
@@ -48,19 +48,15 @@ func (s *AgentHistoryStore) historyPageAccess(
 			return s.validateAgentHistoryPageSources(ctx, workspacePath, sessionValue, expected)
 		},
 		Build: func(ctx context.Context) (historyPageIndexBuild, error) {
-			return s.buildAgentHistoryPageIndexWithSourceLimit(
-				ctx,
-				workspacePath,
-				sessionValue,
-				historyPageSourceMaxBytes,
-				scope,
-			)
+			// DM 不设源字节上限：超长会话也要建读模型，之后每轮只从持久化的检查点续读新增内容；
+			// 禁用读模型只会让每次翻页都在前台完整读一遍且结果不落盘。
+			return s.buildAgentHistoryPageIndex(ctx, workspacePath, sessionValue, true)
 		},
 		ReadRoundIndex: func(ctx context.Context, active []string) (protocol.SessionRoundIndex, error) {
 			return s.readCanonicalRoundIndexContext(ctx, workspacePath, sessionValue, active)
 		},
 		BuildCanonical: func(ctx context.Context) (historyPageIndexBuild, error) {
-			return s.buildAgentHistoryPageIndex(ctx, workspacePath, sessionValue)
+			return s.buildAgentHistoryPageIndex(ctx, workspacePath, sessionValue, false)
 		},
 	}
 }
@@ -284,20 +280,12 @@ func (s *AgentHistoryStore) snapshotAgentHistoryTranscriptAtResolvedPath(
 	return snapshotOpenedFile(ctx, file, info, base)
 }
 
+// buildAgentHistoryPageIndex 完整重建读模型；withTail 时同时建立可持久化的尾轮增量状态。
 func (s *AgentHistoryStore) buildAgentHistoryPageIndex(
 	ctx context.Context,
 	workspacePath string,
 	sessionValue protocol.Session,
-) (historyPageIndexBuild, error) {
-	return s.buildAgentHistoryPageIndexWithSourceLimit(ctx, workspacePath, sessionValue, 0, "")
-}
-
-func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
-	ctx context.Context,
-	workspacePath string,
-	sessionValue protocol.Session,
-	sourceLimit int64,
-	tailScope string,
+	withTail bool,
 ) (historyPageIndexBuild, error) {
 	var latest historyPageIndexBuild
 	for attempt := 0; attempt < historyPageBuildAttempts; attempt++ {
@@ -305,19 +293,7 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
 		if err != nil {
 			return historyPageIndexBuild{}, err
 		}
-		if historyPageSourcesExceedLimit(before, sourceLimit) {
-			after, afterErr := s.collectAgentHistoryPageSources(ctx, workspacePath, sessionValue)
-			if afterErr != nil {
-				return historyPageIndexBuild{}, afterErr
-			}
-			latest = historyPageIndexBuild{Sources: after, Disabled: true}
-			if snapshotsEqual(before, after) {
-				latest.Cacheable = true
-				return latest, nil
-			}
-			continue
-		}
-		parts, err := s.readHistoryRowPartsContext(ctx, workspacePath, sessionValue, 0)
+		parts, err := s.readHistoryRowPartsContext(ctx, workspacePath, sessionValue, withTail)
 		if err != nil {
 			return historyPageIndexBuild{}, err
 		}
@@ -345,8 +321,8 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
 		}
 		if snapshotsEqual(before, after) {
 			latest.Cacheable = true
-			// 尾轮状态绑定 Sources 与分组数，发布失败时下次刷新会因不匹配而回退。
-			s.rememberAgentHistoryTail(ctx, tailScope, parts, groups, after)
+			// 尾轮状态随本次 generation 在同一事务内发布，不会与分组或来源快照脱节。
+			latest.TailState, latest.TailKeys = newAgentHistoryTailState(ctx, parts, groups)
 			return latest, nil
 		}
 	}
