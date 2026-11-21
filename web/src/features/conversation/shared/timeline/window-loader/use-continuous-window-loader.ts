@@ -84,15 +84,15 @@ export function useContinuousWindowLoader(
     if (!latest.enabled || !container) {
       return;
     }
-    if (
-      runtime.inFlight
-      || latest.isSessionLoading
-      || getConversationRoundNavigationTarget(container)
-    ) {
+    if (runtime.inFlight || latest.isSessionLoading) {
       return;
     }
-    if (latest.isBottomScrollActive()) {
-      // 回到底部事务结束时不一定再有 scroll 事件，逐帧等待它交还所有权。
+    if (
+      getConversationRoundNavigationTarget(container)
+      || latest.isBottomScrollActive()
+    ) {
+      // 导航定位和回到底部事务结束时不一定再有 scroll 事件，逐帧等待它们交还所有权；
+      // 否则跳转页末尾的断点要等到下一次滚动才会被确认或接上最新。
       runtime.frame = requestAnimationFrame(check);
       return;
     }
