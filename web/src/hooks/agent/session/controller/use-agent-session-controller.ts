@@ -3,7 +3,7 @@
  * OUTPUT: 页面消费的 Session controller 与请求生命周期 refs。
  * POS: Agent conversation Session 子域的 React composition root。
  */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
@@ -17,6 +17,12 @@ import type { PendingPermission } from "@/types/conversation/interaction/permiss
 
 import type { AgentConversationRuntimeSnapshot } from "../../runtime/model/conversation-runtime-state";
 import { loadAgentSession } from "../conversation-lifecycle";
+import {
+  loadedMessageRoundIds,
+  type LoadedMessageWindow,
+} from "../../message/message-window-model";
+import type { MessageWindowUpdater } from "../../message/use-agent-message-collection";
+import { hasOlderHistory } from "../conversation-history-model";
 import { useAgentConversationHistory } from "../use-agent-conversation-history";
 import { useAgentConversationSession } from "../use-agent-conversation-session";
 import { useAgentSessionIdentity } from "./use-agent-session-identity";
@@ -25,12 +31,14 @@ import { useAgentSessionSnapshots } from "./use-agent-session-snapshots";
 import type { ConversationReliabilityController } from "../../reliability/use-conversation-reliability";
 
 interface AgentSessionState {
+  messageWindowRef: RefObject<LoadedMessageWindow>;
   messages: Message[];
   pendingAgentSlots: RoomPendingAgentSlotState[];
   reliability: ConversationReliabilityController;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setPendingAgentSlots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
   setPendingPermissions: Dispatch<SetStateAction<PendingPermission[]>>;
+  updateMessageWindow: (updater: MessageWindowUpdater) => void;
 }
 
 interface AgentSessionRuntime {
@@ -69,12 +77,14 @@ export function useAgentSessionController({
     snapshot: runtimeSnapshot,
   } = runtime;
   const {
+    messageWindowRef,
     messages,
     pendingAgentSlots,
     reliability,
     setMessages,
     setPendingAgentSlots,
     setPendingPermissions,
+    updateMessageWindow,
   } = state;
   const [sessionKey, setSessionKey] = useResettableState<string | null>(
     identitySessionKey,
@@ -98,8 +108,20 @@ export function useAgentSessionController({
   const history = useAgentConversationHistory({
     activeSessionKeyRef,
     identity,
-    setMessages,
+    updateMessageWindow,
+    windowRef: messageWindowRef,
   });
+  const residentRoundIds = useMemo(
+    () => loadedMessageRoundIds(messages),
+    [messages],
+  );
+  const { adoptHistoryStart } = history;
+  const residentHeadRoundId = residentRoundIds[0] ?? null;
+  useEffect(() => {
+    if (residentHeadRoundId && !isSessionLoading) {
+      adoptHistoryStart(residentHeadRoundId);
+    }
+  }, [adoptHistoryStart, isSessionLoading, residentHeadRoundId]);
   const snapshots = useAgentSessionSnapshots({
     chatType: identity?.chat_type ?? "dm",
     messages,
@@ -125,7 +147,7 @@ export function useAgentSessionController({
   const lifecycleContext = useAgentSessionLifecycleContext({
     activeSessionKeyRef,
     backgroundMessagesRef: snapshots.backgroundMessagesRef,
-    historyCursorRef: history.historyCursorRef,
+    commitHistoryCursor: history.commitHistoryCursor,
     identity,
     loadAbortControllerRef,
     loadRequestIdRef,
@@ -133,7 +155,6 @@ export function useAgentSessionController({
     restoreVolatileSessionSnapshot:
       snapshots.restoreVolatileSessionSnapshot,
     reliability,
-    setHasMoreHistory: history.setHasMoreHistory,
     setInputQueueItems,
     setIsSessionLoading,
     setMessages,
@@ -162,17 +183,22 @@ export function useAgentSessionController({
   return {
     ...sessionActions,
     activeSessionKeyRef,
-    hasMoreHistory: history.hasMoreHistory,
-    historyPrependToken: history.historyPrependToken,
+    hasMoreHistory: hasOlderHistory(
+      history.historyStartRoundId,
+      history.hasMoreHistory,
+      residentRoundIds,
+    ),
     inputQueueItems,
     isCurrentSessionEvent,
     isHistoryLoading: history.isHistoryLoading,
     isSessionLoading,
+    loadNewerMessages: history.loadNewerMessages,
     loadOlderMessages: history.loadOlderMessages,
     loadRoundWindow: history.loadRoundWindow,
     onBackgroundMessage: snapshots.onBackgroundMessage,
     reloadCurrentSession,
     resolvedHistoryRoundIds: history.resolvedHistoryRoundIds,
+    returnToLatestMessages: history.returnToLatestMessages,
     sessionKey,
     setInputQueueItems,
   };

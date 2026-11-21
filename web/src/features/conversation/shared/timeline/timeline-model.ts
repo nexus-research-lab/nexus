@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话消息、Room slot/permission/execution 易失态、运行轮次与服务端 round 索引。
  * OUTPUT: DM / Room 共用的消息及易失态根轮次分组、历史窗口可见性与 feed 顺序纯投影。
- * POS: 时间线顺序的唯一真相源；索引窗口只由 buildIndexedConversationWindow 输出，feed 与 navigator 不得自行修正轮次。
+ * POS: 时间线顺序的唯一真相源；驻留轮次只由 buildResidentRoundIds 输出，feed 与 navigator 不得自行修正轮次。
  */
 import type {
   AssistantMessage,
@@ -24,15 +24,8 @@ export interface ConversationTimeline {
   pending_permission_groups: Map<string, PendingPermission[]>;
   loaded_round_ids: string[];
   feed_round_ids: string[];
-  indexed_window: IndexedConversationWindow;
   round_index_items: SessionRoundIndexItem[];
   live_round_ids: string[];
-}
-
-/** 索引顺序与当前浏览器驻留窗口之间的显式边界。 */
-export interface IndexedConversationWindow {
-  roundIds: string[];
-  unloadedRoundIds: string[];
 }
 
 export interface VisibleRoomTimelineEvidence {
@@ -468,84 +461,22 @@ export function mergeLoadedRoundIndexItems(
   );
 }
 
-function getIndexedLoadedRoundIndexes(
-  indexedRoundIds: string[],
-  loadedRoundIds: string[],
-): number[] {
-  const indexByRoundId = new Map<string, number>();
-  indexedRoundIds.forEach((roundId, index) => {
-    indexByRoundId.set(roundId, index);
-  });
-
-  const indexes = new Set<number>();
-  for (const roundId of loadedRoundIds) {
-    const index = indexByRoundId.get(roundId);
-    if (index !== undefined) {
-      indexes.add(index);
-    }
-  }
-  return Array.from(indexes).sort((left, right) => left - right);
-}
-
 /**
- * 用完整索引确定 feed 顺序，但正文只渲染已加载窗口。
+ * 用完整索引确定 feed 顺序，但只挂载正文已驻留的 round。
  *
- * 每个驻留窗口只保留紧邻的未加载边界；这既避免全量索引制造空滚动，
- * 又保证最新页、稀疏 around 窗口和纯索引首屏始终拥有可加载入口。
+ * 驻留窗口是一段连续区间（外加实时尾部），窗口两端由边界加载器按阅读方向
+ * 扩展；未驻留的索引 round 不占据滚动空间，feed 中不存在占位节点。
  */
-export function buildIndexedConversationWindow(
+export function buildResidentRoundIds(
   roundIndexItems: SessionRoundIndexItem[],
   loadedRoundIds: string[],
-): IndexedConversationWindow {
+): string[] {
   if (roundIndexItems.length === 0) {
-    return {
-      roundIds: loadedRoundIds,
-      unloadedRoundIds: [],
-    };
+    return loadedRoundIds;
   }
-
-  const indexedRoundIds = mergeIndexedAndLoadedRoundIds(
+  const residentRoundIds = new Set(normalizeRoundIds(loadedRoundIds));
+  return mergeIndexedAndLoadedRoundIds(
     roundIndexItems.map((item) => item.roundId),
     loadedRoundIds,
-  );
-  const indexedRoundIdSet = new Set(indexedRoundIds);
-  const loadedIndexes = getIndexedLoadedRoundIndexes(
-    indexedRoundIds,
-    loadedRoundIds,
-  );
-  const loadedRoundIdSet = new Set(normalizeRoundIds(loadedRoundIds));
-  const seen = new Set<string>();
-  const roundIds: string[] = [];
-
-  const visibleIndexSet = new Set(loadedIndexes);
-  if (loadedIndexes.length === 0) {
-    // Round index may arrive before the first message page. Mount one latest
-    // boundary so the indexed loader can recover instead of rendering a dead
-    // empty feed.
-    visibleIndexSet.add(indexedRoundIds.length - 1);
-  } else {
-    for (const index of loadedIndexes) {
-      if (index > 0) {
-        visibleIndexSet.add(index - 1);
-      }
-      if (index < indexedRoundIds.length - 1) {
-        visibleIndexSet.add(index + 1);
-      }
-    }
-  }
-
-  for (const index of Array.from(visibleIndexSet).sort((left, right) => left - right)) {
-    appendUniqueRoundId(roundIds, seen, indexedRoundIds[index]);
-  }
-  for (const roundId of loadedRoundIds) {
-    if (!indexedRoundIdSet.has(roundId)) {
-      appendUniqueRoundId(roundIds, seen, roundId);
-    }
-  }
-  return {
-    roundIds,
-    unloadedRoundIds: roundIds.filter(
-      (roundId) => !loadedRoundIdSet.has(roundId),
-    ),
-  };
+  ).filter((roundId) => residentRoundIds.has(roundId));
 }

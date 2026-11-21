@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { writeConversationScrollTop } from "./scroll-controller";
 
 interface ScrollAnchorSnapshot {
   container: HTMLElement;
@@ -62,7 +63,7 @@ export function useScrollAnchoredState(
     const nextScrollTop =
       snapshot.container.scrollHeight - snapshot.distanceFromBottom;
     if (Math.abs(snapshot.container.scrollTop - nextScrollTop) > 1) {
-      snapshot.container.scrollTop = nextScrollTop;
+      writeConversationScrollTop(snapshot.container, "local", nextScrollTop);
     }
   }, [isOpen]);
 

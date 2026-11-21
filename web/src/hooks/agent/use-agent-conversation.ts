@@ -69,7 +69,14 @@ export function useAgentConversation(
   const settleAgentWorkspaceWrites = useWorkspaceLiveStore(
     (state) => state.settle_agent_writes,
   );
-  const { messages, setMessages } = useAgentMessageCollection();
+  const {
+    gapAfterRoundId,
+    messages,
+    setEvictionEdge,
+    setMessages,
+    updateMessageWindow,
+    windowRef: messageWindowRef,
+  } = useAgentMessageCollection();
   const [commandCatalog, setCommandCatalog] = useState<CommandCatalogData>(
     EMPTY_COMMAND_CATALOG,
   );
@@ -145,12 +152,14 @@ export function useAgentConversation(
       snapshot: runtimeSnapshot,
     },
     state: {
+      messageWindowRef,
       messages,
       pendingAgentSlots,
       reliability: reliability.controller,
       setMessages,
       setPendingAgentSlots,
       setPendingPermissions,
+      updateMessageWindow,
     },
   });
   const inputQueueItemsRef = useRef(session.inputQueueItems);
@@ -335,6 +344,7 @@ export function useAgentConversation(
     commandCatalog,
     contextUsage: agentId ? contextUsageByAgent[agentId] ?? null : null,
     contextUsageByAgent,
+    historyWindow: { gapAfterRoundId, setEvictionEdge },
     messages,
     reliability: reliability.projectSnapshot(session.sessionKey),
     runtime: {

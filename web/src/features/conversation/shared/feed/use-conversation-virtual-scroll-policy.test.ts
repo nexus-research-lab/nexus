@@ -34,13 +34,24 @@ describe("virtual conversation size changes", () => {
     expect(shouldAdjustConversationVirtualScrollPosition({ end: 200 }, 900, scrolled, reading)).toBe(true);
   });
 
-  it("applies size compensation on top of the live scrollTop instead of the last observed offset", () => {
+  it("applies each measured delta once on top of the live scrollTop", () => {
     const element = { scrollTop: 240, scrollTo: () => { throw new Error("absolute write"); } };
-    scrollConversationVirtualElement(300, { adjustments: 900 }, {
+    const virtualizer = {
+      ...instance,
       scrollElement: element as unknown as Element,
       scrollOffset: 300,
-    });
-    expect(element.scrollTop).toBe(1140);
+    };
+    // 两次 scroll 事件之间连续测量两个轮次：TanStack 传入的是累计位移 30、90。
+    let accumulated = 0;
+    for (const delta of [30, 60]) {
+      accumulated += delta;
+      expect(shouldAdjustConversationVirtualScrollPosition({ end: 200 }, delta, virtualizer, {
+        ...following,
+        followingLatest: false,
+      })).toBe(true);
+      scrollConversationVirtualElement(300, { adjustments: accumulated }, virtualizer);
+    }
+    expect(element.scrollTop).toBe(330);
 
     let target: ScrollToOptions | null = null;
     const positioned = { scrollTop: 0, scrollTo: (options: ScrollToOptions) => { target = options; } };

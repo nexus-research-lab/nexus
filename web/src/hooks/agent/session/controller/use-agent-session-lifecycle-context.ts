@@ -14,6 +14,7 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
+import { loadedMessageRoundIds } from "../../message/message-window-model";
 import type { AgentConversationLifecycleContext } from "../conversation-lifecycle";
 import type { AgentConversationHistoryCursor } from "../conversation-history-model";
 import type { ConversationReliabilityController } from "../../reliability/use-conversation-reliability";
@@ -21,14 +22,16 @@ import type { ConversationReliabilityController } from "../../reliability/use-co
 interface UseAgentSessionLifecycleContextOptions {
   activeSessionKeyRef: RefObject<string | null>;
   backgroundMessagesRef: RefObject<Map<string, Message[]>>;
-  historyCursorRef: RefObject<AgentConversationHistoryCursor>;
+  commitHistoryCursor: (
+    cursor: AgentConversationHistoryCursor,
+    hasMore: boolean,
+  ) => void;
   identity: AgentConversationIdentity | null;
   loadAbortControllerRef: RefObject<AbortController | null>;
   loadRequestIdRef: RefObject<number>;
   reconcileRuntimeStateFromSnapshot: (messages: Message[]) => void;
   restoreVolatileSessionSnapshot: (sessionKey: string) => boolean;
   reliability: ConversationReliabilityController;
-  setHasMoreHistory: (nextValue: boolean) => void;
   setInputQueueItems: Dispatch<SetStateAction<InputQueueItem[]>>;
   setIsSessionLoading: Dispatch<SetStateAction<boolean>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
@@ -40,14 +43,13 @@ interface UseAgentSessionLifecycleContextOptions {
 export function useAgentSessionLifecycleContext({
   activeSessionKeyRef,
   backgroundMessagesRef,
-  historyCursorRef,
+  commitHistoryCursor,
   identity,
   loadAbortControllerRef,
   loadRequestIdRef,
   reconcileRuntimeStateFromSnapshot,
   restoreVolatileSessionSnapshot,
   reliability,
-  setHasMoreHistory,
   setInputQueueItems,
   setIsSessionLoading,
   setMessages,
@@ -75,25 +77,26 @@ export function useAgentSessionLifecycleContext({
     restoreVolatileSessionSnapshot,
     onSessionMessagesLoaded: (loadedMessages, meta) => {
       if (!meta.isReload) {
-        historyCursorRef.current = {
+        commitHistoryCursor({
           before_round_id: meta.nextBeforeRoundId,
           before_round_timestamp: meta.nextBeforeRoundTimestamp,
-        };
-        setHasMoreHistory(meta.hasMoreHistory);
+          start_round_id: meta.hasMoreHistory
+            ? null
+            : loadedMessageRoundIds(loadedMessages)[0] ?? null,
+        }, meta.hasMoreHistory);
       }
       reconcileRuntimeStateFromSnapshot(loadedMessages);
     },
   }), [
     activeSessionKeyRef,
     backgroundMessagesRef,
-    historyCursorRef,
+    commitHistoryCursor,
     identity,
     loadAbortControllerRef,
     loadRequestIdRef,
     reconcileRuntimeStateFromSnapshot,
     restoreVolatileSessionSnapshot,
     reliability,
-    setHasMoreHistory,
     setInputQueueItems,
     setIsSessionLoading,
     setMessages,

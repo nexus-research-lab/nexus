@@ -915,3 +915,254 @@ test("conversation delete actions replace the date meta slot", async ({ page }) 
     expect(button.x + button.width).toBeLessThanOrEqual(bounds.x + bounds.width);
   }
 });
+
+for (const virtual of [false, true]) {
+  test(`${virtual ? "virtual" : "static"} continuous window keeps the reading position through prepend, eviction and reload`, async ({ page }) => {
+    await page.goto("/ui-gallery.html");
+    await page.evaluate(async (virtualEnabled) => {
+      const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+      const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+      const virtualPath = "/node_modules/.vite-browser-test/deps/@tanstack_react-virtual.js";
+      const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
+      const loaderPath = "/src/features/conversation/shared/timeline/window-loader/use-continuous-window-loader.ts";
+      const policyPath = "/src/features/conversation/shared/feed/use-conversation-virtual-scroll-policy.ts";
+      const controllerPath = "/src/features/conversation/shared/timeline/scroll/scroll-controller.ts";
+      const { default: React } = await import(reactPath);
+      const { default: { createRoot } } = await import(domPath);
+      const { useVirtualizer } = await import(virtualPath);
+      const { useFollowScroll } = await import(hookPath);
+      const { useContinuousWindowLoader } = await import(loaderPath);
+      const {
+        scrollConversationVirtualElement,
+        shouldAdjustConversationVirtualScrollPosition,
+        useConversationVirtualTopologyAnchor,
+      } = await import(policyPath);
+      const { getConversationScrollWriteConflicts } = await import(controllerPath);
+      const h = React.createElement;
+      const TOTAL = 160;
+      const CAP = 40;
+      const PAGE = 10;
+      const heightOf = (index: number) => 90 + (index % 5) * 30;
+      const wait = () => new Promise((resolve) => setTimeout(resolve, 30));
+      type RoundWindow = { first: number; last: number };
+
+      type FeedProps = {
+        indexes: number[];
+        roundIds: string[];
+        scroll: ReturnType<typeof useFollowScroll>;
+      };
+      const roundStyle = (index: number) => ({
+        boxSizing: "border-box",
+        borderBottom: "1px solid #ddd",
+        flexShrink: 0,
+        height: heightOf(index),
+      });
+
+      function StaticFeed({ indexes, scroll }: FeedProps) {
+        return h("div", {
+          ref: scroll.feedRef,
+          style: { display: "flex", flexDirection: "column" },
+        }, indexes.map((index) => h("div", {
+          "data-conversation-round-id": String(index),
+          key: index,
+          style: roundStyle(index),
+        }, `Round ${index}`)));
+      }
+
+      function VirtualFeed({ indexes, roundIds, scroll }: FeedProps) {
+        const virtualizer = useVirtualizer({
+          count: indexes.length,
+          estimateSize: () => 120,
+          getItemKey: (index: number) => roundIds[index],
+          getScrollElement: () => scroll.scrollRef.current,
+          measureElement: (element: HTMLElement) => element.getBoundingClientRect().height,
+          overscan: 2,
+          scrollToFn: scrollConversationVirtualElement,
+        });
+        virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
+          item: { end: number },
+          delta: number,
+          instance: unknown,
+        ) => shouldAdjustConversationVirtualScrollPosition(item, delta, instance, {
+          bottomScrollActive: scroll.isBottomScrollActive(),
+          followingLatest: scroll.isFollowingLatest(),
+          navigationActive: false,
+          userScrollActive: scroll.isUserScrollActive(),
+        });
+        useConversationVirtualTopologyAnchor(
+          virtualizer,
+          roundIds,
+          () => !scroll.isFollowingLatest() && !scroll.isBottomScrollActive(),
+        );
+        return h("div", {
+          ref: scroll.feedRef,
+          "data-conversation-virtual-feed": "true",
+          style: { position: "relative", height: virtualizer.getTotalSize() },
+        }, virtualizer.getVirtualItems().map((item: { index: number; start: number }) => h("div", {
+          "data-conversation-round-id": String(indexes[item.index]),
+          "data-index": item.index,
+          key: indexes[item.index],
+          ref: virtualizer.measureElement,
+          style: {
+            ...roundStyle(indexes[item.index]),
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            transform: `translateY(${item.start}px)`,
+          },
+        }, `Round ${indexes[item.index]}`)));
+      }
+
+      function Harness() {
+        // 与真实会话一致：滚动容器先挂载，首屏历史随后异步到达。
+        const [loaded, setLoaded] = React.useState(false);
+        React.useEffect(() => setLoaded(true), []);
+        const [roundWindow, setRoundWindow] = React.useState({ first: TOTAL - 20, last: TOTAL - 1 });
+        const windowRef = React.useRef(roundWindow);
+        windowRef.current = roundWindow;
+        const indexes = React.useMemo(() => (loaded ? Array.from(
+          { length: roundWindow.last - roundWindow.first + 1 },
+          (_, offset) => roundWindow.first + offset,
+        ) : []), [loaded, roundWindow]);
+        const roundIds = React.useMemo(() => indexes.map(String), [indexes]);
+        const revision = loaded ? `${roundWindow.first}:${roundWindow.last}` : "loading";
+        const scroll = useFollowScroll({
+          contentKey: revision,
+          messageCount: indexes.length,
+          sessionKey: "continuous-window",
+          topologyKey: revision,
+        });
+        const commit = React.useCallback(async (next: (current: RoundWindow) => RoundWindow) => {
+          await wait();
+          const current = windowRef.current;
+          const result = next(current);
+          setRoundWindow(result);
+          return result.first !== current.first || result.last !== current.last;
+        }, []);
+        useContinuousWindowLoader({
+          enabled: loaded,
+          feedRef: scroll.feedRef,
+          gapAfterRoundId: roundWindow.last < TOTAL - 1 ? String(roundWindow.last) : null,
+          hasOlderHistory: roundWindow.first > 0,
+          isBottomScrollActive: scroll.isBottomScrollActive,
+          isFollowingLatest: scroll.isFollowingLatest,
+          isSessionLoading: false,
+          // 向前扩展从最新一端淘汰，向后扩展从最旧一端淘汰。
+          loadNewerMessages: () => commit(({ last }: RoundWindow) => {
+            const nextLast = Math.min(TOTAL - 1, last + PAGE);
+            return { first: Math.max(windowRef.current.first, nextLast - CAP + 1), last: nextLast };
+          }),
+          loadOlderMessages: () => commit(({ first, last }: RoundWindow) => {
+            const nextFirst = Math.max(0, first - PAGE);
+            return { first: nextFirst, last: Math.min(last, nextFirst + CAP - 1) };
+          }),
+          returnToLatestMessages: () => commit(() => ({ first: TOTAL - 20, last: TOTAL - 1 })),
+          revision,
+          scopeKey: "continuous-window",
+          scrollRef: scroll.scrollRef,
+          setEvictionEdge: () => undefined,
+          setWindowChangePending: scroll.setWindowChangePending,
+          windowRoundIds: roundIds,
+        });
+        const feed = { indexes, roundIds, scroll };
+        return h("div", { style: { position: "fixed", inset: 0, zIndex: 99999, background: "white" } },
+          h("div", {
+            "data-window-first": roundWindow.first,
+            "data-window-last": roundWindow.last,
+            "data-window-scroll": true,
+            ref: scroll.scrollRef,
+            onPointerDown: scroll.onPointerDown,
+            onScroll: scroll.onScroll,
+            onWheel: scroll.onWheel,
+            style: { height: 500, overflowY: "auto", overflowAnchor: "none" },
+          }, loaded ? h(virtualEnabled ? VirtualFeed : StaticFeed, feed) : null),
+        );
+      }
+      const host = document.createElement("div");
+      document.body.append(host);
+      createRoot(host).render(h(Harness));
+
+      // 每帧记录视口顶端在完整会话中的绝对位置：窗口怎样增删都不应让它跳变。
+      const offsets = [0];
+      for (let index = 0; index < TOTAL; index += 1) {
+        offsets.push(offsets[index] + heightOf(index));
+      }
+      const probe = { conflicts: () => [] as unknown[], samples: [] as number[] };
+      (window as unknown as { __continuousWindow: typeof probe }).__continuousWindow = probe;
+      const sample = () => {
+        const viewport = document.querySelector<HTMLElement>("[data-window-scroll]");
+        if (viewport) {
+          probe.conflicts = () => [...getConversationScrollWriteConflicts(viewport)];
+          const top = viewport.getBoundingClientRect().top;
+          const first = [...viewport.querySelectorAll<HTMLElement>("[data-conversation-round-id]")]
+            .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+            .filter(({ rect }) => rect.bottom > top + 1)
+            .sort((left, right) => left.rect.top - right.rect.top)[0];
+          if (first && first.rect.top <= top + 1) {
+            probe.samples.push(
+              offsets[Number(first.element.dataset.conversationRoundId)] + top - first.rect.top,
+            );
+          }
+        }
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    }, virtual);
+
+    const viewport = page.locator("[data-window-scroll]");
+    const state = () => page.evaluate(() => {
+      const element = document.querySelector<HTMLElement>("[data-window-scroll]")!;
+      const probe = (window as unknown as {
+        __continuousWindow: { conflicts: () => unknown[]; samples: number[] };
+      }).__continuousWindow;
+      return {
+        bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+        conflicts: probe.conflicts(),
+        first: Number(element.dataset.windowFirst),
+        last: Number(element.dataset.windowLast),
+        samples: probe.samples.splice(0),
+        scrollTop: element.scrollTop,
+      };
+    });
+    const wheelUntil = async (deltaY: number, done: (current: Awaited<ReturnType<typeof state>>) => boolean) => {
+      const samples: number[] = [];
+      for (let step = 0; step < 600; step += 1) {
+        // 触控板式的连续小步滚动，中间不等待加载完成。
+        await page.mouse.wheel(0, deltaY);
+        await page.mouse.wheel(0, deltaY);
+        await page.waitForTimeout(16);
+        const current = await state();
+        samples.push(...current.samples);
+        if (done(current)) {
+          return { current, samples };
+        }
+      }
+      throw new Error("the reader never reached the requested edge");
+    };
+
+    await expect.poll(async () => {
+      const current = await state();
+      return current.scrollTop > 0 && current.bottomGap <= 1;
+    }).toBe(true);
+    await viewport.hover();
+    await state();
+
+    const up = await wheelUntil(-150, (current) => current.first === 0 && current.scrollTop === 0);
+    expect(up.current.last).toBe(39);
+    for (let index = 1; index < up.samples.length; index += 1) {
+      const moved = up.samples[index] - up.samples[index - 1];
+      expect(moved, `upward frame ${index}`).toBeLessThanOrEqual(2);
+      expect(moved, `upward frame ${index}`).toBeGreaterThan(-700);
+    }
+
+    const down = await wheelUntil(150, (current) => current.last === 159 && current.bottomGap <= 1);
+    expect(down.current.first).toBe(120);
+    for (let index = 1; index < down.samples.length; index += 1) {
+      const moved = down.samples[index] - down.samples[index - 1];
+      expect(moved, `downward frame ${index}`).toBeGreaterThanOrEqual(-2);
+      expect(moved, `downward frame ${index}`).toBeLessThan(700);
+    }
+    expect(down.current.conflicts).toEqual([]);
+  });
+}

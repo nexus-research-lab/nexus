@@ -18,6 +18,7 @@ import {
 import { ConversationViewportAnchor } from "./conversation-viewport-anchor";
 import { HistoryPrependAnchor } from "./history-prepend-anchor";
 import { BottomScrollAnimator } from "./scroll-animation";
+import { writeConversationScrollTop } from "./scroll-controller";
 import {
   clearConversationRoundNavigationTarget,
   getConversationRoundNavigationTarget,
@@ -49,6 +50,8 @@ interface UseFollowScrollReturn {
   pauseFollowLatest: () => void;
   prepareHistoryPrependRestore: () => void;
   cancelHistoryPrependRestore: () => void;
+  /** 连续历史窗口的变更请求在途时置位：停在窗口起点的读者也保留阅读锚点。 */
+  setWindowChangePending: (pending: boolean) => void;
   onScroll: () => void;
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
   onWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
@@ -81,6 +84,7 @@ export function useFollowScroll({
   const visibilityRef = useRef(false);
   const historyAnchorRef = useRef(new HistoryPrependAnchor());
   const viewportAnchorRef = useRef(new ConversationViewportAnchor());
+  const windowChangePendingRef = useRef(false);
   const animatorRef = useRef<BottomScrollAnimator | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useResettableState(
     false,
@@ -102,13 +106,40 @@ export function useFollowScroll({
     );
   }
 
+  // 只有 FOLLOW 会在拓扑提交后写 bottom；READING 的拓扑变化（历史前插、窗口淘汰）
+  // 由阅读锚点补偿，不能在这次提交里被当作 bottom 事务而放弃补偿。
   bottomCommitPendingRef.current = (
     revisionSessionKeyRef.current !== sessionKey
     || (
-      revisionSessionKeyRef.current === sessionKey
+      shouldFollowLatestRef.current
       && previousTopologyKeyRef.current !== topologyKey
     )
   );
+
+  const captureViewportAnchor = useCallback((container: HTMLDivElement) => {
+    viewportAnchorRef.current.capture(container, feedRef.current, {
+      includeTop: windowChangePendingRef.current,
+    });
+  }, []);
+  const restoreViewportAnchor = useCallback((
+    container: HTMLDivElement,
+    allowVirtualFeed = false,
+  ) => viewportAnchorRef.current.restore(container, feedRef.current, {
+    allowVirtualFeed,
+    includeTop: windowChangePendingRef.current,
+  }), []);
+  const setWindowChangePending = useCallback((pending: boolean) => {
+    if (windowChangePendingRef.current === pending) {
+      return;
+    }
+    windowChangePendingRef.current = pending;
+    const container = scrollRef.current;
+    if (pending && container && !shouldFollowLatestRef.current) {
+      // 停在窗口起点的读者默认没有锚点；请求发出前先记下首个可见 round，
+      // 提交后才能把前插内容放到它上方。
+      captureViewportAnchor(container);
+    }
+  }, [captureViewportAnchor]);
 
   const isBottomScrollActive = useCallback(
     () => (
@@ -130,9 +161,9 @@ export function useFollowScroll({
     animatorRef.current?.follow();
     const container = scrollRef.current;
     if (container) {
-      viewportAnchorRef.current.capture(container, feedRef.current);
+      captureViewportAnchor(container);
     }
-  }, []);
+  }, [captureViewportAnchor]);
 
   const setScrollToBottomVisibility = useCallback(
     (visible: boolean) => {
@@ -170,9 +201,9 @@ export function useFollowScroll({
     }
     cancelAnimation();
     shouldFollowLatestRef.current = false;
-    viewportAnchorRef.current.capture(container, feedRef.current);
+    captureViewportAnchor(container);
     setScrollToBottomVisibility(!isAtScrollBottom(container));
-  }, [cancelAnimation, setScrollToBottomVisibility]);
+  }, [captureViewportAnchor, cancelAnimation, setScrollToBottomVisibility]);
 
   const interactions = useFollowScrollInteractions({
     lastScrollTopRef,
@@ -198,10 +229,7 @@ export function useFollowScroll({
       return false;
     }
     if (!shouldFollowLatestRef.current) {
-      const restoredScrollTop = viewportAnchorRef.current.restore(
-        container,
-        feedRef.current,
-      );
+      const restoredScrollTop = restoreViewportAnchor(container);
       if (restoredScrollTop !== null) {
         lastScrollTopRef.current = restoredScrollTop;
         setScrollToBottomVisibility(
@@ -217,13 +245,21 @@ export function useFollowScroll({
       shouldFollowLatestRef.current,
     );
     cancelAnimation();
-    container.scrollTop = resizeState.scrollTop;
-    lastScrollTopRef.current = container.scrollTop;
+    lastScrollTopRef.current = writeConversationScrollTop(
+      container,
+      "viewport",
+      resizeState.scrollTop,
+    );
     shouldFollowLatestRef.current = resizeState.shouldFollow;
-    viewportAnchorRef.current.capture(container, feedRef.current);
+    captureViewportAnchor(container);
     setScrollToBottomVisibility(resizeState.showScrollToBottom);
     return true;
-  }, [cancelAnimation, setScrollToBottomVisibility]);
+  }, [
+    captureViewportAnchor,
+    restoreViewportAnchor,
+    cancelAnimation,
+    setScrollToBottomVisibility,
+  ]);
 
   const scheduleScrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
@@ -248,9 +284,9 @@ export function useFollowScroll({
     animatorRef.current?.follow();
     const nextContainer = scrollRef.current;
     if (nextContainer) {
-      viewportAnchorRef.current.capture(nextContainer, feedRef.current);
+      captureViewportAnchor(nextContainer);
     }
-  }, [retainPositionForViewportResize]);
+  }, [captureViewportAnchor, retainPositionForViewportResize]);
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
@@ -306,11 +342,14 @@ export function useFollowScroll({
     if (isNewSession && initialScrollAnchor === "top") {
       cancelAnimation();
       viewportAnchorRef.current.reset();
-      container.scrollTop = 0;
-      lastScrollTopRef.current = 0;
+      lastScrollTopRef.current = writeConversationScrollTop(
+        container,
+        "session",
+        0,
+      );
       shouldFollowLatestRef.current = true;
       setScrollToBottomVisibility(false);
-      viewportAnchorRef.current.capture(container, feedRef.current);
+      captureViewportAnchor(container);
       return;
     }
 
@@ -341,11 +380,7 @@ export function useFollowScroll({
 
     // READING 独占可见锚点；任何内容版本都只恢复阅读位置，绝不追底。
     cancelAnimation();
-    const restoredScrollTop = viewportAnchorRef.current.restore(
-      container,
-      feedRef.current,
-      { allowVirtualFeed: topologyChanged },
-    );
+    const restoredScrollTop = restoreViewportAnchor(container, topologyChanged);
     if (restoredScrollTop !== null) {
       lastScrollTopRef.current = restoredScrollTop;
     }
@@ -353,6 +388,8 @@ export function useFollowScroll({
       hasScrollableOverflow(container) && !isAtScrollBottom(container),
     );
   }, [
+    captureViewportAnchor,
+    restoreViewportAnchor,
     atomicLayoutKey,
     cancelAnimation,
     contentKey,
@@ -375,11 +412,11 @@ export function useFollowScroll({
       return;
     }
     lastScrollTopRef.current = restoredScrollTop;
-    viewportAnchorRef.current.capture(container, feedRef.current);
+    captureViewportAnchor(container);
     setScrollToBottomVisibility(
       hasScrollableOverflow(container) && !isAtScrollBottom(container),
     );
-  }, [historyPrependToken, setScrollToBottomVisibility]);
+  }, [captureViewportAnchor, historyPrependToken, setScrollToBottomVisibility]);
 
   // 只观察整条内容轨道的聚合尺寸。ResizeObserver 会把同一布局周期里多个
   // Agent 的子树变化合成一次父轨道通知：FOLLOW 只贴真实 bottom，READING
@@ -416,10 +453,7 @@ export function useFollowScroll({
         return;
       }
 
-      const restoredScrollTop = viewportAnchorRef.current.restore(
-        currentContainer,
-        feedRef.current,
-      );
+      const restoredScrollTop = restoreViewportAnchor(currentContainer);
       if (restoredScrollTop !== null) {
         lastScrollTopRef.current = restoredScrollTop;
       }
@@ -434,6 +468,7 @@ export function useFollowScroll({
     }
     return () => observer.disconnect();
   }, [
+    restoreViewportAnchor,
     messageCount,
     scheduleFollowLatest,
     sessionKey,
@@ -479,9 +514,14 @@ export function useFollowScroll({
     setScrollToBottomVisibility(false);
     scheduleScrollToBottom("auto");
     if (container) {
-      viewportAnchorRef.current.capture(container, feedRef.current);
+      captureViewportAnchor(container);
     }
-  }, [scheduleScrollToBottom, sessionKey, setScrollToBottomVisibility]);
+  }, [
+    captureViewportAnchor,
+    scheduleScrollToBottom,
+    sessionKey,
+    setScrollToBottomVisibility,
+  ]);
 
   useEffect(() => cancelAnimation, [cancelAnimation]);
 
@@ -491,9 +531,9 @@ export function useFollowScroll({
     interactionOnScroll();
     const container = scrollRef.current;
     if (container && userScrollActive) {
-      viewportAnchorRef.current.capture(container, feedRef.current);
+      captureViewportAnchor(container);
     }
-  }, [interactionOnScroll, isUserScrollActive]);
+  }, [captureViewportAnchor, interactionOnScroll, isUserScrollActive]);
 
   return {
     scrollRef,
@@ -508,6 +548,7 @@ export function useFollowScroll({
     pauseFollowLatest,
     prepareHistoryPrependRestore,
     cancelHistoryPrependRestore,
+    setWindowChangePending,
     ...interactions,
     onScroll,
   };

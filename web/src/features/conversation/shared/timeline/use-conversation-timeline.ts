@@ -15,7 +15,7 @@ import type { SessionRoundIndexItem } from "@/types/conversation/history";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 
 import {
-  buildIndexedConversationWindow,
+  buildResidentRoundIds,
   buildTimelineRoundIds,
   filterVisibleRoomLiveRoundIds,
   filterVisibleTimelineMessages,
@@ -163,8 +163,8 @@ export function useConversationTimeline({
     () => mergeLoadedRoundIndexItems(visibleRoundIndexItems, loadedRoundIds),
     [loadedRoundIds, visibleRoundIndexItems],
   );
-  const indexedWindow = useMemo(
-    () => buildIndexedConversationWindow(mergedRoundIndexItems, loadedRoundIds),
+  const feedRoundIds = useMemo(
+    () => buildResidentRoundIds(mergedRoundIndexItems, loadedRoundIds),
     [loadedRoundIds, mergedRoundIndexItems],
   );
 
@@ -175,13 +175,12 @@ export function useConversationTimeline({
       pending_permission_groups: pendingPermissionGroups,
       room_agent_execution_state_groups: roomAgentExecutionStateGroups,
       loaded_round_ids: loadedRoundIds,
-      feed_round_ids: indexedWindow.roundIds,
-      indexed_window: indexedWindow,
+      feed_round_ids: feedRoundIds,
       round_index_items: mergedRoundIndexItems,
       live_round_ids: visibleLiveRoundIds,
     }),
     [
-      indexedWindow,
+      feedRoundIds,
       loadedRoundIds,
       messageGroups,
       mergedRoundIndexItems,

@@ -91,7 +91,8 @@ export interface UseAgentConversationReturn {
   is_session_loading: boolean;
   is_history_loading: boolean;
   has_more_history: boolean;
-  history_prepend_token: number;
+  /** 驻留窗口与实时尾部之间断点前的最后一个 round；null 表示窗口连到最新。 */
+  history_gap_after_round_id: string | null;
   resolved_history_round_ids: string[];
   runtime_phase: AgentConversationRuntimePhase;
   reliability: ConversationReliabilitySnapshot;
@@ -128,7 +129,14 @@ export interface UseAgentConversationReturn {
   start_session: () => void;
   load_session: (key: string) => Promise<void>;
   load_older_messages: () => Promise<boolean>;
+  /** 断点存在时把窗口向更新的一侧扩展一页。 */
+  load_newer_messages: () => Promise<boolean>;
+  /** 丢弃脱离最新的旧窗口并重新接上最新一页。 */
+  return_to_latest_messages: () => Promise<boolean>;
+  /** 围绕目标 round 重建驻留窗口，供导航跳转使用。 */
   load_round_window: (roundId: string) => Promise<boolean>;
+  /** 声明阅读视口远离的窗口端；实时写入超出预算时从该端让出。 */
+  set_history_eviction_edge: (edge: "head" | "tail") => void;
   clear_session: () => void;
   reset_session: () => void;
   stop_generation: (agentRoundId?: string) => void;

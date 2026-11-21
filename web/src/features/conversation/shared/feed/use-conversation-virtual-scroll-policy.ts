@@ -1,12 +1,16 @@
 /**
  * INPUT: 跨 optimistic ACK 稳定的节点身份与 TanStack Virtual 动态尺寸测量。
- * OUTPUT: 稳定 item key、未加载索引轮次的占位高度、服从共享 scroll owner 的动态测高策略与相对补偿写入。
+ * OUTPUT: 稳定 item key、连续窗口拓扑变化时的阅读锚点、服从共享 scroll owner 的动态测高策略与相对补偿写入。
  * POS: DM 与 Room 虚拟消息流共用的身份、尺寸变化和单写入者协议。
  */
-import { useCallback, useRef, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, type RefObject } from "react";
+
+import {
+  scrollConversationElementTo,
+  shiftConversationScrollTop,
+} from "../timeline/scroll/scroll-controller";
 
 const VIRTUAL_ANCHOR_TOLERANCE_PX = 1;
-const UNLOADED_ROUND_FALLBACK_HEIGHT_PX = 80;
 
 interface VirtualScrollItem {
   end: number;
@@ -30,19 +34,6 @@ export interface ConversationVirtualAdjustmentContext {
   followingLatest: boolean;
   navigationActive?: boolean;
   userScrollActive: boolean;
-}
-
-export function resolveConversationVirtualPlaceholderHeight(
-  isLoaded: boolean,
-  estimatedHeight: number | undefined,
-): number | undefined {
-  if (isLoaded) {
-    return undefined;
-  }
-  if (typeof estimatedHeight === "number" && Number.isFinite(estimatedHeight)) {
-    return Math.max(UNLOADED_ROUND_FALLBACK_HEIGHT_PX, estimatedHeight);
-  }
-  return UNLOADED_ROUND_FALLBACK_HEIGHT_PX;
 }
 
 export function useConversationVirtualItemKey(
@@ -81,9 +72,27 @@ export function useConversationVirtualInitialOffset(
   return initialOffsetRef.current;
 }
 
+/**
+ * TanStack 在两次 scroll 事件之间把测高位移累加后交给 scrollToFn。补偿叠加到实时
+ * scrollTop 时只能写入本次测量的位移，这里把它留给紧随其后的那次写入。
+ */
+const pendingSizeCompensation = new WeakMap<object, number>();
+
 export function shouldAdjustConversationVirtualScrollPosition(
   item: VirtualScrollItem,
-  _delta: number,
+  delta: number,
+  instance: VirtualScrollState,
+  context?: ConversationVirtualAdjustmentContext,
+): boolean {
+  const compensate = shouldCompensateVirtualSizeChange(item, instance, context);
+  if (compensate) {
+    pendingSizeCompensation.set(instance, delta);
+  }
+  return compensate;
+}
+
+function shouldCompensateVirtualSizeChange(
+  item: VirtualScrollItem,
   instance: VirtualScrollState,
   context: ConversationVirtualAdjustmentContext = {
     bottomScrollActive: false,
@@ -132,22 +141,28 @@ export function shouldAdjustConversationVirtualScrollPosition(
 /**
  * Virtualizer 的测高补偿以最近一次 scroll 事件记录的 offset 为基准写绝对值；
  * 手势进行中该值可能落后一帧，绝对写入会把用户刚滚过的距离吞掉。补偿写入
- * 改为叠加到实时 scrollTop，其余定位（scrollToIndex/Offset）保持绝对语义。
+ * 改为把本次测量的位移叠加到实时 scrollTop，其余定位（scrollToIndex/Offset）
+ * 保持绝对语义。
  */
 export function scrollConversationVirtualElement(
   offset: number,
   { adjustments = 0, behavior }: { adjustments?: number; behavior?: ScrollBehavior },
   instance: VirtualScrollWriter,
 ): void {
+  const sizeDelta = pendingSizeCompensation.get(instance);
+  pendingSizeCompensation.delete(instance);
   const element = instance.scrollElement;
   if (!element || !("scrollTop" in element)) {
     return;
   }
-  if (adjustments !== 0 && behavior !== "smooth" && instance.scrollOffset !== null) {
-    element.scrollTop += adjustments;
+  if (sizeDelta !== undefined && behavior !== "smooth") {
+    shiftConversationScrollTop(element, "virtualizer", sizeDelta);
     return;
   }
-  element.scrollTo({ behavior, top: offset + adjustments });
+  scrollConversationElementTo(element, "virtualizer", {
+    behavior,
+    top: offset + adjustments,
+  });
 }
 
 function areNodeIdsEqual(
@@ -158,4 +173,79 @@ function areNodeIdsEqual(
     current.length === next.length
     && current.every((nodeId, index) => nodeId === next[index])
   );
+}
+
+interface VirtualTopologyAnchor {
+  index: number;
+  key: string;
+  start: number;
+}
+
+interface VirtualTopologyInstance {
+  measurementsCache: ReadonlyArray<{ end: number; start: number }>;
+  scrollElement: Element | Window | null;
+  scrollOffset: number | null;
+}
+
+/**
+ * 连续窗口在阅读位置之前增删 round（历史前插、起点淘汰、回到最新）时，
+ * Virtualizer 只会按新下标重新排布，不会移动 scrollTop。这里在每次提交后
+ * 记录首个可见项的身份与起点；该项下标变化即说明它之前的拓扑变了，按起点
+ * 位移补偿实时 scrollTop，让同一 round 留在原位。项自身或上方的测高变化
+ * 不改变下标，继续由 Virtualizer 的尺寸补偿负责，两者不会重复写入。
+ */
+export function useConversationVirtualTopologyAnchor(
+  instance: VirtualTopologyInstance,
+  nodeIds: readonly string[],
+  shouldHold: () => boolean,
+): void {
+  const anchorRef = useRef<VirtualTopologyAnchor | null>(null);
+
+  useLayoutEffect(() => {
+    const scrollElement = instance.scrollElement;
+    const element = scrollElement && "scrollTop" in scrollElement
+      ? scrollElement
+      : null;
+    const measurements = instance.measurementsCache;
+    const anchor = anchorRef.current;
+    if (
+      anchor
+      && element
+      && nodeIds[anchor.index] !== anchor.key
+      && shouldHold()
+    ) {
+      const nextIndex = nodeIds.indexOf(anchor.key);
+      const delta = nextIndex < 0
+        ? 0
+        : (measurements[nextIndex]?.start ?? anchor.start) - anchor.start;
+      if (delta !== 0) {
+        shiftConversationScrollTop(element, "virtualizer", delta);
+      }
+    }
+
+    const scrollOffset = element?.scrollTop ?? instance.scrollOffset ?? 0;
+    const index = findFirstVisibleMeasurement(measurements, scrollOffset);
+    anchorRef.current = index < 0 || index >= nodeIds.length
+      ? null
+      : { index, key: nodeIds[index], start: measurements[index].start };
+  });
+}
+
+function findFirstVisibleMeasurement(
+  measurements: ReadonlyArray<{ end: number }>,
+  scrollOffset: number,
+): number {
+  let low = 0;
+  let high = measurements.length - 1;
+  let found = -1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if (measurements[middle].end > scrollOffset) {
+      found = middle;
+      high = middle - 1;
+    } else {
+      low = middle + 1;
+    }
+  }
+  return found;
 }

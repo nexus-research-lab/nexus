@@ -78,15 +78,16 @@ interface AgentConversationPublicSession {
   bindSessionKey: UseAgentConversationReturn["bind_session_key"];
   clearSession: UseAgentConversationReturn["clear_session"];
   hasMoreHistory: boolean;
-  historyPrependToken: number;
   inputQueueItems: InputQueueItem[];
   isHistoryLoading: boolean;
   isSessionLoading: boolean;
+  loadNewerMessages: UseAgentConversationReturn["load_newer_messages"];
   loadOlderMessages: UseAgentConversationReturn["load_older_messages"];
   loadRoundWindow: UseAgentConversationReturn["load_round_window"];
   loadSession: UseAgentConversationReturn["load_session"];
   resolvedHistoryRoundIds: string[];
   resetSession: UseAgentConversationReturn["reset_session"];
+  returnToLatestMessages: UseAgentConversationReturn["return_to_latest_messages"];
   sessionKey: string | null;
   startSession: UseAgentConversationReturn["start_session"];
 }
@@ -96,6 +97,10 @@ interface BuildAgentConversationResultOptions {
   commandCatalog: CommandCatalogData;
   contextUsage: ContextUsageData | null;
   contextUsageByAgent: Readonly<Record<string, ContextUsageData>>;
+  historyWindow: {
+    gapAfterRoundId: string | null;
+    setEvictionEdge: UseAgentConversationReturn["set_history_eviction_edge"];
+  };
   messages: Message[];
   reliability: ConversationReliabilitySnapshot;
   runtime: AgentConversationPublicRuntime;
@@ -108,6 +113,7 @@ export function buildAgentConversationResult({
   commandCatalog,
   contextUsage,
   contextUsageByAgent,
+  historyWindow,
   messages,
   reliability,
   runtime,
@@ -124,12 +130,13 @@ export function buildAgentConversationResult({
     enqueue_input_queue_message: actions.enqueueQueueMessage,
     guide_input_queue_message: actions.guideQueueMessage,
     has_more_history: session.hasMoreHistory,
-    history_prepend_token: session.historyPrependToken,
+    history_gap_after_round_id: historyWindow.gapAfterRoundId,
     input_queue_items: session.inputQueueItems,
     is_history_loading: session.isHistoryLoading,
     is_loading: runtime.snapshot.isLoading,
     is_session_loading: session.isSessionLoading,
     live_round_ids: runtime.snapshot.liveRoundIds,
+    load_newer_messages: session.loadNewerMessages,
     load_older_messages: session.loadOlderMessages,
     load_round_window: session.loadRoundWindow,
     load_session: session.loadSession,
@@ -141,6 +148,8 @@ export function buildAgentConversationResult({
     resolved_history_round_ids: session.resolvedHistoryRoundIds,
     reorder_input_queue_messages: actions.reorderQueueMessages,
     reset_session: session.resetSession,
+    return_to_latest_messages: session.returnToLatestMessages,
+    set_history_eviction_edge: historyWindow.setEvictionEdge,
     rewrite_last_user_message: actions.rewriteLastMessage,
     runtime_phase: runtime.snapshot.phase,
     send_message: actions.sendMessage,

@@ -11,6 +11,7 @@ import { useRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import { getConversationRoundNavigationTarget } from "../timeline/scroll/round-scroll";
+import { scrollConversationElementTo } from "../timeline/scroll/scroll-controller";
 import {
   isConversationRoundActivelyGrowing,
   resolveConversationRound,
@@ -22,9 +23,9 @@ import { ConversationRound } from "./conversation-round";
 import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "./use-conversation-virtual-metrics";
 import {
-  resolveConversationVirtualPlaceholderHeight,
   scrollConversationVirtualElement,
   shouldAdjustConversationVirtualScrollPosition,
+  useConversationVirtualTopologyAnchor,
   useConversationVirtualInitialOffset,
   useConversationVirtualItemKey,
 } from "./use-conversation-virtual-scroll-policy";
@@ -77,6 +78,14 @@ export function ConversationVirtualFeed({
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
+  useConversationVirtualTopologyAnchor(virtualizer, roundNodeIds, () => !(
+    (refs.isFollowingLatest?.() ?? false)
+    || (refs.isBottomScrollActive?.() ?? false)
+    || Boolean(
+      refs.scrollRef.current
+      && getConversationRoundNavigationTarget(refs.scrollRef.current),
+    )
+  ));
   useEffect(() => {
     // 排版变量提交后清除未挂载行的旧高度，已挂载行继续由 ResizeObserver 测量。
     const frame = requestAnimationFrame(() => virtualizer.measure());
@@ -105,10 +114,13 @@ export function ConversationVirtualFeed({
     options?: { behavior?: ScrollBehavior },
   ) => {
     if (index === 0) {
-      refs.scrollRef.current?.scrollTo({
-        behavior: options?.behavior ?? "smooth",
-        top: 0,
-      });
+      const scrollElement = refs.scrollRef.current;
+      if (scrollElement) {
+        scrollConversationElementTo(scrollElement, "navigation", {
+          behavior: options?.behavior ?? "smooth",
+          top: 0,
+        });
+      }
       return;
     }
     virtualizer.scrollToIndex(index, {
@@ -146,10 +158,6 @@ export function ConversationVirtualFeed({
             <ConversationRound
               key={state.nodeId}
               measureRef={virtualizer.measureElement}
-              placeholderHeight={resolveConversationVirtualPlaceholderHeight(
-                state.isLoaded,
-                heightMap.get(state.roundId),
-              )}
               renderer={renderer}
               source={source}
               state={state}

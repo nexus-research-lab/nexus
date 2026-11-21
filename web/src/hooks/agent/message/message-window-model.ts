@@ -1,13 +1,12 @@
 /**
- * INPUT: 已去重的历史/实时消息和当前加载窗口的根 round 身份。
- * OUTPUT: 保留活跃尾部且受 round/估算内存双预算约束的消息窗口。
+ * INPUT: 已去重的历史/实时消息、窗口断点和需要让出预算的窗口端。
+ * OUTPUT: 受 round/估算内存双预算约束、只从一端整轮丢弃的连续消息窗口及其断点。
  * POS: 浏览器消息内存边界；只淘汰完整根 round，canonical 历史与导航索引不受影响。
  */
 import type { Message } from "@/types/conversation/message/entity";
 
 export const MAX_LOADED_MESSAGE_ROUNDS = 320;
 export const MAX_LOADED_MESSAGE_BYTES = 24 * 1024 * 1024;
-const MIN_LATEST_MESSAGE_ROUNDS = 8;
 
 interface MessageWindowGroup {
   bytes: number;
@@ -16,74 +15,112 @@ interface MessageWindowGroup {
   pinned: boolean;
 }
 
-export interface MessageWindowOptions {
-  anchorRoundIds?: Iterable<string>;
-  maxBytes?: number;
-  maxRounds?: number;
-  preference?: "anchor" | "latest";
+/** 超出预算时被整轮丢弃的窗口端：head 为最旧一端，tail 为最新一端。 */
+export type MessageWindowEdge = "head" | "tail";
+
+/**
+ * 浏览器驻留的消息窗口：一段连续历史，加上可选的一处断点。
+ * gapAfterRoundId 指向断点前最后一个驻留 round；其后的 round（实时尾部）
+ * 与它之间存在尚未加载的历史。null 表示窗口一直连到最新。
+ */
+export interface LoadedMessageWindow {
+  gapAfterRoundId: string | null;
+  messages: Message[];
 }
 
-/** 超出预算时优先保留当前加载窗口、实时尾部和未落库消息。 */
+export interface MessageWindowOptions {
+  evict?: MessageWindowEdge;
+  maxBytes?: number;
+  maxRounds?: number;
+}
+
+/** 只需要消息数组的写入方（实时快照、会话恢复）使用的预算入口。 */
 export function boundLoadedMessages(
   messages: Message[],
   options: MessageWindowOptions = {},
 ): Message[] {
+  return boundMessageWindow(
+    { gapAfterRoundId: null, messages },
+    options,
+  ).messages;
+}
+
+/**
+ * 超出 round/字节预算时从指定窗口端整轮丢弃，未落库与流式中的 round 永不丢弃。
+ * 结果始终是「一段连续窗口 + 至多一处断点 + 连到最新的尾部」：
+ * - 丢弃 tail：保留窗口起点开始的连续前缀，断点移到前缀末尾；断点后的尾部
+ *   只在预算有余时保留其最新的连续后缀。
+ * - 丢弃 head：保留整体最新的连续后缀；后缀没有覆盖到断点时断点随之消失。
+ */
+export function boundMessageWindow(
+  window: LoadedMessageWindow,
+  options: MessageWindowOptions = {},
+): LoadedMessageWindow {
   const maxBytes = Math.max(options.maxBytes ?? MAX_LOADED_MESSAGE_BYTES, 1);
   const maxRounds = Math.max(options.maxRounds ?? MAX_LOADED_MESSAGE_ROUNDS, 1);
-  const groups = groupMessagesForWindow(messages);
+  const evict = options.evict ?? "head";
+  const groups = groupMessagesForWindow(window.messages);
+  const gapIndex = window.gapAfterRoundId === null
+    ? -1
+    : groups.findIndex((group) => group.key === window.gapAfterRoundId);
+  const gapAfterRoundId = gapIndex < 0 ? null : window.gapAfterRoundId;
   const totalBytes = groups.reduce((total, group) => total + group.bytes, 0);
   if (groups.length <= maxRounds && totalBytes <= maxBytes) {
-    return messages;
+    return gapAfterRoundId === window.gapAfterRoundId
+      ? window
+      : { gapAfterRoundId, messages: window.messages };
   }
 
-  const anchors = new Set(
-    [...(options.anchorRoundIds ?? [])]
-      .map((roundId) => roundId.trim())
-      .filter(Boolean),
-  );
-  const selected = new Set<string>();
+  const selected = new Set<MessageWindowGroup>();
   let selectedBytes = 0;
-  const select = (group: MessageWindowGroup, force = false): boolean => {
-    if (selected.has(group.key)) {
-      return true;
+  const select = (group: MessageWindowGroup): void => {
+    if (!selected.has(group)) {
+      selected.add(group);
+      selectedBytes += group.bytes;
     }
-    if (!force && (
-      selected.size >= maxRounds || selectedBytes + group.bytes > maxBytes
-    )) {
-      return false;
+  };
+  /** 按给定顺序连续保留，遇到第一个放不下的 round 即停止；返回保留数量。 */
+  const selectRun = (run: MessageWindowGroup[], forceFirst: boolean): number => {
+    let count = 0;
+    for (const group of run) {
+      const fits = selected.has(group) || (
+        selected.size < maxRounds && selectedBytes + group.bytes <= maxBytes
+      );
+      // 单个 round 自身可能超过字节预算，但不会因此拆开或让窗口变空。
+      if (!fits && !(forceFirst && count === 0)) {
+        break;
+      }
+      select(group);
+      count += 1;
     }
-    selected.add(group.key);
-    selectedBytes += group.bytes;
-    return true;
+    return count;
   };
 
-  // 至少保留最新完整 round；单个 round 自身可能超过字节预算，但不会因此
-  // 拆开。其余尾部 round 只有在预算内才进入窗口。
-  const latestGroup = groups.at(-1);
-  if (latestGroup) {
-    select(latestGroup, true);
-  }
-  groups.forEach((group) => {
-    if (group.pinned || anchors.has(group.key)) {
-      select(group, true);
-    }
-  });
+  groups.filter((group) => group.pinned).forEach(select);
+  const windowGroups = gapIndex < 0 ? groups : groups.slice(0, gapIndex + 1);
+  const tailGroups = gapIndex < 0 ? [] : groups.slice(gapIndex + 1).reverse();
 
-  groups
-    .slice(-Math.min(MIN_LATEST_MESSAGE_ROUNDS, maxRounds))
-    .reverse()
-    .forEach((group) => select(group));
+  let nextGapAfterRoundId: string | null;
+  if (evict === "tail") {
+    const kept = selectRun(windowGroups, true);
+    selectRun(tailGroups, false);
+    nextGapAfterRoundId = kept < windowGroups.length
+      ? windowGroups[kept - 1]?.key ?? null
+      : gapAfterRoundId;
+  } else {
+    const keptTail = selectRun(tailGroups, true);
+    const keptWindow = keptTail < tailGroups.length
+      ? 0
+      : selectRun([...windowGroups].reverse(), tailGroups.length === 0);
+    nextGapAfterRoundId = keptWindow > 0 ? gapAfterRoundId : null;
+  }
 
-  const candidates = options.preference === "anchor" && anchors.size > 0
-    ? groupsByDistanceFromAnchors(groups, anchors)
-    : [...groups].reverse();
-  for (const group of candidates) {
-    select(group);
-  }
-  if (selected.size === groups.length) {
-    return messages;
-  }
-  return groups.flatMap((group) => selected.has(group.key) ? group.messages : []);
+  return {
+    gapAfterRoundId: nextGapAfterRoundId,
+    messages: groups
+      .filter((group) => selected.has(group))
+      .flatMap((group) => group.messages),
+  };
 }
 
 export function loadedMessageRoundIds(messages: Message[]): string[] {
@@ -108,33 +145,11 @@ function groupMessagesForWindow(messages: Message[]): MessageWindowGroup[] {
   return groups;
 }
 
-function groupsByDistanceFromAnchors(
-  groups: MessageWindowGroup[],
-  anchors: Set<string>,
-): MessageWindowGroup[] {
-  const anchorIndexes = groups.flatMap((group, index) => (
-    anchors.has(group.key) ? [index] : []
-  ));
-  if (anchorIndexes.length === 0) {
-    return [...groups].reverse();
-  }
-  return groups
-    .map((group, index) => ({
-      distance: Math.min(...anchorIndexes.map((anchor) => Math.abs(anchor - index))),
-      group,
-      index,
-    }))
-    .sort((left, right) => (
-      left.distance - right.distance || right.index - left.index
-    ))
-    .map(({ group }) => group);
-}
-
-function messageWindowKey(message: Message): string {
+export function messageWindowKey(message: Message): string {
   return message.round_id?.trim() || `message:${message.message_id}`;
 }
 
-function isPinnedWindowMessage(message: Message): boolean {
+export function isPinnedWindowMessage(message: Message): boolean {
   if (message.delivery_mode && message.delivery_mode !== "durable") {
     return true;
   }

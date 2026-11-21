@@ -186,7 +186,6 @@ function commitSessionMessages(
   context.state.setMessages((currentMessages) => {
     mergedMessages = boundLoadedMessages(
       mergeLoadedMessages(sortedMessages, currentMessages),
-      { preference: "latest" },
     );
     return mergedMessages;
   });
