@@ -88,7 +88,7 @@ export function GroupConversationVirtualFeed({
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
-  useConversationVirtualTopologyAnchor(virtualizer, source.roundIds, () => !(
+  const getTopologyAnchorIndex = useConversationVirtualTopologyAnchor(virtualizer, source.roundIds, () => !(
     (refs.isFollowingLatest?.() ?? false)
     || (refs.isBottomScrollActive?.() ?? false)
     || Boolean(
@@ -116,6 +116,7 @@ export function GroupConversationVirtualFeed({
         refs.scrollRef.current
         && getConversationRoundNavigationTarget(refs.scrollRef.current),
       ),
+      topologyAnchorIndex: getTopologyAnchorIndex(),
       userScrollActive: refs.isUserScrollActive?.() ?? false,
     },
   );

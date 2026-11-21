@@ -123,9 +123,7 @@ export function useFollowScroll({
   }, []);
   const restoreViewportAnchor = useCallback((
     container: HTMLDivElement,
-    allowVirtualFeed = false,
   ) => viewportAnchorRef.current.restore(container, feedRef.current, {
-    allowVirtualFeed,
     includeTop: windowChangePendingRef.current,
   }), []);
   const setWindowChangePending = useCallback((pending: boolean) => {
@@ -380,7 +378,7 @@ export function useFollowScroll({
 
     // READING 独占可见锚点；任何内容版本都只恢复阅读位置，绝不追底。
     cancelAnimation();
-    const restoredScrollTop = restoreViewportAnchor(container, topologyChanged);
+    const restoredScrollTop = restoreViewportAnchor(container);
     if (restoredScrollTop !== null) {
       lastScrollTopRef.current = restoredScrollTop;
     }

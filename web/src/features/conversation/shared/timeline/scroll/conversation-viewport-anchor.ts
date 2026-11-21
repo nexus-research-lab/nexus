@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话 Feed、滚动视口与稳定的 conversation round DOM 身份。
- * OUTPUT: 内容在当前可见轮次之前增减高度或 Feed renderer 切换时，保持该轮次的视口内位置不变。
- * POS: DM/Room/Thread 的连续阅读锚点；普通虚拟项测高继续由 Virtualizer 负责补偿。
+ * OUTPUT: 静态 Feed 中内容在当前可见轮次之前增减高度时，保持该轮次的视口内位置不变。
+ * POS: DM/Room/Thread 静态 Feed 的连续阅读锚点；虚拟 Feed 的切换、窗口拓扑与测高位移只由 Virtualizer 补偿。
  * 用户滚动期间同样生效：快照随每次 scroll 事件刷新，restore 只补偿首个可见轮次
  * 之前的布局位移，不会回写手势本身的位移。
  */
@@ -23,11 +23,6 @@ interface ConversationViewportCaptureOptions {
    * 传入 true：即将前插的内容必须把起点处的首个 round 留在原位。
    */
   includeTop?: boolean;
-}
-
-interface ConversationViewportRestoreOptions
-  extends ConversationViewportCaptureOptions {
-  allowVirtualFeed?: boolean;
 }
 
 export class ConversationViewportAnchor {
@@ -62,16 +57,14 @@ export class ConversationViewportAnchor {
   restore(
     container: HTMLDivElement,
     feed: HTMLDivElement | null,
-    options: ConversationViewportRestoreOptions = {},
+    options: ConversationViewportCaptureOptions = {},
   ): number | null {
     const snapshot = this.snapshot;
     if (
       !snapshot
       || !feed
-      || (
-        feed.dataset.conversationVirtualFeed === "true"
-        && !options.allowVirtualFeed
-      )
+      // 虚拟 Feed 的滚动位置只有 Virtualizer 一个写入者。
+      || feed.dataset.conversationVirtualFeed === "true"
     ) {
       this.capture(container, feed, options);
       return null;

@@ -11,7 +11,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `conversation-feed-tail.tsx`: 静态与虚拟 Feed 共用、不改变增长节奏的唯一底部锚点
 - `conversation-virtual-canvas.tsx`: 从 Feed 顶部按当前真实总高度放置虚拟画布
 - `use-conversation-virtual-metrics.ts`: viewport 宽度和导航偏移测量
-- `use-conversation-virtual-scroll-policy.ts`: 稳定轮次 key、静态 Feed 切换时的初始偏移快照、连续窗口拓扑变化时的虚拟阅读锚点与动态高度锚点策略
+- `use-conversation-virtual-scroll-policy.ts`: 稳定轮次 key、静态 Feed 切换时的初始偏移快照与阅读位置恢复、连续窗口拓扑变化时的虚拟阅读锚点、新挂载行的同步测高与动态高度锚点策略
 - `use-conversation-virtualization-policy.ts`: 会话内锁存 static/virtual renderer，并只在 live epoch 结束后的稳定窗口跨越阈值
 - `use-conversation-round-navigation.ts`: 静态与虚拟列表共用轮次导航
 
@@ -21,7 +21,7 @@ DM 与 Room、静态与虚拟 Feed 必须复用 `conversation-panel-styles.ts` �
 静态 Feed 只在 live epoch 结束后的稳定窗口跨过虚拟化阈值；Virtualizer 必须继承同一滚动容器的既有 `scrollTop`，不得在并行输出中途替换 renderer 或以默认零偏移覆盖用户正在阅读的位置。
 `leadingContent` 只承载不属于 transcript 的本地视图前导，并必须进入静态 Feed 根节点，与消息轮次共同按真实高度布局并接受调用方指定的初始滚动锚点；只有前导且没有消息轮次时静态 Feed 必须至少填满 viewport，让欢迎页可按真实可见区居中，嵌入式顶部接待说明仍保持自身起始对齐；存在该前导时不得切换为未计入其高度的虚拟画布，禁止把前导放在 Feed 外制造两段内容栈。
 活跃轮次的虚拟估高不能消费尚未 reveal 的完整 backend target；先使用保守基线，再由真实 Markdown/工具 DOM 的正向 measured delta 驱动增长。终态历史仍按完整内容估高。
-Feed 只挂载正文已驻留的连续窗口，索引中存在但未驻留的轮次不占滚动空间、不渲染占位节点；窗口在两端由连续窗口 loader 扩展。窗口前插或头部淘汰改变 item 下标时，Virtualizer 按稳定节点身份把同一轮次保持在原视口位置，每次测高只补偿该次 delta（TanStack 累加的 adjustments 不得重复叠加到实时 `scrollTop`）。
+Feed 只挂载正文已驻留的连续窗口，索引中存在但未驻留的轮次不占滚动空间、不渲染占位节点；窗口在两端由连续窗口 loader 扩展。窗口前插或头部淘汰改变 item 下标时，Virtualizer 按稳定节点身份把同一轮次保持在原视口位置，每次测高只补偿该次 delta（TanStack 累加的 adjustments 不得重复叠加到实时 `scrollTop`）。拓扑提交期间 `scrollTop` 仍属于旧下标，测高补偿改按阅读锚点下标判断（只补偿锚点之前的项）；新挂载的行在同一次 layout commit 内测完，不等滚动结束后的 ResizeObserver，避免先画出一帧估高排布。静态 Feed 切换为虚拟 Feed 时，由同一 Hook 在首批行挂载后把切换前的首个可见轮次恢复到原视口位置；虚拟 Feed 内 DOM 阅读锚点不写 `scrollTop`。
 轮间距必须放在每个可测量 round wrapper 内，静态父容器不得使用 `gap`/`space-y`；否则跨过虚拟化阈值时累计间距会消失并造成整屏位移。
 虚拟 Feed 根节点必须声明 `data-conversation-virtual-feed="true"`，避免共享滚动层重复执行可见轮次补偿或 bottom 写入。
 最后一个 root 不得预建 viewport 高度的空白 runway。新消息从真实内容底部进入；FOLLOW 把并行 Agent 视为同一条 live timeline，父 Feed 聚合尺寸变化后始终贴住真实底部，让旧内容连续上推。Feed 必须始终使用当前真实内容高度；过程区自动或手动收起、终态切换和虚拟估高校正不得保留历史最大 min-height，也不得通过底部对齐把差额变成消息上方空白。静态尺寸变化由 FOLLOW/READING 锚点处理，虚拟尺寸变化由 Virtualizer 处理，不做高度补偿动画。

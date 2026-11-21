@@ -422,7 +422,7 @@ test("history prepend preserves scrolling performed while the page was loading",
   );
 });
 
-test("viewport anchor survives a static-to-virtual Room feed switch", async () => {
+test("viewport anchor leaves a virtual Room feed to the Virtualizer after the static-to-virtual switch", async () => {
   const { ConversationViewportAnchor } = await import("@/features/conversation/shared/timeline/scroll/conversation-viewport-anchor.ts");
   let scrollTop = 400;
   let documentTop = 460;
@@ -471,13 +471,11 @@ test("viewport anchor survives a static-to-virtual Room feed switch", async () =
   );
   rounds = [earlierSibling, virtualRound];
   feed.dataset.conversationVirtualFeed = "true";
+  assert.equal(anchor.restore(container, feed), null);
   assert.equal(
-    anchor.restore(container, feed, { allowVirtualFeed: true }),
-    540,
+    scrollTop,
+    400,
+    "the virtual feed has a single scrollTop writer: the Virtualizer restores the reading position",
   );
-  assert.equal(
-    virtualRound.getBoundingClientRect().top,
-    visibleTop,
-    "crossing the virtualization threshold must preserve the same visible node",
-  );
+  assert.equal(virtualRound.getBoundingClientRect().top, visibleTop + 140);
 });

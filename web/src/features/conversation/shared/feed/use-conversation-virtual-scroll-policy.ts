@@ -3,6 +3,7 @@
  * OUTPUT: 稳定 item key、连续窗口拓扑变化时的阅读锚点、服从共享 scroll owner 的动态测高策略与相对补偿写入。
  * POS: DM 与 Room 虚拟消息流共用的身份、尺寸变化和单写入者协议。
  */
+import type { Virtualizer } from "@tanstack/react-virtual";
 import { useCallback, useLayoutEffect, useRef, type RefObject } from "react";
 
 import {
@@ -14,6 +15,7 @@ const VIRTUAL_ANCHOR_TOLERANCE_PX = 1;
 
 interface VirtualScrollItem {
   end: number;
+  index?: number;
 }
 
 interface VirtualScrollWriter {
@@ -33,6 +35,11 @@ export interface ConversationVirtualAdjustmentContext {
   bottomScrollActive: boolean;
   followingLatest: boolean;
   navigationActive?: boolean;
+  /**
+   * 窗口拓扑变化（历史前插、头部淘汰）提交期间阅读锚点的新下标。此时 scrollTop
+   * 仍是旧拓扑下的位置，“是否在视口上方”必须改按锚点判断：只补偿锚点之前的项。
+   */
+  topologyAnchorIndex?: number | null;
   userScrollActive: boolean;
 }
 
@@ -103,6 +110,12 @@ function shouldCompensateVirtualSizeChange(
 ): boolean {
   if (context.bottomScrollActive || context.navigationActive) {
     return false;
+  }
+  if (
+    typeof context.topologyAnchorIndex === "number"
+    && typeof item.index === "number"
+  ) {
+    return item.index < context.topologyAnchorIndex;
   }
   const scrollOffset = instance.scrollOffset ?? 0;
   const itemIsAboveViewport = (
@@ -181,10 +194,28 @@ interface VirtualTopologyAnchor {
   start: number;
 }
 
-interface VirtualTopologyInstance {
-  measurementsCache: ReadonlyArray<{ end: number; start: number }>;
-  scrollElement: Element | Window | null;
-  scrollOffset: number | null;
+/**
+ * 用户滚动期间 TanStack 不在 ref 阶段测量新挂载的行，而是等 ResizeObserver：
+ * 那时 scrollTop 已补偿，行位置却要到下一帧才重排，中间会画出一帧错位。
+ * 这里在同一次 layout commit 内测完新行，让补偿与重排落在同一帧。
+ */
+function measureNewlyMountedRows<
+  TScrollElement extends Element | Window,
+  TItemElement extends Element,
+>(
+  instance: Virtualizer<TScrollElement, TItemElement>,
+  measured: WeakSet<Element>,
+): void {
+  for (const node of instance.elementsCache.values()) {
+    if (measured.has(node) || !node.isConnected) {
+      continue;
+    }
+    measured.add(node);
+    instance.resizeItem(
+      instance.indexFromElement(node),
+      instance.options.measureElement(node, undefined, instance),
+    );
+  }
 }
 
 /**
@@ -194,32 +225,55 @@ interface VirtualTopologyInstance {
  * 位移补偿实时 scrollTop，让同一 round 留在原位。项自身或上方的测高变化
  * 不改变下标，继续由 Virtualizer 的尺寸补偿负责，两者不会重复写入。
  */
-export function useConversationVirtualTopologyAnchor(
-  instance: VirtualTopologyInstance,
+export function useConversationVirtualTopologyAnchor<
+  TScrollElement extends Element | Window,
+  TItemElement extends Element,
+>(
+  instance: Virtualizer<TScrollElement, TItemElement>,
   nodeIds: readonly string[],
   shouldHold: () => boolean,
-): void {
+): () => number | null {
   const anchorRef = useRef<VirtualTopologyAnchor | null>(null);
+  const pendingIndexRef = useRef<number | null>(null);
+  const measuredRowsRef = useRef(new WeakSet<Element>());
+  // 首次 render 时静态 Feed 仍在 DOM 中：记下它的阅读位置，等虚拟行挂载后原位恢复。
+  const handoffRef = useRef<VirtualHandoff | null>(null);
+  if (handoffRef.current === null) {
+    handoffRef.current = {
+      anchor: shouldHold()
+        ? captureStaticReadingAnchor(instance.options.getScrollElement())
+        : null,
+      settled: false,
+    };
+  }
+  const handoff = handoffRef.current;
+
+  // 非滚动期间新挂载的行在 commit 的 ref 阶段就会测高，早于下面的 layout effect；
+  // 所以锚点的新下标必须在 render 阶段就可读，供测高补偿按锚点而非旧视口判断。
+  pendingIndexRef.current = shouldHold()
+    ? resolvePendingAnchorIndex(anchorRef.current, nodeIds, handoff.settled)
+    : null;
 
   useLayoutEffect(() => {
     const scrollElement = instance.scrollElement;
-    const element = scrollElement && "scrollTop" in scrollElement
-      ? scrollElement
-      : null;
+    const element = scrollElement instanceof Element ? scrollElement : null;
     const measurements = instance.measurementsCache;
-    const anchor = anchorRef.current;
-    if (
-      anchor
-      && element
-      && nodeIds[anchor.index] !== anchor.key
-      && shouldHold()
-    ) {
-      const nextIndex = nodeIds.indexOf(anchor.key);
-      const delta = nextIndex < 0
-        ? 0
-        : (measurements[nextIndex]?.start ?? anchor.start) - anchor.start;
+    const held = anchorRef.current;
+    const nextIndex = pendingIndexRef.current;
+    if (held && element && nextIndex !== null) {
+      const delta = (measurements[nextIndex]?.start ?? held.start) - held.start;
       if (delta !== 0) {
         shiftConversationScrollTop(element, "virtualizer", delta);
+      }
+    }
+    // 新行的测高补偿仍要按锚点下标判断，所以在清除 pending 下标之前测量。
+    measureNewlyMountedRows(instance, measuredRowsRef.current);
+    pendingIndexRef.current = null;
+    // Virtualizer 拿到视口尺寸后才渲染行，首批行出现在挂载之后的提交里。
+    if (!handoff.settled && instance.elementsCache.size > 0) {
+      handoff.settled = true;
+      if (element && handoff.anchor) {
+        restoreStaticReadingAnchor(instance, element, handoff.anchor);
       }
     }
 
@@ -229,6 +283,84 @@ export function useConversationVirtualTopologyAnchor(
       ? null
       : { index, key: nodeIds[index], start: measurements[index].start };
   });
+
+  return useCallback(() => pendingIndexRef.current, []);
+}
+
+function resolvePendingAnchorIndex(
+  anchor: VirtualTopologyAnchor | null,
+  nodeIds: readonly string[],
+  handoffSettled: boolean,
+): number | null {
+  if (!handoffSettled) {
+    // 首批行在画布内按真实高度流式排布，首测只校正估高、不移动任何内容；
+    // 阅读位置由 restoreStaticReadingAnchor 一次恢复。
+    return 0;
+  }
+  if (!anchor || nodeIds[anchor.index] === anchor.key) {
+    return null;
+  }
+  const index = nodeIds.indexOf(anchor.key);
+  return index < 0 ? null : index;
+}
+
+interface StaticReadingAnchor {
+  index: number;
+  offsetTop: number;
+}
+
+interface VirtualHandoff {
+  anchor: StaticReadingAnchor | null;
+  settled: boolean;
+}
+
+function captureStaticReadingAnchor(
+  scrollElement: Element | Window | null,
+): StaticReadingAnchor | null {
+  if (!(scrollElement instanceof Element)) {
+    return null;
+  }
+  const viewportTop = scrollElement.getBoundingClientRect().top;
+  const rounds = scrollElement.querySelectorAll<HTMLElement>(
+    "[data-conversation-round-index]",
+  );
+  for (const round of rounds) {
+    const bounds = round.getBoundingClientRect();
+    if (bounds.bottom > viewportTop + VIRTUAL_ANCHOR_TOLERANCE_PX) {
+      return {
+        index: Number(round.dataset.conversationRoundIndex),
+        offsetTop: bounds.top - viewportTop,
+      };
+    }
+  }
+  return null;
+}
+
+function restoreStaticReadingAnchor<
+  TScrollElement extends Element | Window,
+  TItemElement extends Element,
+>(
+  instance: Virtualizer<TScrollElement, TItemElement>,
+  scrollElement: Element,
+  anchor: StaticReadingAnchor,
+): void {
+  const round = instance.elementsCache.get(
+    instance.options.getItemKey(anchor.index),
+  );
+  if (!round?.isConnected) {
+    return;
+  }
+  const offsetTop = (
+    round.getBoundingClientRect().top
+    - scrollElement.getBoundingClientRect().top
+  );
+  if (offsetTop !== anchor.offsetTop) {
+    shiftConversationScrollTop(
+      scrollElement,
+      "virtualizer",
+      offsetTop - anchor.offsetTop,
+    );
+  }
 }
 
 function findFirstVisibleMeasurement(

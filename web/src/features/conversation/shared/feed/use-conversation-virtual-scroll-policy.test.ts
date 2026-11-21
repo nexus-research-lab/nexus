@@ -34,6 +34,15 @@ describe("virtual conversation size changes", () => {
     expect(shouldAdjustConversationVirtualScrollPosition({ end: 200 }, 900, scrolled, reading)).toBe(true);
   });
 
+  it("judges rows by the reading anchor while a window topology change commits", () => {
+    // 前插 3 轮后锚点从下标 2 移到 5；scrollOffset 仍是旧拓扑的位置，不能再用来判断。
+    const reading = { ...following, followingLatest: false, topologyAnchorIndex: 5, userScrollActive: true };
+    const stale = { ...instance, scrollOffset: 300 };
+    expect(shouldAdjustConversationVirtualScrollPosition({ end: 900, index: 4 }, 160, stale, reading)).toBe(true);
+    expect(shouldAdjustConversationVirtualScrollPosition({ end: 200, index: 5 }, 160, stale, reading)).toBe(false);
+    expect(shouldAdjustConversationVirtualScrollPosition({ end: 200, index: 0 }, 160, stale, { ...reading, topologyAnchorIndex: 0 })).toBe(false);
+  });
+
   it("applies each measured delta once on top of the live scrollTop", () => {
     const element = { scrollTop: 240, scrollTo: () => { throw new Error("absolute write"); } };
     const virtualizer = {

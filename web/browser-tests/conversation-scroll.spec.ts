@@ -916,10 +916,11 @@ test("conversation delete actions replace the date meta slot", async ({ page }) 
   }
 });
 
-for (const virtual of [false, true]) {
-  test(`${virtual ? "virtual" : "static"} continuous window keeps the reading position through prepend, eviction and reload`, async ({ page }) => {
+// handoff：与真实长会话一致，首屏是静态 Feed，上滚途中驻留轮次越过阈值才切换为虚拟 Feed。
+for (const renderer of ["static", "virtual", "handoff"] as const) {
+  test(`${renderer} continuous window keeps the reading position through prepend, eviction and reload`, async ({ page }) => {
     await page.goto("/ui-gallery.html");
-    await page.evaluate(async (virtualEnabled) => {
+    await page.evaluate(async (renderer) => {
       const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
       const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
       const virtualPath = "/node_modules/.vite-browser-test/deps/@tanstack_react-virtual.js";
@@ -927,11 +928,13 @@ for (const virtual of [false, true]) {
       const loaderPath = "/src/features/conversation/shared/timeline/window-loader/use-continuous-window-loader.ts";
       const policyPath = "/src/features/conversation/shared/feed/use-conversation-virtual-scroll-policy.ts";
       const controllerPath = "/src/features/conversation/shared/timeline/scroll/scroll-controller.ts";
+      const canvasPath = "/src/features/conversation/shared/feed/conversation-virtual-canvas.tsx";
       const { default: React } = await import(reactPath);
       const { default: { createRoot } } = await import(domPath);
       const { useVirtualizer } = await import(virtualPath);
       const { useFollowScroll } = await import(hookPath);
       const { useContinuousWindowLoader } = await import(loaderPath);
+      const { ConversationVirtualCanvas } = await import(canvasPath);
       const {
         scrollConversationVirtualElement,
         shouldAdjustConversationVirtualScrollPosition,
@@ -941,8 +944,10 @@ for (const virtual of [false, true]) {
       const h = React.createElement;
       const TOTAL = 160;
       const CAP = 40;
-      const PAGE = 10;
-      const heightOf = (index: number) => 90 + (index % 5) * 30;
+      // 与真实会话一致：一页只有几轮，实测高度远大于虚拟估高。
+      const PAGE = 3;
+      const HANDOFF_ROUNDS = 30;
+      const heightOf = (index: number) => 220 + (index % 5) * 90;
       const wait = () => new Promise((resolve) => setTimeout(resolve, 30));
       type RoundWindow = { first: number; last: number };
 
@@ -962,8 +967,9 @@ for (const virtual of [false, true]) {
         return h("div", {
           ref: scroll.feedRef,
           style: { display: "flex", flexDirection: "column" },
-        }, indexes.map((index) => h("div", {
+        }, indexes.map((index, position) => h("div", {
           "data-conversation-round-id": String(index),
+          "data-conversation-round-index": position,
           key: index,
           style: roundStyle(index),
         }, `Round ${index}`)));
@@ -972,46 +978,44 @@ for (const virtual of [false, true]) {
       function VirtualFeed({ indexes, roundIds, scroll }: FeedProps) {
         const virtualizer = useVirtualizer({
           count: indexes.length,
-          estimateSize: () => 120,
+          estimateSize: () => 60,
           getItemKey: (index: number) => roundIds[index],
           getScrollElement: () => scroll.scrollRef.current,
           measureElement: (element: HTMLElement) => element.getBoundingClientRect().height,
           overscan: 2,
           scrollToFn: scrollConversationVirtualElement,
         });
+        const getTopologyAnchorIndex = useConversationVirtualTopologyAnchor(
+          virtualizer,
+          roundIds,
+          () => !scroll.isFollowingLatest() && !scroll.isBottomScrollActive(),
+        );
         virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (
-          item: { end: number },
+          item: { end: number; index: number },
           delta: number,
           instance: unknown,
         ) => shouldAdjustConversationVirtualScrollPosition(item, delta, instance, {
           bottomScrollActive: scroll.isBottomScrollActive(),
           followingLatest: scroll.isFollowingLatest(),
           navigationActive: false,
+          topologyAnchorIndex: getTopologyAnchorIndex(),
           userScrollActive: scroll.isUserScrollActive(),
         });
-        useConversationVirtualTopologyAnchor(
-          virtualizer,
-          roundIds,
-          () => !scroll.isFollowingLatest() && !scroll.isBottomScrollActive(),
-        );
+        // 与真实 Feed 相同的画布：已挂载的行按真实高度流式排布，整体平移到首个 item 的起点。
+        const items: Array<{ index: number; start: number }> = virtualizer.getVirtualItems();
+        const totalSize = virtualizer.getTotalSize();
         return h("div", {
           ref: scroll.feedRef,
           "data-conversation-virtual-feed": "true",
-          style: { position: "relative", height: virtualizer.getTotalSize() },
-        }, virtualizer.getVirtualItems().map((item: { index: number; start: number }) => h("div", {
+          style: { position: "relative", height: totalSize },
+        }, h(ConversationVirtualCanvas, { offset: items[0]?.start ?? 0, totalSize }, items.map((item) => h("div", {
           "data-conversation-round-id": String(indexes[item.index]),
+          "data-conversation-round-index": item.index,
           "data-index": item.index,
           key: indexes[item.index],
           ref: virtualizer.measureElement,
-          style: {
-            ...roundStyle(indexes[item.index]),
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            transform: `translateY(${item.start}px)`,
-          },
-        }, `Round ${indexes[item.index]}`)));
+          style: roundStyle(indexes[item.index]),
+        }, `Round ${indexes[item.index]}`))));
       }
 
       function Harness() {
@@ -1066,6 +1070,12 @@ for (const virtual of [false, true]) {
           windowRoundIds: roundIds,
         });
         const feed = { indexes, roundIds, scroll };
+        const [virtualEnabled, setVirtualEnabled] = React.useState(renderer === "virtual");
+        React.useEffect(() => {
+          if (renderer === "handoff" && indexes.length >= HANDOFF_ROUNDS) {
+            setVirtualEnabled(true);
+          }
+        }, [indexes.length]);
         return h("div", { style: { position: "fixed", inset: 0, zIndex: 99999, background: "white" } },
           h("div", {
             "data-window-first": roundWindow.first,
@@ -1076,6 +1086,7 @@ for (const virtual of [false, true]) {
             onScroll: scroll.onScroll,
             onWheel: scroll.onWheel,
             style: { height: 500, overflowY: "auto", overflowAnchor: "none" },
+            "data-window-renderer": virtualEnabled ? "virtual" : "static",
           }, loaded ? h(virtualEnabled ? VirtualFeed : StaticFeed, feed) : null),
         );
       }
@@ -1108,7 +1119,7 @@ for (const virtual of [false, true]) {
         requestAnimationFrame(sample);
       };
       requestAnimationFrame(sample);
-    }, virtual);
+    }, renderer);
 
     const viewport = page.locator("[data-window-scroll]");
     const state = () => page.evaluate(() => {
@@ -1150,6 +1161,14 @@ for (const virtual of [false, true]) {
 
     const up = await wheelUntil(-150, (current) => current.first === 0 && current.scrollTop === 0);
     expect(up.current.last).toBe(39);
+    // 静态 Feed 的最后一次前插与切换到 Virtualizer 可能落在同一帧，这是一次所有权交接。
+    const isHandoff = (conflict: unknown) => {
+      const { first, second } = conflict as { first: string; second: string };
+      return renderer === "handoff" && first === "anchor" && second === "virtualizer";
+    };
+    expect(up.current.conflicts.filter((conflict) => !isHandoff(conflict))).toEqual([]);
+    expect(up.current.conflicts.length).toBeLessThanOrEqual(1);
+    await expect(viewport).toHaveAttribute("data-window-renderer", renderer === "static" ? "static" : "virtual");
     for (let index = 1; index < up.samples.length; index += 1) {
       const moved = up.samples[index] - up.samples[index - 1];
       expect(moved, `upward frame ${index}`).toBeLessThanOrEqual(2);
@@ -1163,6 +1182,6 @@ for (const virtual of [false, true]) {
       expect(moved, `downward frame ${index}`).toBeGreaterThanOrEqual(-2);
       expect(moved, `downward frame ${index}`).toBeLessThan(700);
     }
-    expect(down.current.conflicts).toEqual([]);
+    expect(down.current.conflicts).toEqual(up.current.conflicts);
   });
 }
