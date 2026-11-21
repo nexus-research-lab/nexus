@@ -35,6 +35,7 @@ type DmChatSession = Omit<
 > & {
   conversation: ConversationPanelSessionSource["conversation"] & Pick<
     UseAgentConversationReturn,
+    | "history_gap_after_round_id"
     | "live_round_ids"
     | "messages"
     | "pending_permissions"
@@ -253,6 +254,7 @@ function buildDmFeedModel({
       workspaceAgentId,
     },
     source: {
+      historyGapAfterRoundId: conversation.history_gap_after_round_id,
       liveLayoutActive: scroll.liveLayoutActive,
       liveRoundIds: conversation.live_round_ids,
       messageGroups: timeline.message_groups,

@@ -25,6 +25,7 @@ Feed 只挂载正文已驻留的连续窗口，索引中存在但未驻留的轮
 轮间距必须放在每个可测量 round wrapper 内，静态父容器不得使用 `gap`/`space-y`；否则跨过虚拟化阈值时累计间距会消失并造成整屏位移。
 虚拟 Feed 根节点必须声明 `data-conversation-virtual-feed="true"`，避免共享滚动层重复执行可见轮次补偿或 bottom 写入。
 最后一个 root 不得预建 viewport 高度的空白 runway。新消息从真实内容底部进入；FOLLOW 把并行 Agent 视为同一条 live timeline，父 Feed 聚合尺寸变化后始终贴住真实底部，让旧内容连续上推。Feed 必须始终使用当前真实内容高度；过程区自动或手动收起、终态切换和虚拟估高校正不得保留历史最大 min-height，也不得通过底部对齐把差额变成消息上方空白。静态尺寸变化由 FOLLOW/READING 锚点处理，虚拟尺寸变化由 Virtualizer 处理，不做高度补偿动画。
+驻留窗口止于断点轮次（其后还有未驻留的历史）时，该轮次不是会话的最后一轮：不得标记 `isLast`，也不得提供编辑/重跑。
 optimistic user 被 ACK 替换为 canonical 消息时，Feed 与 Virtualizer 继续使用 `client_message_id` 作为节点身份，业务导航仍使用 canonical `round_id`，禁止重挂载同一轮或重播入场动画。
 
 聊天排版偏好改变后，虚拟 Feed 在下一帧清除高度缓存，已挂载行继续用 ResizeObserver 测量。挂载时不清除：从静态 Feed 切换过来的首批测高是恢复阅读位置的依据。
