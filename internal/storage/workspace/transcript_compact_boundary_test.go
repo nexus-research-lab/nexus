@@ -49,7 +49,7 @@ func TestPrimaryTranscriptChainCrossesCompactBoundary(t *testing.T) {
 	}
 
 	turns := collectTranscriptUserTurns(chain, shouldSkipTranscriptEntry)
-	if len(turns) != 1 || turns[0].Content != "生成 PPT" {
+	if len(turns) != 1 || turns[0].Content != transcriptUserContentKey("生成 PPT") {
 		t.Fatalf("user turns = %+v, 压缩摘要不应成为用户轮次", turns)
 	}
 

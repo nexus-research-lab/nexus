@@ -1,265 +1,210 @@
-// INPUT: 上次发布的 DM 读模型尾轮状态、纯追加的 transcript/overlay 与投影检查点。
-// OUTPUT: 只重新规范化最后一轮及新增轮次，并在同一 generation 内原子替换尾部分组。
-// POS: DM 历史每轮刷新的增量路径；无法证明前缀不受影响时一律回退全量重建。
+// INPUT: 读模型里上次发布的 DM 尾轮状态与 transcript 检查点、纯追加的 transcript/overlay。
+// OUTPUT: 只重新投影并规范化最后一轮及新增轮次，在同一 generation 内原子替换尾部分组并推进持久化状态。
+// POS: DM 历史每轮刷新的增量路径，进程重启后同样成立；无法证明前缀不受影响时一律回退全量重建。
 package workspace
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// 每个 scope 一份尾轮状态，主要开销是前缀的身份集合（每行几个短字符串）。
-const maxAgentHistoryTails = 64
-
 // 尾部最多覆盖的分组数；正常只有最后一两轮，超过说明 transcript 尾部跨了很多轮，直接全量重建。
 const maxAgentHistoryTailGroups = 16
 
-const (
-	historyRowSourceTranscript = iota
-	historyRowSourceMarker
-	historyRowSourceOverlay
-	historyRowSourceCount
-)
-
 var errAgentHistoryTailUnavailable = errors.New("agent history tail unavailable")
 
-// historyRowKeys 收集规范化阶段会跨行关联的身份：compact 与投递回执按 message_id，
-// 未完成轮次、result 配对与分组按 round/group key，引导去重按 source_round_id。
-// 两组原始行的身份集合互不相交时，它们的规范化结果互不影响。
-type historyRowKeys struct {
-	messages map[string]struct{}
-	groups   map[string]struct{}
-	guidance map[string]struct{}
+// agentHistoryCheckpoint 是随读模型一并发布的 DM 尾轮状态。末尾 TailGroups 个分组之前的分组
+// 由已冻结的原始行独立规范化得到，此后不再变化；尾部分组在下次刷新时由三类原始行重新规范化：
+// transcript 从 Transcript 检查点重放，marker 与 overlay 行取 Tail* 记录的下标加上新增的行
+// （两者都是 overlay 文件按行顺序派生的，纯追加时下标稳定）。JSON 形状改动需提升读模型版本。
+type agentHistoryCheckpoint struct {
+	TailGroups        int                  `json:"tail_groups"`
+	MarkerCount       int                  `json:"marker_count"`
+	OverlayCount      int                  `json:"overlay_count"`
+	TailMarkers       []int                `json:"tail_markers"`
+	TailOverlay       []int                `json:"tail_overlay"`
+	PriorMaxTimestamp int64                `json:"prior_max_timestamp"`
+	HasPrior          bool                 `json:"has_prior"`
+	Transcript        transcriptCheckpoint `json:"transcript"`
 }
 
-func newHistoryRowKeys() historyRowKeys {
-	return historyRowKeys{
-		messages: make(map[string]struct{}),
-		groups:   make(map[string]struct{}),
-		guidance: make(map[string]struct{}),
-	}
-}
-
-func (k historyRowKeys) add(row protocol.Message) {
-	putHistoryKey(k.messages, stringFromAny(row["message_id"]))
-	putHistoryKey(k.groups, historyPageGroupKey(row, false))
-	if stringFromAny(row[overlayKindField]) == overlayKindExternalDelivery {
-		putHistoryKey(k.messages, stringFromAny(row["assistant_message_id"]))
-	}
-	if stringFromAny(row["role"]) == "user" {
-		putHistoryKey(k.guidance, stringFromAny(row["source_round_id"]))
-	}
-	if metadata, ok := row["metadata"].(map[string]any); ok {
-		putHistoryKey(k.guidance, stringFromAny(metadata["source_round_id"]))
-	}
-}
-
-func (k historyRowKeys) merge(other historyRowKeys) {
-	for _, pair := range [][2]map[string]struct{}{{k.messages, other.messages}, {k.groups, other.groups}, {k.guidance, other.guidance}} {
-		for key := range pair[1] {
-			pair[0][key] = struct{}{}
-		}
-	}
-}
-
-func (k historyRowKeys) intersects(other historyRowKeys) bool {
-	return historyKeysIntersect(k.messages, other.messages) ||
-		historyKeysIntersect(k.groups, other.groups) ||
-		historyKeysIntersect(k.guidance, other.guidance)
-}
-
-func putHistoryKey(set map[string]struct{}, key string) {
-	if key != "" {
-		set[key] = struct{}{}
-	}
-}
-
-func historyKeysIntersect(left, right map[string]struct{}) bool {
-	if len(left) > len(right) {
-		left, right = right, left
-	}
-	for key := range left {
-		if _, ok := right[key]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-// historyTailPart 是某个来源参与本次尾轮投影的原始行；前 frozen 行此后不会再变化，
-// 其余（transcript 最后一个用户轮次之后）会在下次刷新时重新投影。
+// historyTailPart 是 marker 或 overlay 来源参与本次尾轮规范化的原始行：上次留在尾部分组里的行
+// 加上此后新增的行。positions 是各行在该来源全部行中的下标，total 是该来源当前的总行数。
 type historyTailPart struct {
-	rows   []protocol.Message
-	frozen int
+	rows      []protocol.Message
+	positions []int
+	total     int
 }
 
-// agentHistoryTail 绑定一个已发布的读模型状态（Sources 与 GroupCount）：
-// 末尾 TailGroups 个分组之前的分组由 Prior 对应的原始行独立规范化得到，
-// 末尾分组的冻结原始行保存在 Tail，下次刷新与新增行一起重新规范化。
-type agentHistoryTail struct {
-	Sources           []historyPageSourceSnapshot
-	GroupCount        int
-	TailGroups        int
-	Epoch             uint64
-	TranscriptFrozen  int
-	MarkerCount       int
-	OverlayCount      int
-	Tail              [historyRowSourceCount][]protocol.Message
-	Prior             historyRowKeys
-	PriorMaxTimestamp int64
-	HasPrior          bool
-}
-
-type agentHistoryTailStore struct {
-	mu      sync.Mutex
-	entries map[string]*agentHistoryTail
-	order   []string
-	// refreshed 统计成功的增量刷新次数，用于诊断是否走了快路径。
-	refreshed atomic.Uint64
-}
-
-// take 取出并移除状态：刷新失败时状态随之作废，由下一次全量重建重新建立。
-func (s *agentHistoryTailStore) take(scope string) *agentHistoryTail {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	tail := s.entries[scope]
-	s.removeLocked(scope)
-	return tail
-}
-
-func (s *agentHistoryTailStore) store(scope string, tail *agentHistoryTail) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.entries == nil {
-		s.entries = make(map[string]*agentHistoryTail)
+// wholeHistoryTailPart 用于完整重建：来源的全部行都参与。
+func wholeHistoryTailPart(rows []protocol.Message) historyTailPart {
+	positions := make([]int, len(rows))
+	for index := range rows {
+		positions[index] = index
 	}
-	s.removeLocked(scope)
-	s.entries[scope] = tail
-	s.order = append(s.order, scope)
-	for len(s.order) > maxAgentHistoryTails {
-		s.removeLocked(s.order[0])
+	return historyTailPart{rows: rows, positions: positions, total: len(rows)}
+}
+
+// appendedHistoryTailPart 取上次尾部的行（按下标）与 count 之后新增的行。
+func appendedHistoryTailPart(rows []protocol.Message, tail []int, count int) (historyTailPart, bool) {
+	if count > len(rows) {
+		return historyTailPart{}, false
 	}
+	part := historyTailPart{total: len(rows)}
+	for _, position := range tail {
+		if position < 0 || position >= count {
+			return historyTailPart{}, false
+		}
+		part.rows = append(part.rows, rows[position])
+		part.positions = append(part.positions, position)
+	}
+	for position := count; position < len(rows); position++ {
+		part.rows = append(part.rows, rows[position])
+		part.positions = append(part.positions, position)
+	}
+	return part, true
 }
 
-func (s *agentHistoryTailStore) removeLocked(scope string) {
-	delete(s.entries, scope)
-	s.order = slices.DeleteFunc(s.order, func(item string) bool { return item == scope })
-}
-
-// splitAgentHistoryTail 在尾部分组之前切开 parts，得到下一次刷新的尾轮状态。尾部从最后一组
-// 或任何仍会被重新投影的行所在分组（取更早者）开始：新一轮 marker 往往先于 transcript 落盘，
-// 此时 transcript 尾部仍属于上一组。只有两侧身份不相交、时间严格先后、且尾部分组能由
-// 尾部原始行单独重建时才成立；此时完整规范化结果等于“前缀规范化 ++ 尾部规范化”。
-// prior 只在成功时被扩充。
+// splitAgentHistoryTail 在尾部分组之前切开本次参与规范化的原始行，得到下一次刷新的尾轮状态
+// 以及因此新冻结的身份键。尾部从最后一组或任何仍会被重新投影的行所在分组（取更早者）开始：
+// 新一轮 marker 往往先于 transcript 落盘，此时 transcript 尾部仍属于上一组。transcript 的
+// 冻结边界是某个轮次起点；若起点之前的行仍落在尾部分组里（同一轮内的后续输入），就退到更早的
+// 起点，使尾部分组的 transcript 行全部可由检查点重放。只有两侧身份不相交、时间严格先后、
+// 且尾部分组能由尾部原始行单独重建时才成立；此时完整规范化结果等于“前缀规范化 ++ 尾部规范化”。
 func splitAgentHistoryTail(
 	ctx context.Context,
-	parts [historyRowSourceCount]historyTailPart,
+	replay *transcriptReplay,
+	markers historyTailPart,
+	overlay historyTailPart,
 	groups []historyPageIndexedGroup,
-	prior historyRowKeys,
 	priorMax int64,
 	hasPrior bool,
-) (*agentHistoryTail, bool) {
-	if len(groups) == 0 {
-		return nil, false
+) (*agentHistoryCheckpoint, historyTailKeys, bool) {
+	if replay == nil || len(groups) == 0 {
+		return nil, nil, false
 	}
-	cut := agentHistoryTailCut(parts, groups)
-	if len(groups)-cut > maxAgentHistoryTailGroups {
-		return nil, false
+	start, cut, ok := agentHistoryTailCut(replay, groups)
+	if !ok || len(groups)-cut > maxAgentHistoryTailGroups {
+		return nil, nil, false
 	}
 	if cut > 0 {
 		previous := groups[cut-1].Items
 		priorMax, hasPrior = messageTimestamp(previous[len(previous)-1]), true
 	}
 	if hasPrior && priorMax >= messageTimestamp(groups[cut].Items[0]) {
-		return nil, false
+		return nil, nil, false
 	}
 	inTail := make(map[string]struct{}, len(groups)-cut)
 	for _, group := range groups[cut:] {
 		inTail[group.GroupKey] = struct{}{}
 	}
-	added, tailKeys := newHistoryRowKeys(), newHistoryRowKeys()
-	next := &agentHistoryTail{TailGroups: len(groups) - cut}
+	frozen, tailKeys := make(historyTailKeys), make(historyTailKeys)
 	tailRows := make([]protocol.Message, 0)
-	for source, part := range parts {
-		for index, row := range part.rows {
-			key := historyPageGroupKey(row, false)
-			mutable := index >= part.frozen
-			if _, ok := inTail[key]; ok || (mutable && key != "") {
-				tailKeys.add(row)
-				tailRows = append(tailRows, row)
-				if !mutable {
-					next.Tail[source] = append(next.Tail[source], row)
-				}
-				continue
-			}
-			if !mutable {
-				added.add(row)
-			}
+	keep := func(row protocol.Message, mutable bool) bool {
+		key := historyPageGroupKey(row, false)
+		if _, ok := inTail[key]; ok || (mutable && key != "") {
+			tailKeys.addRow(row)
+			tailRows = append(tailRows, row)
+			return true
+		}
+		if !mutable {
+			frozen.addRow(row)
+		}
+		return false
+	}
+	next := &agentHistoryCheckpoint{
+		TailGroups:   len(groups) - cut,
+		MarkerCount:  markers.total,
+		OverlayCount: overlay.total,
+		TailMarkers:  []int{},
+		TailOverlay:  []int{},
+	}
+	for index, row := range replay.Rows {
+		keep(row, index >= replay.Starts[start].Rows)
+	}
+	for index, row := range markers.rows {
+		if keep(row, false) {
+			next.TailMarkers = append(next.TailMarkers, markers.positions[index])
 		}
 	}
-	if added.intersects(tailKeys) || prior.intersects(tailKeys) {
-		return nil, false
+	for index, row := range overlay.rows {
+		if keep(row, false) {
+			next.TailOverlay = append(next.TailOverlay, overlay.positions[index])
+		}
+	}
+	if frozen.intersects(tailKeys) {
+		return nil, nil, false
 	}
 	rebuilt, err := buildHistoryPageIndexedGroups(ctx, tailRows, false)
 	if err != nil || !reflect.DeepEqual(rebuilt, groups[cut:]) {
-		return nil, false
+		return nil, nil, false
 	}
-	prior.merge(added)
-	next.Prior, next.PriorMaxTimestamp, next.HasPrior = prior, priorMax, hasPrior
-	return next, true
+	checkpoint, entries := replay.checkpoint(start)
+	for key := range entries {
+		frozen[key] = struct{}{}
+	}
+	next.Transcript = checkpoint
+	next.PriorMaxTimestamp, next.HasPrior = priorMax, hasPrior
+	return next, frozen, true
 }
 
-// agentHistoryTailCut 返回尾部第一个分组的下标：最后一组，或仍会被重新投影的行所在的最早分组。
-func agentHistoryTailCut(parts [historyRowSourceCount]historyTailPart, groups []historyPageIndexedGroup) int {
-	index := make(map[string]int, len(groups))
-	for position, group := range groups {
-		index[group.GroupKey] = position
+// agentHistoryTailCut 选择 transcript 的冻结起点（replay.Starts 的下标）并返回尾部第一个分组的下标：
+// 最后一组，或仍会被重新投影的行所在的最早分组。从最后一个轮次起点开始，只要起点之前还有行
+// 落在尾部分组里，就退到不晚于该行的起点；没有这样的起点时返回 false。
+func agentHistoryTailCut(replay *transcriptReplay, groups []historyPageIndexedGroup) (start int, cut int, ok bool) {
+	position := make(map[string]int, len(groups))
+	for index, group := range groups {
+		position[group.GroupKey] = index
 	}
-	cut := len(groups) - 1
-	for _, part := range parts {
-		for _, row := range part.rows[min(part.frozen, len(part.rows)):] {
-			if position, ok := index[historyPageGroupKey(row, false)]; ok {
-				cut = min(cut, position)
+	for start = len(replay.Starts) - 1; start >= 0; {
+		frozen := replay.Starts[start].Rows
+		cut = len(groups) - 1
+		for _, row := range replay.Rows[frozen:] {
+			if index, exists := position[historyPageGroupKey(row, false)]; exists {
+				cut = min(cut, index)
 			}
 		}
+		first := -1
+		for index, row := range replay.Rows[:frozen] {
+			if group, exists := position[historyPageGroupKey(row, false)]; exists && group >= cut {
+				first = index
+				break
+			}
+		}
+		if first < 0 {
+			return start, cut, true
+		}
+		for start >= 0 && replay.Starts[start].Rows > first {
+			start--
+		}
 	}
-	return cut
+	return 0, 0, false
 }
 
-// rememberAgentHistoryTail 在全量重建得到可缓存结果后建立尾轮状态。
-func (s *AgentHistoryStore) rememberAgentHistoryTail(
+// newAgentHistoryTailState 在全量重建得到可缓存结果后建立尾轮状态；不可增量时返回 nil。
+func newAgentHistoryTailState(
 	ctx context.Context,
-	scope string,
 	parts agentHistoryRowParts,
 	groups []historyPageIndexedGroup,
-	sources []historyPageSourceSnapshot,
-) {
-	if scope == "" || !parts.Tracked || !s.transcriptProjectionEpochCached(parts.Projection.Epoch) {
-		return
-	}
-	tail, ok := splitAgentHistoryTail(ctx, [historyRowSourceCount]historyTailPart{
-		historyRowSourceTranscript: {rows: parts.Transcript, frozen: parts.Projection.Frozen},
-		historyRowSourceMarker:     {rows: parts.Markers, frozen: len(parts.Markers)},
-		historyRowSourceOverlay:    {rows: parts.Overlay, frozen: len(parts.Overlay)},
-	}, groups, newHistoryRowKeys(), 0, false)
+) (any, historyTailKeys) {
+	next, frozen, ok := splitAgentHistoryTail(
+		ctx, parts.Replay, wholeHistoryTailPart(parts.Markers), wholeHistoryTailPart(parts.Overlay), groups, 0, false,
+	)
 	if !ok {
-		return
+		return nil, nil
 	}
-	tail.Sources, tail.GroupCount = sources, len(groups)
-	tail.Epoch, tail.TranscriptFrozen = parts.Projection.Epoch, parts.Projection.Frozen
-	tail.MarkerCount, tail.OverlayCount = len(parts.Markers), len(parts.Overlay)
-	s.cache.tails.store(scope, tail)
+	return next, frozen
 }
 
 func (s *AgentHistoryStore) refreshAgentHistoryTail(
@@ -285,11 +230,6 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 	scopeKey string,
 ) (historyPageIndexBuild, error) {
 	started := time.Now()
-	tail := s.cache.tails.take(scopeKey)
-	// 检查点被淘汰时不必先读一遍历史再失败，直接交给全量重建。
-	if tail == nil || !s.transcriptProjectionEpochCached(tail.Epoch) {
-		return historyPageIndexBuild{}, errAgentHistoryTailUnavailable
-	}
 	db, err := s.readModel.database(ctx)
 	if err != nil {
 		return historyPageIndexBuild{}, err
@@ -298,8 +238,16 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 	if err != nil {
 		return historyPageIndexBuild{}, err
 	}
-	if !ok || previous.DisabledReason != "" || previous.GroupCount != tail.GroupCount || !snapshotsEqual(previous.Sources, tail.Sources) {
-		return historyPageIndexBuild{}, fmt.Errorf("published generation moved: %w", errHistoryPageIndexInvalid)
+	// 从未发布、已禁用或上次没能留下尾轮状态的 scope 没有可续接的位置，直接交给全量重建。
+	if !ok || previous.DisabledReason != "" {
+		return historyPageIndexBuild{}, errAgentHistoryTailUnavailable
+	}
+	tail, err := readAgentHistoryCheckpoint(ctx, db, scopeKey, previous.Generation)
+	if err != nil {
+		return historyPageIndexBuild{}, err
+	}
+	if tail == nil || tail.TailGroups > previous.GroupCount {
+		return historyPageIndexBuild{}, errAgentHistoryTailUnavailable
 	}
 	current, err := s.collectAgentHistoryPageSources(ctx, workspacePath, sessionValue)
 	if err != nil {
@@ -308,32 +256,39 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 	if err = s.checkAgentHistorySourcesAppended(ctx, workspacePath, sessionValue.SessionKey, previous.Sources, current); err != nil {
 		return historyPageIndexBuild{}, err
 	}
-	parts, err := s.readHistoryRowPartsContext(ctx, workspacePath, sessionValue, tail.TranscriptFrozen)
+	// 检查点只在单个非 fork transcript 上建立；来源形状不符说明会话已换了读取方式。
+	if _, forkMessageID := pendingForkTranscript(sessionValue); forkMessageID != "" ||
+		len(current) != 2 || current[1].Kind != historyPageSourceTranscript {
+		return historyPageIndexBuild{}, fmt.Errorf("transcript selection changed: %w", errHistoryPageIndexInvalid)
+	}
+	parts, overlayState, err := s.readOverlayRowPartsContext(ctx, workspacePath, sessionValue)
 	if err != nil {
 		return historyPageIndexBuild{}, err
 	}
-	if !parts.Tracked || parts.Projection.Epoch != tail.Epoch || parts.Projection.Stable < tail.TranscriptFrozen ||
-		len(parts.Markers) < tail.MarkerCount || len(parts.Overlay) < tail.OverlayCount {
-		return historyPageIndexBuild{}, fmt.Errorf("projection prefix changed: %w", errHistoryPageIndexInvalid)
+	markers, markersOK := appendedHistoryTailPart(parts.Markers, tail.TailMarkers, tail.MarkerCount)
+	overlay, overlayOK := appendedHistoryTailPart(parts.Overlay, tail.TailOverlay, tail.OverlayCount)
+	if !markersOK || !overlayOK {
+		return historyPageIndexBuild{}, fmt.Errorf("overlay rows shrank: %w", errHistoryPageIndexInvalid)
 	}
-	candidate := [historyRowSourceCount]historyTailPart{
-		historyRowSourceTranscript: {
-			rows:   append(append([]protocol.Message(nil), tail.Tail[historyRowSourceTranscript]...), parts.Transcript...),
-			frozen: len(tail.Tail[historyRowSourceTranscript]) + parts.Projection.Frozen - tail.TranscriptFrozen,
-		},
-		historyRowSourceMarker:  appendedHistoryTailPart(tail.Tail[historyRowSourceMarker], parts.Markers[tail.MarkerCount:]),
-		historyRowSourceOverlay: appendedHistoryTailPart(tail.Tail[historyRowSourceOverlay], parts.Overlay[tail.OverlayCount:]),
+	touchesFrozen := func(keys historyTailKeys) (bool, error) {
+		return historyReadTailKeysContain(ctx, db, scopeKey, keys)
 	}
-	touched := newHistoryRowKeys()
-	rows := make([]protocol.Message, 0)
-	for _, part := range candidate {
-		for _, row := range part.rows {
-			touched.add(row)
-		}
-		rows = append(rows, part.rows...)
+	replay, err := s.resumeTranscriptProjection(
+		ctx, workspacePath, sessionValue, previous.Sources[1], current[1], tail.Transcript, overlayState.RoundMarkers, touchesFrozen,
+	)
+	if err != nil {
+		return historyPageIndexBuild{}, err
+	}
+	rows := make([]protocol.Message, 0, len(replay.Rows)+len(markers.rows)+len(overlay.rows))
+	rows = append(append(append(rows, replay.Rows...), markers.rows...), overlay.rows...)
+	touched := make(historyTailKeys)
+	for _, row := range rows {
+		touched.addRow(row)
 	}
 	// 新增或重投影的行一旦触及前缀的身份（迟到的旧轮 result、跨轮引导等），就需要全局规范化。
-	if tail.Prior.intersects(touched) {
+	if conflict, err := touchesFrozen(touched); err != nil {
+		return historyPageIndexBuild{}, err
+	} else if conflict {
 		return historyPageIndexBuild{}, fmt.Errorf("append touches earlier rounds: %w", errHistoryPageIndexInvalid)
 	}
 	groups, err := buildHistoryPageIndexedGroups(ctx, rows, false)
@@ -343,7 +298,7 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 	if len(groups) == 0 || (tail.HasPrior && messageTimestamp(groups[0].Items[0]) <= tail.PriorMaxTimestamp) {
 		return historyPageIndexBuild{}, fmt.Errorf("tail reorders before earlier rounds: %w", errHistoryPageIndexInvalid)
 	}
-	next, nextOK := splitAgentHistoryTail(ctx, candidate, groups, tail.Prior, tail.PriorMaxTimestamp, tail.HasPrior)
+	next, frozen, nextOK := splitAgentHistoryTail(ctx, replay, markers, overlay, groups, tail.PriorMaxTimestamp, tail.HasPrior)
 	roundIndex, err := s.readCanonicalRoundIndexContext(ctx, workspacePath, sessionValue, nil)
 	if err != nil {
 		return historyPageIndexBuild{}, err
@@ -356,34 +311,50 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 		return historyPageIndexBuild{}, fmt.Errorf("sources changed during refresh: %w", errHistoryPageIndexInvalid)
 	}
 	start := previous.GroupCount - tail.TailGroups
-	if err = replaceHistoryReadModelTail(ctx, db, scopeKey, previous, start, groups, current, roundIndex.Items, nil); err != nil {
+	// 分组、来源快照、尾轮状态与新冻结的身份键在同一事务内推进；中途失败时旧状态原样保留。
+	err = replaceHistoryReadModelTail(ctx, db, scopeKey, previous, start, groups, current, roundIndex.Items, func(tx *sql.Tx) error {
+		var state any
+		if nextOK {
+			state = next
+		}
+		if err := persistHistoryReadTail(ctx, tx, scopeKey, previous.Generation, nil, state); err != nil {
+			return err
+		}
+		return insertHistoryReadTailKeys(ctx, tx, scopeKey, frozen)
+	})
+	if err != nil {
 		return historyPageIndexBuild{}, err
 	}
-	s.cache.tails.refreshed.Add(1)
-	if nextOK {
-		next.Sources, next.GroupCount = current, start+len(groups)
-		next.Epoch, next.TranscriptFrozen = parts.Projection.Epoch, parts.Projection.Frozen
-		next.MarkerCount, next.OverlayCount = len(parts.Markers), len(parts.Overlay)
-		s.cache.tails.store(scopeKey, next)
-	}
+	s.cache.tailRefreshes.Add(1)
 	logx.FromContext(ctx).Info("DM 历史增量更新完成",
 		"session_key", sessionValue.SessionKey,
 		"replaced_groups", len(groups),
 		"unchanged_groups", start,
 		"tail_rows", len(rows),
+		"transcript_offset", tail.Transcript.Offset,
 		"next_tail", nextOK,
 		"duration_ms", time.Since(started).Milliseconds(),
 	)
 	return historyPageIndexBuild{Sources: current, RoundIndex: roundIndex.Items, Cacheable: true}, nil
 }
 
-func appendedHistoryTailPart(tail []protocol.Message, appended []protocol.Message) historyTailPart {
-	rows := append(append([]protocol.Message(nil), tail...), appended...)
-	return historyTailPart{rows: rows, frozen: len(rows)}
+// readAgentHistoryCheckpoint 读取 scope 当前 generation 的尾轮状态；上次发布没有留下状态时返回 nil。
+func readAgentHistoryCheckpoint(ctx context.Context, db historyReadModelQuerier, scope, generation string) (*agentHistoryCheckpoint, error) {
+	_, payload, err := readHistoryReadTail(ctx, db, scope, generation)
+	if err != nil {
+		return nil, err
+	}
+	var tail *agentHistoryCheckpoint
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	if err = decoder.Decode(&tail); err != nil {
+		return nil, fmt.Errorf("tail state unreadable: %w", errHistoryPageIndexInvalid)
+	}
+	return tail, nil
 }
 
-// checkAgentHistorySourcesAppended 只接受同一文件的纯追加。transcript 前缀由解析缓存代系与
-// 投影检查点 Epoch 证明；overlay 额外校验旧尺寸处的边缘指纹与完整行边界。
+// checkAgentHistorySourcesAppended 只接受同一文件的纯追加。transcript 前缀由续读检查点时的
+// 边缘指纹与起点条目校验证明；overlay 在这里校验旧尺寸处的边缘指纹与完整行边界。
 func (s *AgentHistoryStore) checkAgentHistorySourcesAppended(
 	ctx context.Context,
 	workspacePath string,

@@ -5,9 +5,7 @@ package workspace
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -69,23 +67,6 @@ func roomHistoryIncrementalRow(row protocol.Message) bool {
 		stringFromAny(row["round_id"]) != "" && messageTimestamp(row) > 0
 }
 
-func persistHistoryReadTail(ctx context.Context, tx *sql.Tx, scope, generation string, rows []protocol.Message, frozen []roomFrozenTranscriptRef) error {
-	payload, err := marshalHistoryPageJSONBounded(rows, historyReadModelMaxGroupBytes)
-	if err != nil {
-		return err
-	}
-	if frozen == nil {
-		frozen = []roomFrozenTranscriptRef{}
-	}
-	frozenPayload, err := marshalHistoryPageJSONBounded(frozen, historyReadModelMaxPageBytes)
-	if err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO history_read_tail(scope,generation,rows_json,frozen_refs_json,rows_digest) VALUES(?,?,?,?,?)
- ON CONFLICT(scope) DO UPDATE SET generation=excluded.generation, rows_json=excluded.rows_json, frozen_refs_json=excluded.frozen_refs_json, rows_digest=excluded.rows_digest`, scope, generation, payload, frozenPayload, historyReadTailDigest(payload, frozenPayload))
-	return err
-}
-
 // replaceHistoryReadModelTail 在同一 generation 内用 groups 替换 sequence>=start 的分组，
 // 并推进 scope 的 sources、round index 与分组数；scope 已被其他写入者推进时放弃。
 func replaceHistoryReadModelTail(
@@ -136,15 +117,6 @@ func replaceHistoryReadModelTail(
 		return err
 	}
 	return tx.Commit()
-}
-
-func historyReadTailDigest(rows []byte, frozen []byte) string {
-	hasher := sha256.New()
-	_, _ = fmt.Fprintf(hasher, "%d:", len(rows))
-	_, _ = hasher.Write(rows)
-	_, _ = fmt.Fprintf(hasher, "|%d:", len(frozen))
-	_, _ = hasher.Write(frozen)
-	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 // snapshotRoomHistoryDependencies 重新拍摄已发布 generation 的成员依赖。
@@ -235,13 +207,9 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if current == old && len(changedDependencies) == 0 {
 		return nil
 	}
-	var payload, frozenPayload []byte
-	var digest string
-	if err = db.QueryRowContext(ctx, `SELECT rows_json,frozen_refs_json,rows_digest FROM history_read_tail WHERE scope=? AND generation=?`, scopeKey, previous.Generation).Scan(&payload, &frozenPayload, &digest); err != nil {
+	payload, frozenPayload, err := readHistoryReadTail(ctx, db, scopeKey, previous.Generation)
+	if err != nil {
 		return err
-	}
-	if historyReadTailDigest(payload, frozenPayload) != digest {
-		return errHistoryPageIndexInvalid
 	}
 	var frozen []roomFrozenTranscriptRef
 	if err = json.Unmarshal(frozenPayload, &frozen); err != nil {
