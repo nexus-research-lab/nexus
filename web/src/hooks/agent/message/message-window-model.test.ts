@@ -5,6 +5,7 @@ import type { Message } from "@/types/conversation/message/entity";
 import {
   advanceWindowGap,
   boundMessageWindow,
+  pinnedWindowRounds,
 } from "./message-window-model";
 
 function round(index: number, overrides: Partial<Message> = {}): Message {
@@ -119,5 +120,18 @@ describe("navigator jump into a detached window", () => {
     expect(advanceWindowGap(detached, pageRoundIds(1, 4))).toBe("round-4");
     expect(advanceWindowGap(detached, pageRoundIds(1, 2))).toBe("round-4");
     expect(advanceWindowGap({ ...detached, gapAfterRoundId: null }, pageRoundIds(3, 6))).toBeNull();
+  });
+
+  it("carries a streaming round over whole, with its prompt and finished replies", () => {
+    const prompt = round(9);
+    const finished = round(9, { message_id: "assistant-9a", role: "assistant" });
+    const streaming = round(9, {
+      is_complete: false,
+      message_id: "assistant-9b",
+      role: "assistant",
+      stream_status: "streaming",
+    } as Partial<Message>);
+    expect(pinnedWindowRounds([...rounds(1, 4), prompt, finished, streaming]))
+      .toEqual([prompt, finished, streaming]);
   });
 });

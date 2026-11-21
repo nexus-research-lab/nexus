@@ -24,6 +24,7 @@ import {
   isPinnedWindowMessage,
   loadedMessageRoundIds,
   messageWindowKey,
+  pinnedWindowRounds,
   type LoadedMessageWindow,
 } from "../message/message-window-model";
 import type { MessageWindowUpdater } from "../message/use-agent-message-collection";
@@ -144,7 +145,7 @@ function commitOlderHistoryPage(
 
 /**
  * 导航目标不在驻留窗口内时围绕目标重建窗口：与当前窗口有交集的页直接并入，
- * 越过断点时断点随之后移；否则丢弃旧窗口，只保留未落库/流式中的实时尾部，
+ * 越过断点时断点随之后移；否则丢弃旧窗口，只保留未落库/流式中的完整 round，
  * 并在新窗口之后记下断点。
  */
 function commitRoundWindowHistoryPage(
@@ -171,10 +172,12 @@ function commitRoundWindowHistoryPage(
         { evict: resolveFarEdge(current.messages, pageRoundIdSet) },
       );
     }
-    const liveTail = current.messages.filter(isPinnedWindowMessage);
     return {
       gapAfterRoundId: pageRoundIds.at(-1) ?? null,
-      messages: mergeLoadedMessages(sortedMessages, liveTail),
+      messages: mergeLoadedMessages(
+        sortedMessages,
+        pinnedWindowRounds(current.messages),
+      ),
     };
   });
   commitPageCursor(context, page, sortedMessages, page.next_before_round_id !== null);

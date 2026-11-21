@@ -143,6 +143,16 @@ export function advanceWindowGap(
     : newerRoundIds.at(-1) ?? null;
 }
 
+/** 未落库或流式中的 round 的全部消息：与预算淘汰一致，按整轮保留而不拆开。 */
+export function pinnedWindowRounds(messages: Message[]): Message[] {
+  const pinnedRoundIds = new Set(
+    messages.filter(isPinnedWindowMessage).map(messageWindowKey),
+  );
+  return messages.filter(
+    (message) => pinnedRoundIds.has(messageWindowKey(message)),
+  );
+}
+
 export function loadedMessageRoundIds(messages: Message[]): string[] {
   return [...new Set(messages.map(messageWindowKey).filter(Boolean))];
 }
