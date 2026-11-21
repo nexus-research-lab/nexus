@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { Message } from "@/types/conversation/message/entity";
 
-import { boundMessageWindow } from "./message-window-model";
+import {
+  advanceWindowGap,
+  boundMessageWindow,
+} from "./message-window-model";
 
 function round(index: number, overrides: Partial<Message> = {}): Message {
   return {
@@ -96,5 +99,25 @@ describe("bounded continuous message window", () => {
     );
     expect(roundIds(oversized.messages)).toEqual(["round-1"]);
     expect(oversized.gapAfterRoundId).toBe("round-1");
+  });
+});
+
+describe("navigator jump into a detached window", () => {
+  const detached = { gapAfterRoundId: "round-4", messages: [...rounds(1, 4), round(9)] };
+  const pageRoundIds = (from: number, to: number) => roundIds(rounds(from, to));
+
+  it("moves the gap to the end of a page that extends the window past it", () => {
+    // 断点留在 round-4 会让向后加载把 5、6 误判为已接上最新，7、8 再也加载不到。
+    expect(advanceWindowGap(detached, pageRoundIds(3, 6))).toBe("round-6");
+  });
+
+  it("closes the gap once the page reaches the rounds resident behind it", () => {
+    expect(advanceWindowGap(detached, pageRoundIds(3, 9))).toBeNull();
+  });
+
+  it("leaves the gap alone when the page stays on the resident side of it", () => {
+    expect(advanceWindowGap(detached, pageRoundIds(1, 4))).toBe("round-4");
+    expect(advanceWindowGap(detached, pageRoundIds(1, 2))).toBe("round-4");
+    expect(advanceWindowGap({ ...detached, gapAfterRoundId: null }, pageRoundIds(3, 6))).toBeNull();
   });
 });

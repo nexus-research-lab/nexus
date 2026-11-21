@@ -19,6 +19,7 @@ import {
   sortMessages,
 } from "../message/message-collection-model";
 import {
+  advanceWindowGap,
   boundMessageWindow,
   isPinnedWindowMessage,
   loadedMessageRoundIds,
@@ -143,7 +144,8 @@ function commitOlderHistoryPage(
 
 /**
  * 导航目标不在驻留窗口内时围绕目标重建窗口：与当前窗口有交集的页直接并入，
- * 否则丢弃旧窗口，只保留未落库/流式中的实时尾部，并在新窗口之后记下断点。
+ * 越过断点时断点随之后移；否则丢弃旧窗口，只保留未落库/流式中的实时尾部，
+ * 并在新窗口之后记下断点。
  */
 function commitRoundWindowHistoryPage(
   page: ConversationMessagePage,
@@ -163,7 +165,7 @@ function commitRoundWindowHistoryPage(
     if (overlaps) {
       return boundMessageWindow(
         {
-          gapAfterRoundId: current.gapAfterRoundId,
+          gapAfterRoundId: advanceWindowGap(current, pageRoundIds),
           messages: mergeLoadedMessages(sortedMessages, current.messages),
         },
         { evict: resolveFarEdge(current.messages, pageRoundIdSet) },

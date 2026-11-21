@@ -123,6 +123,26 @@ export function boundMessageWindow(
   };
 }
 
+/**
+ * 与窗口相交的新页越过断点时断点随之后移：页内断点之后的 round 已经驻留，
+ * 说明新页接上了断点后的尾部，窗口连到最新；否则断点落在页末。
+ */
+export function advanceWindowGap(
+  window: LoadedMessageWindow,
+  pageRoundIds: string[],
+): string | null {
+  const gapRoundId = window.gapAfterRoundId;
+  const gapIndex = gapRoundId === null ? -1 : pageRoundIds.indexOf(gapRoundId);
+  const newerRoundIds = gapIndex < 0 ? [] : pageRoundIds.slice(gapIndex + 1);
+  if (newerRoundIds.length === 0) {
+    return gapRoundId;
+  }
+  const residentRoundIds = new Set(loadedMessageRoundIds(window.messages));
+  return newerRoundIds.some((roundId) => residentRoundIds.has(roundId))
+    ? null
+    : newerRoundIds.at(-1) ?? null;
+}
+
 export function loadedMessageRoundIds(messages: Message[]): string[] {
   return [...new Set(messages.map(messageWindowKey).filter(Boolean))];
 }
