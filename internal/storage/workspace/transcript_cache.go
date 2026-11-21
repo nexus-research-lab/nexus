@@ -37,7 +37,6 @@ func (s *AgentHistoryStore) readTranscriptCache(path string, source historyPageS
 }
 
 // readTranscriptCacheLineage 返回缓存内共享的条目：调用方只能读取，需要修改的部分自行深拷贝。
-
 func (s *AgentHistoryStore) readTranscriptCacheLineage(path string, source historyPageSourceSnapshot) ([]transcriptEntry, uint64, bool) {
 	s.cache.mu.Lock()
 	entry, exists := s.cache.entries[path]
