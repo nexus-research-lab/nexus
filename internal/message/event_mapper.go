@@ -1,4 +1,4 @@
-// INPUT: Processor 产出的流事件、durable/ephemeral 消息与 runtime 状态。
+// INPUT: Reducer 对当前轮次产出的流事件、durable/ephemeral 消息与 runtime 状态。
 // OUTPUT: 带完整会话身份的协议事件、Subagent 失效、持久消息和 round 终态。
 // POS: SDK 消息投影到 Nexus 事件协议的统一编排边界。
 package message
@@ -38,7 +38,7 @@ type EventMapResult struct {
 type EventMapper struct {
 	ctx                    MessageContext
 	includeStreamLifecycle bool
-	processor              *Processor
+	reducer                *Reducer
 	lastAssistantMessage   protocol.Message
 	decorateMessage        MessageDecorator
 	subagentTaskIDs        map[string]struct{}
@@ -49,10 +49,18 @@ type EventMapper struct {
 
 // NewEventMapper 创建通用 SDK 消息映射器。
 func NewEventMapper(options EventMapperOptions) *EventMapper {
+	reducer := NewReducer(options.Context)
+	// 实时链路由宿主在写入 round marker 时确定轮次身份，mapper 的生命周期就是这一轮。
+	reducer.BeginRound(RoundBoundary{
+		Kind:         RoundBoundaryUserInput,
+		RoundID:      options.Context.RoundID,
+		AgentRoundID: options.Context.AgentRoundID,
+		ParentID:     options.Context.ParentID,
+	})
 	return &EventMapper{
 		ctx:                    options.Context,
 		includeStreamLifecycle: options.IncludeStreamLifecycle,
-		processor:              NewProcessor(options.Context, ""),
+		reducer:                reducer,
 		decorateMessage:        noopMessageDecorator,
 		subagentTaskIDs:        make(map[string]struct{}),
 		subagentTaskByToolUse:  make(map[string]string),
@@ -68,13 +76,13 @@ func (m *EventMapper) SetMessageDecorator(decorator MessageDecorator) {
 
 // Map 将一条 SDK 消息映射为 protocol event 与 durable message。
 func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason ...string) (EventMapResult, error) {
-	output := m.processor.Process(incoming)
+	output := m.reducer.Reduce(incoming)
 	if output.Err != nil {
 		return EventMapResult{}, output.Err
 	}
 	NormalizeInterruptedOutput(&output, textutil.FirstNonEmpty(interruptReason...))
 	if output.ResultSubtype == "interrupted" {
-		if partial := m.processor.FinalizeInterruptedAssistant(); len(partial) > 0 {
+		if partial := m.reducer.FinalizeInterruptedAssistant(); len(partial) > 0 {
 			output.DurableMessages = append([]protocol.Message{partial}, output.DurableMessages...)
 		}
 	}
@@ -106,7 +114,7 @@ func (m *EventMapper) appendRuntimeStatus(result *EventMapResult, message *sdkpr
 
 func (m *EventMapper) appendStreamEvents(result *EventMapResult, output Output) {
 	if m.includeStreamLifecycle && output.StreamStarted {
-		messageID := m.processor.CurrentMessageID()
+		messageID := m.reducer.CurrentMessageID()
 		result.Events = append(result.Events, m.wrapStreamLifecycleEvent(protocol.EventTypeStreamStart, messageID))
 	}
 	for _, streamEvent := range output.StreamEvents {
@@ -242,12 +250,12 @@ func runtimeStatusEventData(status protocol.RuntimeStatus) map[string]any {
 
 // CurrentMessageID 返回当前 assistant message_id。
 func (m *EventMapper) CurrentMessageID() string {
-	return m.processor.CurrentMessageID()
+	return m.reducer.CurrentMessageID()
 }
 
 // SessionID 返回当前 SDK session_id。
 func (m *EventMapper) SessionID() string {
-	return m.processor.SessionID()
+	return m.reducer.SessionID()
 }
 
 // LastAssistantMessage 返回最近一条 assistant 快照。
@@ -260,7 +268,7 @@ func (m *EventMapper) LastAssistantMessage() protocol.Message {
 
 // FinalizeInterruptedAssistant 返回中断前已流出但尚无终态快照的 assistant。
 func (m *EventMapper) FinalizeInterruptedAssistant() protocol.Message {
-	partial := m.processor.FinalizeInterruptedAssistant()
+	partial := m.reducer.FinalizeInterruptedAssistant()
 	if len(partial) == 0 {
 		return nil
 	}

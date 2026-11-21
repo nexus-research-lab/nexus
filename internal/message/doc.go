@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - file_delivery.go：精确 nexus.deliver_files 回执投影；与 workspace_artifact.go 区分工作文件变更和显式交付，保留产出 Agent/round。
+//   - reducer.go：实时续接与历史回放共用的唯一轮次归约器；轮次身份只来自显式边界事件（用户输入 / runtime 自唤醒 / 隐式），回放行带 transcript 行号游标，ProjectionVersion 变化使持久化读模型重建。
 //   - processor.go / event_mapper.go：SDK 消息分发、状态持有、内部中断归一化、统一事件封装与场景装饰。
 //   - system.go / task_event.go / memory_attachment.go：可见系统事件（含独立自动审核记录）、用户引导、后台任务事件、记忆引用与同消息多 child token 快照；子任务身份与终态识别供 DM/Room 共用。
 //   - result_message.go：assistant API 错误、终态结果消息与 Provider 内容安全拦截归一化。

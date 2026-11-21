@@ -48,7 +48,18 @@ func mergeCompactedMessage(current protocol.Message, next protocol.Message) prot
 	if currentRole == "assistant" && nextRole == "assistant" {
 		return mergeAssistantSnapshots(current, next)
 	}
+	if transcriptPositioned(current) && !transcriptPositioned(next) {
+		next[message.TranscriptLineField] = current[message.TranscriptLineField]
+		next["timestamp"] = current["timestamp"]
+	}
 	return next
+}
+
+// transcriptPositioned 表示该行由 transcript 回放产出。宿主写入 overlay 的同 ID 副本只带接收时间，
+// 合并时由带位置的副本决定时间：所有 transcript 消息按同一个时钟定序，不随宿主延迟交错。
+func transcriptPositioned(row protocol.Message) bool {
+	_, positioned := row[message.TranscriptLineField]
+	return positioned
 }
 
 func mergeUserSnapshots(current protocol.Message, next protocol.Message) protocol.Message {
@@ -110,7 +121,11 @@ func mergeAssistantSnapshots(current protocol.Message, next protocol.Message) pr
 	if status := stringFromAny(next["stream_status"]); status != "" {
 		merged["stream_status"] = status
 	}
-	if ts := messageTimestamp(next); ts >= messageTimestamp(current) {
+	switch currentPositioned, nextPositioned := transcriptPositioned(current), transcriptPositioned(next); {
+	case currentPositioned && !nextPositioned:
+	case nextPositioned && !currentPositioned:
+		merged["timestamp"] = next["timestamp"]
+	case messageTimestamp(next) >= messageTimestamp(current):
 		merged["timestamp"] = next["timestamp"]
 	}
 
