@@ -1184,20 +1184,6 @@ func historyPageSourceKey(source historyPageSourceSnapshot) string {
 	}, "\x00")
 }
 
-func readWorkspaceJSONLAtContext(
-	ctx context.Context,
-	store *SessionFileStore,
-	workspacePath string,
-	target string,
-) ([]map[string]any, error) {
-	file, err := openWorkspaceFileAt(store, workspacePath, target)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return readJSONLFileWithContext(ctx, file)
-}
-
 // openWorkspaceFileAt 以只读方式打开 workspace 内的受限文件；调用方负责关闭。
 func openWorkspaceFileAt(store *SessionFileStore, workspacePath string, target string) (*os.File, error) {
 	if ownerUserID := store.ownerUserID; ownerUserID != "" {

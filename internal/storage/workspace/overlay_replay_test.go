@@ -81,7 +81,7 @@ func (h *overlayReplayHarness) assertMatchesFullRead(active []string) {
 	if err != nil {
 		h.t.Fatalf("replayed overlay state: %v", err)
 	}
-	rows, err := readWorkspaceJSONLAtContext(ctx, h.history.files, h.workspacePath, h.overlayPath)
+	rows, err := h.readAllRows(ctx)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		h.t.Fatalf("full overlay read: %v", err)
 	}
@@ -108,6 +108,15 @@ func (h *overlayReplayHarness) assertMatchesFullRead(active []string) {
 	if !reflect.DeepEqual(gotIndex, wantIndex) {
 		h.t.Fatalf("round index diverged from full read\n got: %#v\nwant: %#v", gotIndex, wantIndex)
 	}
+}
+
+func (h *overlayReplayHarness) readAllRows(ctx context.Context) ([]map[string]any, error) {
+	file, err := openWorkspaceFileAt(h.history.files, h.workspacePath, h.overlayPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return readJSONLFileWithContext(ctx, file)
 }
 
 func (h *overlayReplayHarness) replayEntry() *overlayReplayEntry {
@@ -391,20 +400,33 @@ func TestOverlayReplayResultIsIsolatedFromCallers(t *testing.T) {
 
 // 回放状态里的行会被多次读取共用：真实读取链路并发读、同时有新行追加时，
 // 任何读取方都不能改写共用的行，race detector 与事后的整份比对共同把关。
+// 行里带上读取链路会改写的嵌套形态：超出内联预算的 tool_result、已有的投递记录与投递回执。
 func TestOverlayReplaySharedRowsSurviveConcurrentHistoryReads(t *testing.T) {
 	fixture := newLongSessionFixture(t, 12, 64)
 	harness := newOverlayReplayHarnessFor(t, fixture)
+	largeToolOutput := strings.Repeat("x", historyMessageDetailThresholdBytes)
 	appendOverlayRows := func(round int) {
 		roundID := fmt.Sprintf("round-%05d", round)
 		for _, message := range []protocol.Message{
 			{"message_id": "overlay-assistant-" + roundID, "role": "assistant", "round_id": roundID, "agent_id": "amy",
-				"content": []map[string]any{{"type": "text", "text": "overlay answer"}}, "timestamp": 1_700_000_000_000 + round*10_000 + 4000},
+				"content": []map[string]any{
+					{"type": "text", "text": "overlay answer"},
+					{"type": "tool_result", "tool_use_id": "tool-" + roundID, "content": largeToolOutput},
+				},
+				"external_deliveries": []map[string]any{{"channel": "im", "target": "earlier"}},
+				"timestamp":           1_700_000_000_000 + round*10_000 + 4000},
 			{"message_id": "overlay-result-" + roundID, "role": "result", "round_id": roundID, "subtype": "success",
 				"duration_ms": 1200, "timestamp": 1_700_000_000_000 + round*10_000 + 5000},
 		} {
 			if err := fixture.history.AppendOverlayMessage(fixture.workspacePath, fixture.session.SessionKey, message); err != nil {
 				t.Fatal(err)
 			}
+		}
+		if err := fixture.history.AppendExternalDeliveryReceipt(fixture.workspacePath, fixture.session.SessionKey, ExternalDeliveryReceipt{
+			RoundID: roundID, MessageID: "overlay-assistant-" + roundID, Channel: "im", Target: "later",
+			PrimaryPlatformMessageID: "platform-" + roundID,
+		}); err != nil {
+			t.Fatal(err)
 		}
 	}
 	for round := 0; round < fixture.rounds; round++ {

@@ -24,6 +24,8 @@ const (
 
 // overlayReplayCursor 记录一次回放结束的位置。只有同一文件、cursor 尺寸处的边缘指纹未变、
 // 且 cursor 落在完整行边界时，后续字节才能在已有状态上续放。
+// 指纹只覆盖首尾两段：文件变长的同时首尾之外被原地改写不会被发现。宿主对 overlay 只追加或
+// 整份替换（替换会换文件身份），判定强度与 DM 尾轮增量刷新对来源文件的判定一致。
 type overlayReplayCursor struct {
 	FileIdentity    string
 	Size            int64
@@ -95,6 +97,7 @@ func (s overlayReplaySpan) restart(file *os.File) overlayReplaySpan {
 }
 
 // overlayHistoryReplay 保存 overlay 历史行与 round marker 的回放状态。
+// 读取结果与回放状态共用行和 marker 的内容，调用方只读；历史读取链路改写前都先拷贝。
 type overlayHistoryReplay struct {
 	cursor *overlayReplayCursor
 	state  overlayHistoryState
@@ -127,6 +130,8 @@ func (r *overlayHistoryReplay) read(ctx context.Context, file *os.File) (overlay
 
 // overlayRoundIndexReplay 保存 DM round index 的回放状态：各 round 的累加器、已应用行的
 // message_id，以及按导航顺序排好的条目。条目不含 active 标记，读取时再叠加。
+// 读取结果与累加器共用 AgentIDs 元素和 DurationMS 指向的值，调用方只读；
+// 累加器只追加 AgentIDs、只替换 DurationMS 指针，不改写已交出去的内容。
 type overlayRoundIndexReplay struct {
 	cursor         *overlayReplayCursor
 	defaultAgentID string
