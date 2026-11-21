@@ -193,6 +193,22 @@ func TestTranscriptCacheReprojectsMarkersAndSegments(t *testing.T) {
 	}
 }
 
+func TestTranscriptCacheKeepsLatestCheckpointedEntryOverBudget(t *testing.T) {
+	s := NewAgentHistoryStore(t.TempDir())
+	source := historyPageSourceSnapshot{Exists: true, Size: maxTranscriptCacheSourceBytes/2 + 1}
+	rows := []transcriptEntry{{Data: map[string]any{"uuid": "test"}}}
+	s.writeTranscriptCache("other", source, rows, len(rows))
+	lineage := s.writeTranscriptCache("active", source, rows, len(rows))
+	// 带检查点后单个条目的权重就超过预算，仍要保留它，只淘汰其他会话。
+	s.storeTranscriptProjectionCheckpoint("active", &transcriptProjectionCheckpoint{Lineage: lineage})
+	if s.readTranscriptProjectionCheckpoint("active", lineage) == nil {
+		t.Fatal("active checkpoint evicted by its own weight")
+	}
+	if _, ok := s.readTranscriptCache("other", source); ok {
+		t.Fatal("older entry retained over budget")
+	}
+}
+
 func TestTranscriptCacheCapsRetainedSourceBytes(t *testing.T) {
 	s := NewAgentHistoryStore(t.TempDir())
 	source := historyPageSourceSnapshot{Exists: true, Size: maxTranscriptCacheSourceBytes/2 + 1}

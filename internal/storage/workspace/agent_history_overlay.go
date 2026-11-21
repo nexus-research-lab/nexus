@@ -241,22 +241,19 @@ func (s *AgentHistoryStore) readOverlayHistoryStateContext(
 	workspacePath string,
 	sessionKey string,
 ) (overlayHistoryState, error) {
-	rows, err := readWorkspaceJSONLAtContext(
-		ctx,
-		s.files,
-		workspacePath,
-		s.paths.SessionOverlayPath(workspacePath, sessionKey),
-	)
+	var state overlayHistoryState
+	err := s.replaySessionOverlay(workspacePath, sessionKey, func(entry *overlayReplayEntry, file *os.File) error {
+		var err error
+		state, err = entry.history.read(ctx, file)
+		return err
+	})
 	if errors.Is(err, os.ErrNotExist) {
 		return overlayHistoryState{
 			MessageRows:  []protocol.Message{},
 			RoundMarkers: []transcriptRoundMarker{},
 		}, nil
 	}
-	if err != nil {
-		return overlayHistoryState{}, err
-	}
-	return overlayHistoryStateFromRows(rows), nil
+	return state, err
 }
 
 func overlayHistoryStateFromRows(rows []map[string]any) overlayHistoryState {

@@ -16,6 +16,8 @@ type agentHistoryCache struct {
 	entries map[string]transcriptCacheEntry
 	// tailRefreshes 统计成功的 DM 读模型增量刷新次数，用于诊断是否走了快路径。
 	tailRefreshes atomic.Uint64
+	// overlays 保存 session overlay 的增量回放状态。
+	overlays overlayReplayStore
 }
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。

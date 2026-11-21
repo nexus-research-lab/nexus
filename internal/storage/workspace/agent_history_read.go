@@ -345,7 +345,7 @@ func (s *AgentHistoryStore) readTranscriptReplayContext(
 		if !found {
 			return nil, nil, fmt.Errorf("fork transcript boundary %s not found", throughMessageID)
 		}
-		return projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers), nil, nil
+		return projectTranscriptChain(workspacePath, sessionKey, agentID, cloneTranscriptEntries(chain), roundMarkers), nil, nil
 	}
 	// 长会话每轮只追加一个用户轮次，检查点让重建只投影最后一轮之后的条目。
 	projection := s.projectTranscriptChainCheckpointed(cachePath, lineage, workspacePath, sessionKey, agentID, chain, roundMarkers)

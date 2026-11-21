@@ -244,3 +244,32 @@ func BenchmarkLongSessionHistoryRestartAppended(b *testing.B) {
 		fixture.readFirstPage(b)
 	}
 }
+
+// BenchmarkLongSessionOverlayAfterAppend 追加一轮 marker 后读取 overlay 状态与 round 导航，
+// 单独衡量每轮刷新里 overlay 两条读取链路的成本。
+func BenchmarkLongSessionOverlayAfterAppend(b *testing.B) {
+	fixture := newLongSessionFixture(b, benchmarkLongSessionRounds(), 16)
+	read := func() {
+		ctx := context.Background()
+		state, err := fixture.history.readOverlayHistoryStateContext(ctx, fixture.workspacePath, fixture.session.SessionKey)
+		if err != nil {
+			b.Fatal(err)
+		}
+		index, err := fixture.history.readCanonicalRoundIndexContext(ctx, fixture.workspacePath, fixture.session, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(state.RoundMarkers) != fixture.rounds || len(index.Items) != fixture.rounds {
+			b.Fatalf("markers=%d index=%d want %d", len(state.RoundMarkers), len(index.Items), fixture.rounds)
+		}
+	}
+	read()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		b.StopTimer()
+		fixture.startRound(b)
+		b.StartTimer()
+		read()
+	}
+}
