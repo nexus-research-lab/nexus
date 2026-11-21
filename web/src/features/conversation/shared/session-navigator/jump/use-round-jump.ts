@@ -19,6 +19,8 @@ import { usePendingRoundJump } from "./use-pending-round-jump";
 interface UseRoundJumpOptions {
   activateRound: (roundId: string) => void;
   onLoadRoundWindow?: (roundId: string) => Promise<boolean>;
+  /** 导航事务结束（落点确认或取消）：视口此刻的位置就是新的阅读位置。 */
+  onNavigateEnd?: () => void;
   onNavigateStart?: () => void;
   roundScrollRef?: ConversationRoundScrollHandleRef;
   scopeKey: string | null;
@@ -29,6 +31,7 @@ interface UseRoundJumpOptions {
 export function useRoundJump({
   activateRound,
   onLoadRoundWindow,
+  onNavigateEnd,
   onNavigateStart,
   roundScrollRef,
   scopeKey,
@@ -41,7 +44,8 @@ export function useRoundJump({
     setPendingNavigation((current) => (
       current && isSameRoundJump(current, target) ? null : current
     ));
-  }, []);
+    onNavigateEnd?.();
+  }, [onNavigateEnd]);
   const cancelNavigation = useCallback(
     (target: PendingRoundJump): void => {
       completeNavigation(target);

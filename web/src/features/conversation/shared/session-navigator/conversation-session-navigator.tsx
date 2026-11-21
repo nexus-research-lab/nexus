@@ -30,6 +30,7 @@ interface ConversationSessionNavigatorProps {
   /** 导航只消费统一时间线投影，不自行分组消息。 */
   timeline: ConversationTimeline;
   onLoadRoundWindow?: (roundId: string) => Promise<boolean>;
+  onNavigateEnd?: () => void;
   onNavigateStart?: () => void;
   roundScrollRef?: ConversationRoundScrollHandleRef;
   scopeKey: string | null;
@@ -41,6 +42,7 @@ export function ConversationSessionNavigator({
   className,
   timeline,
   onLoadRoundWindow,
+  onNavigateEnd,
   onNavigateStart,
   roundScrollRef,
   scopeKey,
@@ -60,6 +62,7 @@ export function ConversationSessionNavigator({
     localization,
     timeline,
     onLoadRoundWindow,
+    onNavigateEnd,
     onNavigateStart,
     roundScrollRef,
     scopeKey,
