@@ -114,6 +114,7 @@ export function useConversationSession({
   const scroll = useFollowScroll({
     atomicLayoutKey,
     contentKey: scrollContentKey,
+    detachedFromLatest: conversation.history_gap_after_round_id !== null,
     initialScrollAnchor,
     liveLayoutActive,
     messageCount: visibleMessages.length,

@@ -29,6 +29,8 @@ interface UseFollowScrollOptions {
   messageCount: number;
   atomicLayoutKey?: string | null;
   contentKey?: string | null;
+  /** 驻留窗口与最新内容之间存在断点：视口底部不是会话底部，滚到这里不恢复 FOLLOW。 */
+  detachedFromLatest?: boolean;
   historyPrependToken?: number;
   initialScrollAnchor?: "bottom" | "top";
   liveLayoutActive?: boolean;
@@ -64,6 +66,7 @@ export function useFollowScroll({
   messageCount,
   atomicLayoutKey = null,
   contentKey = null,
+  detachedFromLatest = false,
   historyPrependToken = 0,
   initialScrollAnchor = "bottom",
   liveLayoutActive = false,
@@ -85,6 +88,8 @@ export function useFollowScroll({
   const historyAnchorRef = useRef(new HistoryPrependAnchor());
   const viewportAnchorRef = useRef(new ConversationViewportAnchor());
   const windowChangePendingRef = useRef(false);
+  const detachedFromLatestRef = useRef(detachedFromLatest);
+  detachedFromLatestRef.current = detachedFromLatest;
   const animatorRef = useRef<BottomScrollAnimator | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useResettableState(
     false,
@@ -179,7 +184,10 @@ export function useFollowScroll({
     if (!container) {
       return;
     }
-    const shouldFollow = isAtScrollBottom(container);
+    // 窗口脱离最新时贴住的只是断点：在这里恢复 FOLLOW 会让每一页新历史都把读者带到页末。
+    const shouldFollow = (
+      !detachedFromLatestRef.current && isAtScrollBottom(container)
+    );
     shouldFollowLatestRef.current = shouldFollow;
     setScrollToBottomVisibility(
       hasScrollableOverflow(container) && !shouldFollow,
@@ -520,6 +528,13 @@ export function useFollowScroll({
     sessionKey,
     setScrollToBottomVisibility,
   ]);
+
+  // 窗口重新连到最新时，仍停在底部的读者已经位于会话底部：补上因断点而没有恢复的 FOLLOW。
+  useLayoutEffect(() => {
+    if (!detachedFromLatest && !shouldFollowLatestRef.current) {
+      updateFollowState();
+    }
+  }, [detachedFromLatest, updateFollowState]);
 
   useEffect(() => cancelAnimation, [cancelAnimation]);
 

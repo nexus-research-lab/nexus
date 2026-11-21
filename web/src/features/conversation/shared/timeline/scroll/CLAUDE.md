@@ -11,6 +11,7 @@
 - 内容版本必须覆盖并行 Agent 的非末尾流式正文增长。静态 Feed 只观察父内容轨道，让同一布局周期内多个 Agent 的高度变化合并为一次真实 bottom 写入；虚拟 Feed 把普通 item 测高交给 Virtualizer；独立的滚动容器 ResizeObserver 处理 Composer、虚拟键盘及 App/浏览器窗口造成的 viewport 高度变化。
 - 用户已向上脱离 FOLLOW 时，Room 权限模块、终态正文与新成员回复都只恢复当前阅读锚点；仍在 FOLLOW 时，任何 Agent 的增长都属于同一个 live timeline，必须保持真实 bottom。共享 bottom 事务、Virtualizer 与浏览器 clamp 任一时刻只能有一个 `scrollTop` 写入者；测量期间短暂离开数值 bottom 不得替用户切换到 READING。
 - 历史分页加载提示必须是零布局高度的 viewport 浮层，不能在请求开始/结束时插入或移除 Feed 前置高度。
+- 驻留窗口与最新内容之间存在断点时，视口底部只是断点而不是会话底部：滚到这里不恢复 FOLLOW，回到底部入口保持可见；窗口重新连到最新且读者仍在底部时才补上 FOLLOW。否则每一页新历史提交都会把读者带到页末，一路连到最新。
 - 用户向上滚动的暂停意图必须粘住；只有明确向下回到底部、点击回到底部或切换会话才恢复跟随，各输入路径不得在面板投影中丢失。
 - 主 Feed 与 Thread 视口必须保留稳定 scrollbar gutter；滚动条出现或消失不得改变 Markdown 内容列宽并触发整段重新换行。
 - 回到底部入口只占自身浮动命中区；显隐不得调整 viewport，也不得用全宽层覆盖正文、Composer 或 Thread 分割线。

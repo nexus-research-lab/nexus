@@ -1032,6 +1032,7 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
         }, `Round ${indexes[item.index]}`))));
       }
 
+      let isFollowingLatest = () => false;
       function Harness() {
         // 与真实会话一致：滚动容器先挂载，首屏历史随后异步到达。
         const [loaded, setLoaded] = React.useState(false);
@@ -1047,10 +1048,12 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
         const revision = loaded ? `${roundWindow.first}:${roundWindow.last}` : "loading";
         const scroll = useFollowScroll({
           contentKey: revision,
+          detachedFromLatest: loaded && roundWindow.last < TOTAL - 1,
           messageCount: indexes.length,
           sessionKey: "continuous-window",
           topologyKey: revision,
         });
+        isFollowingLatest = scroll.isFollowingLatest;
         const commit = React.useCallback(async (next: (current: RoundWindow) => RoundWindow) => {
           await wait();
           const current = windowRef.current;
@@ -1113,7 +1116,11 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
       for (let index = 0; index < TOTAL; index += 1) {
         offsets.push(offsets[index] + heightOf(index));
       }
-      const probe = { conflicts: () => [] as unknown[], samples: [] as number[] };
+      const probe = {
+        conflicts: () => [] as unknown[],
+        following: () => isFollowingLatest(),
+        samples: [] as number[],
+      };
       (window as unknown as { __continuousWindow: typeof probe }).__continuousWindow = probe;
       const sample = () => {
         const viewport = document.querySelector<HTMLElement>("[data-window-scroll]");
@@ -1139,12 +1146,13 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
     const state = () => page.evaluate(() => {
       const element = document.querySelector<HTMLElement>("[data-window-scroll]")!;
       const probe = (window as unknown as {
-        __continuousWindow: { conflicts: () => unknown[]; samples: number[] };
+        __continuousWindow: { conflicts: () => unknown[]; following: () => boolean; samples: number[] };
       }).__continuousWindow;
       return {
         bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
         conflicts: probe.conflicts(),
         first: Number(element.dataset.windowFirst),
+        following: probe.following(),
         last: Number(element.dataset.windowLast),
         samples: probe.samples.splice(0),
         scrollTop: element.scrollTop,
@@ -1189,8 +1197,20 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
       expect(moved, `upward frame ${index}`).toBeGreaterThan(-700);
     }
 
+    // 一步滚到驻留窗口的底部，赶在下一页到达之前。这里只是断点而不是会话底部：
+    // 新页提交时读者留在原处，不会被 FOLLOW 一页页带向最新。
+    await page.mouse.wheel(0, 1_000_000);
+    await expect.poll(async () => (await state()).last).toBe(42);
+    await state();
+    await page.waitForTimeout(600);
+    const rested = await state();
+    expect(rested.last).toBe(42);
+    expect(rested.following).toBe(false);
+    expect(Math.max(...rested.samples) - Math.min(...rested.samples)).toBeLessThanOrEqual(2);
+
     const down = await wheelUntil(150, (current) => current.last === 159 && current.bottomGap <= 1);
     expect(down.current.first).toBe(120);
+    expect(down.current.following).toBe(true);
     for (let index = 1; index < down.samples.length; index += 1) {
       const moved = down.samples[index] - down.samples[index - 1];
       expect(moved, `downward frame ${index}`).toBeGreaterThanOrEqual(-2);
