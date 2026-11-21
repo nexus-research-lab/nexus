@@ -231,3 +231,46 @@ func parityDump(rows []protocol.Message) string {
 	encoded, _ := json.Marshal(rows)
 	return string(encoded)
 }
+
+// 带子任务进度的回复不是 transcript 原生消息，宿主会另写一份 overlay 副本。
+// 宿主收到它的时间晚于 runtime 记录压缩边界的时间时，刷新后压缩提示仍须排在这条回复之后。
+func TestHostCopiesKeepTranscriptOrderAcrossCompaction(t *testing.T) {
+	reply := func(timestamp int64, positioned bool) protocol.Message {
+		row := protocol.Message{
+			"message_id": "msg-progress", "role": "assistant", "round_id": "round-1", "timestamp": timestamp,
+			"content": []any{map[string]any{"type": "task_progress", "task_id": "task-1"}},
+		}
+		if positioned {
+			row[message.TranscriptLineField] = 3
+		}
+		return row
+	}
+	notice := func(timestamp int64, positioned bool) protocol.Message {
+		row := protocol.Message{
+			"message_id": "system_compact_boundary_round-1", "role": "system", "round_id": "round-1", "timestamp": timestamp,
+		}
+		if positioned {
+			row[message.TranscriptLineField] = 5
+		}
+		return row
+	}
+	transcript := []protocol.Message{reply(1000, true), notice(2000, true)}
+	overlay := []protocol.Message{reply(1000+parityHostLatencyMillis, false), notice(2000+parityHostLatencyMillis, false)}
+
+	for name, rows := range map[string][]protocol.Message{
+		"transcript 副本在前": slices.Concat(transcript, overlay),
+		"overlay 副本在前":    slices.Concat(overlay, transcript),
+	} {
+		compacted := compactMessages(rows)
+		if len(compacted) != 2 || compacted[0]["message_id"] != "msg-progress" ||
+			compacted[1]["message_id"] != "system_compact_boundary_round-1" {
+			t.Errorf("%s: 顺序 = %s", name, parityDump(compacted))
+			continue
+		}
+		for index, want := range []int64{1000, 2000} {
+			if got := messageTimestamp(compacted[index]); got != want {
+				t.Errorf("%s: 第 %d 行时间 = %d, want %d", name, index, got, want)
+			}
+		}
+	}
+}
