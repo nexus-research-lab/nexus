@@ -134,8 +134,11 @@ type historyPageIndexedGroup struct {
 }
 
 type historyPageIndexBuild struct {
+	// TailRows、TailState 与 TailKeys 是随 generation 一并发布的尾部增量状态（见 history_read_tail.go）；
+	// TailState 为 nil 表示下一次刷新只能完整重建。
 	TailRows   []protocol.Message
-	FrozenRefs []roomFrozenTranscriptRef
+	TailState  any
+	TailKeys   historyTailKeys
 	Groups     []historyPageIndexedGroup
 	RoundIndex []protocol.SessionRoundIndexItem
 	Sources    []historyPageSourceSnapshot

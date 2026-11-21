@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 11 // runtime 自唤醒的 <task-notification> 投影为触发行，不再显示原始标签。
+	historyReadModelSchemaVersion = 12 // DM 尾部状态与 transcript 投影位置持久化；tail 表改存通用状态并新增身份键表。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000
@@ -187,6 +187,7 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 			ctx,
 			`DROP TABLE IF EXISTS history_room_refs;
 			 DROP TABLE IF EXISTS history_read_message_keys;
+			 DROP TABLE IF EXISTS history_read_tail_keys;
 			 DROP TABLE IF EXISTS history_read_tail;
 			 DROP TABLE IF EXISTS history_read_details;
 			 DROP TABLE IF EXISTS history_read_groups;
@@ -203,7 +204,8 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 		) WITHOUT ROWID`,
 		`CREATE INDEX IF NOT EXISTS history_room_refs_age ON history_room_refs(updated_at_ms)`,
 		`CREATE TABLE IF NOT EXISTS history_read_message_keys (scope TEXT NOT NULL, generation TEXT NOT NULL, message_id TEXT NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(scope,generation,message_id)) WITHOUT ROWID`,
-		`CREATE TABLE IF NOT EXISTS history_read_tail (scope TEXT PRIMARY KEY, generation TEXT NOT NULL, rows_json BLOB NOT NULL, frozen_refs_json BLOB NOT NULL, rows_digest TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS history_read_tail (scope TEXT PRIMARY KEY, generation TEXT NOT NULL, rows_json BLOB NOT NULL, state_json BLOB NOT NULL, rows_digest TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS history_read_tail_keys (scope TEXT NOT NULL, kind INTEGER NOT NULL, key TEXT NOT NULL, PRIMARY KEY(scope,kind,key)) WITHOUT ROWID`,
 		`CREATE TABLE IF NOT EXISTS history_read_scopes (
 			scope TEXT PRIMARY KEY,
 			schema_version INTEGER NOT NULL,
@@ -899,7 +901,10 @@ func (m *historyReadModel) persist(
 			return err
 		}
 	}
-	if err = persistHistoryReadTail(ctx, tx, access.Scope, generation, built.TailRows, built.FrozenRefs); err != nil {
+	if err = persistHistoryReadTail(ctx, tx, access.Scope, generation, built.TailRows, built.TailState); err != nil {
+		return err
+	}
+	if err = replaceHistoryReadTailKeys(ctx, tx, access.Scope, built.TailKeys); err != nil {
 		return err
 	}
 	_, err = tx.ExecContext(
@@ -1297,6 +1302,9 @@ func (m *historyReadModel) deleteScope(ctx context.Context, scope string) error 
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_tail WHERE scope = ?`, scope); err != nil {
 		return err
 	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_tail_keys WHERE scope = ?`, scope); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_scopes WHERE scope = ?`, scope); err != nil {
 		return err
 	}
@@ -1341,6 +1349,12 @@ func (m *historyReadModel) evictColdScopes(ctx context.Context, cutoff time.Time
 	}
 	if _, err = tx.ExecContext(ctx,
 		`DELETE FROM history_read_tail WHERE scope IN (SELECT scope FROM history_read_scopes WHERE accessed_at_ms < ?)`,
+		cutoff.UnixMilli(),
+	); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx,
+		`DELETE FROM history_read_tail_keys WHERE scope IN (SELECT scope FROM history_read_scopes WHERE accessed_at_ms < ?)`,
 		cutoff.UnixMilli(),
 	); err != nil {
 		return err

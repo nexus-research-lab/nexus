@@ -244,21 +244,3 @@ func BenchmarkLongSessionHistoryRestartAppended(b *testing.B) {
 		fixture.readFirstPage(b)
 	}
 }
-
-// BenchmarkLongSessionHistoryRestartPrewarmed 重启后第一轮：轮次开始时已在后台预热，结束后刷新首页。
-func BenchmarkLongSessionHistoryRestartPrewarmed(b *testing.B) {
-	fixture := newLongSessionFixture(b, benchmarkLongSessionRounds(), 8*1024)
-	fixture.readFirstPage(b)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		b.StopTimer()
-		simulateHistoryProcessRestart(b, fixture)
-		if !fixture.history.prewarmTranscriptHistory(context.Background(), fixture.workspacePath, fixture.session) {
-			b.Fatal("prewarm did not build a projection checkpoint")
-		}
-		fixture.appendRound(b)
-		b.StartTimer()
-		fixture.readFirstPage(b)
-	}
-}

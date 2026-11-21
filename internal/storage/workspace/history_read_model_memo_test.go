@@ -112,8 +112,8 @@ func TestHistoryReadModelPersistReusesUnchangedGroups(t *testing.T) {
 	access := f.history.historyPageAccess(f.workspacePath, f.session)
 	previous := dumpHistoryReadModelScope(t, f)
 	writes := trackHistoryReadModelGroupWrites(t, f)
-	// 本测试覆盖全量重建的落盘备忘；丢掉尾轮状态，避免刷新走 DM 增量路径。
-	forceFullRebuild := func() { f.history.cache.tails.take(access.Scope) }
+	// 本测试覆盖全量重建的落盘备忘；丢掉已发布的尾轮状态，避免刷新走 DM 增量路径。
+	forceFullRebuild := func() { dropAgentHistoryTailState(t, f) }
 	for round := 0; round < 4; round++ {
 		f.appendRound(t)
 		forceFullRebuild()

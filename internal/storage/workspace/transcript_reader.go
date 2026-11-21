@@ -327,16 +327,10 @@ func includeParallelSubagentAttachment(
 	toolUseIDs map[string]struct{},
 	shouldSkip func(map[string]any) bool,
 ) bool {
-	if shouldSkip(entry.Data) || stringFromAny(entry.Data["type"]) != "attachment" {
+	if shouldSkip(entry.Data) {
 		return false
 	}
-	attachment, _ := entry.Data["attachment"].(map[string]any)
-	if stringFromAny(attachment["type"]) != "structured_output" {
-		return false
-	}
-	data, _ := attachment["data"].(map[string]any)
-	agentID := textutil.FirstNonEmpty(stringFromAny(data["agent_id"]), stringFromAny(data["agentId"]))
-	toolUseID := textutil.FirstNonEmpty(stringFromAny(data["tool_use_id"]), stringFromAny(data["toolUseId"]))
+	agentID, toolUseID := transcriptSubagentAttachment(entry.Data)
 	if agentID == "" || toolUseID == "" {
 		return false
 	}

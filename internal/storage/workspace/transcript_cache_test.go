@@ -173,7 +173,7 @@ func TestTranscriptCacheReprojectsMarkersAndSegments(t *testing.T) {
 	}
 
 	session := protocol.Session{SessionKey: "agent:agent-a:ws:dm:cache", AgentID: "agent-a", SessionID: &ids[1], TranscriptSessionIDs: ids, Options: map[string]any{protocol.OptionRuntimeSegmentedTranscript: true}}
-	if _, err = h.buildAgentHistoryPageIndex(context.Background(), workspace, session); err != nil {
+	if _, err = h.buildAgentHistoryPageIndex(context.Background(), workspace, session, false); err != nil {
 		t.Fatal(err)
 	}
 	if &cached[0] != &h.cache.entries[path].Entries[0] {

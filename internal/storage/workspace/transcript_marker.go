@@ -4,6 +4,8 @@
 package workspace
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -40,7 +42,7 @@ func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []
 	// 避免 turns×markers 次重复清洗。候选按原下标升序，选择规则不变。
 	candidates := make(map[string][]int, len(roundMarkers))
 	for index, marker := range roundMarkers {
-		content := sanitizeTranscriptUserContent(marker.Content)
+		content := transcriptUserContentKey(sanitizeTranscriptUserContent(marker.Content))
 		candidates[content] = append(candidates[content], index)
 	}
 	for index, turn := range userTurns {
@@ -94,21 +96,43 @@ func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []
 	return aligned
 }
 
+// transcriptUserTurn 是 marker 对齐所需的用户轮次摘要。JSON 形状随读模型检查点持久化，
+// 改动需提升读模型版本。
 type transcriptUserTurn struct {
-	Content         string
-	Timestamp       int64
-	GoalContextOnly bool
-	Empty           bool
+	// Content 是清洗后内容的摘要键（见 transcriptUserContentKey），只用于与 marker 内容做等值匹配。
+	Content         string `json:"content,omitempty"`
+	Timestamp       int64  `json:"timestamp,omitempty"`
+	GoalContextOnly bool   `json:"goal_context_only,omitempty"`
+	Empty           bool   `json:"empty,omitempty"`
 	// RuntimeWake 表示 runtime 自唤醒注入的输入，只能与自唤醒 marker 互相对齐。
-	RuntimeWake bool
+	RuntimeWake bool `json:"runtime_wake,omitempty"`
+}
+
+// transcriptUserContentKey 把清洗后的用户内容压成定长摘要：检查点要保存全部历史轮次，
+// 不能随用户输入的长度增长。空内容保持为空，对齐规则据此跳过内容匹配。
+func transcriptUserContentKey(content string) string {
+	if content == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(content))
+	return base64.RawStdEncoding.EncodeToString(sum[:16])
 }
 
 func collectTranscriptUserTurns(
 	chain []transcriptEntry,
 	shouldSkip func(map[string]any) bool,
 ) []transcriptUserTurn {
+	return collectTranscriptUserTurnsAfter(chain, shouldSkip, 0)
+}
+
+// collectTranscriptUserTurnsAfter 收集主链片段中的用户轮次；lastTimestamp 是片段之前
+// 最后一个条目的时间，与投影循环的 LastTimestamp 一致，保证从中途续接时缺省时间相同。
+func collectTranscriptUserTurnsAfter(
+	chain []transcriptEntry,
+	shouldSkip func(map[string]any) bool,
+	lastTimestamp int64,
+) []transcriptUserTurn {
 	turns := make([]transcriptUserTurn, 0)
-	var lastTimestamp int64
 	for _, entry := range chain {
 		if shouldSkip != nil && shouldSkip(entry.Data) {
 			continue
@@ -136,7 +160,7 @@ func transcriptUserTurnForMarker(data map[string]any, timestamp int64) (transcri
 	}
 	_, runtimeWake := transcriptRuntimeWakeTrigger(data, transcriptRoundMarker{})
 	return transcriptUserTurn{
-		Content:         transcriptUserContent(data),
+		Content:         transcriptUserContentKey(transcriptUserContent(data)),
 		Timestamp:       timestamp,
 		GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(data),
 		Empty:           empty,
