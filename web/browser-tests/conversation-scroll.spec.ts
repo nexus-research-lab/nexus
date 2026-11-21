@@ -1113,7 +1113,7 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
       for (let index = 0; index < TOTAL; index += 1) {
         offsets.push(offsets[index] + heightOf(index));
       }
-      const probe = { conflicts: () => [] as unknown[], samples: [] as number[], times: [] as number[] };
+      const probe = { conflicts: () => [] as unknown[], samples: [] as number[] };
       (window as unknown as { __continuousWindow: typeof probe }).__continuousWindow = probe;
       const sample = () => {
         const viewport = document.querySelector<HTMLElement>("[data-window-scroll]");
@@ -1128,7 +1128,6 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
             probe.samples.push(
               offsets[Number(first.element.dataset.conversationRoundId)] + top - first.rect.top,
             );
-            probe.times.push(performance.now());
           }
         }
         requestAnimationFrame(sample);
@@ -1140,7 +1139,7 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
     const state = () => page.evaluate(() => {
       const element = document.querySelector<HTMLElement>("[data-window-scroll]")!;
       const probe = (window as unknown as {
-        __continuousWindow: { conflicts: () => unknown[]; samples: number[]; times: number[] };
+        __continuousWindow: { conflicts: () => unknown[]; samples: number[] };
       }).__continuousWindow;
       return {
         bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
@@ -1149,14 +1148,10 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
         last: Number(element.dataset.windowLast),
         samples: probe.samples.splice(0),
         scrollTop: element.scrollTop,
-        times: probe.times.splice(0),
       };
     });
-    // 滚轮每 16ms 最多推进 300px；慢帧会累积多步，单帧位移上限随帧间隔放宽，整页跳变仍会被抓住。
-    const wheelReach = (times: number[], index: number) => 400 + 19 * (times[index] - times[index - 1]);
     const wheelUntil = async (deltaY: number, done: (current: Awaited<ReturnType<typeof state>>) => boolean) => {
       const samples: number[] = [];
-      const times: number[] = [];
       for (let step = 0; step < 600; step += 1) {
         // 触控板式的连续小步滚动，中间不等待加载完成。
         await page.mouse.wheel(0, deltaY);
@@ -1164,9 +1159,8 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
         await page.waitForTimeout(16);
         const current = await state();
         samples.push(...current.samples);
-        times.push(...current.times);
         if (done(current)) {
-          return { current, samples, times };
+          return { current, samples };
         }
       }
       throw new Error("the reader never reached the requested edge");
@@ -1192,7 +1186,7 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
     for (let index = 1; index < up.samples.length; index += 1) {
       const moved = up.samples[index] - up.samples[index - 1];
       expect(moved, `upward frame ${index}`).toBeLessThanOrEqual(2);
-      expect(moved, `upward frame ${index}`).toBeGreaterThan(-wheelReach(up.times, index));
+      expect(moved, `upward frame ${index}`).toBeGreaterThan(-700);
     }
 
     const down = await wheelUntil(150, (current) => current.last === 159 && current.bottomGap <= 1);
@@ -1200,7 +1194,7 @@ for (const renderer of ["static", "virtual", "handoff"] as const) {
     for (let index = 1; index < down.samples.length; index += 1) {
       const moved = down.samples[index] - down.samples[index - 1];
       expect(moved, `downward frame ${index}`).toBeGreaterThanOrEqual(-2);
-      expect(moved, `downward frame ${index}`).toBeLessThan(wheelReach(down.times, index));
+      expect(moved, `downward frame ${index}`).toBeLessThan(700);
     }
     expect(down.current.conflicts).toEqual(up.current.conflicts);
   });
