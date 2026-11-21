@@ -1190,6 +1190,16 @@ func readWorkspaceJSONLAtContext(
 	workspacePath string,
 	target string,
 ) ([]map[string]any, error) {
+	file, err := openWorkspaceFileAt(store, workspacePath, target)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return readJSONLFileWithContext(ctx, file)
+}
+
+// openWorkspaceFileAt 以只读方式打开 workspace 内的受限文件；调用方负责关闭。
+func openWorkspaceFileAt(store *SessionFileStore, workspacePath string, target string) (*os.File, error) {
 	if ownerUserID := store.ownerUserID; ownerUserID != "" {
 		parent, name, err := store.openOwnerWorkspaceFileParent(
 			ownerUserID,
@@ -1201,24 +1211,14 @@ func readWorkspaceJSONLAtContext(
 			return nil, err
 		}
 		defer parent.Close()
-		file, err := parent.OpenFileNoSymlink(name, os.O_RDONLY, 0)
-		if err != nil {
-			return nil, err
-		}
-		defer file.Close()
-		return readJSONLFileWithContext(ctx, file)
+		return parent.OpenFileNoSymlink(name, os.O_RDONLY, 0)
 	}
 	root, relative, err := relativeStorePathWithCreate(workspacePath, target, false)
 	if err != nil {
 		return nil, err
 	}
 	defer root.Close()
-	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return readJSONLFileWithContext(ctx, file)
+	return root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
 }
 
 func readRoomJSONLWithContext(

@@ -17,6 +17,8 @@ type agentHistoryCache struct {
 	prewarming map[string]struct{}
 	// tails 保存 DM 读模型的尾轮增量状态。
 	tails agentHistoryTailStore
+	// overlays 保存 session overlay 的增量回放状态。
+	overlays overlayReplayStore
 }
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。

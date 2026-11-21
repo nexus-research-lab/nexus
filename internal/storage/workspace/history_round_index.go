@@ -1,6 +1,6 @@
 // INPUT: append-only overlay JSONL、共享 history generation 与当前活跃 round 集合。
 // OUTPUT: 遵循 message_id 最后写入语义、支持短冷建的 DM/Room Round Navigator 元数据。
-// POS: canonical overlay 导航投影与 SQLite 派生代际之间的唯一 round index 边界。
+// POS: canonical overlay 导航投影与 SQLite 派生代际之间的唯一 round index 边界；DM 的 canonical 读取经 overlay_replay.go 只回放新增行。
 package workspace
 
 import (
@@ -9,7 +9,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -78,27 +77,16 @@ func (s *AgentHistoryStore) readCanonicalRoundIndexContext(
 	activeRoundIDs []string,
 ) (protocol.SessionRoundIndex, error) {
 	active := normalizeActiveRoundIDs(activeRoundIDs)
-	root, err := s.files.openWorkspaceRoot(workspacePath, false)
+	var index protocol.SessionRoundIndex
+	err := s.replaySessionOverlay(workspacePath, sessionValue.SessionKey, func(entry *overlayReplayEntry, file *os.File) error {
+		var err error
+		index, err = entry.roundIndex.read(ctx, file, active, strings.TrimSpace(sessionValue.AgentID))
+		return err
+	})
 	if errors.Is(err, os.ErrNotExist) {
 		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
 	}
-	if err != nil {
-		return protocol.SessionRoundIndex{}, err
-	}
-	defer root.Close()
-	return readRoundIndexFromRootContext(
-		ctx,
-		root,
-		filepath.ToSlash(filepath.Join(
-			".agents",
-			"sessions",
-			encodeSessionDirName(sessionValue.SessionKey),
-			"overlay.jsonl",
-		)),
-		active,
-		false,
-		strings.TrimSpace(sessionValue.AgentID),
-	)
+	return index, err
 }
 
 // ReadRoundIndex 读取 Room 共享会话的轻量 round 导航索引。
@@ -290,19 +278,33 @@ func readRoundIndexFromRootContext(
 	}
 	defer file.Close()
 
-	decoder := json.NewDecoder(file)
+	rows, err := decodeRoundIndexOverlayRows(ctx, file)
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	entries := make(map[string]*sessionRoundIndexAccumulator)
+	for _, row := range rows {
+		row.applyToIndex(entries, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
+	}
+	return buildSessionRoundIndex(entries), nil
+}
+
+// decodeRoundIndexOverlayRows 解码一段 overlay 并按 message_id 最后写入语义去掉被覆盖的行，
+// 保留行的相对顺序不变。
+func decodeRoundIndexOverlayRows(ctx context.Context, source io.Reader) ([]roundIndexOverlayJSONRow, error) {
+	decoder := json.NewDecoder(source)
 	rows := make([]roundIndexOverlayJSONRow, 0)
 	latestByMessageID := make(map[string]int)
 	for {
-		if err = ctx.Err(); err != nil {
-			return protocol.SessionRoundIndex{}, err
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 		var row roundIndexOverlayJSONRow
 		if err := decoder.Decode(&row); err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return protocol.SessionRoundIndex{}, err
+			return nil, err
 		}
 		// 导航只用用户输入或 marker 生成标题，等待重复 ID 对账时不保留工具正文。
 		if strings.TrimSpace(row.Role) != "user" && strings.TrimSpace(row.OverlayKind) != overlayKindRoundMarker {
@@ -313,15 +315,14 @@ func readRoundIndexFromRootContext(
 			latestByMessageID[messageID] = len(rows) - 1
 		}
 	}
-
-	entries := make(map[string]*sessionRoundIndexAccumulator)
+	latest := rows[:0]
 	for index, row := range rows {
 		if messageID := strings.TrimSpace(row.MessageID); messageID != "" && latestByMessageID[messageID] != index {
 			continue
 		}
-		row.applyToIndex(entries, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
+		latest = append(latest, row)
 	}
-	return buildSessionRoundIndex(entries), nil
+	return latest, nil
 }
 
 func (row roundIndexOverlayJSONRow) applyToIndex(
@@ -329,11 +330,11 @@ func (row roundIndexOverlayJSONRow) applyToIndex(
 	activeRoundIDs map[string]struct{},
 	collapseRoomAgentRounds bool,
 	defaultAgentID string,
-) {
+) *sessionRoundIndexAccumulator {
 	overlayKind := strings.TrimSpace(row.OverlayKind)
 	if overlayKind == overlayKindRoundMarker {
 		if row.HiddenFromUser {
-			return
+			return nil
 		}
 		rawRoundID := strings.TrimSpace(row.RoundID)
 		roundID := normalizeRoundIndexRoundID(
@@ -342,23 +343,23 @@ func (row roundIndexOverlayJSONRow) applyToIndex(
 			collapseRoomAgentRounds,
 		)
 		if roundID == "" {
-			return
+			return nil
 		}
 		entry := ensureRoundIndexEntry(entries, roundID)
 		entry.item.HasUserMessage = true
 		updateRoundIndexTimestamp(entry, roundIndexInt64FromRaw(row.Timestamp))
 		updateRoundIndexTitle(entry, roundIndexTextFromRaw(row.Content))
 		markRoundIndexActive(entry, rawRoundID, roundID, activeRoundIDs)
-		return
+		return entry
 	}
 	if overlayKind == overlayKindRoomPublicCursor || overlayKind == "history_rewrite" || overlayKind == "room_context_checkpoint" {
-		return
+		return nil
 	}
 
 	rawRoundID := strings.TrimSpace(row.RoundID)
 	roundID := normalizeRoundIndexRoundID(rawRoundID, strings.TrimSpace(row.AgentID), collapseRoomAgentRounds)
 	if roundID == "" {
-		return
+		return nil
 	}
 
 	entry := ensureRoundIndexEntry(entries, roundID)
@@ -382,6 +383,7 @@ func (row roundIndexOverlayJSONRow) applyToIndex(
 		)
 	}
 	markRoundIndexActive(entry, rawRoundID, roundID, activeRoundIDs)
+	return entry
 }
 
 func buildSessionRoundIndex(
@@ -395,20 +397,23 @@ func buildSessionRoundIndex(
 		items = append(items, entry.item)
 	}
 	sort.SliceStable(items, func(leftIndex, rightIndex int) bool {
-		left := items[leftIndex]
-		right := items[rightIndex]
-		if left.Timestamp == 0 && right.Timestamp != 0 {
-			return false
-		}
-		if left.Timestamp != 0 && right.Timestamp == 0 {
-			return true
-		}
-		if left.Timestamp != right.Timestamp {
-			return left.Timestamp < right.Timestamp
-		}
-		return left.RoundID < right.RoundID
+		return roundIndexItemBefore(items[leftIndex], items[rightIndex])
 	})
 	return protocol.SessionRoundIndex{Items: items}
+}
+
+// roundIndexItemBefore 是导航顺序：有时间戳的按时间升序，无时间戳的排在最后，同序按 round_id。
+func roundIndexItemBefore(left protocol.SessionRoundIndexItem, right protocol.SessionRoundIndexItem) bool {
+	if left.Timestamp == 0 && right.Timestamp != 0 {
+		return false
+	}
+	if left.Timestamp != 0 && right.Timestamp == 0 {
+		return true
+	}
+	if left.Timestamp != right.Timestamp {
+		return left.Timestamp < right.Timestamp
+	}
+	return left.RoundID < right.RoundID
 }
 
 func ensureRoundIndexEntry(

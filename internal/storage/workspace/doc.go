@@ -10,12 +10,15 @@
 //   - history_page_index.go / agent_history_page_index.go / room_history_page_index.go：DM/Room 共用的 round 分页编排、有界 exact-scope rebuild admission、source preflight/resolver selection 依赖与删除栅栏；每次全量重建记录耗时、分组数与落盘结果。
 //   - history_read_model.go / history_read_model_memo.go / history_message_detail.go：宿主 SQLite/B-Tree 派生读模型，以原子 generation、source/payload 校验、有界 metadata window、淘汰、整库版本重建和大型 Tool/图片按需 detail 提供按页读取；
 //     重建沿用上一代际并只重写签名变化的分组，进程内分组结构哈希备忘让未变化分组跳过投影与序列化；canonical 历史不迁移。
-//   - history_long_session_bench_test.go：长会话逐轮追加、热读与冷读基准（NEXUS_BENCH_ROUNDS 调整轮数）。
+//   - history_long_session_bench_test.go：长会话逐轮追加（整页刷新与单独的 overlay 读取）、热读与冷读基准（NEXUS_BENCH_ROUNDS 调整轮数）。
 //   - room_history_checkpoint.go / room_transcript_stream.go：大 Room 按成员和公开消息 ID 回填可重建检查点，按文件区间读取主链与并行工具，源指纹变化后重新投影。
 //   - room_history_checkpoint_test.go：覆盖多成员恢复、索引失效与工具详情，并提供桌面规模的历史读取基准。
 //   - room_history_incremental.go：在共用后台单飞任务中按 ledger 偏移读取追加，保留原始尾轮，原子更新尾部分页、导航与检查点；依赖身份替换和跨轮修正回退重建。
 //   - room_history_frozen_refs.go：为已离开尾轮的 transcript_ref 保存投影摘要；成员 transcript/overlay 只追加且已发布消息投影不变时继续增量，否则回退重建。
 //   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型。
+//   - overlay_replay.go：session overlay 的进程内增量回放（overlay 历史行/marker 状态与 DM round index 共用）；按文件身份、尺寸、
+//     同尺寸修改时间与首尾指纹确认纯追加后只解析新增完整行，文件被替换/截断/改写、末行未写完或新行覆盖已回放的 message_id 时整份重读；
+//     回放状态按最近使用保留，受会话个数与源文件总字节上限约束。
 //   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试；transcript reader 与分页指纹共用修复入口。
 //   - transcript_*.go：基于文件身份/大小/mtime/首尾指纹且由普通、分段、显式读取共用的 JSONL 解析缓存（纯追加只解析新增字节并沿用解析代系；完整解析大文件时按换行分块并行，行号与顺序解析一致）、
 //     DM 投影前缀检查点（同代系主链与 marker 前缀不变时只重放最后一个用户轮次之后的条目；DM 轮次开始时可在后台有界预热，
