@@ -269,6 +269,7 @@ summary 文案：
 - 派生库只保留当前 schema，不保留数据迁移链；schema 变化、初始化中断或损坏时直接丢弃并从 canonical 回建。
 - DM 与 Room 先完成第 5 节的完整规范化，再在单个 SQLite 事务中发布新 generation。
 - 每个 physical round 分开保存 B-Tree 游标元数据、完整 payload 与摘要；不调用模型压缩，不丢弃消息块。
+- round 导航（round index）按固定 round 数分块保存；全量重建与尾部增量都只写内容变化的块，尾部增量的写入量不随会话长度增长。
 - generation 在单个数据库事务内切换。会话在 build/persist 期间被删除时必须放弃写入，禁止由派生读模型重新创建 canonical session/Room 容器。超过保留期的 scope 可直接淘汰。
 
 Room 增量：

@@ -5,6 +5,8 @@ package workspace
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -48,11 +50,33 @@ func dumpHistoryReadModelWithIndex(t *testing.T, f *longSessionFixture) []string
 	if err != nil {
 		t.Fatal(err)
 	}
-	var index, sources string
-	if err = db.QueryRowContext(context.Background(), `SELECT round_index_json, sources_json FROM history_read_scopes WHERE scope=?`, access.Scope).Scan(&index, &sources); err != nil {
+	var sources string
+	if err = db.QueryRowContext(context.Background(), `SELECT sources_json FROM history_read_scopes WHERE scope=?`, access.Scope).Scan(&sources); err != nil {
 		t.Fatal(err)
 	}
-	return append(dump.Rows, index, sources)
+	return append(append(dump.Rows, dumpHistoryReadModelRounds(t, db, access.Scope)...), sources)
+}
+
+func dumpHistoryReadModelRounds(t *testing.T, db *sql.DB, scope string) []string {
+	t.Helper()
+	rows, err := db.QueryContext(context.Background(), `SELECT chunk, payload FROM history_read_round_chunks WHERE scope=? ORDER BY chunk`, scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var dump []string
+	for rows.Next() {
+		var chunk int
+		var payload string
+		if err = rows.Scan(&chunk, &payload); err != nil {
+			t.Fatal(err)
+		}
+		dump = append(dump, fmt.Sprint(chunk, payload))
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return dump
 }
 
 func TestAgentHistoryTailRefreshMatchesFullRebuild(t *testing.T) {

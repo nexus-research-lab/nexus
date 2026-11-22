@@ -312,7 +312,7 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 	}
 	start := previous.GroupCount - tail.TailGroups
 	// 分组、来源快照、尾轮状态与新冻结的身份键在同一事务内推进；中途失败时旧状态原样保留。
-	err = replaceHistoryReadModelTail(ctx, db, scopeKey, previous, start, groups, current, roundIndex.Items, func(tx *sql.Tx) error {
+	err = s.readModel.replaceTail(ctx, scopeKey, previous, start, groups, current, roundIndex.Items, func(tx *sql.Tx) error {
 		var state any
 		if nextOK {
 			state = next

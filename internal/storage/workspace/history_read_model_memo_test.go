@@ -208,3 +208,29 @@ func TestHistoryReadModelGroupHashDistinguishesContentAndTypes(t *testing.T) {
 		t.Fatal("sequence not part of the hash")
 	}
 }
+
+func TestHistoryReadModelMemoSurvivesRepeatedRebuilds(t *testing.T) {
+	var store historyReadModelMemoStore
+	chunks := []historyReadModelRoundChunkMemo{{Hash: 1, Bytes: 2}}
+	// 每次全量重建都是先 forget 再写入；重复重建不能挤掉同一 scope 刚写入的备忘。
+	for revision := range int64(2 * maxHistoryReadModelMemoScopes) {
+		store.forget("scope")
+		store.store("scope", "generation", []historyReadModelGroupMemo{{Hash: 3}})
+		store.storeRounds("scope", revision, chunks)
+		if store.load("scope", "generation") == nil {
+			t.Fatalf("第 %d 次重建后分组备忘丢失", revision)
+		}
+		if _, ok := store.loadRounds("scope", revision); !ok {
+			t.Fatalf("第 %d 次重建后 round 分块备忘丢失", revision)
+		}
+	}
+	for index := range maxHistoryReadModelMemoScopes {
+		store.storeRounds(fmt.Sprintf("other-%d", index), 0, chunks)
+	}
+	if store.load("scope", "generation") != nil {
+		t.Fatal("最旧的 scope 应被淘汰")
+	}
+	if _, ok := store.loadRounds("other-0", 0); !ok {
+		t.Fatal("较新的 scope 不应被淘汰")
+	}
+}

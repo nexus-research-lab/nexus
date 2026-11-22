@@ -182,6 +182,23 @@ func BenchmarkLongSessionHistoryWarm(b *testing.B) {
 	}
 }
 
+// BenchmarkLongSessionRoundIndexWarm 从读模型读取未变化会话的完整 round 导航。
+func BenchmarkLongSessionRoundIndexWarm(b *testing.B) {
+	fixture := newLongSessionFixture(b, benchmarkLongSessionRounds(), 8*1024)
+	fixture.readFirstPage(b)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		index, err := fixture.history.ReadRoundIndexPageContext(context.Background(), fixture.workspacePath, fixture.session, nil, false)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(index.Items) != fixture.rounds {
+			b.Fatalf("index=%d want %d", len(index.Items), fixture.rounds)
+		}
+	}
+}
+
 // BenchmarkLongSessionHistoryCold 用新的 store 读取首页，覆盖重启后的首次打开。
 func BenchmarkLongSessionHistoryCold(b *testing.B) {
 	fixture := newLongSessionFixture(b, benchmarkLongSessionRounds(), 8*1024)

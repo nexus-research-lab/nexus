@@ -1,6 +1,6 @@
 // INPUT: 稳定 canonical source 快照、规范化 physical round groups 与分页请求。
 // OUTPUT: 宿主控制面 SQLite/B-Tree 中原子代际化、随历史投影版本重建的分页与大内容 detail 读模型；
-// 重建沿用上一代际，只重写签名变化的分组。
+// 重建沿用上一代际，只重写签名变化的分组；round index 分块保存，只写内容变化的块。
 // POS: workspace canonical 历史之上的唯一当前派生查询层；数据库可整体删除重建。
 package workspace
 
@@ -12,8 +12,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,14 +29,17 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 12 // DM 尾部状态与 transcript 投影位置持久化；tail 表改存通用状态并新增身份键表。
+	historyReadModelSchemaVersion = 13 // round index 分块存入 history_read_round_chunks，scope 行只留 round 数与修订号。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000
-	historyReadModelMaxGroupBytes = 64 * 1024 * 1024
-	historyReadModelMaxPageBytes  = 128 * 1024 * 1024
-	historyReadModelMaxDataBytes  = 4 * 1024 * 1024 * 1024
-	historyReadModelRetention     = 30 * 24 * time.Hour
+	historyReadModelMaxRounds     = 1_000_000
+	// round index 每块的 round 数：尾部刷新只重写最后一两块，读取导航时每块一次 JSON 解码。
+	historyReadModelRoundChunkSize = 64
+	historyReadModelMaxGroupBytes  = 64 * 1024 * 1024
+	historyReadModelMaxPageBytes   = 128 * 1024 * 1024
+	historyReadModelMaxDataBytes   = 4 * 1024 * 1024 * 1024
+	historyReadModelRetention      = 30 * 24 * time.Hour
 )
 
 type historyReadModel struct {
@@ -46,8 +51,12 @@ type historyReadModel struct {
 }
 
 type historyReadModelScope struct {
-	Generation       string
-	GroupCount       int
+	Generation string
+	GroupCount int
+	// RoundCount 是 history_read_round_chunks 中该 scope 的 round 总数；RoundRevision 在每次改写这些分块时换成新的随机值，
+	// 进程内备忘凭它确认库内各块仍是自己上次写入的那一版。
+	RoundCount       int
+	RoundRevision    int64
 	Sources          []historyPageSourceSnapshot
 	DisabledReason   string
 	DisabledDigest   string
@@ -186,6 +195,7 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 		if _, err = tx.ExecContext(
 			ctx,
 			`DROP TABLE IF EXISTS history_room_refs;
+			 DROP TABLE IF EXISTS history_read_round_chunks;
 			 DROP TABLE IF EXISTS history_read_message_keys;
 			 DROP TABLE IF EXISTS history_read_tail_keys;
 			 DROP TABLE IF EXISTS history_read_tail;
@@ -212,12 +222,14 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 			generation TEXT NOT NULL,
 			group_count INTEGER NOT NULL,
 			sources_json BLOB NOT NULL,
-			round_index_json BLOB NOT NULL,
+			round_count INTEGER NOT NULL,
+			round_revision INTEGER NOT NULL,
 			disabled_reason TEXT NOT NULL DEFAULT '',
 			disabled_digest TEXT NOT NULL DEFAULT '',
 			disabled_coverage TEXT NOT NULL DEFAULT '',
 			accessed_at_ms INTEGER NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS history_read_round_chunks (scope TEXT NOT NULL, chunk INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(scope,chunk)) WITHOUT ROWID`,
 		`CREATE TABLE IF NOT EXISTS history_read_groups (
 			scope TEXT NOT NULL,
 			generation TEXT NOT NULL,
@@ -401,7 +413,7 @@ func (m *historyReadModel) loadRoundIndex(
 		// 失效代际不会被读取（每次读取先校验 source），保留它供下一次重建复用未变化的分组前缀。
 		return protocol.SessionRoundIndex{}, false, errHistoryPageIndexInvalid
 	}
-	items, err := readHistoryReadModelRoundIndex(ctx, tx, access.Scope)
+	items, err := readHistoryReadModelRoundIndex(ctx, tx, access.Scope, scope.RoundCount)
 	if err != nil {
 		_ = tx.Rollback()
 		if historyReadModelDatabaseCorrupt(err) {
@@ -438,7 +450,7 @@ func readHistoryReadModelScope(
 	var sourcesJSON []byte
 	err := db.QueryRowContext(
 		ctx,
-		`SELECT schema_version, generation, group_count, sources_json,
+		`SELECT schema_version, generation, group_count, sources_json, round_count, round_revision,
 			disabled_reason, disabled_digest, disabled_coverage
 		 FROM history_read_scopes WHERE scope = ?`,
 		scope,
@@ -447,6 +459,8 @@ func readHistoryReadModelScope(
 		&value.Generation,
 		&value.GroupCount,
 		&sourcesJSON,
+		&value.RoundCount,
+		&value.RoundRevision,
 		&value.DisabledReason,
 		&value.DisabledDigest,
 		&value.DisabledCoverage,
@@ -458,7 +472,8 @@ func readHistoryReadModelScope(
 		return historyReadModelScope{}, false, err
 	}
 	if version != historyReadModelSchemaVersion || strings.TrimSpace(value.Generation) == "" ||
-		value.GroupCount < 0 || value.GroupCount > historyReadModelMaxGroups {
+		value.GroupCount < 0 || value.GroupCount > historyReadModelMaxGroups ||
+		value.RoundCount < 0 || value.RoundCount > historyReadModelMaxRounds {
 		return historyReadModelScope{}, false, errHistoryPageIndexInvalid
 	}
 	if err = json.Unmarshal(sourcesJSON, &value.Sources); err != nil {
@@ -470,30 +485,166 @@ func readHistoryReadModelScope(
 	return value, true, nil
 }
 
+// readHistoryReadModelRoundIndex 读出 scope 的 round index；count 取自同一 scope 行。
 func readHistoryReadModelRoundIndex(
 	ctx context.Context,
 	db historyReadModelQuerier,
 	scope string,
+	count int,
 ) ([]protocol.SessionRoundIndexItem, error) {
-	var payload []byte
-	if err := db.QueryRowContext(
+	items, _, err := readHistoryReadModelRoundChunks(ctx, db, scope, count)
+	return items, err
+}
+
+// readHistoryReadModelRoundChunks 按块序读出 scope 的 round index 及各块 payload 字节数。
+// 块号不连续、非末块未满或 round 总数与 count 不符，说明这些分块与 scope 行不是同一次发布。
+func readHistoryReadModelRoundChunks(
+	ctx context.Context,
+	db historyReadModelQuerier,
+	scope string,
+	count int,
+) ([]protocol.SessionRoundIndexItem, []int64, error) {
+	rows, err := db.QueryContext(
 		ctx,
-		`SELECT round_index_json FROM history_read_scopes WHERE scope = ?`,
+		`SELECT chunk, payload FROM history_read_round_chunks WHERE scope = ? ORDER BY chunk`,
 		scope,
-	).Scan(&payload); err != nil {
-		return nil, err
+	)
+	if err != nil {
+		return nil, nil, err
 	}
-	if len(payload) == 0 || int64(len(payload)) > historyReadModelMaxPageBytes {
+	defer rows.Close()
+	items := make([]protocol.SessionRoundIndexItem, 0, count)
+	sizes := make([]int64, 0, historyReadModelRoundChunkCount(count))
+	totalBytes := int64(0)
+	var payload sql.RawBytes
+	for rows.Next() {
+		var chunk int
+		if err = rows.Scan(&chunk, &payload); err != nil {
+			return nil, nil, err
+		}
+		if chunk != len(sizes) || len(items) != chunk*historyReadModelRoundChunkSize {
+			return nil, nil, errHistoryPageIndexInvalid
+		}
+		if int64(len(payload)) > historyReadModelMaxPageBytes-totalBytes {
+			return nil, nil, errHistoryPageIndexResourceLimit
+		}
+		totalBytes += int64(len(payload))
+		var chunkItems []protocol.SessionRoundIndexItem
+		if err = json.Unmarshal(payload, &chunkItems); err != nil {
+			return nil, nil, errHistoryPageIndexInvalid
+		}
+		if len(chunkItems) == 0 || len(chunkItems) > historyReadModelRoundChunkSize || len(chunkItems) > count-len(items) {
+			return nil, nil, errHistoryPageIndexInvalid
+		}
+		items = append(items, chunkItems...)
+		sizes = append(sizes, int64(len(payload)))
+	}
+	if err = rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	if len(items) != count {
+		return nil, nil, errHistoryPageIndexInvalid
+	}
+	return items, sizes, nil
+}
+
+func historyReadModelRoundChunkCount(rounds int) int {
+	return (rounds + historyReadModelRoundChunkSize - 1) / historyReadModelRoundChunkSize
+}
+
+// syncRoundIndex 让 scope 的 round 分块与 items 一致，只写内容变化的块，返回各块摘要供提交后更新备忘。
+// published 是同一事务内读到的 scope 行，没有可信的行时为 nil：本进程备忘仍对应其 round_revision 时直接比对摘要，
+// 否则回读库内各块（进程重启后的第一次刷新）；两者都不可用时整体重写。
+func (m *historyReadModel) syncRoundIndex(
+	ctx context.Context,
+	tx *sql.Tx,
+	scope string,
+	published *historyReadModelScope,
+	items []protocol.SessionRoundIndexItem,
+) ([]historyReadModelRoundChunkMemo, error) {
+	if len(items) > historyReadModelMaxRounds {
 		return nil, errHistoryPageIndexResourceLimit
 	}
-	var items []protocol.SessionRoundIndexItem
-	if err := json.Unmarshal(payload, &items); err != nil {
-		return nil, errHistoryPageIndexInvalid
+	var known []historyReadModelRoundChunkMemo
+	trusted := false
+	if published != nil {
+		if known, trusted = m.memo.loadRounds(scope, published.RoundRevision); !trusted {
+			stored, sizes, err := readHistoryReadModelRoundChunks(ctx, tx, scope, published.RoundCount)
+			if err == nil {
+				trusted = true
+				known = make([]historyReadModelRoundChunkMemo, 0, len(sizes))
+				for chunkItems := range slices.Chunk(stored, historyReadModelRoundChunkSize) {
+					known = append(known, historyReadModelRoundChunkMemo{
+						Hash:  historyReadModelRoundChunkHash(chunkItems),
+						Bytes: sizes[len(known)],
+					})
+				}
+			}
+		}
 	}
-	if items == nil {
-		items = []protocol.SessionRoundIndexItem{}
+	if !trusted {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM history_read_round_chunks WHERE scope = ?`, scope); err != nil {
+			return nil, err
+		}
 	}
-	return items, nil
+	return writeHistoryReadModelRoundChunks(ctx, tx, scope, items, known)
+}
+
+// writeHistoryReadModelRoundChunks 把 items 按块写入。known 描述库内已有的块（下标即块号，库内没有更靠后的块）：
+// 摘要哈希相同的块原样保留，其余写入，多出的块删除。资源预算按全部分块的 payload 字节累计，与是否重写无关。
+func writeHistoryReadModelRoundChunks(
+	ctx context.Context,
+	tx *sql.Tx,
+	scope string,
+	items []protocol.SessionRoundIndexItem,
+	known []historyReadModelRoundChunkMemo,
+) ([]historyReadModelRoundChunkMemo, error) {
+	statement, err := tx.PrepareContext(
+		ctx,
+		`INSERT INTO history_read_round_chunks(scope, chunk, payload) VALUES(?, ?, ?)
+		 ON CONFLICT(scope, chunk) DO UPDATE SET payload = excluded.payload`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer statement.Close()
+	summaries := make([]historyReadModelRoundChunkMemo, 0, historyReadModelRoundChunkCount(len(items)))
+	totalBytes := int64(0)
+	for chunkItems := range slices.Chunk(items, historyReadModelRoundChunkSize) {
+		if err = ctx.Err(); err != nil {
+			return nil, err
+		}
+		chunk := len(summaries)
+		summary := historyReadModelRoundChunkMemo{Hash: historyReadModelRoundChunkHash(chunkItems)}
+		if chunk < len(known) && known[chunk].Hash == summary.Hash {
+			summary.Bytes = known[chunk].Bytes
+		} else {
+			payload, marshalErr := json.Marshal(chunkItems)
+			if marshalErr != nil {
+				return nil, marshalErr
+			}
+			if _, err = statement.ExecContext(ctx, scope, chunk, payload); err != nil {
+				return nil, err
+			}
+			summary.Bytes = int64(len(payload))
+		}
+		if summary.Bytes > historyReadModelMaxPageBytes-totalBytes {
+			return nil, errHistoryPageIndexResourceLimit
+		}
+		totalBytes += summary.Bytes
+		summaries = append(summaries, summary)
+	}
+	if len(known) > len(summaries) {
+		if _, err = tx.ExecContext(
+			ctx,
+			`DELETE FROM history_read_round_chunks WHERE scope = ? AND chunk >= ?`,
+			scope,
+			len(summaries),
+		); err != nil {
+			return nil, err
+		}
+	}
+	return summaries, nil
 }
 
 func readHistoryReadModelMetadataWindow(
@@ -847,13 +998,6 @@ func (m *historyReadModel) persist(
 	if err != nil {
 		return err
 	}
-	roundIndexJSON, err := marshalHistoryPageJSONBounded(
-		built.RoundIndex,
-		historyReadModelMaxPageBytes,
-	)
-	if err != nil {
-		return err
-	}
 	generation := historyReadModelGeneration(access.Scope, built.Sources)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -864,9 +1008,10 @@ func (m *historyReadModel) persist(
 	// 避免每次重建都把全部分组重新写入 B-Tree 和 WAL。
 	var reusable []string
 	var memo []historyReadModelGroupMemo
-	if !built.Disabled {
-		previous, ok, readErr := readHistoryReadModelScope(ctx, tx, access.Scope)
-		if readErr == nil && ok && previous.DisabledReason == "" && previous.GroupCount > 0 {
+	var published *historyReadModelScope
+	if previous, ok, readErr := readHistoryReadModelScope(ctx, tx, access.Scope); readErr == nil && ok {
+		published = &previous
+		if !built.Disabled && previous.DisabledReason == "" && previous.GroupCount > 0 {
 			signatures, signatureErr := readHistoryReadModelGroupSignatures(ctx, tx, access.Scope, previous.Generation, previous.GroupCount)
 			if signatureErr == nil {
 				generation = previous.Generation
@@ -907,18 +1052,24 @@ func (m *historyReadModel) persist(
 	if err = replaceHistoryReadTailKeys(ctx, tx, access.Scope, built.TailKeys); err != nil {
 		return err
 	}
+	roundChunks, err := m.syncRoundIndex(ctx, tx, access.Scope, published, built.RoundIndex)
+	if err != nil {
+		return err
+	}
+	roundRevision := rand.Int64()
 	_, err = tx.ExecContext(
 		ctx,
 		`INSERT INTO history_read_scopes(
-			scope, schema_version, generation, group_count, sources_json, round_index_json,
+			scope, schema_version, generation, group_count, sources_json, round_count, round_revision,
 			disabled_reason, disabled_digest, disabled_coverage, accessed_at_ms
-		 ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(scope) DO UPDATE SET
 			schema_version = excluded.schema_version,
 			generation = excluded.generation,
 			group_count = excluded.group_count,
 			sources_json = excluded.sources_json,
-			round_index_json = excluded.round_index_json,
+			round_count = excluded.round_count,
+			round_revision = excluded.round_revision,
 			disabled_reason = excluded.disabled_reason,
 			disabled_digest = excluded.disabled_digest,
 			disabled_coverage = excluded.disabled_coverage,
@@ -928,7 +1079,8 @@ func (m *historyReadModel) persist(
 		generation,
 		len(built.Groups),
 		sourcesJSON,
-		roundIndexJSON,
+		len(built.RoundIndex),
+		roundRevision,
 		disabledReason,
 		disabledDigest,
 		disabledCoverage,
@@ -953,6 +1105,7 @@ func (m *historyReadModel) persist(
 	if written != nil {
 		m.memo.store(access.Scope, generation, written)
 	}
+	m.memo.storeRounds(access.Scope, roundRevision, roundChunks)
 	_ = m.evictColdScopes(ctx, time.Now().Add(-historyReadModelRetention))
 	return nil
 }
@@ -1299,6 +1452,9 @@ func (m *historyReadModel) deleteScope(ctx context.Context, scope string) error 
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_message_keys WHERE scope = ?`, scope); err != nil {
 		return err
 	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_round_chunks WHERE scope = ?`, scope); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_tail WHERE scope = ?`, scope); err != nil {
 		return err
 	}
@@ -1343,6 +1499,12 @@ func (m *historyReadModel) evictColdScopes(ctx context.Context, cutoff time.Time
 	if _, err = tx.ExecContext(
 		ctx,
 		`DELETE FROM history_read_message_keys WHERE scope IN (SELECT scope FROM history_read_scopes WHERE accessed_at_ms < ?)`,
+		cutoff.UnixMilli(),
+	); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx,
+		`DELETE FROM history_read_round_chunks WHERE scope IN (SELECT scope FROM history_read_scopes WHERE accessed_at_ms < ?)`,
 		cutoff.UnixMilli(),
 	); err != nil {
 		return err
