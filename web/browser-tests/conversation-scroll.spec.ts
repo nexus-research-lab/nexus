@@ -397,7 +397,6 @@ test("Goal clearance keeps the latest message above the floating Goal while FOLL
               }
             },
           }, "Read earlier"),
-          h("button", { onClick: () => scroll.scrollToBottom("auto") }, "Go latest"),
         ),
       );
     }
@@ -432,7 +431,7 @@ test("Goal clearance keeps the latest message above the floating Goal while FOLL
   await expect.poll(async () => (await geometry()).clearance).toBe(goalClearance + 84);
   expect(await viewport.evaluate((element) => element.scrollTop)).toBe(readingTop);
 
-  await page.getByRole("button", { name: "Go latest" }).click();
+  await control.click();
   await expect(control).toHaveCount(0);
   await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
   expect((await geometry()).clearance).toBe(goalClearance + 84);
