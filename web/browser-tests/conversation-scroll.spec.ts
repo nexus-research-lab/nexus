@@ -380,7 +380,11 @@ test("Goal clearance keeps the latest message above the floating Goal while FOLL
             onReconcile: () => undefined,
             providerWarningVisible: false,
             reliability: healthyReliability,
-            scrollToLatest: { isGenerating: false, onClick: () => undefined, visible: false },
+            scrollToLatest: {
+              isGenerating: false,
+              onClick: () => scroll.scrollToBottom("auto"),
+              visible: scroll.showScrollToBottom,
+            },
           }),
           h("button", { onClick: () => setShowGoal((value: boolean) => !value) }, "Toggle Goal"),
           h("button", { onClick: () => setGoalHeight(180) }, "Grow Goal"),
@@ -415,16 +419,23 @@ test("Goal clearance keeps the latest message above the floating Goal while FOLL
   await page.getByRole("button", { name: "Toggle Goal" }).click();
   await expect.poll(async () => (await geometry()).clearance).toBeGreaterThan(0);
   expect((await geometry()).bottomGap).toBe(0);
+  const goalClearance = (await geometry()).clearance;
 
+  // The scroll control floats above the Goal: only the Goal owns the clearance.
+  const control = page.locator("[data-scroll-to-latest]");
   await page.getByRole("button", { name: "Read earlier" }).click();
+  await expect(control).toHaveCount(1);
   await expect.poll(async () => (await geometry()).bottomGap).toBe(240);
+  expect((await geometry()).clearance).toBe(goalClearance);
   const readingTop = await viewport.evaluate((element) => element.scrollTop);
   await page.getByRole("button", { name: "Grow Goal" }).click();
-  await expect.poll(async () => (await geometry()).clearance).toBeGreaterThan(0);
+  await expect.poll(async () => (await geometry()).clearance).toBe(goalClearance + 84);
   expect(await viewport.evaluate((element) => element.scrollTop)).toBe(readingTop);
 
   await page.getByRole("button", { name: "Go latest" }).click();
+  await expect(control).toHaveCount(0);
   await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  expect((await geometry()).clearance).toBe(goalClearance + 84);
 });
 
 test("conversation width reflow keeps the same reading anchor while a right panel is resized", async ({ page }) => {
