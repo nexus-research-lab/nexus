@@ -205,11 +205,13 @@ test("Nexus model confirmation closes without runtime activity", async () => {
   assert.deepEqual(
     replaceOptimisticUserMessage(
       [optimisticUser],
-      "client-message-model",
-      "user-model",
-      "round-model",
-      false,
-      "transient",
+      {
+        client_message_id: "client-message-model",
+        round_id: "round-model",
+        user_message_committed: false,
+        user_message_delivery_mode: "transient",
+        user_message_id: "user-model",
+      },
     ).map(({ delivery_mode, message_id, round_id }) => ({
       delivery_mode,
       message_id,

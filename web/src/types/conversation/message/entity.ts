@@ -62,8 +62,16 @@ interface BaseMessage {
 export interface UserMessage extends BaseMessage {
   role: "user";
   content: string;
-  /** 持久化受理身份，用于原子替换本地 optimistic 消息。 */
+  /**
+   * 请求关联与本页 Feed 节点 key：把受理证据绑定到发出它的 optimistic 行。
+   * 不参与"两行是否同一条输入"的判断，那只看 input_seq。
+   */
   client_message_id?: string;
+  /**
+   * 后端受理这条输入时铸造的游标；chat_ack、实时 durable 行与历史读取给出同一个值。
+   * 尚未受理的 optimistic 行与本合同生效前落盘的行没有它，后者以 message_id 为身份。
+   */
+  input_seq?: number;
   agent_mentions?: AgentMention[];
   delivery_policy?: "queue" | "guide" | "interrupt" | "auto";
   /** Room resolved targets；guided user 据此贴近实际消费它的 Agent。 */

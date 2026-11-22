@@ -181,70 +181,72 @@ export function removeRoundMessages(
   return next.length === messages.length ? messages : next;
 }
 
-/** ack 后把 optimistic user message 替换成 canonical id。 */
+export type UserMessageAck = Pick<
+  ChatAckData,
+  | "client_message_id"
+  | "input_seq"
+  | "round_id"
+  | "user_message_committed"
+  | "user_message_delivery_mode"
+  | "user_message_id"
+>;
+
+/**
+ * ACK 把 optimistic 用户行绑定到后端受理的那一行：`input_seq` 是这条输入在
+ * ACK、实时 durable 行与历史里的同一个身份，没有游标的 ACK（transient host
+ * 指令）退回 `user_message_id`。未落库且非 transient 的输入没有公区用户行，
+ * 直接撤掉 optimistic 行。
+ */
 export function replaceOptimisticUserMessage(
   messages: Message[],
-  clientMessageId: string,
-  userMessageId: string,
-  roundId: string,
-  userMessageCommitted: boolean,
-  userMessageDeliveryMode?: Message["delivery_mode"],
+  ack: UserMessageAck,
 ): Message[] {
-  if (
-    !userMessageCommitted
-    && userMessageDeliveryMode !== "transient"
-  ) {
+  const clientMessageId = ack.client_message_id;
+  const deliveryMode = ack.user_message_delivery_mode;
+  if (!ack.user_message_committed && deliveryMode !== "transient") {
     const next = messages.filter(
       (message) => message.message_id !== clientMessageId,
     );
     return next.length === messages.length ? messages : next;
   }
-  const hasCanonicalMessage = messages.some(
-    (message) => message.message_id === userMessageId,
+  const isAcceptedRow = (message: Message): boolean => (
+    message.role === "user"
+    && message.message_id !== clientMessageId
+    && (ack.input_seq === undefined
+      ? message.message_id === ack.user_message_id
+      : message.input_seq === ack.input_seq)
   );
-  // Room 会先广播 durable user，再返回 ACK；已有 canonical 时移除本地副本，
-  // 同时补回只存在于当前页面的 visual identity。
-  if (hasCanonicalMessage && clientMessageId !== userMessageId) {
-    let hasChanges = false;
-    const next = messages.flatMap((message) => {
-      if (message.message_id === clientMessageId) {
-        hasChanges = true;
-        return [];
-      }
-      if (
-        message.role === "user"
-        && message.message_id === userMessageId
-        && message.client_message_id !== clientMessageId
-      ) {
-        hasChanges = true;
-        return [{
-          ...message,
-          client_message_id: clientMessageId,
-          ...(userMessageDeliveryMode
-            ? { delivery_mode: userMessageDeliveryMode }
-            : {}),
-        }];
-      }
-      return [message];
-    });
-    return hasChanges ? next : messages;
-  }
+  // Room 的 durable 用户行先于 ACK 广播：受理行已在集合里时只撤掉本地副本，
+  // 并把本页的 Feed 节点 key 留在受理行上。
+  const hasAcceptedRow = messages.some(isAcceptedRow);
 
   let hasChanges = false;
-  const next = messages.map((message) => {
-    if (message.role !== "user" || message.message_id !== clientMessageId) {
-      return message;
+  const next = messages.flatMap((message): Message[] => {
+    if (message.role !== "user") {
+      return [message];
     }
-    hasChanges = true;
-    return {
-      ...message,
-      client_message_id: clientMessageId,
-      message_id: userMessageId,
-      round_id: roundId,
-      ...(userMessageDeliveryMode
-        ? { delivery_mode: userMessageDeliveryMode }
-        : {}),
-    };
+    if (message.message_id === clientMessageId) {
+      hasChanges = true;
+      return hasAcceptedRow
+        ? []
+        : [{
+            ...message,
+            client_message_id: clientMessageId,
+            message_id: ack.user_message_id,
+            round_id: ack.round_id,
+            ...(ack.input_seq === undefined ? {} : { input_seq: ack.input_seq }),
+            ...(deliveryMode ? { delivery_mode: deliveryMode } : {}),
+          }];
+    }
+    if (isAcceptedRow(message) && message.client_message_id !== clientMessageId) {
+      hasChanges = true;
+      return [{
+        ...message,
+        client_message_id: clientMessageId,
+        ...(deliveryMode ? { delivery_mode: deliveryMode } : {}),
+      }];
+    }
+    return [message];
   });
   return hasChanges ? next : messages;
 }
