@@ -255,27 +255,51 @@ export function filterSupersededRoundIndexItems(
 }
 
 /**
- * 目标窗口请求成功后，只保留实际投影出用户可见内容的已解析轮次。
+ * 已解析轮次只要投影过用户可见内容就持续记入；连续窗口随后淘汰其正文，不代表该轮为空。
+ * 结果始终是 resolvedRoundIds 的子集，会话重置时随之清空；无变化时返回原数组。
+ */
+export function retainProjectedResolvedRoundIds(
+  projectedRoundIds: string[],
+  visibleRoundIds: string[],
+  resolvedRoundIds: string[],
+): string[] {
+  if (resolvedRoundIds.length === 0 && projectedRoundIds.length === 0) {
+    return projectedRoundIds;
+  }
+
+  const projected = new Set(projectedRoundIds);
+  const visible = new Set(visibleRoundIds);
+  const retained = resolvedRoundIds.filter(
+    (roundId) => projected.has(roundId) || visible.has(roundId),
+  );
+  return retained.length === projectedRoundIds.length
+    && retained.every((roundId, index) => roundId === projectedRoundIds[index])
+    ? projectedRoundIds
+    : retained;
+}
+
+/**
+ * 目标窗口请求成功后，只保留投影过用户可见内容的已解析轮次。
  * 未解析轮次仍保留短暂占位，避免请求完成前导航与 feed 出现空洞。
  */
 export function filterResolvedEmptyRoundIndexItems(
   roundIndexItems: SessionRoundIndexItem[],
-  visibleRoundIds: string[],
+  projectedRoundIds: string[],
   resolvedRoundIds: string[],
 ): SessionRoundIndexItem[] {
   if (resolvedRoundIds.length === 0) {
     return roundIndexItems;
   }
 
-  const visible = new Set(
-    visibleRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
+  const projected = new Set(
+    projectedRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
   );
   const resolved = new Set(
     resolvedRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
   );
   return roundIndexItems.filter((item) => {
     const roundId = item.roundId.trim();
-    return !resolved.has(roundId) || visible.has(roundId);
+    return !resolved.has(roundId) || projected.has(roundId);
   });
 }
 
