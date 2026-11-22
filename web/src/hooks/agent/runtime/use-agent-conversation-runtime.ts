@@ -237,14 +237,7 @@ export function useAgentConversationRuntime({
       resolvePendingRequestAck(ack.client_request_id);
     }
     if (ack.client_message_id && ack.user_message_id) {
-      setMessages((messages) => replaceOptimisticUserMessage(
-        messages,
-        ack.client_message_id,
-        ack.user_message_id,
-        ack.round_id,
-        ack.user_message_committed,
-        ack.user_message_delivery_mode,
-      ));
+      setMessages((messages) => replaceOptimisticUserMessage(messages, ack));
     }
     if (ack.pending_snapshot) {
       reconcilePendingAgentSlotSnapshot(mergeChatAckPendingSlots([], ack));

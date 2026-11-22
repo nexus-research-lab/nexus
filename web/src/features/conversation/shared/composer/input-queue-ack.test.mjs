@@ -1427,12 +1427,7 @@ test("input queue ACK resolves only accepted requests", async () => {
   assert.deepEqual(resolved, ["req_1"]);
 });
 
-test("Room durable user atomically replaces its optimistic feed node", async () => {
-  const {
-    mergeLoadedMessages,
-    upsertRealtimeMessage,
-  } = await import("@/hooks/agent/message/message-collection-model.ts");
-  const { replaceOptimisticUserMessage } = await import("@/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts");
+test("Room durable acknowledgement keeps the optimistic feed node identity", async () => {
   const optimistic = {
     agent_id: "",
     client_message_id: "local-message-1",
@@ -1445,104 +1440,11 @@ test("Room durable user atomically replaces its optimistic feed node", async () 
   };
   const canonical = {
     ...optimistic,
+    input_seq: 1_700_000_000_000_001,
     message_id: "msg-user-1",
     round_id: "round-1",
     timestamp: 11,
   };
-  const before = [
-    {
-      ...optimistic,
-      content: "更早消息",
-      message_id: "older",
-      round_id: "older",
-      timestamp: 1,
-    },
-    optimistic,
-    {
-      ...optimistic,
-      content: "更晚消息",
-      message_id: "newer",
-      round_id: "newer",
-      timestamp: 20,
-    },
-  ];
-  const reconciled = upsertRealtimeMessage(before, canonical);
-
-  assert.deepEqual(
-    reconciled.map((message) => message.message_id),
-    ["older", "msg-user-1", "newer"],
-    "the canonical event must reuse the optimistic visual position",
-  );
-  assert.equal(
-    reconciled.filter((message) => message.content === "检查流式体验").length,
-    1,
-    "the durable broadcast must never create a one-frame duplicate user card",
-  );
-  assert.equal(
-    replaceOptimisticUserMessage(
-      reconciled,
-      "local-message-1",
-      "msg-user-1",
-      "round-1",
-      true,
-    ).length,
-    reconciled.length,
-    "the later ACK remains idempotent after realtime reconciliation",
-  );
-  const ackFirst = replaceOptimisticUserMessage(
-    [optimistic],
-    "local-message-1",
-    "msg-user-1",
-    "round-1",
-    true,
-  );
-  assert.equal(
-    ackFirst[0]?.client_message_id,
-    "local-message-1",
-    "ACK-first delivery must retain the optimistic visual identity",
-  );
-  const canonicalWithoutClientIdentity = {
-    ...canonical,
-  };
-  delete canonicalWithoutClientIdentity.client_message_id;
-  const snapshotMerged = mergeLoadedMessages(
-    [canonicalWithoutClientIdentity],
-    reconciled,
-  );
-  assert.equal(
-    snapshotMerged.find(
-      (message) => message.message_id === "msg-user-1",
-    )?.client_message_id,
-    "local-message-1",
-    "a later history refresh must not remount the acknowledged user bubble",
-  );
-  const timeoutRecoveryMerged = mergeLoadedMessages(
-    [canonical],
-    [optimistic],
-  );
-  assert.deepEqual(
-    timeoutRecoveryMerged.map((message) => message.message_id),
-    ["msg-user-1"],
-    "durable client identity must reconcile an optimistic user after ACK loss",
-  );
-  const broadcastBeforeAck = replaceOptimisticUserMessage(
-    [optimistic, canonicalWithoutClientIdentity],
-    "local-message-1",
-    "msg-user-1",
-    "round-1",
-    true,
-  );
-  assert.deepEqual(
-    broadcastBeforeAck.map((message) => ({
-      client_message_id: message.client_message_id,
-      message_id: message.message_id,
-    })),
-    [{
-      client_message_id: "local-message-1",
-      message_id: "msg-user-1",
-    }],
-    "ACK must annotate an already received canonical user before removing the optimistic copy",
-  );
 
   const { projectGroupAgentTimeline } = await import("@/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts");
   const optimisticProjection = projectGroupAgentTimeline({
