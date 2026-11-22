@@ -60,6 +60,7 @@ func (s *Service) SetGoalFromCommand(
 	return protocol.GoalCommandResult{
 		Goal:                 item,
 		UserMessageCommitted: committed,
+		InputSeq:             protocol.Int64FromAny(execution.userMessage[protocol.InputSeqField]),
 	}, nil
 }
 

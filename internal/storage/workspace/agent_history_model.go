@@ -41,6 +41,8 @@ type transcriptRoundMarker struct {
 	ControlOnly     bool
 	Purpose         string
 	Metadata        map[string]string
+	// InputSeq 是受理游标；旧 marker 没有该值，省略后其前缀摘要与升级前一致，不触发重建。
+	InputSeq int64 `json:",omitempty"`
 }
 
 type overlayHistoryState struct {
@@ -62,6 +64,9 @@ type RoundMarkerOptions struct {
 	ControlOnly bool
 	Purpose     string
 	Metadata    map[string]string
+	// InputSeq 是受理游标（protocol.NewInputSeq）。同一输入还要进入 chat_ack 或实时广播时，
+	// 由调用方铸造并传入同一个值；留空时落盘前补铸，保证每条 marker 都有游标。
+	InputSeq int64
 }
 
 // RoomPublicCursor 记录某个 Room agent 已消费到的公区消息位置。

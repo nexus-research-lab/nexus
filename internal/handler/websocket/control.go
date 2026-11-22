@@ -324,6 +324,7 @@ func (m *controlMessage) executeHostCommand(
 			clientMessageID,
 			roundID,
 			userMessageID,
+			result.InputSeq,
 			true,
 			nil,
 		)

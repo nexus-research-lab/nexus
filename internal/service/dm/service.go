@@ -71,6 +71,7 @@ func (m *contextMutex) Unlock() {
 // Request 表示一次 DM 会话写入请求。
 // RoundID / UserMessageID / AgentRoundID 由后端 mint：
 // WS 入口不填，由聊天入口生成；后端内部调用方（automation / queue / goal）可预置 RoundID。
+// InputSeq 是这次输入的受理游标，同样由聊天入口铸造一次，round marker、chat_ack 与实时广播共用。
 type Request struct {
 	queuedWorkBinding         *protocol.ExecutionWorkBinding
 	queuedReviewBinding       *protocol.ExecutionReviewBinding
@@ -86,6 +87,7 @@ type Request struct {
 	ClientMessageID           string
 	RoundID                   string
 	UserMessageID             string
+	InputSeq                  int64
 	AgentRoundID              string
 	DeliveryPolicy            protocol.ChatDeliveryPolicy
 	BroadcastUserMessage      bool

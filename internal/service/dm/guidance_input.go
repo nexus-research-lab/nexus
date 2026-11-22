@@ -323,6 +323,7 @@ func (s *Service) persistConsumedGuidanceUserMessage(
 		targetRoundID,
 		sourceRoundID,
 		userMessageID,
+		protocol.NewInputSeq(),
 		item.Content,
 		protocol.ChatDeliveryPolicyGuide,
 		item.Attachments,

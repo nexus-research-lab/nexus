@@ -150,6 +150,9 @@ func (s *Service) prepareChatExecution(
 	if strings.TrimSpace(request.UserMessageID) == "" {
 		request.UserMessageID = protocol.NewUserMessageID()
 	}
+	if request.InputSeq <= 0 {
+		request.InputSeq = protocol.NewInputSeq()
+	}
 	if strings.TrimSpace(request.AgentRoundID) == "" {
 		request.AgentRoundID = protocol.NewAgentRoundID()
 	}
@@ -672,6 +675,7 @@ func (e *dmChatExecution) persistRound() error {
 		UserMessageID:   e.request.UserMessageID,
 		AgentRoundID:    e.request.AgentRoundID,
 		ClientMessageID: e.request.ClientMessageID,
+		InputSeq:        e.request.InputSeq,
 		DeliveryPolicy:  string(e.deliveryPolicy),
 		Attachments:     e.request.Attachments,
 		HiddenFromUser:  e.markerHiddenFromUser(),
@@ -837,7 +841,14 @@ func (e *dmChatExecution) broadcastAcceptance() {
 
 func (e *dmChatExecution) broadcastRoundStarted(ctx context.Context) {
 	if wake := e.request.runtimeWake; wake != nil {
-		e.service.broadcastRuntimeWakeMarker(ctx, e.session, e.request.RoundID, e.request.UserMessageID, wake.trigger)
+		e.service.broadcastRuntimeWakeMarker(
+			ctx,
+			e.session,
+			e.request.RoundID,
+			e.request.UserMessageID,
+			e.request.InputSeq,
+			wake.trigger,
+		)
 	}
 	if e.request.BroadcastUserMessage {
 		e.service.broadcastUserRoundMarker(
@@ -846,6 +857,7 @@ func (e *dmChatExecution) broadcastRoundStarted(ctx context.Context) {
 			e.request.RoundID,
 			"",
 			e.request.UserMessageID,
+			e.request.InputSeq,
 			strings.TrimSpace(e.request.Content),
 			e.deliveryPolicy,
 			e.request.Attachments,
@@ -874,6 +886,7 @@ func (e *dmChatExecution) broadcastAck() {
 		e.request.ClientMessageID,
 		e.request.RoundID,
 		e.request.UserMessageID,
+		e.request.InputSeq,
 		true,
 		dmChatAckPendingSlots(e.agent.AgentID, e.request.AgentRoundID),
 	))

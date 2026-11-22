@@ -693,9 +693,11 @@ type GoalCommandRequest struct {
 }
 
 // GoalCommandResult 返回 Goal 真相与控制记录是否已经 durable。
+// InputSeq 是该控制记录的受理游标，只在 UserMessageCommitted 时有意义。
 type GoalCommandResult struct {
 	Goal                 Goal
 	UserMessageCommitted bool
+	InputSeq             int64
 }
 
 // CreateGoalRequest 表示创建 Goal 的请求。

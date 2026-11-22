@@ -67,6 +67,7 @@ func (s *Service) queueRunningInput(
 		request.ClientMessageID,
 		request.RoundID,
 		request.UserMessageID,
+		0,
 		false,
 		nil,
 	))
@@ -136,6 +137,7 @@ func (s *Service) guideRunningInput(
 		request.ClientMessageID,
 		request.RoundID,
 		request.UserMessageID,
+		0,
 		false,
 		nil,
 	))

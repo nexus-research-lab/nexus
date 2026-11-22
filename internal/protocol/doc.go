@@ -34,7 +34,7 @@
 //   - attachment.go / workspace_file_artifact.go / delivery_policy.go：附件、
 //     文件变更/交付及产出 Agent/round 来源与投递策略。
 //   - identity.go / value.go / provider_failure.go / tool_result.go /
-//     configuration_runtime.go / runtime_command.go：共享 ID、值解码、Provider
+//     configuration_runtime.go / runtime_command.go：共享 ID、用户输入受理游标（input_seq）、值解码、Provider
 //     失败分类、mutation outcome，以及 nexuscfg / Agent-facing nexus broker wire 常量。
 //
 // 普通 ACK 窗口由 event.go 与前端 conversation-policy.ts 保持一致，超时只触发受理核对。

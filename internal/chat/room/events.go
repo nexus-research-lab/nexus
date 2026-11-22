@@ -87,6 +87,7 @@ func WrapChatAckEvent(
 	clientMessageID string,
 	roundID string,
 	userMessageID string,
+	inputSeq int64,
 	userMessageCommitted bool,
 	pending []protocol.ChatAckPendingSlot,
 ) protocol.EventMessage {
@@ -96,6 +97,7 @@ func WrapChatAckEvent(
 		clientMessageID,
 		roundID,
 		userMessageID,
+		inputSeq,
 		userMessageCommitted,
 		pending,
 	)
@@ -122,6 +124,7 @@ func WrapServerPendingSlotsEvent(
 		"",
 		roundID,
 		"",
+		0,
 		false,
 		pending,
 	)

@@ -17,7 +17,9 @@
 //   - room_history_checkpoint_test.go：覆盖多成员恢复、索引失效与工具详情，并提供桌面规模的历史读取基准。
 //   - room_history_incremental.go：在共用后台单飞任务中按 ledger 偏移读取追加，保留原始尾轮，原子更新尾部分页、导航与检查点；依赖身份替换和跨轮修正回退重建。
 //   - room_history_frozen_refs.go：为已离开尾轮的 transcript_ref 保存投影摘要；成员 transcript/overlay 只追加且已发布消息投影不变时继续增量，否则回退重建。
-//   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型。
+//   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型；
+//     round marker 携带受理游标 input_seq 并原样物化到用户行，Room inline 用户行自带同一字段，合并同 ID 用户快照时不丢失。
+//   - history_input_cursor_test.go：DM/Room 用户行的受理游标在实时行、分页读模型与完整读取之间一致，刷新与进程重启后不变。
 //   - overlay_replay.go：session overlay 的进程内增量回放（overlay 历史行/marker 状态与 DM round index 共用）；按文件身份、尺寸、
 //     同尺寸修改时间与首尾指纹确认纯追加后只解析新增完整行，文件被替换/截断/改写、末行未写完或新行覆盖已回放的 message_id 时整份重读；
 //     回放状态按最近使用保留，受会话个数与源文件总字节上限约束。

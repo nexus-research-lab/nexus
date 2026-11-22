@@ -110,6 +110,11 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 	if clientMessageID := strings.TrimSpace(options.ClientMessageID); clientMessageID != "" {
 		row["client_message_id"] = clientMessageID
 	}
+	inputSeq := options.InputSeq
+	if inputSeq <= 0 {
+		inputSeq = protocol.NewInputSeq()
+	}
+	row[protocol.InputSeqField] = inputSeq
 	if sourceRoundID := options.SourceRoundID; sourceRoundID != "" {
 		row["source_round_id"] = sourceRoundID
 	}
@@ -268,6 +273,7 @@ func overlayHistoryStateFromRows(rows []map[string]any) overlayHistoryState {
 				UserMessageID:   stringFromAny(row["user_message_id"]),
 				AgentRoundID:    stringFromAny(row["agent_round_id"]),
 				ClientMessageID: stringFromAny(row["client_message_id"]),
+				InputSeq:        protocol.Int64FromAny(row[protocol.InputSeqField]),
 				Content:         stringFromAny(row["content"]),
 				Attachments:     protocol.ChatAttachmentsFromAny(row["attachments"]),
 				Timestamp:       messageTimestamp(protocol.Message(row)),

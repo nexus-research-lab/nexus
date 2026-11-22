@@ -68,6 +68,13 @@ func mergeUserSnapshots(current protocol.Message, next protocol.Message) protoco
 		merged["session_id"] = current["session_id"]
 	}
 
+	// 受理游标只在受理时铸造一次；后一份快照不带它时沿用已有的值。
+	if _, positioned := merged[protocol.InputSeqField]; !positioned {
+		if inputSeq, positioned := current[protocol.InputSeqField]; positioned {
+			merged[protocol.InputSeqField] = inputSeq
+		}
+	}
+
 	// 后一份 durable user 快照仍是完整真相，不能从旧的单 Agent 快照继承
 	// agent_round_id 等已被清除的字段。只补 transcript 独有的 session_id，
 	// 并保留最早的有效输入时间，保证 user 排在由它触发的 assistant 前面。
