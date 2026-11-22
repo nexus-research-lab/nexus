@@ -47,7 +47,7 @@ func TestLocalizeChannelConfigViewCoversEveryCatalogText(t *testing.T) {
 }
 
 func TestLocalizeChannelConfigViewKeepsChineseCatalogByDefault(t *testing.T) {
-	for _, locale := range []string{"", "zh", "zh-CN"} {
+	for _, locale := range []string{"", "zh", "zh-CN", "enigma"} {
 		for _, item := range ChannelCatalog() {
 			view := ChannelConfigView{ChannelCatalogItem: item}
 			if got := LocalizeChannelConfigView(view, locale); !reflect.DeepEqual(got, view) {

@@ -64,7 +64,7 @@ func TestLocalizeDetailCoversEveryCatalogText(t *testing.T) {
 }
 
 func TestLocalizeKeepsChineseCatalogAndCustomMCP(t *testing.T) {
-	for _, locale := range []string{"", "zh", "zh-CN"} {
+	for _, locale := range []string{"", "zh", "zh-CN", "enigma"} {
 		for _, entry := range connectorCatalog {
 			source := catalogDetail(entry)
 			if got := LocalizeDetail(source, locale); !reflect.DeepEqual(got, source) {

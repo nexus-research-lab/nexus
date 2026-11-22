@@ -118,8 +118,10 @@ var englishConnectorCatalog = map[string]connectorText{
 	},
 }
 
+// isEnglishLocale 只接受 en 及其地区变体（en-US、en_GB）；其余值一律回退中文目录。
 func isEnglishLocale(locale string) bool {
-	return strings.HasPrefix(strings.ToLower(locale), "en")
+	language, _, _ := strings.Cut(strings.ReplaceAll(strings.ToLower(locale), "_", "-"), "-")
+	return language == "en"
 }
 
 // LocalizeInfo 把目录项的标题与说明投影为请求语言；

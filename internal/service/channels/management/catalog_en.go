@@ -101,7 +101,7 @@ var englishChannelCatalog = map[string]channelCatalogText{
 // LocalizeChannelConfigView 把频道视图中的目录文案投影为请求语言；
 // 仅英文界面替换文案，其余语言保留中文目录原文。
 func LocalizeChannelConfigView(view ChannelConfigView, locale string) ChannelConfigView {
-	if !strings.HasPrefix(strings.ToLower(locale), "en") {
+	if !isEnglishLocale(locale) {
 		return view
 	}
 	text, ok := englishChannelCatalog[view.ChannelType]
@@ -120,4 +120,10 @@ func LocalizeChannelConfigView(view ChannelConfigView, locale string) ChannelCon
 		}
 	}
 	return view
+}
+
+// isEnglishLocale 只接受 en 及其地区变体（en-US、en_GB）；其余值一律回退中文目录。
+func isEnglishLocale(locale string) bool {
+	language, _, _ := strings.Cut(strings.ReplaceAll(strings.ToLower(locale), "_", "-"), "-")
+	return language == "en"
 }
