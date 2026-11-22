@@ -255,51 +255,51 @@ export function filterSupersededRoundIndexItems(
 }
 
 /**
- * 已解析轮次只要投影过用户可见内容就持续记入；连续窗口随后淘汰其正文，不代表该轮为空。
+ * 已解析轮次一旦投影过可见消息正文就持续记入；连续窗口随后淘汰其正文，不代表该轮为空。
+ * live、slot、permission、execution 等运行态证据是瞬时的，清除后不能证明该轮有内容，因此不记入。
  * 结果始终是 resolvedRoundIds 的子集，会话重置时随之清空；无变化时返回原数组。
  */
-export function retainProjectedResolvedRoundIds(
-  projectedRoundIds: string[],
-  visibleRoundIds: string[],
+export function retainResolvedContentRoundIds(
+  retainedRoundIds: string[],
   resolvedRoundIds: string[],
+  messageGroups: ReadonlyMap<string, Message[]>,
 ): string[] {
-  if (resolvedRoundIds.length === 0 && projectedRoundIds.length === 0) {
-    return projectedRoundIds;
-  }
-
-  const projected = new Set(projectedRoundIds);
-  const visible = new Set(visibleRoundIds);
-  const retained = resolvedRoundIds.filter(
-    (roundId) => projected.has(roundId) || visible.has(roundId),
-  );
-  return retained.length === projectedRoundIds.length
-    && retained.every((roundId, index) => roundId === projectedRoundIds[index])
-    ? projectedRoundIds
-    : retained;
+  const retained = new Set(retainedRoundIds);
+  const next = resolvedRoundIds.filter((roundId) => {
+    if (retained.has(roundId)) {
+      return true;
+    }
+    const messages = messageGroups.get(roundId);
+    return messages !== undefined && !isBlankNoReplyRound(messages);
+  });
+  return next.length === retainedRoundIds.length
+    && next.every((roundId, index) => roundId === retainedRoundIds[index])
+    ? retainedRoundIds
+    : next;
 }
 
 /**
- * 目标窗口请求成功后，只保留投影过用户可见内容的已解析轮次。
+ * 目标窗口请求成功后，只保留当前驻留或曾投影过消息正文的已解析轮次。
  * 未解析轮次仍保留短暂占位，避免请求完成前导航与 feed 出现空洞。
  */
 export function filterResolvedEmptyRoundIndexItems(
   roundIndexItems: SessionRoundIndexItem[],
-  projectedRoundIds: string[],
+  visibleRoundIds: string[],
   resolvedRoundIds: string[],
 ): SessionRoundIndexItem[] {
   if (resolvedRoundIds.length === 0) {
     return roundIndexItems;
   }
 
-  const projected = new Set(
-    projectedRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
+  const visible = new Set(
+    visibleRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
   );
   const resolved = new Set(
     resolvedRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
   );
   return roundIndexItems.filter((item) => {
     const roundId = item.roundId.trim();
-    return !resolved.has(roundId) || projected.has(roundId);
+    return !resolved.has(roundId) || visible.has(roundId);
   });
 }
 

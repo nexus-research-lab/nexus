@@ -1,9 +1,9 @@
 /**
  * INPUT: 当前已加载消息、slot/permission/execution 运行态、原始 round 索引与已解析历史窗口。
- * OUTPUT: feed、navigator 共用的记忆化 ConversationTimeline；未变化轮次的分组数组跨流式帧保持身份，已解析轮次投影过可见内容的事实跨窗口淘汰保留。
+ * OUTPUT: feed、navigator 共用的记忆化 ConversationTimeline；未变化轮次的分组数组跨流式帧保持身份，已解析轮次投影过消息正文的事实跨窗口淘汰保留。
  * POS: React 装配层；轮次过滤与排序规则留在 timeline-model。
  */
-import { useMemo, useRef } from "react";
+import { useMemo, useState } from "react";
 
 import type { Message } from "@/types/conversation/message/entity";
 import type {
@@ -27,7 +27,7 @@ import {
   groupRoomAgentExecutionStatesByRound,
   mergeLoadedRoundIndexItems,
   projectVisibleRoomTimelineEvidence,
-  retainProjectedResolvedRoundIds,
+  retainResolvedContentRoundIds,
 } from "./timeline-model";
 import type { ConversationTimeline } from "./timeline-model";
 import { useStableGroupMap } from "./stable-group-map";
@@ -152,22 +152,25 @@ export function useConversationTimeline({
     () => filterSupersededRoundIndexItems(roundIndexItems, visibleMessages),
     [roundIndexItems, visibleMessages],
   );
-  // 渲染期只累积已投影出的事实；被丢弃的并发渲染留下的记录同样成立。
-  const projectedResolvedRoundIdsRef = useRef(EMPTY_ROUND_IDS);
-  const projectedResolvedRoundIds = retainProjectedResolvedRoundIds(
-    projectedResolvedRoundIdsRef.current,
-    loadedRoundIds,
+  // 累积事实放在 state 里并在渲染期推进；被丢弃的并发渲染连同它的更新一起作废，不会改写已提交的记录。
+  const [retainedContentRoundIds, setRetainedContentRoundIds] = useState(EMPTY_ROUND_IDS);
+  const resolvedContentRoundIds = retainResolvedContentRoundIds(
+    retainedContentRoundIds,
     resolvedHistoryRoundIds,
+    messageGroups,
   );
-  projectedResolvedRoundIdsRef.current = projectedResolvedRoundIds;
+  if (resolvedContentRoundIds !== retainedContentRoundIds) {
+    setRetainedContentRoundIds(resolvedContentRoundIds);
+  }
   const visibleRoundIndexItems = useMemo(
     () => filterResolvedEmptyRoundIndexItems(
       unsupersededRoundIndexItems,
-      projectedResolvedRoundIds,
+      [...loadedRoundIds, ...resolvedContentRoundIds],
       resolvedHistoryRoundIds,
     ),
     [
-      projectedResolvedRoundIds,
+      loadedRoundIds,
+      resolvedContentRoundIds,
       resolvedHistoryRoundIds,
       unsupersededRoundIndexItems,
     ],
