@@ -127,6 +127,9 @@ func TestRoomGoalOnlyPublicMentionHandbackImmediatelyContinues(t *testing.T) {
 	if !goalCommand.UserMessageCommitted {
 		t.Fatal("Composer Goal control record was not durable")
 	}
+	if goalCommand.InputSeq <= 0 {
+		t.Fatal("durable Composer Goal control record must return its input_seq for the chat_ack")
+	}
 	goal := &goalCommand.Goal
 	if got := protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataExecutionMode); got != string(protocol.GoalExecutionModeGoalOnly) {
 		t.Fatalf("Goal execution mode = %q, want goal_only", got)
