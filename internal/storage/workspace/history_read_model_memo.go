@@ -9,6 +9,7 @@ import (
 	"hash/maphash"
 	"math"
 	"reflect"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -102,7 +103,12 @@ func (s *historyReadModelMemoStore) update(scope string, apply func(*historyRead
 func (s *historyReadModelMemoStore) forget(scope string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, exists := s.scopes[scope]; !exists {
+		return
+	}
 	delete(s.scopes, scope)
+	// 同时退出淘汰队列：否则重建后再次入队，旧位置出队时会连带淘汰刚写入的备忘。
+	s.order = slices.DeleteFunc(s.order, func(queued string) bool { return queued == scope })
 }
 
 // historyGroupHashSeed 每个进程随机，结构哈希不落盘，也无法被构造碰撞。
