@@ -1,4 +1,4 @@
-// INPUT: transcript 文件、读模型里上次发布的检查点、已冻结前缀的身份集合与当前 round marker。
+// INPUT: transcript 文件、读模型里上次发布的检查点（含起点之前尚未定型的 marker 对齐）、已冻结前缀的身份集合与当前 round marker。
 // OUTPUT: 从检查点字节偏移续读完整行得到的尾部投影（与完整投影逐行一致）及下一个可持久化的检查点；无法证明前缀不变时报错。
 // POS: DM transcript 投影位置的持久化协议；进程重启后也只解析新增字节，不依赖解析缓存。
 package workspace
@@ -6,9 +6,6 @@ package workspace
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"slices"
@@ -27,25 +24,11 @@ type transcriptCheckpoint struct {
 	Line   int    `json:"line"`
 	Offset int64  `json:"offset"`
 	UUID   string `json:"uuid"`
-	// State 是处理起点条目之前的投影状态。
+	// State 是处理起点条目之前的投影状态。续读的对齐结果只覆盖起点及其后的用户轮次，
+	// 因此 State.MarkerIndex 恒为 0。
 	State transcriptProjectionState `json:"state"`
-	// Turns 是起点之前主链上的全部用户轮次，marker 对齐是全局匹配，续读时需要它们重新对齐。
-	Turns []transcriptUserTurn `json:"turns"`
-	// AlignedTurns 是建立检查点时参与 marker 对齐的用户轮次总数（没有 marker 时为 0）；
-	// MarkersDigest 是起点之前已消费的对齐 marker 的摘要，重新对齐后不一致说明前缀投影已变。
-	AlignedTurns  int    `json:"aligned_turns"`
-	MarkersDigest string `json:"markers_digest"`
-}
-
-// markersApply 判断按当前 marker 重新对齐后，起点之前的投影是否与建立检查点时一致。
-// 已消费的 marker 数在对齐结果耗尽时会停止增长：建立时没有 marker 的检查点只在仍然没有 marker 时成立，
-// 否则要求当时未耗尽（State.MarkerIndex 即起点之前真实消费的个数）且这些 marker 逐个未变。
-func (c transcriptCheckpoint) markersApply(aligned []transcriptRoundMarker) bool {
-	if c.AlignedTurns == 0 {
-		return len(aligned) == 0
-	}
-	return c.State.MarkerIndex < c.AlignedTurns && c.State.MarkerIndex <= len(aligned) &&
-		transcriptMarkersDigest(aligned[:c.State.MarkerIndex]) == c.MarkersDigest
+	// Markers 是起点之前的 marker 对齐里仍会参与后续对齐的部分；续读时据此只重新对齐未定型的轮次。
+	Markers transcriptMarkerFrontier `json:"markers"`
 }
 
 // transcriptReplay 是一次 transcript 投影及其检查点候选。完整读取时 Rows 是全部投影行，
@@ -57,20 +40,30 @@ type transcriptReplay struct {
 	base    transcriptCheckpoint
 	chain   []transcriptEntry
 	entries []transcriptEntry
-	aligned []transcriptRoundMarker
+	// alignment 是 chain 上用户轮次的 marker 对齐，投影按轮次顺序消费它。
+	alignment transcriptMarkerAlignment
 	// offsets 与 Starts 一一对应，是各起点条目所在行的行首字节偏移。
 	offsets []int64
 }
 
 // checkpoint 以第 index 个候选起点建立检查点，并返回因此新冻结的条目身份
 // （上一个检查点到该起点之间的条目），由调用方并入已冻结前缀的身份集合。
-func (r *transcriptReplay) checkpoint(index int) (transcriptCheckpoint, historyTailKeys) {
+// 起点之前的 marker 对齐无法定型，或投影消费的 marker 数与起点之前的用户轮次数不一致时返回 false。
+func (r *transcriptReplay) checkpoint(index int) (transcriptCheckpoint, historyTailKeys, bool) {
 	start := r.Starts[index]
 	entry := r.chain[start.Position]
-	turns := append(
-		slices.Clone(r.base.Turns),
-		collectTranscriptUserTurnsAfter(r.chain[:start.Position], shouldSkipTranscriptEntry, r.base.State.LastTimestamp)...,
-	)
+	turns := len(collectTranscriptUserTurnsAfter(r.chain[:start.Position], shouldSkipTranscriptEntry, r.base.State.LastTimestamp))
+	state := start.State
+	if len(r.alignment.markers) > 0 {
+		if state.MarkerIndex != turns {
+			return transcriptCheckpoint{}, nil, false
+		}
+		state.MarkerIndex = 0
+	}
+	frontier, ok := r.alignment.frontier(turns)
+	if !ok {
+		return transcriptCheckpoint{}, nil, false
+	}
 	frozen := make(historyTailKeys)
 	for _, item := range r.entries {
 		if item.Index < entry.Index {
@@ -78,14 +71,12 @@ func (r *transcriptReplay) checkpoint(index int) (transcriptCheckpoint, historyT
 		}
 	}
 	return transcriptCheckpoint{
-		Line:          entry.Index,
-		Offset:        r.offsets[index],
-		UUID:          stringFromAny(entry.Data["uuid"]),
-		State:         start.State,
-		Turns:         turns,
-		AlignedTurns:  len(r.aligned),
-		MarkersDigest: transcriptMarkersDigest(r.aligned[:min(start.State.MarkerIndex, len(r.aligned))]),
-	}, frozen
+		Line:    entry.Index,
+		Offset:  r.offsets[index],
+		UUID:    stringFromAny(entry.Data["uuid"]),
+		State:   state,
+		Markers: frontier,
+	}, frozen, true
 }
 
 // newTranscriptReplay 为一次完整投影准备检查点候选。只有主链按行号严格递增时，
@@ -110,12 +101,12 @@ func newTranscriptReplay(
 		return nil, nil
 	}
 	return &transcriptReplay{
-		Rows:    projection.Rows,
-		Starts:  starts,
-		chain:   chain,
-		entries: entries,
-		aligned: projection.Aligned,
-		offsets: offsets,
+		Rows:      projection.Rows,
+		Starts:    starts,
+		chain:     chain,
+		entries:   entries,
+		alignment: projection.Alignment,
+		offsets:   offsets,
 	}, nil
 }
 
@@ -164,32 +155,28 @@ func (s *AgentHistoryStore) resumeTranscriptProjection(
 		return nil, fmt.Errorf("transcript chain left the checkpoint: %w", errHistoryPageIndexInvalid)
 	}
 
-	var aligned []transcriptRoundMarker
-	if len(roundMarkers) > 0 {
-		turns := append(
-			slices.Clone(checkpoint.Turns),
-			collectTranscriptUserTurnsAfter(chain, shouldSkipTranscriptEntry, checkpoint.State.LastTimestamp)...,
-		)
-		aligned = matchTranscriptRoundMarkers(turns, roundMarkers)
-	}
-	if !checkpoint.markersApply(aligned) {
+	alignment, ok := checkpoint.Markers.resume(
+		collectTranscriptUserTurnsAfter(chain, shouldSkipTranscriptEntry, checkpoint.State.LastTimestamp),
+		roundMarkers,
+	)
+	if !ok {
 		return nil, fmt.Errorf("round markers before the checkpoint changed: %w", errHistoryPageIndexInvalid)
 	}
 
 	state := checkpoint.State
 	replay := &transcriptReplay{
-		Rows:    make([]protocol.Message, 0, len(chain)),
-		base:    checkpoint,
-		chain:   chain,
-		entries: entries,
-		aligned: aligned,
+		Rows:      make([]protocol.Message, 0, len(chain)),
+		base:      checkpoint,
+		chain:     chain,
+		entries:   entries,
+		alignment: alignment,
 	}
 	visitProjectedTranscriptFrom(
 		workspacePath,
 		sessionValue.SessionKey,
 		sessionValue.AgentID,
 		slices.Values(chain),
-		aligned,
+		alignment.aligned(),
 		shouldSkipTranscriptEntry,
 		&state,
 		func(start transcriptRoundStart, _ transcriptProjectionState) {
@@ -332,14 +319,4 @@ func transcriptLineOffsets(ctx context.Context, input io.Reader, firstLine int, 
 		return nil, nil
 	}
 	return offsets, nil
-}
-
-func transcriptMarkersDigest(markers []transcriptRoundMarker) string {
-	hasher := sha256.New()
-	encoder := json.NewEncoder(hasher)
-	// marker 只含字符串、数值与按键排序的 map，编码结果确定；逐条编码避免为整段前缀分配缓冲。
-	for index := range markers {
-		_ = encoder.Encode(&markers[index])
-	}
-	return hex.EncodeToString(hasher.Sum(nil))
 }

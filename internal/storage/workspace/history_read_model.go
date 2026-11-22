@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 13 // round index 分块存入 history_read_round_chunks，scope 行只留 round 数与修订号。
+	historyReadModelSchemaVersion = 14 // DM transcript 检查点只保存未定型的 marker 对齐，marker 尾部下标改指全部 round marker。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000

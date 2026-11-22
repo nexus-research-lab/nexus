@@ -126,11 +126,13 @@ func TestLiveAndRefreshedHistoryProjectTheSameRows(t *testing.T) {
 			t.Fatal(err)
 		}
 		// 实时链路在受理输入时用同一条 marker 物化用户行。
-		liveRows = append(liveRows, materializeRoundMarkerMessages(sessionKey, "Amy", []transcriptRoundMarker{{
+		if userRow, ok := materializeRoundMarkerMessage(sessionKey, "Amy", transcriptRoundMarker{
 			RoundID: round.roundID, UserMessageID: round.options.UserMessageID, AgentRoundID: round.options.AgentRoundID,
 			Content: round.content, Timestamp: round.at, Synthetic: round.options.Synthetic,
 			Purpose: round.options.Purpose, Metadata: round.options.Metadata, InputSeq: round.options.InputSeq,
-		}})...)
+		}); ok {
+			liveRows = append(liveRows, userRow)
+		}
 		mapper := message.NewEventMapper(message.EventMapperOptions{Context: message.MessageContext{
 			SessionKey: sessionKey, AgentID: "Amy", WorkspacePath: workspacePath,
 			RoundID: round.roundID, AgentRoundID: round.options.AgentRoundID, ParentID: round.options.UserMessageID,
