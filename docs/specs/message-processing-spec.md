@@ -23,6 +23,7 @@ result 的有效错误由 `is_error` 或 `error_*` subtype 共同决定；`succe
 | `client_message_id` | Web | optimistic 用户消息与幂等重试身份 |
 | `round_id` | Nexus | 一次用户输入的根业务轮次，由后端生成 |
 | `message_id` | Nexus / runtime | durable 消息身份，不能复用为 round |
+| `input_seq` | Nexus | 用户输入行的受理游标：受理时铸造一次，随受理记录落盘，实时与历史一致（见 5.3） |
 | `agent_round_id` | Nexus | Room 内单个 Agent slot 的执行身份，与 root round 独立 |
 
 - 前端不得发送或拼接 canonical `round_id`，也不得从 `message_id`、前缀或 Agent 名称反推 root round。
@@ -373,7 +374,8 @@ A 完成后：
 
 - 实时订阅用 `room_seq` 做事件重放和缺口检测；它是传输序号，不是历史排序真相源。
 - DM 的实时续接与历史回放共用同一个轮次归约器（`internal/message.Reducer`）：轮次身份（`round_id`、`agent_round_id`、`parent_id`）只来自显式边界事件——用户输入、runtime 自唤醒，或断链 transcript 的隐式边界——不从消息内容或消息 ID 推断。同一批事件经两条链路必须得到逐条一致的行，只有时钟来源不同（实时用宿主接收时间，回放用 transcript 时间）。
-- 归约器回放产出的行带 `transcript_line` 游标（产生该行的最后一个 transcript 条目的行号；分段 transcript 按拼接后的主链连续编号）。宿主写入 overlay 的同 ID 副本（如压缩边界）沿用 transcript 副本的时间与游标，不按宿主时钟重排。用户输入行以 round marker 为真相源，不带游标。
+- 归约器回放产出的行带 `transcript_line` 游标（产生该行的最后一个 transcript 条目的行号；分段 transcript 按拼接后的主链连续编号）。宿主写入 overlay 的同 ID 副本（如压缩边界）沿用 transcript 副本的时间与游标，不按宿主时钟重排。
+- 用户输入行以宿主的受理记录为真相源（DM 是 round marker，Room 是公区 inline 行），不带 `transcript_line`，游标是 `input_seq`：宿主在受理这条输入、把它写成历史行的那一刻铸造一次（`protocol.NewInputSeq`，以 UnixMicro 为基准、进程内严格递增的 JS 安全整数），并随受理记录落盘。同一输入在 `chat_ack`、实时 durable 用户行与历史读取中给出同一个值；刷新、重启、与 transcript 副本合并或同 ID 快照重写都不改变它。排队或引导中的输入尚未成为历史行，其 ACK 不带游标，游标在它被消费并落盘时铸造，随 durable 用户行广播。不写公区用户行的 Room 内部输入（如隐藏的 Goal 续跑）没有游标，其 ACK 同样不带。后受理的输入游标更大；跨进程重启的先后由宿主时钟保证。本合同生效前落盘的用户行没有游标，仍以 `message_id` 为身份。
 - 归约规则带版本（`message.ProjectionVersion`）并计入 DM 读模型身份；规则变化后旧读模型不续用，由 transcript 重建。
 - 持久 Assistant 行只提供公区结构、内容与精确终态；即使其 legacy `stream_status` 仍为 pending/streaming，没有当前 slot、pending interaction 或 active lifecycle 时也不得重建“正在执行”。
 - 历史按持久化的公区发布时间、稳定 display order 和因果关联归一化。公区发布时间由服务端在消息进入 shared overlay 时确定，不用 runtime 开始时间，也不直接重放 WebSocket 到达顺序。

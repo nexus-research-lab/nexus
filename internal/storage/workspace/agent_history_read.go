@@ -270,6 +270,9 @@ func materializeRoundMarkerMessages(
 		if clientMessageID := strings.TrimSpace(marker.ClientMessageID); clientMessageID != "" {
 			row["client_message_id"] = clientMessageID
 		}
+		if marker.InputSeq > 0 {
+			row[protocol.InputSeqField] = marker.InputSeq
+		}
 		if sourceRoundID := strings.TrimSpace(marker.SourceRoundID); sourceRoundID != "" {
 			row["source_round_id"] = sourceRoundID
 		}

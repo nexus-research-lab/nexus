@@ -45,6 +45,7 @@ func (s *Service) SetGoalFromCommand(
 	return protocol.GoalCommandResult{
 		Goal:                 item,
 		UserMessageCommitted: committed,
+		InputSeq:             execution.request.InputSeq,
 	}, nil
 }
 
@@ -66,6 +67,7 @@ func (s *Service) persistGoalCommandRecord(
 		workspacestore.RoundMarkerOptions{
 			UserMessageID:   execution.request.UserMessageID,
 			ClientMessageID: execution.request.ClientMessageID,
+			InputSeq:        execution.request.InputSeq,
 			DeliveryPolicy:  string(protocol.ChatDeliveryPolicyAuto),
 			Purpose:         "goal_command",
 			ControlOnly:     true,

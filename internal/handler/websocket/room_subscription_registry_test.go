@@ -144,6 +144,7 @@ func TestRoomSubscriptionRegistryDoesNotReplayClientAck(t *testing.T) {
 		"client-message-1",
 		"root-1",
 		"user-message-1",
+		0,
 		true,
 		nil,
 	)

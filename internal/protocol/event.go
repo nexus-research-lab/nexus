@@ -400,14 +400,16 @@ type ChatActivitySourceSnapshot struct {
 	RunningRoundIDs []string `json:"running_round_ids"`
 }
 
-// NewChatAckEvent 构造 chat_ack 事件。round_id / user_message_id 由后端 mint，
-// client_request_id / client_message_id 原样回传供前端关联。
+// NewChatAckEvent 构造 chat_ack 事件。round_id / user_message_id / input_seq 由后端 mint，
+// client_request_id / client_message_id 原样回传供前端关联。inputSeq 是已落盘用户输入行的
+// 受理游标；输入尚未成为历史行（排队、引导或未提交）时传 0，ACK 不带该字段。
 func NewChatAckEvent(
 	sessionKey string,
 	clientRequestID string,
 	clientMessageID string,
 	roundID string,
 	userMessageID string,
+	inputSeq int64,
 	userMessageCommitted bool,
 	pending []ChatAckPendingSlot,
 ) EventMessage {
@@ -424,6 +426,9 @@ func NewChatAckEvent(
 		"pending_snapshot":       false,
 		"ack_timeout_ms":         ChatAckTimeoutMS,
 	})
+	if inputSeq > 0 {
+		event.Data[InputSeqField] = inputSeq
+	}
 	event.SessionKey = sessionKey
 	return event
 }
@@ -445,6 +450,7 @@ func NewTransientChatAckEvent(
 		clientMessageID,
 		roundID,
 		userMessageID,
+		0,
 		false,
 		nil,
 	)
@@ -482,7 +488,7 @@ func NewChatPendingSnapshotEvent(
 	pending []ChatAckPendingSlot,
 	pendingInteractionRequestIDs []string,
 ) EventMessage {
-	event := NewChatAckEvent(sessionKey, "", "", roundID, "", false, pending)
+	event := NewChatAckEvent(sessionKey, "", "", roundID, "", 0, false, pending)
 	event.Data["pending_snapshot"] = true
 	event.Data["snapshot_room_seq"] = max(snapshotRoomSeq, 0)
 	if pendingInteractionRequestIDs == nil {

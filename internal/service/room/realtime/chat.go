@@ -493,6 +493,11 @@ func newRoomUserMessage(
 		"timestamp":       time.Now().UnixMilli(),
 		"delivery_policy": string(deliveryPolicy),
 	}
+	if roomRequestPersistsUserRow(request) {
+		// 受理游标随这一行落盘并广播；历史读取、chat_ack 与实时事件因此给出同一个值。
+		// 不落盘的内部输入（如隐藏的 Goal 续跑）没有用户行，也就没有游标。
+		result[protocol.InputSeqField] = protocol.NewInputSeq()
+	}
 	if len(targetAgentIDs) > 0 {
 		result["target_agent_ids"] = slices.Clone(targetAgentIDs)
 	}
@@ -511,8 +516,13 @@ func newRoomUserMessage(
 	return result
 }
 
+// roomRequestPersistsUserRow 判断这次输入是否会写成公区 durable 用户行。
+func roomRequestPersistsUserRow(request ChatRequest) bool {
+	return !request.Internal || request.BroadcastUserMessage
+}
+
 func (e *roomChatExecution) persistInput() error {
-	if !e.request.Internal || e.request.BroadcastUserMessage {
+	if roomRequestPersistsUserRow(e.request) {
 		if err := e.service.persistSharedInlineMessage(
 			e.contextValue.Room.OwnerUserID,
 			e.conversationID,
@@ -936,6 +946,10 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 }
 
 func (e *roomChatExecution) broadcastAck(pending []protocol.ChatAckPendingSlot, userMessageCommitted bool) {
+	var inputSeq int64
+	if userMessageCommitted {
+		inputSeq = protocol.Int64FromAny(e.userMessage[protocol.InputSeqField])
+	}
 	e.service.broadcastSharedEvent(e.ctx, e.sessionKey, e.roomID, roomdomain.WrapChatAckEvent(
 		e.sessionKey,
 		e.roomID,
@@ -944,6 +958,7 @@ func (e *roomChatExecution) broadcastAck(pending []protocol.ChatAckPendingSlot, 
 		e.request.ClientMessageID,
 		e.request.RoundID,
 		e.request.UserMessageID,
+		inputSeq,
 		userMessageCommitted,
 		pending,
 	))

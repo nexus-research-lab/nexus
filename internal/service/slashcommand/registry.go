@@ -47,6 +47,8 @@ type Result struct {
 	DirectoryInvalidation  *DirectoryInvalidation
 	UserMessageCommitted   bool
 	AfterResponseAttempted func(context.Context)
+	// InputSeq 是已提交用户控制记录的受理游标，随 chat_ack 回传。
+	InputSeq int64
 }
 
 // Handler 执行一条 Nexus 自有命令。

@@ -11,12 +11,14 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// BuildUserRoundMarker 构建 DM 用户轮次标记消息。userMessageID 是后端 mint 的 durable id。
+// BuildUserRoundMarker 构建 DM 用户轮次标记消息。userMessageID 是后端 mint 的 durable id，
+// inputSeq 是同一输入落盘时使用的受理游标，历史读取会给出同一个值。
 func BuildUserRoundMarker(
 	sessionValue protocol.Session,
 	roundID string,
 	sourceRoundID string,
 	userMessageID string,
+	inputSeq int64,
 	content string,
 	deliveryPolicy protocol.ChatDeliveryPolicy,
 	attachments []protocol.ChatAttachment,
@@ -29,6 +31,9 @@ func BuildUserRoundMarker(
 		"role":        "user",
 		"content":     strings.TrimSpace(content),
 		"timestamp":   time.Now().UnixMilli(),
+	}
+	if inputSeq > 0 {
+		messageValue[protocol.InputSeqField] = inputSeq
 	}
 	if sourceRoundID = strings.TrimSpace(sourceRoundID); sourceRoundID != "" && sourceRoundID != strings.TrimSpace(roundID) {
 		messageValue["source_round_id"] = sourceRoundID

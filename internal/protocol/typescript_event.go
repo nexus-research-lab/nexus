@@ -194,6 +194,7 @@ export interface ChatAckData {
   client_message_id: string;
   round_id: string;
   user_message_id: string;
+  input_seq?: number;
   user_message_committed: boolean;
   user_message_delivery_mode?: DeliveryMode;
   pending: ChatAckPendingSlot[];

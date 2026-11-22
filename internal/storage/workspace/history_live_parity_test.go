@@ -120,6 +120,8 @@ func TestLiveAndRefreshedHistoryProjectTheSameRows(t *testing.T) {
 	var transcript []map[string]any
 	var arrival int64
 	for _, round := range rounds {
+		// 受理输入时铸造一次游标：marker 落盘与实时用户行用的是同一个值。
+		round.options.InputSeq = protocol.NewInputSeq()
 		if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, round.roundID, round.content, round.at, round.options); err != nil {
 			t.Fatal(err)
 		}
@@ -127,7 +129,7 @@ func TestLiveAndRefreshedHistoryProjectTheSameRows(t *testing.T) {
 		liveRows = append(liveRows, materializeRoundMarkerMessages(sessionKey, "Amy", []transcriptRoundMarker{{
 			RoundID: round.roundID, UserMessageID: round.options.UserMessageID, AgentRoundID: round.options.AgentRoundID,
 			Content: round.content, Timestamp: round.at, Synthetic: round.options.Synthetic,
-			Purpose: round.options.Purpose, Metadata: round.options.Metadata,
+			Purpose: round.options.Purpose, Metadata: round.options.Metadata, InputSeq: round.options.InputSeq,
 		}})...)
 		mapper := message.NewEventMapper(message.EventMapperOptions{Context: message.MessageContext{
 			SessionKey: sessionKey, AgentID: "Amy", WorkspacePath: workspacePath,
@@ -182,6 +184,11 @@ func TestLiveAndRefreshedHistoryProjectTheSameRows(t *testing.T) {
 		want, got := parityComparable(t, live[index]), parityComparable(t, refreshed[index])
 		if want != got {
 			t.Errorf("第 %d 行不一致:\n live      %s\n refreshed %s", index, want, got)
+		}
+	}
+	for index, row := range refreshed {
+		if row["role"] == "user" && protocol.Int64FromAny(row[protocol.InputSeqField]) != protocol.Int64FromAny(live[index][protocol.InputSeqField]) {
+			t.Errorf("用户行 %v 刷新后的受理游标与实时不一致", row["message_id"])
 		}
 	}
 	for _, id := range []string{"msg-1", "system_compact_boundary_round-1", "msg-2", "msg_user_round-wake", "msg-3", "msg-4", "msg-5"} {

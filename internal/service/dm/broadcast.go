@@ -30,9 +30,10 @@ func (s *Service) broadcastRuntimeWakeMarker(
 	sessionValue protocol.Session,
 	roundID string,
 	userMessageID string,
+	inputSeq int64,
 	trigger messagepkg.RuntimeWakeTrigger,
 ) {
-	message := dmdomain.BuildUserRoundMarker(sessionValue, roundID, "", userMessageID, trigger.Content(), "", nil)
+	message := dmdomain.BuildUserRoundMarker(sessionValue, roundID, "", userMessageID, inputSeq, trigger.Content(), "", nil)
 	message = messagepkg.DecorateRuntimeWakeUserMessage(message, trigger)
 	event := dmdomain.WrapSessionMessageEvent(sessionValue, message, "durable", roundID)
 	s.broadcastEventWithTimeout(ctx, sessionValue.SessionKey, event)
@@ -44,11 +45,21 @@ func (s *Service) broadcastUserRoundMarker(
 	roundID string,
 	sourceRoundID string,
 	userMessageID string,
+	inputSeq int64,
 	content string,
 	deliveryPolicy protocol.ChatDeliveryPolicy,
 	attachments []protocol.ChatAttachment,
 ) {
-	message := dmdomain.BuildUserRoundMarker(sessionValue, roundID, sourceRoundID, userMessageID, content, deliveryPolicy, attachments)
+	message := dmdomain.BuildUserRoundMarker(
+		sessionValue,
+		roundID,
+		sourceRoundID,
+		userMessageID,
+		inputSeq,
+		content,
+		deliveryPolicy,
+		attachments,
+	)
 	event := dmdomain.WrapSessionMessageEvent(sessionValue, message, "durable", roundID)
 	s.broadcastEventWithTimeout(ctx, sessionValue.SessionKey, event)
 }

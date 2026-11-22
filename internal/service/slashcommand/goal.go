@@ -76,6 +76,7 @@ func executeGoalCommand(
 	goal := execution.Goal
 	return Result{
 		UserMessageCommitted: execution.UserMessageCommitted,
+		InputSeq:             execution.InputSeq,
 		AfterResponseAttempted: func(afterCtx context.Context) {
 			executor.DispatchGoalContinuation(afterCtx, goal)
 		},

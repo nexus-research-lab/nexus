@@ -526,6 +526,8 @@ func (s *Service) syncQueuedPublicUserMessage(
 		"content":         strings.TrimSpace(item.Content),
 		"timestamp":       time.Now().UnixMilli(),
 		"delivery_policy": string(item.DeliveryPolicy),
+		// 排队或引导输入在被消费时才成为历史行，受理游标也在这一刻铸造。
+		protocol.InputSeqField: protocol.NewInputSeq(),
 	}
 	if rootRoundID != "" && rootRoundID != sourceRoundID {
 		messageRoundID = rootRoundID
