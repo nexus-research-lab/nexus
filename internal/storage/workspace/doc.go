@@ -9,7 +9,8 @@
 //     rewrite_tail（区分未物化 round 与损坏边界）/ fork marker 前缀 / 按 Agent 执行轮配对的 result_summary / 同 message_id 合并 Goal 完成收据 / external_delivery / 不为完成态 host control 伪造中断 assistant 的 unfinished_round）。
 //   - history_page_index.go / agent_history_page_index.go / room_history_page_index.go：DM/Room 共用的 round 分页编排、有界 exact-scope rebuild admission、source preflight/resolver selection 依赖与删除栅栏；每次全量重建记录耗时、分组数与落盘结果。
 //   - history_read_model.go / history_read_model_memo.go / history_message_detail.go：宿主 SQLite/B-Tree 派生读模型，以原子 generation、source/payload 校验、有界 metadata window、淘汰、整库版本重建和大型 Tool/图片按需 detail 提供按页读取；
-//     重建沿用上一代际并只重写签名变化的分组，进程内分组结构哈希备忘让未变化分组跳过投影与序列化；canonical 历史不迁移。
+//     重建沿用上一代际并只重写签名变化的分组，进程内分组结构哈希备忘让未变化分组跳过投影与序列化；
+//     round index 按固定 round 数分块保存，全量重建与尾部刷新都只写内容变化的块（进程内摘要凭 scope 行的 round_revision 确认库内仍是自己写入的那一版，否则回读各块）；canonical 历史不迁移。
 //   - history_read_tail.go：DM 与 Room 增量刷新共用的尾部状态持久化：每个 scope 一份尾部原始行与状态 JSON，以及已冻结前缀的身份键集合，与分组在同一事务内发布。
 //   - agent_history_incremental.go：DM 每轮刷新从读模型里的尾轮状态与 transcript 检查点续接，只重新规范化尾部分组；进程重启后同样成立，无法证明前缀不变时回退重建。
 //   - history_long_session_bench_test.go：长会话逐轮追加（整页刷新与单独的 overlay 读取）、热读、冷读与重启后追加的基准（NEXUS_BENCH_ROUNDS 调整轮数）。

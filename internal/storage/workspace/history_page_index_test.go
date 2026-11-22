@@ -415,7 +415,7 @@ func TestHistoryPageIndexReadsOnlySelectedGroupsAndRebuildsCorruption(t *testing
 
 	if _, err = db.ExecContext(
 		context.Background(),
-		`UPDATE history_read_scopes SET round_index_json = ? WHERE scope = ?`,
+		`UPDATE history_read_round_chunks SET payload = ? WHERE scope = ?`,
 		[]byte("{"),
 		access.Scope,
 	); err != nil {

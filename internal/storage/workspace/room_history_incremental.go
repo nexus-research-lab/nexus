@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"time"
@@ -67,11 +68,11 @@ func roomHistoryIncrementalRow(row protocol.Message) bool {
 		stringFromAny(row["round_id"]) != "" && messageTimestamp(row) > 0
 }
 
-// replaceHistoryReadModelTail 在同一 generation 内用 groups 替换 sequence>=start 的分组，
+// replaceTail 在同一 generation 内用 groups 替换 sequence>=start 的分组，
 // 并推进 scope 的 sources、round index 与分组数；scope 已被其他写入者推进时放弃。
-func replaceHistoryReadModelTail(
+// roundIndex 是刷新后的完整导航，只有内容变化的分块会被写入。
+func (m *historyReadModel) replaceTail(
 	ctx context.Context,
-	db *sql.DB,
 	scopeKey string,
 	previous historyReadModelScope,
 	start int,
@@ -87,7 +88,7 @@ func replaceHistoryReadModelTail(
 	if err != nil {
 		return err
 	}
-	indexJSON, err := marshalHistoryPageJSONBounded(roundIndex, historyReadModelMaxPageBytes)
+	db, err := m.database(ctx)
 	if err != nil {
 		return err
 	}
@@ -113,10 +114,19 @@ func replaceHistoryReadModelTail(
 			return err
 		}
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE history_read_scopes SET sources_json=?,round_index_json=?,group_count=? WHERE scope=?`, sourcesJSON, indexJSON, start+len(groups), scopeKey); err != nil {
+	roundChunks, err := m.syncRoundIndex(ctx, tx, scopeKey, &actual, roundIndex)
+	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	roundRevision := rand.Int64()
+	if _, err = tx.ExecContext(ctx, `UPDATE history_read_scopes SET sources_json=?,round_count=?,round_revision=?,group_count=? WHERE scope=?`, sourcesJSON, len(roundIndex), roundRevision, start+len(groups), scopeKey); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	m.memo.storeRounds(scopeKey, roundRevision, roundChunks)
+	return nil
 }
 
 // snapshotRoomHistoryDependencies 重新拍摄已发布 generation 的成员依赖。
@@ -177,7 +187,7 @@ func (s *RoomHistoryStore) refreshRoomHistoryTail(ctx context.Context, owner, co
 	if err != nil || !valid {
 		return historyPageIndexBuild{}, false
 	}
-	index, err := readHistoryReadModelRoundIndex(ctx, db, scopeKey)
+	index, err := readHistoryReadModelRoundIndex(ctx, db, scopeKey, scope.RoundCount)
 	return historyPageIndexBuild{Sources: scope.Sources, RoundIndex: index, Cacheable: true}, err == nil
 }
 
@@ -342,7 +352,7 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if err != nil {
 		return err
 	}
-	roundItems, err := readHistoryReadModelRoundIndex(ctx, db, scopeKey)
+	roundItems, err := readHistoryReadModelRoundIndex(ctx, db, scopeKey, previous.RoundCount)
 	if err != nil {
 		return err
 	}
@@ -379,7 +389,7 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if valid, checkErr := s.validateRoomHistoryPageSources(ctx, owner, conversation, expected); checkErr != nil || !valid {
 		return errHistoryPageIndexInvalid
 	}
-	if err = replaceHistoryReadModelTail(ctx, db, scopeKey, previous, start, groups, expected, mergedIndex, func(tx *sql.Tx) error {
+	if err = s.readModel.replaceTail(ctx, scopeKey, previous, start, groups, expected, mergedIndex, func(tx *sql.Tx) error {
 		return persistHistoryReadTail(ctx, tx, scopeKey, previous.Generation, nextTail, nextFrozen)
 	}); err != nil {
 		return err
