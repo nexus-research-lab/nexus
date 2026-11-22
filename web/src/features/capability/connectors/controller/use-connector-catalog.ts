@@ -1,4 +1,4 @@
-// INPUT: Connector 目录 API、筛选条件和当前语言的安全失败兜底。
+// INPUT: Connector 目录 API、筛选条件、当前语言和对应的安全失败兜底。
 // OUTPUT: 保留最后成功快照的目录资源、筛选结果与显式刷新动作。
 // POS: Connector catalog 的读取边界；不把普通异常正文交给视图。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -8,6 +8,7 @@ import {
   getResourceFailure,
   type ResourceFailure,
 } from "@/lib/error-message";
+import type { Locale } from "@/shared/i18n/locale-settings";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import { filterConnectors } from "../catalog/connector-catalog-model";
@@ -15,10 +16,12 @@ import { getAvailableConnectorCategoryKeys } from "../catalog/connectors-categor
 
 interface UseConnectorCatalogOptions {
   failureFallback: string;
+  locale: Locale;
 }
 
 export function useConnectorCatalog({
   failureFallback,
+  locale,
 }: UseConnectorCatalogOptions) {
   const requestIdRef = useRef(0);
   const [allConnectors, setAllConnectors] = useState<ConnectorInfo[]>([]);
@@ -31,7 +34,7 @@ export function useConnectorCatalog({
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
-      const items = await getConnectorsApi({ status: "available" });
+      const items = await getConnectorsApi({ locale, status: "available" });
       if (requestId === requestIdRef.current) {
         setAllConnectors(items);
         setFailure(null);
@@ -49,7 +52,7 @@ export function useConnectorCatalog({
         setLoading(false);
       }
     }
-  }, [failureFallback]);
+  }, [failureFallback, locale]);
 
   const refresh = useCallback(async (): Promise<void> => {
     await reconcile();

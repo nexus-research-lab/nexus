@@ -47,7 +47,16 @@ func (h *Handlers) HandleListConnectors(writer http.ResponseWriter, request *htt
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	locale := displayLocale(request)
+	for index := range items {
+		items[index] = connectorsvc.LocalizeInfo(items[index], locale)
+	}
 	h.api.WriteSuccess(writer, items)
+}
+
+// displayLocale 读取界面语言；目录文案按它投影，缺省保持中文目录原文。
+func displayLocale(request *http.Request) string {
+	return strings.TrimSpace(request.URL.Query().Get("locale"))
 }
 
 func (h *Handlers) HandleConnectorCategories(writer http.ResponseWriter, request *http.Request) {
@@ -73,7 +82,7 @@ func (h *Handlers) HandleConnectorDetail(writer http.ResponseWriter, request *ht
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.api.WriteSuccess(writer, item)
+	h.api.WriteSuccess(writer, connectorsvc.LocalizeDetail(*item, displayLocale(request)))
 }
 
 func (h *Handlers) HandleConnectorAuthURL(writer http.ResponseWriter, request *http.Request) {

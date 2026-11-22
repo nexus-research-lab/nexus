@@ -6,6 +6,7 @@ package channel
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
@@ -23,7 +24,20 @@ func (h *Handlers) HandleListChannels(writer http.ResponseWriter, request *http.
 		h.writeChannelReadFailure(writer, request, channelOperationListConfigs, err)
 		return
 	}
+	locale := displayLocale(request)
+	for index := range items {
+		items[index] = channelspkg.LocalizeChannelConfigView(items[index], locale)
+	}
 	h.api.WriteSuccess(writer, items)
+}
+
+// displayLocale 读取界面语言；目录文案按它投影，缺省保持中文目录原文。
+func displayLocale(request *http.Request) string {
+	return strings.TrimSpace(request.URL.Query().Get("locale"))
+}
+
+func (h *Handlers) writeChannelView(writer http.ResponseWriter, request *http.Request, item *channelspkg.ChannelConfigView) {
+	h.api.WriteSuccess(writer, channelspkg.LocalizeChannelConfigView(*item, displayLocale(request)))
 }
 
 func (h *Handlers) HandleUpsertChannelConfig(writer http.ResponseWriter, request *http.Request) {
@@ -48,7 +62,7 @@ func (h *Handlers) HandleUpsertChannelConfig(writer http.ResponseWriter, request
 		h.writeChannelMutationFailure(writer, request, channelOperationSaveConfig, err)
 		return
 	}
-	h.api.WriteSuccess(writer, item)
+	h.writeChannelView(writer, request, item)
 }
 
 func (h *Handlers) HandleDeleteChannelConfig(writer http.ResponseWriter, request *http.Request) {
@@ -82,7 +96,7 @@ func (h *Handlers) HandleDeleteChannelAccount(writer http.ResponseWriter, reques
 		h.writeChannelMutationFailure(writer, request, channelOperationDeleteAccount, err)
 		return
 	}
-	h.api.WriteSuccess(writer, item)
+	h.writeChannelView(writer, request, item)
 }
 
 func (h *Handlers) HandleStartChannelLogin(writer http.ResponseWriter, request *http.Request) {

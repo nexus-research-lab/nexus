@@ -29,7 +29,14 @@ type fakeControl struct {
 }
 
 func (f *fakeControl) ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error) {
-	return nil, nil
+	return []channelspkg.ChannelConfigView{fakeChannelView()}, nil
+}
+
+func fakeChannelView() channelspkg.ChannelConfigView {
+	view := channelspkg.ChannelConfigView{}
+	view.ChannelType = protocol.SessionChannelWeixinPersonal
+	view.Title = "微信"
+	return view
 }
 
 func (f *fakeControl) UpsertChannelConfig(context.Context, string, string, channelspkg.UpsertChannelConfigRequest) (*channelspkg.ChannelConfigView, error) {
@@ -42,7 +49,8 @@ func (f *fakeControl) DeleteChannelConfig(context.Context, string, string) error
 
 func (f *fakeControl) DeleteChannelAccount(_ context.Context, _ string, _ string, accountID string) (*channelspkg.ChannelConfigView, error) {
 	f.deletedAccountID = accountID
-	return nil, nil
+	view := fakeChannelView()
+	return &view, nil
 }
 
 func (f *fakeControl) StartChannelLogin(context.Context, string, string) (*channelspkg.ChannelLoginView, error) {
@@ -247,5 +255,21 @@ func assertChannelFailure(
 	}
 	if response.Data.Failure.Code != wantCode || response.Data.Failure.Effect != wantEffect {
 		t.Fatalf("failure = %+v", response.Data.Failure)
+	}
+}
+
+func TestHandleListChannelsProjectsCatalogTextByLocale(t *testing.T) {
+	handler := New(handlershared.NewAPI(nil), nil, &fakeControl{})
+	for locale, title := range map[string]string{"": "微信", "zh": "微信", "en": "WeChat"} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, "/nexus/v1/capability/channels?locale="+locale, nil)
+		handler.HandleListChannels(recorder, request)
+
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("locale %q: status = %d body=%s", locale, recorder.Code, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), `"title":"`+title+`"`) {
+			t.Fatalf("locale %q: 频道标题未按界面语言投影: %s", locale, recorder.Body.String())
+		}
 	}
 }

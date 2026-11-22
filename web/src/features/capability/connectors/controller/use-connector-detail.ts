@@ -1,20 +1,25 @@
-// INPUT: 当前 Connector identity、详情 API 与安全失败兜底。
-// OUTPUT: 按 request generation 隔离的详情快照、失败事实和刷新动作。
+// INPUT: 当前 Connector identity、详情 API、当前语言与安全失败兜底。
+// OUTPUT: 按 request generation 隔离的详情快照、失败事实和刷新动作；语言切换时重读已打开的详情。
 // POS: Connector detail 的读取边界；切换 identity 时不得显示旧详情。
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getConnectorDetailApi } from "@/lib/api/capability/connector-api";
 import {
   getResourceFailure,
   type ResourceFailure,
 } from "@/lib/error-message";
+import type { Locale } from "@/shared/i18n/locale-settings";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 interface UseConnectorDetailOptions {
   failureFallback: string;
+  locale: Locale;
 }
 
-export function useConnectorDetail({ failureFallback }: UseConnectorDetailOptions) {
+export function useConnectorDetail({
+  failureFallback,
+  locale,
+}: UseConnectorDetailOptions) {
   const requestIdRef = useRef(0);
   const selectedIdRef = useRef<string | null>(null);
   const [selectedDetail, setSelectedDetail] =
@@ -34,7 +39,7 @@ export function useConnectorDetail({ failureFallback }: UseConnectorDetailOption
       setSelectedDetail(null);
     }
     try {
-      const detail = await getConnectorDetailApi(connectorId);
+      const detail = await getConnectorDetailApi(connectorId, locale);
       if (requestId === requestIdRef.current) {
         setSelectedDetail(detail);
         setFailure(null);
@@ -52,7 +57,14 @@ export function useConnectorDetail({ failureFallback }: UseConnectorDetailOption
         setDetailLoading(false);
       }
     }
-  }, [failureFallback]);
+  }, [failureFallback, locale]);
+
+  useEffect(() => {
+    const connectorId = selectedIdRef.current;
+    if (connectorId) {
+      void loadDetail(connectorId, false);
+    }
+  }, [loadDetail]);
 
   const openDetail = useCallback(async (connectorId: string): Promise<void> => {
     await loadDetail(connectorId, true);

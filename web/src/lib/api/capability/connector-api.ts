@@ -16,6 +16,7 @@ import {
 } from "@/types/capability/connector";
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
+import type { Locale } from "@/shared/i18n/locale-settings";
 
 const BASE = getAgentApiBaseUrl();
 
@@ -27,17 +28,17 @@ function customMCPServerApiPath(
 }
 
 /** 获取连接器列表 */
-export const getConnectorsApi = async (params?: {
+export const getConnectorsApi = async (params: {
   q?: string;
   category?: string;
+  locale: Locale;
   status?: string;
 }): Promise<ConnectorInfo[]> => {
-  const sp = new URLSearchParams();
-  if (params?.q) sp.set("q", params.q);
-  if (params?.category) sp.set("category", params.category);
-  if (params?.status) sp.set("status", params.status);
-  const qs = sp.toString();
-  const url = `${BASE}/connectors${qs ? `?${qs}` : ""}`;
+  const sp = new URLSearchParams({ locale: params.locale });
+  if (params.q) sp.set("q", params.q);
+  if (params.category) sp.set("category", params.category);
+  if (params.status) sp.set("status", params.status);
+  const url = `${BASE}/connectors?${sp.toString()}`;
   return requestApi<ConnectorInfo[]>(url, {
     method: "GET",
   });
@@ -46,10 +47,13 @@ export const getConnectorsApi = async (params?: {
 /** 获取连接器详情 */
 export const getConnectorDetailApi = async (
   connectorId: string,
+  locale: Locale,
 ): Promise<ConnectorDetail> => {
-  return requestApi<ConnectorDetail>(`${BASE}/connectors/${connectorId}`, {
-    method: "GET",
-  });
+  const query = new URLSearchParams({ locale });
+  return requestApi<ConnectorDetail>(
+    `${BASE}/connectors/${connectorId}?${query.toString()}`,
+    { method: "GET" },
+  );
 };
 
 /** 授权连接 */
