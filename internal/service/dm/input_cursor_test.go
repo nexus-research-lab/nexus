@@ -140,8 +140,9 @@ func TestDMUserRowSharesInputSeqAcrossAckLiveRowAndHistory(t *testing.T) {
 	restarted := newDMInputCursorHarness(t, cfg, sessionKey)
 	assertHistory("换新服务实例后读取", restarted)
 	thirdID, thirdSeq := restarted.accept(t, "第三条")
+	// 这里只换服务实例，分配器仍是同一进程的；真正跨进程的先后取决于宿主时钟（见 protocol.NewInputSeq）。
 	if thirdSeq <= secondSeq {
-		t.Fatalf("重启后受理的输入游标必须继续增大: second=%d third=%d", secondSeq, thirdSeq)
+		t.Fatalf("换新服务实例后受理的输入游标必须大于已落盘的游标: second=%d third=%d", secondSeq, thirdSeq)
 	}
 	live[thirdID] = thirdSeq
 	assertHistory("重启后再受理一轮", restarted)

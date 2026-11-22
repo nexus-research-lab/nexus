@@ -40,6 +40,7 @@ var lastInputSeq atomic.Int64
 //
 // 取值以 UnixMicro 为基准并在进程内严格递增：同一微秒内的并发受理依次加一，
 // 宿主时钟回拨时从上一个值继续，不会发出重复或倒退的游标；数值始终是 JS 安全整数。
+// 进程重启后分配器从当前时钟重新起步，跨进程的先后因此取决于宿主时钟，不读取已落盘的游标。
 func NewInputSeq() int64 {
 	for {
 		last := lastInputSeq.Load()
