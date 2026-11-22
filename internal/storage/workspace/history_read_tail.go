@@ -8,10 +8,13 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -138,17 +141,36 @@ func replaceHistoryReadTailKeys(ctx context.Context, tx *sql.Tx, scope string, k
 }
 
 // insertHistoryReadTailKeys 把新冻结的身份键并入 scope 的集合，已有的键保持不变。
+// 每个种类只执行一条语句、按主键顺序写入：完整重建一次要写上万个键，逐个绑定参数的开销远大于写入本身。
 func insertHistoryReadTailKeys(ctx context.Context, tx *sql.Tx, scope string, keys historyTailKeys) error {
-	return forEachHistoryTailKeyBatch(keys, func(kind int, batch []string) error {
-		args := make([]any, 0, len(batch)*3)
-		for _, key := range batch {
-			args = append(args, scope, kind, key)
+	byKind := make(map[int][]string)
+	for key := range keys {
+		byKind[key.Kind] = append(byKind[key.Kind], key.Key)
+	}
+	for _, kind := range slices.Sorted(maps.Keys(byKind)) {
+		items := byKind[kind]
+		slices.Sort(items)
+		// JSON 编码会改写非法 UTF-8；这样的键原样绑定写入，之后才能按原值查到。
+		encodable := items[:0]
+		for _, key := range items {
+			if utf8.ValidString(key) {
+				encodable = append(encodable, key)
+				continue
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_read_tail_keys(scope,kind,key) VALUES (?,?,?)`, scope, kind, key); err != nil {
+				return err
+			}
 		}
-		statement := `INSERT OR IGNORE INTO history_read_tail_keys(scope,kind,key) VALUES ` +
-			strings.TrimSuffix(strings.Repeat("(?,?,?),", len(batch)), ",")
-		_, err := tx.ExecContext(ctx, statement, args...)
-		return err
-	})
+		payload, err := json.Marshal(encodable)
+		if err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_read_tail_keys(scope,kind,key)
+			SELECT ?,?,value FROM json_each(?)`, scope, kind, string(payload)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // historyReadTailKeysContain 判断 keys 中是否有任何一个已在 scope 的身份键集合里。

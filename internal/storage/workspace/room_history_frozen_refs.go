@@ -7,6 +7,7 @@ package workspace
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -63,12 +64,18 @@ func (ref roomFrozenTranscriptRef) transcriptRef() roomTranscriptRef {
 	}
 }
 
-// frozenKeys 把成员 transcript 的身份键放进 Room scope 的冻结键集合；各成员以引用身份为前缀互不相交。
+// roomFrozenKeyBytes 是成员身份键摘要保留的字节数。键只用来判断“续读内容是否触及已冻结前缀”，
+// 两个不同的键摘要相同只会多报一次冲突并回到完整读取，不会漏掉变化；完整重建一次要写上万个键，
+// 写入成本与键的长度成正比，所以只保留足以区分的定长摘要。
+const roomFrozenKeyBytes = 12
+
+// frozenKeys 把成员 transcript 的身份键放进 Room scope 的冻结键集合：每个键是引用身份与原键的定长摘要。
 func (ref roomTranscriptRef) frozenKeys(keys historyTailKeys) historyTailKeys {
 	member := historyPageScope(ref.cacheKey())
 	scoped := make(historyTailKeys, len(keys))
 	for key := range keys {
-		scoped.add(key.Kind, member+"\x00"+key.Key)
+		sum := sha256.Sum256([]byte(member + key.Key))
+		scoped.add(key.Kind, base64.RawURLEncoding.EncodeToString(sum[:roomFrozenKeyBytes]))
 	}
 	return scoped
 }
@@ -257,20 +264,28 @@ func (s *RoomHistoryStore) resumeRoomFrozenTranscripts(
 		member := wanted[key]
 		needed := member != nil
 		transcript := -1
+		var before, after []historyPageSourceSnapshot
 		for index, source := range previous {
 			if !ref.dependsOn(source) {
 				continue
 			}
 			needed = needed || source != current[index]
 			if source.Kind == historyPageSourceTranscript {
-				transcript = index
+				transcript = len(before)
 			}
+			before, after = append(before, source), append(after, current[index])
 		}
 		if !needed || transcript < 0 {
 			continue
 		}
+		// marker 对齐的续接只核对下标，检查点之前的 marker 内容要靠 overlay 只被追加来证明。
+		if err := ownerHistory.checkAgentHistorySourcesAppended(ctx, ref.WorkspacePath, ref.PrivateSessionKey, before, after); errors.Is(err, errHistoryPageIndexInvalid) {
+			continue
+		} else if err != nil {
+			return err
+		}
 		// 只把变长的 transcript 当作追加；长度不变的改动是原地改写，必须重读整份文件。
-		if before, after := previous[transcript], current[transcript]; after != before && after.Size <= before.Size {
+		if before, after := before[transcript], after[transcript]; after != before && after.Size <= before.Size {
 			continue
 		}
 		overlayState, err := ownerHistory.readOverlayHistoryStateContext(ctx, ref.WorkspacePath, ref.PrivateSessionKey)
@@ -284,8 +299,8 @@ func (s *RoomHistoryStore) resumeRoomFrozenTranscripts(
 			ctx,
 			ref.WorkspacePath,
 			protocol.Session{SessionKey: ref.PrivateSessionKey, AgentID: ref.AgentID},
-			previous[transcript],
-			current[transcript],
+			before[transcript],
+			after[transcript],
 			*item.Checkpoint,
 			overlayState.RoundMarkers,
 			touchesFrozen,
@@ -296,16 +311,10 @@ func (s *RoomHistoryStore) resumeRoomFrozenTranscripts(
 		if err != nil {
 			return err
 		}
-		// 续读到的消息与本次引用的消息都不能与检查点之前的身份重合：前者说明已封存的消息被续写或
-		// 重新出现，后者说明引用指向检查点之前的消息，两种情况都需要完整投影。
+		// 续读到的消息不能与检查点之前的身份重合，否则已封存的消息被续写或重新出现，需要完整投影。
 		touched := make(historyTailKeys)
 		for _, row := range replay.Rows {
 			touched.add(historyTailKeyMessage, stringFromAny(row["message_id"]))
-		}
-		if member != nil {
-			for id := range member.ids {
-				touched.add(historyTailKeyMessage, id)
-			}
 		}
 		conflict, err := touchesFrozen(touched)
 		if err != nil {
@@ -315,12 +324,30 @@ func (s *RoomHistoryStore) resumeRoomFrozenTranscripts(
 			continue
 		}
 		messages := indexRoomTranscriptMessages(replay.Rows)
+		// 本次引用的消息必须都在续读结果里：指向检查点之前的消息，或落在续读暂不接受的
+		// 无换行末行里的消息，只有完整投影才能解析。
+		if !member.resolvedBy(messages) {
+			continue
+		}
 		if err = item.verifyPending(messages); err != nil {
 			return err
 		}
 		cache.members[key] = &roomTranscriptProjection{Messages: messages, Replay: replay, Resumed: true}
 	}
 	return nil
+}
+
+// resolvedBy 判断本次引用的消息是否都在 messages 里；没有引用时成立。
+func (m *roomRefSelection) resolvedBy(messages map[string]protocol.Message) bool {
+	if m == nil {
+		return true
+	}
+	for id := range m.ids {
+		if _, ok := messages[id]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // verifyRoomFrozenTranscriptRefs 为依赖已变化、又没能从检查点续读的引用身份重读 transcript 并重算摘要；

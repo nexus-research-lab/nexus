@@ -1,4 +1,4 @@
-// INPUT: 已发布读模型的长 Room、进程重启、成员 transcript 的追加、原地改写、分支切换与 marker 重新归属。
+// INPUT: 已发布读模型的长 Room、进程重启、成员 transcript 的追加、无换行末行、原地改写、分支切换与 marker 的改写和重新归属。
 // OUTPUT: 成员只追加时重启后也只从成员检查点续读且结果与 canonical 重建一致；已发布消息的投影变化一律回退重建。
 // POS: Room 冻结引用检查点的回归；夹具沿用 room_long_session_bench_test.go。
 package workspace
@@ -157,6 +157,27 @@ func TestRoomFrozenTranscriptResumesAfterRestart(t *testing.T) {
 		f.appendRound(t)
 		assertRoomHistoryPageParity(t, f.history, f.owner, f.conversation, nil, 20, "", 0, "", 0)
 	})
+
+	t.Run("reply in an unterminated last line", func(t *testing.T) {
+		f := newRoomLongSessionFixture(t, 4, 64)
+		f.readFirstPage(t)
+		f.appendTranscript(t, f.startRound(t)...)
+		// 回复所在的末行还没有换行：续读把这样的行留给下一次，完整读取则接受它，已发布的回复不能因此消失。
+		info, err := os.Stat(f.transcript)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.Truncate(f.transcript, info.Size()-1); err != nil {
+			t.Fatal(err)
+		}
+		f.publishReply(t, 4)
+		err, parsedWhole := refreshRoomTailAfterRestart(t, f)
+		if err != nil || !parsedWhole {
+			t.Fatalf("reference into an unterminated line: err=%v parsedWhole=%v", err, parsedWhole)
+		}
+		f.requireLatestReply(t, f.readFirstPage(t))
+		assertRoomHistoryPageParity(t, f.history, f.owner, f.conversation, nil, 20, "", 0, "", 0)
+	})
 }
 
 func TestRoomFrozenTranscriptRejectsChangedPublishedMessages(t *testing.T) {
@@ -211,6 +232,25 @@ func TestRoomFrozenTranscriptRejectsChangedPublishedMessages(t *testing.T) {
 		requireRoomTailResumed(t, f)
 		f.lastUUID = "a2-00003"
 		f.appendReplySnapshot(t, f.replyID(3))
+		requireRoomTailRebuilt(t, f)
+	})
+
+	t.Run("marker before the checkpoint edited in place", func(t *testing.T) {
+		f := newRoomLongSessionFixture(t, 6, 64)
+		f.readFirstPage(t)
+		// marker 的数量与位置都没有变，只有第二轮的 round 归属被改掉：对齐下标看不出差别，只能靠 overlay 前缀校验。
+		overlay := f.private().paths.SessionOverlayPath(f.workspacePath, f.sessionKey)
+		content, err := os.ReadFile(overlay)
+		if err != nil {
+			t.Fatal(err)
+		}
+		edited := bytes.Replace(content, []byte("private-00001"), []byte("private-edit1"), 1)
+		if bytes.Equal(edited, content) {
+			t.Fatal("overlay marker not found")
+		}
+		if err = os.WriteFile(overlay, edited, 0o600); err != nil {
+			t.Fatal(err)
+		}
 		requireRoomTailRebuilt(t, f)
 	})
 
