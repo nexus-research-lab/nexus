@@ -1,6 +1,6 @@
 /**
  * INPUT: 会话消息、Room slot/permission/execution 易失态、运行轮次与服务端 round 索引。
- * OUTPUT: DM / Room 共用的消息及易失态根轮次分组、历史窗口可见性与 feed 顺序纯投影。
+ * OUTPUT: DM / Room 共用的消息及易失态根轮次分组、历史窗口可见性与 feed 顺序纯投影；已解析轮次只凭投影过的消息正文留在导航索引，运行态证据不留存。
  * POS: 时间线顺序的唯一真相源；驻留轮次只由 buildResidentRoundIds 输出，feed 与 navigator 不得自行修正轮次。
  */
 import type {
