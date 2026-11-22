@@ -1,4 +1,4 @@
-// INPUT: 已发布读模型的长会话、进程重启、半行追加、截断、替换、原地改写、读模型版本变化与触及旧条目的追加。
+// INPUT: 已发布读模型的长会话、进程重启、半行追加、截断、替换、原地改写、读模型版本变化、触及旧条目的追加，以及检查点之前未按内容对齐的轮次。
 // OUTPUT: 重启后只从持久化的 transcript 检查点续读且结果与完整重建逐字段一致；无法证明前缀不变时回退完整重建。
 // POS: DM transcript 投影位置持久化的回归；等价性比对沿用 agent_history_incremental_test.go 的参照重建。
 package workspace
@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+	"time"
 )
 
 // refreshTailAfterRestart 模拟进程重启后读取首页，要求本次刷新走增量路径；不做参照比对，
@@ -70,14 +72,18 @@ func TestAgentHistoryCheckpointResumesAfterRestart(t *testing.T) {
 		f := newLongSessionFixture(t, 6, 64)
 		f.readFirstPage(t)
 		built := readAgentHistoryCheckpointForTest(t, f)
-		if built == nil || built.Transcript.UUID != "u-00005" || len(built.Transcript.Turns) != 5 {
+		// 前五轮都按内容对齐并定型，检查点只留下起点这一轮还没定型的 marker。
+		if built == nil || built.Transcript.UUID != "u-00005" || !reflect.DeepEqual(built.Transcript.Markers, transcriptMarkerFrontier{
+			Markers: 6, SealedTimestamp: 1_700_000_040_000, OpenMarkers: []int{5},
+		}) {
 			t.Fatalf("full rebuild checkpoint = %+v", built)
 		}
 		f.appendRound(t)
 		refreshTailAfterRestart(t, f)
 		resumed := readAgentHistoryCheckpointForTest(t, f)
-		if resumed == nil || resumed.Transcript.UUID != "u-00006" || len(resumed.Transcript.Turns) != 6 ||
-			resumed.Transcript.Offset <= built.Transcript.Offset || resumed.Transcript.Line != built.Transcript.Line+4 {
+		if resumed == nil || resumed.Transcript.UUID != "u-00006" || !reflect.DeepEqual(resumed.Transcript.Markers, transcriptMarkerFrontier{
+			Markers: 7, SealedTimestamp: 1_700_000_050_000, OpenMarkers: []int{6},
+		}) || resumed.Transcript.Offset <= built.Transcript.Offset || resumed.Transcript.Line != built.Transcript.Line+4 {
 			t.Fatalf("resumed checkpoint = %+v, previous %+v", resumed, built)
 		}
 		// 偏移必须正好是起点条目所在行的行首。
@@ -248,6 +254,50 @@ func TestAgentHistoryCheckpointResumesAfterRestart(t *testing.T) {
 		assertTailRefreshAfterRestart(t, f, false)
 	})
 
+	t.Run("goal continuation round before the checkpoint", func(t *testing.T) {
+		f := newLongSessionFixture(t, 4, 64)
+		f.readFirstPage(t)
+		// 隐藏的 Goal 续跑 marker 没有内容，对应的用户条目只有 goal_context：这一轮只能靠回退对齐，
+		// 并入前缀后留在检查点的未定型部分，之后每次续读都与新增轮次一起重新对齐。
+		timestamp := int64(1_700_000_000_000 + f.rounds*10_000)
+		if err := f.history.AppendRoundMarkerWithOptions(f.workspacePath, f.session.SessionKey, "round-goal", "", timestamp,
+			RoundMarkerOptions{HiddenFromUser: true, Synthetic: true, Purpose: "goal_continuation"}); err != nil {
+			t.Fatal(err)
+		}
+		appendRoundWithoutMarker(t, f, "<goal_context>\nContinue working toward the active thread goal.\n</goal_context>")
+		assertTailRefreshAfterRestart(t, f, true)
+		f.appendRound(t)
+		assertTailRefreshAfterRestart(t, f, true)
+		checkpoint := readAgentHistoryCheckpointForTest(t, f)
+		if checkpoint == nil || len(checkpoint.Transcript.Markers.OpenTurns) != 1 || checkpoint.Transcript.Markers.OpenTurns[0].Marker != 4 ||
+			!reflect.DeepEqual(checkpoint.Transcript.Markers.OpenMarkers, []int{4, 5}) {
+			t.Fatalf("checkpoint after a goal continuation round = %+v", checkpoint)
+		}
+		f.appendRound(t)
+		assertTailRefreshAfterRestart(t, f, true)
+	})
+
+	t.Run("round without a marker before the checkpoint", func(t *testing.T) {
+		f := newLongSessionFixture(t, 4, 64)
+		f.readFirstPage(t)
+		timestamp := appendRoundWithoutMarker(t, f, "typed in the terminal")
+		assertTailRefreshAfterRestart(t, f, true)
+		f.appendRound(t)
+		assertTailRefreshAfterRestart(t, f, true)
+		// 没有 marker 的轮次以“未对齐”留在检查点里；后续轮次的 marker 时间够不着它，续读照常成立。
+		checkpoint := readAgentHistoryCheckpointForTest(t, f)
+		if checkpoint == nil || len(checkpoint.Transcript.Markers.OpenTurns) != 1 || checkpoint.Transcript.Markers.OpenTurns[0].Marker != -1 {
+			t.Fatalf("checkpoint after a round without a marker = %+v", checkpoint)
+		}
+		f.appendRound(t)
+		assertTailRefreshAfterRestart(t, f, true)
+		// 迟到的 marker 落在那一轮的回退范围内，全局对齐会把它绑给那一轮：检查点之前的投影已变，只能完整重建。
+		if err := f.history.AppendRoundMarker(f.workspacePath, f.session.SessionKey, "round-late", "typed elsewhere", timestamp+1_000); err != nil {
+			t.Fatal(err)
+		}
+		assertTailRefreshAfterRestart(t, f, false)
+	})
+
 	t.Run("second input in the same round", func(t *testing.T) {
 		f := newLongSessionFixture(t, 4, 64)
 		f.readFirstPage(t)
@@ -270,6 +320,25 @@ func TestAgentHistoryCheckpointResumesAfterRestart(t *testing.T) {
 		f.appendRound(t)
 		assertTailRefreshAfterRestart(t, f, true)
 	})
+}
+
+// appendRoundWithoutMarker 追加一轮只写进 transcript 的输入与回复，返回该轮的时间；marker 由调用方决定是否另写。
+func appendRoundWithoutMarker(t *testing.T, f *longSessionFixture, content string) int64 {
+	t.Helper()
+	round := f.rounds
+	f.rounds++
+	timestamp := int64(1_700_000_000_000 + round*10_000)
+	at := time.UnixMilli(timestamp).UTC().Format(time.RFC3339Nano)
+	user, reply := fmt.Sprintf("u-%05d", round), fmt.Sprintf("a2-%05d", round)
+	f.appendTranscript(t,
+		map[string]any{"type": "user", "uuid": user, "parentUuid": nilIfEmpty(f.lastUUID), "sessionId": *f.session.SessionID, "timestamp": at,
+			"message": map[string]any{"role": "user", "content": content}},
+		map[string]any{"type": "assistant", "uuid": reply, "parentUuid": user, "sessionId": *f.session.SessionID, "timestamp": at,
+			"message": map[string]any{"id": fmt.Sprintf("m2-%05d", round), "role": "assistant", "stop_reason": "end_turn",
+				"content": []map[string]any{{"type": "text", "text": "done"}}}},
+	)
+	f.lastUUID = reply
+	return timestamp
 }
 
 func appendTranscriptBytes(t *testing.T, f *longSessionFixture, data []byte) {

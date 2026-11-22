@@ -25,18 +25,63 @@ func alignTranscriptRoundMarkersWithFilter(
 	roundMarkers []transcriptRoundMarker,
 	shouldSkip func(map[string]any) bool,
 ) []transcriptRoundMarker {
+	return alignTranscriptChain(chain, roundMarkers, shouldSkip).aligned()
+}
+
+// alignTranscriptChain 对齐整条主链；没有 marker 时不收集用户轮次，投影也不消费 marker。
+func alignTranscriptChain(
+	chain []transcriptEntry,
+	roundMarkers []transcriptRoundMarker,
+	shouldSkip func(map[string]any) bool,
+) transcriptMarkerAlignment {
 	if len(roundMarkers) == 0 {
-		return nil
+		return transcriptMarkerAlignment{}
 	}
-	return matchTranscriptRoundMarkers(collectTranscriptUserTurns(chain, shouldSkip), roundMarkers)
+	return alignTranscriptUserTurns(collectTranscriptUserTurns(chain, shouldSkip), roundMarkers)
 }
 
 func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []transcriptRoundMarker) []transcriptRoundMarker {
+	return alignedTranscriptRoundMarkers(roundMarkers, matchTranscriptRoundMarkerIndexes(userTurns, roundMarkers))
+}
+
+// transcriptMarkerMatch 是一个用户轮次对齐到的 marker。
+type transcriptMarkerMatch struct {
+	// Index 是 marker 在参与对齐的 marker 列表中的下标，未对齐时为 -1。
+	Index int
+	// Exact 表示该轮次在内容等值匹配阶段占用了 marker；其余对齐来自兼容性回退。
+	Exact bool
+}
+
+// alignedTranscriptRoundMarkers 把对齐结果展开成与用户轮次一一对应的 marker，未对齐的位置是零值。
+func alignedTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker, matches []transcriptMarkerMatch) []transcriptRoundMarker {
+	if len(matches) == 0 {
+		return nil
+	}
+	aligned := make([]transcriptRoundMarker, len(matches))
+	for index, match := range matches {
+		if match.Index >= 0 {
+			aligned[index] = roundMarkers[match.Index]
+		}
+	}
+	return aligned
+}
+
+// matchTranscriptRoundMarkerIndexes 依次做三遍匹配：按轮次顺序的内容等值匹配、非空轮次的兼容性回退、
+// 空白轮次的隐藏 Goal marker 恢复。等值匹配的结果只取决于更早的轮次和内容相同的 marker，
+// transcript_marker_frontier.go 的增量对齐依赖这一点。
+func matchTranscriptRoundMarkerIndexes(userTurns []transcriptUserTurn, roundMarkers []transcriptRoundMarker) []transcriptMarkerMatch {
 	if len(userTurns) == 0 {
 		return nil
 	}
 
-	aligned := make([]transcriptRoundMarker, len(userTurns))
+	matches := make([]transcriptMarkerMatch, len(userTurns))
+	for index := range matches {
+		matches[index].Index = -1
+	}
+	present := func(index int) bool {
+		markerIndex := matches[index].Index
+		return markerIndex >= 0 && transcriptRoundMarkerPresent(roundMarkers[markerIndex])
+	}
 	used := make([]bool, len(roundMarkers))
 	// 按清洗后的内容预建候选表：长会话中每个用户轮次只比较同内容的 marker，
 	// 避免 turns×markers 次重复清洗。候选按原下标升序，选择规则不变。
@@ -50,19 +95,19 @@ func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []
 		if markerIndex < 0 {
 			continue
 		}
-		aligned[index] = roundMarkers[markerIndex]
+		matches[index] = transcriptMarkerMatch{Index: markerIndex, Exact: true}
 		used[markerIndex] = true
 	}
 
 	for index, turn := range userTurns {
-		if turn.Empty || transcriptRoundMarkerPresent(aligned[index]) {
+		if turn.Empty || present(index) {
 			continue
 		}
 		markerIndex := findCompatibleFallbackRoundMarker(roundMarkers, used, turn)
 		if markerIndex < 0 {
 			continue
 		}
-		aligned[index] = roundMarkers[markerIndex]
+		matches[index].Index = markerIndex
 		used[markerIndex] = true
 	}
 	// nxs 在 user 落盘前提取隐藏 reminder，Goal-only 输入因此可能是空串。
@@ -79,7 +124,7 @@ func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []
 		distance, _ := transcriptRoundMarkerDistance(turn.Timestamp, marker.Timestamp)
 		uniqueClosest := true
 		for otherIndex, other := range userTurns {
-			if otherIndex == index || !other.Empty || transcriptRoundMarkerPresent(aligned[otherIndex]) ||
+			if otherIndex == index || !other.Empty || present(otherIndex) ||
 				!roundMarkerFallbackCompatible(other, marker) {
 				continue
 			}
@@ -89,11 +134,11 @@ func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []
 			}
 		}
 		if uniqueClosest {
-			aligned[index] = marker
+			matches[index].Index = markerIndex
 			used[markerIndex] = true
 		}
 	}
-	return aligned
+	return matches
 }
 
 // transcriptUserTurn 是 marker 对齐所需的用户轮次摘要。JSON 形状随读模型检查点持久化，

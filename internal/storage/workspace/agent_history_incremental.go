@@ -1,5 +1,5 @@
 // INPUT: 读模型里上次发布的 DM 尾轮状态与 transcript 检查点、纯追加的 transcript/overlay。
-// OUTPUT: 只重新投影并规范化最后一轮及新增轮次，在同一 generation 内原子替换尾部分组并推进持久化状态。
+// OUTPUT: 只重新投影并规范化最后一轮及新增轮次（marker 行也只物化这一部分），在同一 generation 内原子替换尾部分组并推进持久化状态。
 // POS: DM 历史每轮刷新的增量路径，进程重启后同样成立；无法证明前缀不受影响时一律回退全量重建。
 package workspace
 
@@ -27,7 +27,8 @@ var errAgentHistoryTailUnavailable = errors.New("agent history tail unavailable"
 // agentHistoryCheckpoint 是随读模型一并发布的 DM 尾轮状态。末尾 TailGroups 个分组之前的分组
 // 由已冻结的原始行独立规范化得到，此后不再变化；尾部分组在下次刷新时由三类原始行重新规范化：
 // transcript 从 Transcript 检查点重放，marker 与 overlay 行取 Tail* 记录的下标加上新增的行
-// （两者都是 overlay 文件按行顺序派生的，纯追加时下标稳定）。JSON 形状改动需提升读模型版本。
+// （下标分别指 overlay 的全部 round marker 与全部消息行，两者按文件行顺序派生，纯追加时稳定）。
+// JSON 形状改动需提升读模型版本。
 type agentHistoryCheckpoint struct {
 	TailGroups        int                  `json:"tail_groups"`
 	MarkerCount       int                  `json:"marker_count"`
@@ -40,7 +41,8 @@ type agentHistoryCheckpoint struct {
 }
 
 // historyTailPart 是 marker 或 overlay 来源参与本次尾轮规范化的原始行：上次留在尾部分组里的行
-// 加上此后新增的行。positions 是各行在该来源全部行中的下标，total 是该来源当前的总行数。
+// 加上此后新增的行。positions 是各行在该来源全部条目中的下标，total 是该来源当前的条目总数；
+// marker 来源的条目是 round marker，其中隐藏的 marker 不产生行。
 type historyTailPart struct {
 	rows      []protocol.Message
 	positions []int
@@ -49,31 +51,39 @@ type historyTailPart struct {
 
 // wholeHistoryTailPart 用于完整重建：来源的全部行都参与。
 func wholeHistoryTailPart(rows []protocol.Message) historyTailPart {
-	positions := make([]int, len(rows))
-	for index := range rows {
-		positions[index] = index
-	}
+	positions, _ := appendedHistoryTailPositions(len(rows), nil, 0)
 	return historyTailPart{rows: rows, positions: positions, total: len(rows)}
 }
 
 // appendedHistoryTailPart 取上次尾部的行（按下标）与 count 之后新增的行。
 func appendedHistoryTailPart(rows []protocol.Message, tail []int, count int) (historyTailPart, bool) {
-	if count > len(rows) {
+	positions, ok := appendedHistoryTailPositions(len(rows), tail, count)
+	if !ok {
 		return historyTailPart{}, false
 	}
-	part := historyTailPart{total: len(rows)}
-	for _, position := range tail {
-		if position < 0 || position >= count {
-			return historyTailPart{}, false
-		}
+	part := historyTailPart{positions: positions, total: len(rows)}
+	for _, position := range positions {
 		part.rows = append(part.rows, rows[position])
-		part.positions = append(part.positions, position)
-	}
-	for position := count; position < len(rows); position++ {
-		part.rows = append(part.rows, rows[position])
-		part.positions = append(part.positions, position)
 	}
 	return part, true
+}
+
+// appendedHistoryTailPositions 返回上次尾部的下标与 count 之后新增条目的下标。
+func appendedHistoryTailPositions(total int, tail []int, count int) ([]int, bool) {
+	if count > total {
+		return nil, false
+	}
+	positions := make([]int, 0, len(tail)+total-count)
+	for _, position := range tail {
+		if position < 0 || position >= count {
+			return nil, false
+		}
+		positions = append(positions, position)
+	}
+	for position := count; position < total; position++ {
+		positions = append(positions, position)
+	}
+	return positions, true
 }
 
 // splitAgentHistoryTail 在尾部分组之前切开本次参与规范化的原始行，得到下一次刷新的尾轮状态
@@ -150,7 +160,10 @@ func splitAgentHistoryTail(
 	if err != nil || !reflect.DeepEqual(rebuilt, groups[cut:]) {
 		return nil, nil, false
 	}
-	checkpoint, entries := replay.checkpoint(start)
+	checkpoint, entries, ok := replay.checkpoint(start)
+	if !ok {
+		return nil, nil, false
+	}
 	for key := range entries {
 		frozen[key] = struct{}{}
 	}
@@ -199,7 +212,7 @@ func newAgentHistoryTailState(
 	groups []historyPageIndexedGroup,
 ) (any, historyTailKeys) {
 	next, frozen, ok := splitAgentHistoryTail(
-		ctx, parts.Replay, wholeHistoryTailPart(parts.Markers), wholeHistoryTailPart(parts.Overlay), groups, 0, false,
+		ctx, parts.Replay, parts.Markers, wholeHistoryTailPart(parts.Overlay), groups, 0, false,
 	)
 	if !ok {
 		return nil, nil
@@ -261,15 +274,17 @@ func (s *AgentHistoryStore) tryRefreshAgentHistoryTail(
 		len(current) != 2 || current[1].Kind != historyPageSourceTranscript {
 		return historyPageIndexBuild{}, fmt.Errorf("transcript selection changed: %w", errHistoryPageIndexInvalid)
 	}
-	parts, overlayState, err := s.readOverlayRowPartsContext(ctx, workspacePath, sessionValue)
+	overlayState, err := s.readOverlayHistoryStateContext(ctx, workspacePath, sessionValue.SessionKey)
 	if err != nil {
 		return historyPageIndexBuild{}, err
 	}
-	markers, markersOK := appendedHistoryTailPart(parts.Markers, tail.TailMarkers, tail.MarkerCount)
-	overlay, overlayOK := appendedHistoryTailPart(parts.Overlay, tail.TailOverlay, tail.OverlayCount)
+	// 只物化仍在尾部分组里的 marker 与新增的 marker，更早的 marker 行已经冻结在前缀分组里。
+	markerPositions, markersOK := appendedHistoryTailPositions(len(overlayState.RoundMarkers), tail.TailMarkers, tail.MarkerCount)
+	overlay, overlayOK := appendedHistoryTailPart(overlayState.MessageRows, tail.TailOverlay, tail.OverlayCount)
 	if !markersOK || !overlayOK {
 		return historyPageIndexBuild{}, fmt.Errorf("overlay rows shrank: %w", errHistoryPageIndexInvalid)
 	}
+	markers := roundMarkerHistoryTailPart(sessionValue.SessionKey, sessionValue.AgentID, overlayState.RoundMarkers, markerPositions)
 	touchesFrozen := func(keys historyTailKeys) (bool, error) {
 		return historyReadTailKeysContain(ctx, db, scopeKey, keys)
 	}

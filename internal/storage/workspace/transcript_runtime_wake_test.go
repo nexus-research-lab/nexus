@@ -93,6 +93,6 @@ func TestTranscriptRuntimeWakeAlignsWithLiveMarker(t *testing.T) {
 		t.Fatalf("唤醒行身份 = %+v", wake)
 	}
 
-	materialized := materializeRoundMarkerMessages("agent:a:ws:dm:c", "a", markers)
-	findRuntimeWakeRow(t, materialized)
+	materialized := roundMarkerHistoryTailPart("agent:a:ws:dm:c", "a", markers, []int{0, 1})
+	findRuntimeWakeRow(t, materialized.rows)
 }

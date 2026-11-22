@@ -75,15 +75,16 @@ func (s *AgentHistoryStore) readHistoryRowsContext(
 // transcript、marker、overlay。
 type agentHistoryRowParts struct {
 	Transcript []protocol.Message
-	Markers    []protocol.Message
-	Overlay    []protocol.Message
+	// Markers 是全部 round marker 物化出的行及其 marker 下标。
+	Markers historyTailPart
+	Overlay []protocol.Message
 	// Replay 是 transcript 投影的检查点候选；只有调用方要求且读取的是单个非 fork
 	// transcript 时才非空，读模型据此持久化投影位置。
 	Replay *transcriptReplay
 }
 
 func (p agentHistoryRowParts) merged() []protocol.Message {
-	return mergeTranscriptAndOverlayRows(p.Transcript, p.Overlay, p.Markers)
+	return mergeTranscriptAndOverlayRows(p.Transcript, p.Overlay, p.Markers.rows)
 }
 
 func (s *AgentHistoryStore) readHistoryRowPartsContext(
@@ -144,12 +145,14 @@ func (s *AgentHistoryStore) readOverlayRowPartsContext(
 	if err != nil {
 		return agentHistoryRowParts{}, overlayHistoryState{}, err
 	}
+	markers, _ := appendedHistoryTailPositions(len(overlayState.RoundMarkers), nil, 0)
 	return agentHistoryRowParts{
 		Transcript: []protocol.Message{},
-		Markers: materializeRoundMarkerMessages(
+		Markers: roundMarkerHistoryTailPart(
 			sessionValue.SessionKey,
 			sessionValue.AgentID,
 			overlayState.RoundMarkers,
+			markers,
 		),
 		Overlay: overlayState.MessageRows,
 	}, overlayState, nil
@@ -234,66 +237,72 @@ func mergeTranscriptAndOverlayRows(
 	return combined
 }
 
-func materializeRoundMarkerMessages(
+// roundMarkerHistoryTailPart 物化 positions 指定的 round marker（下标指 roundMarkers）。
+func roundMarkerHistoryTailPart(
 	sessionKey string,
 	agentID string,
 	roundMarkers []transcriptRoundMarker,
-) []protocol.Message {
-	if len(roundMarkers) == 0 {
-		return []protocol.Message{}
+	positions []int,
+) historyTailPart {
+	part := historyTailPart{rows: make([]protocol.Message, 0, len(positions)), total: len(roundMarkers)}
+	for _, position := range positions {
+		if row, ok := materializeRoundMarkerMessage(sessionKey, agentID, roundMarkers[position]); ok {
+			part.rows = append(part.rows, row)
+			part.positions = append(part.positions, position)
+		}
 	}
+	return part
+}
 
-	rows := make([]protocol.Message, 0, len(roundMarkers))
-	for _, marker := range roundMarkers {
-		roundID := strings.TrimSpace(marker.RoundID)
-		if roundID == "" || marker.HiddenFromUser {
-			continue
-		}
-		// 旧 marker 没有独立 user_message_id（历史上 message_id == round_id），
-		// 读取时归一化为稳定派生 id，运行时不再出现两者相等的形状。
-		userMessageID := strings.TrimSpace(marker.UserMessageID)
-		if userMessageID == "" {
-			userMessageID = "msg_user_" + roundID
-		}
-		row := protocol.Message{
-			"message_id":  userMessageID,
-			"session_key": sessionKey,
-			"agent_id":    strings.TrimSpace(agentID),
-			"round_id":    roundID,
-			"role":        "user",
-			"content":     strings.TrimSpace(marker.Content),
-			"timestamp":   marker.Timestamp,
-		}
-		if agentRoundID := strings.TrimSpace(marker.AgentRoundID); agentRoundID != "" {
-			row["agent_round_id"] = agentRoundID
-		}
-		if clientMessageID := strings.TrimSpace(marker.ClientMessageID); clientMessageID != "" {
-			row["client_message_id"] = clientMessageID
-		}
-		if marker.InputSeq > 0 {
-			row[protocol.InputSeqField] = marker.InputSeq
-		}
-		if sourceRoundID := strings.TrimSpace(marker.SourceRoundID); sourceRoundID != "" {
-			row["source_round_id"] = sourceRoundID
-		}
-		if strings.TrimSpace(marker.DeliveryPolicy) != "" {
-			row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy))
-		}
-		if normalizedAttachments := protocol.NormalizeChatAttachments(marker.Attachments, agentID); len(normalizedAttachments) > 0 {
-			row["attachments"] = normalizedAttachments
-		}
-		if len(marker.Metadata) > 0 {
-			row["metadata"] = marker.Metadata
-		}
-		if marker.ControlOnly {
-			row["control_only"] = true
-		}
-		if message.IsRuntimeWakeMetadata(marker.Metadata) {
-			message.DecorateRuntimeWakeUserMessage(row, message.RuntimeWakeTriggerFromMetadata(marker.Content, marker.Metadata))
-		}
-		rows = append(rows, row)
+// materializeRoundMarkerMessage 把一个 round marker 物化成用户消息行；隐藏或没有 round_id 的 marker 不产生行。
+func materializeRoundMarkerMessage(sessionKey string, agentID string, marker transcriptRoundMarker) (protocol.Message, bool) {
+	roundID := strings.TrimSpace(marker.RoundID)
+	if roundID == "" || marker.HiddenFromUser {
+		return nil, false
 	}
-	return rows
+	// 旧 marker 没有独立 user_message_id（历史上 message_id == round_id），
+	// 读取时归一化为稳定派生 id，运行时不再出现两者相等的形状。
+	userMessageID := strings.TrimSpace(marker.UserMessageID)
+	if userMessageID == "" {
+		userMessageID = "msg_user_" + roundID
+	}
+	row := protocol.Message{
+		"message_id":  userMessageID,
+		"session_key": sessionKey,
+		"agent_id":    strings.TrimSpace(agentID),
+		"round_id":    roundID,
+		"role":        "user",
+		"content":     strings.TrimSpace(marker.Content),
+		"timestamp":   marker.Timestamp,
+	}
+	if agentRoundID := strings.TrimSpace(marker.AgentRoundID); agentRoundID != "" {
+		row["agent_round_id"] = agentRoundID
+	}
+	if clientMessageID := strings.TrimSpace(marker.ClientMessageID); clientMessageID != "" {
+		row["client_message_id"] = clientMessageID
+	}
+	if marker.InputSeq > 0 {
+		row[protocol.InputSeqField] = marker.InputSeq
+	}
+	if sourceRoundID := strings.TrimSpace(marker.SourceRoundID); sourceRoundID != "" {
+		row["source_round_id"] = sourceRoundID
+	}
+	if strings.TrimSpace(marker.DeliveryPolicy) != "" {
+		row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy))
+	}
+	if normalizedAttachments := protocol.NormalizeChatAttachments(marker.Attachments, agentID); len(normalizedAttachments) > 0 {
+		row["attachments"] = normalizedAttachments
+	}
+	if len(marker.Metadata) > 0 {
+		row["metadata"] = marker.Metadata
+	}
+	if marker.ControlOnly {
+		row["control_only"] = true
+	}
+	if message.IsRuntimeWakeMetadata(marker.Metadata) {
+		message.DecorateRuntimeWakeUserMessage(row, message.RuntimeWakeTriggerFromMetadata(marker.Content, marker.Metadata))
+	}
+	return row, true
 }
 
 func (s *AgentHistoryStore) readTranscriptMessagesContext(

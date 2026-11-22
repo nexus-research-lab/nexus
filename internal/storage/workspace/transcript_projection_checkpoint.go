@@ -67,11 +67,11 @@ func (s *AgentHistoryStore) storeTranscriptProjectionCheckpoint(path string, che
 }
 
 // transcriptProjection 是一次检查点投影的结果。Starts 是本次经过的轮次起点（位置与行数相对
-// 整条主链，按先后排列），Aligned 是与主链用户轮次对齐后的 marker；两者供读模型建立持久化检查点。
+// 整条主链，按先后排列），Alignment 是整条主链用户轮次的 marker 对齐；两者供读模型建立持久化检查点。
 type transcriptProjection struct {
-	Rows    []protocol.Message
-	Starts  []transcriptRoundStart
-	Aligned []transcriptRoundMarker
+	Rows      []protocol.Message
+	Starts    []transcriptRoundStart
+	Alignment transcriptMarkerAlignment
 }
 
 // projectTranscriptChainCheckpointed 返回与 projectTranscriptChain 相同的行；
@@ -86,12 +86,13 @@ func (s *AgentHistoryStore) projectTranscriptChainCheckpointed(
 	roundMarkers []transcriptRoundMarker,
 ) transcriptProjection {
 	key := transcriptProjectionKey{WorkspacePath: workspacePath, SessionKey: sessionKey, AgentID: agentID}
-	aligned := alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkipTranscriptEntry)
+	alignment := alignTranscriptChain(chain, roundMarkers, shouldSkipTranscriptEntry)
+	aligned := alignment.aligned()
 
 	state := transcriptProjectionState{}
 	start := 0
 	var memoRows []protocol.Message
-	result := transcriptProjection{Aligned: aligned}
+	result := transcriptProjection{Alignment: alignment}
 	if previous := s.readTranscriptProjectionCheckpoint(path, lineage); previous != nil &&
 		transcriptProjectionCheckpointApplies(previous, key, chain, aligned) {
 		start = len(previous.ChainIndexes)

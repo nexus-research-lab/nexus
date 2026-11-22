@@ -12,7 +12,8 @@
 //     重建沿用上一代际并只重写签名变化的分组，进程内分组结构哈希备忘让未变化分组跳过投影与序列化；
 //     round index 按固定 round 数分块保存，全量重建与尾部刷新都只写内容变化的块（进程内摘要凭 scope 行的 round_revision 确认库内仍是自己写入的那一版，否则回读各块）；canonical 历史不迁移。
 //   - history_read_tail.go：DM 与 Room 增量刷新共用的尾部状态持久化：每个 scope 一份尾部原始行与状态 JSON，以及已冻结前缀的身份键集合，与分组在同一事务内发布。
-//   - agent_history_incremental.go：DM 每轮刷新从读模型里的尾轮状态与 transcript 检查点续接，只重新规范化尾部分组；进程重启后同样成立，无法证明前缀不变时回退重建。
+//   - agent_history_incremental.go：DM 每轮刷新从读模型里的尾轮状态与 transcript 检查点续接，只重新规范化尾部分组，
+//     只物化仍在尾部分组里与新增的 round marker；进程重启后同样成立，无法证明前缀不变时回退重建。
 //   - history_long_session_bench_test.go：长会话逐轮追加（整页刷新与单独的 overlay 读取）、热读、冷读与重启后追加的基准（NEXUS_BENCH_ROUNDS 调整轮数）。
 //   - room_history_checkpoint.go / room_transcript_stream.go：大 Room 按成员和公开消息 ID 回填可重建检查点，按文件区间读取主链与并行工具，源指纹变化后重新投影。
 //   - room_history_checkpoint_test.go：覆盖多成员恢复、索引失效与工具详情，并提供桌面规模的历史读取基准。
@@ -28,7 +29,9 @@
 //   - transcript_*.go：基于文件身份/大小/mtime/首尾指纹且由普通、分段、显式读取共用的 JSONL 解析缓存（纯追加只解析新增字节并沿用解析代系；完整解析大文件时按换行分块并行，行号与顺序解析一致）、
 //     进程内 DM 投影前缀检查点（同代系主链与 marker 前缀不变时只重放最后一个用户轮次之后的条目）、
 //     持久化的 DM 投影位置（transcript_checkpoint.go：轮次起点的行号、字节偏移与标量投影状态，续读只解析偏移之后的完整行，
-//     文件身份、首尾指纹、起点条目、已冻结身份或 marker 前缀任一不符即回退重建）、重复 UUID/自指链修复、reader、path、session、project、
+//     文件身份、首尾指纹、起点条目、已冻结身份或 marker 前缀任一不符即回退重建）、
+//     marker 对齐边界（transcript_marker_frontier.go：检查点只保存起点之前尚未定型的轮次与 marker，续读只重新对齐它们和新增部分，
+//     结果与全局对齐一致，成本不随历史轮次数增长）、重复 UUID/自指链修复、reader、path、session、project、
 //     可见性安全的 marker 对齐（含 reminder 提取后的空白 Goal 续跑）、guidance 与 root/source round 投影；
 //     投影与 rewrite/fork 共用边界，派生读模型升级时清除旧轮次归属。
 //   - 有界定向消息队列用 client_message_id 读取完整入队账本，已消费输入在恢复时不会重复派发。
