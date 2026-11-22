@@ -190,17 +190,7 @@ func (r *Repository) finishMutation(
 		}
 		return r.GetSnapshot(ctx, value.executionID)
 	}
-	event.ID = strings.TrimSpace(meta.EventID)
-	event.ExecutionID = value.executionID
-	event.Type = value.eventType
-	event.CommandID = value.commandID
-	event.ActorKind = meta.ActorKind
-	event.ActorID = meta.ActorID
-	event.RootRoundID = meta.RootRoundID
-	event.RuntimeRoundID = meta.RuntimeRoundID
-	event.AgentRoundID = meta.AgentRoundID
-	event.Payload = meta.Payload
-	event.CreatedAt = timeOr(meta.CreatedAt, r.currentTime())
+	event = r.commandEvent(value.executionID, value.eventType, meta, event)
 	if err := r.insertEvent(ctx, value.tx, event); err != nil {
 		_ = value.tx.Rollback()
 		return nil, err
@@ -215,6 +205,27 @@ func (r *Repository) finishMutation(
 		return nil, err
 	}
 	return r.GetSnapshot(ctx, value.executionID)
+}
+
+// commandEvent 用 command 元数据补全实体事件的审计身份。
+func (r *Repository) commandEvent(
+	executionID string,
+	eventType protocol.ExecutionEventType,
+	meta CommandMeta,
+	event protocol.ExecutionEvent,
+) protocol.ExecutionEvent {
+	event.ID = strings.TrimSpace(meta.EventID)
+	event.ExecutionID = executionID
+	event.Type = eventType
+	event.CommandID = strings.TrimSpace(meta.CommandID)
+	event.ActorKind = meta.ActorKind
+	event.ActorID = meta.ActorID
+	event.RootRoundID = meta.RootRoundID
+	event.RuntimeRoundID = meta.RuntimeRoundID
+	event.AgentRoundID = meta.AgentRoundID
+	event.Payload = meta.Payload
+	event.CreatedAt = timeOr(meta.CreatedAt, r.currentTime())
+	return event
 }
 
 func (r *Repository) abortMutation(value *mutation) {

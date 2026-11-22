@@ -815,7 +815,7 @@ root_round_id
 
 模型明确决定交付或审核后，可在最后回复的独占行尾部 HTML 注释中声明 `nexus-workgraph-result` JSON。wire 真相是 `protocol.ExecutionResultDeclaration`：版本与 exact AgentRoundID 必须匹配，只能有一个 delivery 或 review，不接受调用者指定其他目标、未知字段、重复键、代码块内示例或尾部其他内容。大小上限 64 KiB、嵌套深度上限 16。普通回复、runtime finished、失败或中断从不自动产生 Submission / Acceptance。声明注释保留在原文审计中，Markdown 正文与流式显示隐藏 HTML 注释；代码示例仍可读。
 
-结果先以 Execution / kind / Attempt 或 Submission 唯一身份写入不可变 `execution_result_receipts`，随后通过原有 `SubmitWork` / `ReviewWork` 领域服务执行授权、当前 Plan/Spec/Assignment、revision 和验收规则。接收状态与应用状态分离：`pending` 只证明持久接收，`applied` 必须由 exact 领域交付/审核内容证明，`rejected` 表示已核对后的冲突或失效。显式工具与钩子同时到达时，只承认相同内容的既有领域结果；`no_op` 本身不能证明写入成功，也不能覆盖不同审核结论。
+结果先以 Execution / kind / Attempt 或 Submission 唯一身份写入不可变 `execution_result_receipts`，随后通过原有 `SubmitWork` / `ReviewWork` 领域服务执行授权、当前 Plan/Spec/Assignment、revision 和验收规则。接收状态与应用状态分离：`pending` 只证明持久接收，`applied` 必须由 exact 领域交付/审核内容证明，`rejected` 表示已核对后的冲突或失效。显式工具与钩子同时到达时，只承认相同内容的既有领域结果；`SubmitWork` 把 root Attempt 的成功终态与 Submission 放在同一事务提交，另一方不会读到“已成功但尚无 Submission”的 Attempt 而把仍在交付中的回执判为失效；`no_op` 本身不能证明写入成功，也不能覆盖不同审核结论。
 
 持久接收后的领域失败由现有后台恢复协调器按 deadline 有界对账，读取当前事实后使用稳定命令 ID 推进内部事务；不重放外部工具。pending 交付保护 exact root，避免 runtime 退出/宿主重启提前把它收口；若旧责任最终失效，回执明确拒绝，并收口仍存活的 exact root，不能转移到后继 Attempt 或恢复暂停任务。未取得持久接收或明确拒绝时，Stop 可要求一次核对/纠错，重复 Stop 不无限阻塞。`runtimehook.Observer` 仍只负责 best-effort 运行观察，正式结果不经过该路径。
 
