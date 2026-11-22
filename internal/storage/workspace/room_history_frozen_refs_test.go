@@ -271,6 +271,11 @@ func TestRoomFrozenTranscriptRejectsChangedPublishedMessages(t *testing.T) {
 		if err = os.WriteFile(overlay, edited, 0o600); err != nil {
 			t.Fatal(err)
 		}
+		// 长度与首尾指纹都没变，快照只剩 mtime 能区分：确保它与发布时的快照不同。
+		later := time.Now().Add(time.Second)
+		if err = os.Chtimes(overlay, later, later); err != nil {
+			t.Fatal(err)
+		}
 		requireRoomTailRebuilt(t, f)
 	})
 
