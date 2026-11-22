@@ -80,7 +80,7 @@ function userInputSeq(message: Message): number | undefined {
 }
 
 /** 已发出但尚未被任何受理证据绑定到游标的本地 optimistic 用户行。 */
-export function isPendingUserMessage(message: Message): boolean {
+function isPendingUserMessage(message: Message): boolean {
   return message.role === "user"
     && message.input_seq === undefined
     && message.client_message_id !== undefined
