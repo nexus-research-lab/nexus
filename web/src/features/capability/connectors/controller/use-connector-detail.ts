@@ -1,7 +1,7 @@
 // INPUT: 当前 Connector identity、详情 API、当前语言与安全失败兜底。
-// OUTPUT: 按 request generation 隔离的详情快照、失败事实和刷新动作；语言切换时重读已打开的详情。
+// OUTPUT: 按 request generation 隔离的详情快照、失败事实和刷新动作；语言变化使读取动作换新，由目录入口重读。
 // POS: Connector detail 的读取边界；切换 identity 时不得显示旧详情。
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { getConnectorDetailApi } from "@/lib/api/capability/connector-api";
 import {
@@ -58,13 +58,6 @@ export function useConnectorDetail({
       }
     }
   }, [failureFallback, locale]);
-
-  useEffect(() => {
-    const connectorId = selectedIdRef.current;
-    if (connectorId) {
-      void loadDetail(connectorId, false);
-    }
-  }, [loadDetail]);
 
   const openDetail = useCallback(async (connectorId: string): Promise<void> => {
     await loadDetail(connectorId, true);
