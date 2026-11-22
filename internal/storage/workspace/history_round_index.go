@@ -304,8 +304,8 @@ func (r *lastByteReader) Read(buffer []byte) (int, error) {
 }
 
 // decodeRoundIndexOverlayRows 解码一段 overlay 并按 message_id 最后写入语义去掉被覆盖的行，
-// 保留行的相对顺序不变。overlay 只追加：输入末尾没有换行说明追加方还没写完最后一行，
-// 已写完的行照常返回，未写完的行留给下一次读取。
+// 保留行的相对顺序不变。overlay 只追加：输入停在一行 JSON 中间且末尾没有换行，
+// 说明追加方还没写完最后一行；已写完的行照常返回，这一行留给下一次读取。
 func decodeRoundIndexOverlayRows(ctx context.Context, source io.Reader) ([]roundIndexOverlayJSONRow, error) {
 	input := &lastByteReader{source: source}
 	decoder := json.NewDecoder(input)
