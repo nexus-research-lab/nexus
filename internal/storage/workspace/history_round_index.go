@@ -290,7 +290,8 @@ func readRoundIndexFromRootContext(
 }
 
 // decodeRoundIndexOverlayRows 解码一段 overlay 并按 message_id 最后写入语义去掉被覆盖的行，
-// 保留行的相对顺序不变。
+// 保留行的相对顺序不变。overlay 只追加：输入停在一行中间说明追加方还没写完这一行，
+// 已写完的行照常返回，未写完的行留给下一次读取。
 func decodeRoundIndexOverlayRows(ctx context.Context, source io.Reader) ([]roundIndexOverlayJSONRow, error) {
 	decoder := json.NewDecoder(source)
 	rows := make([]roundIndexOverlayJSONRow, 0)
@@ -301,7 +302,7 @@ func decodeRoundIndexOverlayRows(ctx context.Context, source io.Reader) ([]round
 		}
 		var row roundIndexOverlayJSONRow
 		if err := decoder.Decode(&row); err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				break
 			}
 			return nil, err

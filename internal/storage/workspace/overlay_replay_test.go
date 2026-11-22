@@ -368,6 +368,59 @@ func TestOverlayReplayKeepsNoStateForPartiallyWrittenLine(t *testing.T) {
 	}
 }
 
+// 追加方把一行写到一半时，导航读取返回已写完的行，不把半行当成读取失败；
+// 这一行写完后再读必须出现。
+func TestRoundIndexReadSkipsPartiallyWrittenLastRow(t *testing.T) {
+	harness := newOverlayReplayHarness(t)
+	marker := func(round int) string {
+		return fmt.Sprintf(`{"nexus_overlay_kind":"round_marker","round_id":"round-%d","content":"第 %d 轮","timestamp":%d}`,
+			round, round, 1_700_000_000_000+round*1000)
+	}
+	readRounds := func() []string {
+		t.Helper()
+		index, err := harness.history.ReadRoundIndex(harness.workspacePath, harness.session, nil)
+		if err != nil {
+			t.Fatalf("round index read: %v", err)
+		}
+		rounds := make([]string, len(index.Items))
+		for i, item := range index.Items {
+			rounds[i] = item.RoundID
+		}
+		return rounds
+	}
+	harness.appendRaw(marker(0) + "\n")
+	want := []string{"round-0"}
+
+	// 断点依次落在行首、多字节字符中间和只差收尾括号处。
+	for index, cut := range []func(row string) int{
+		func(string) int { return 1 },
+		func(row string) int { return strings.Index(row, "轮") + 1 },
+		func(row string) int { return len(row) - 1 },
+	} {
+		if got := readRounds(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("complete rows: got %v want %v", got, want)
+		}
+		round := index + 1
+		row := marker(round)
+		written := cut(row)
+		harness.appendRaw(row[:written])
+		if got := readRounds(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("%d of %d bytes of the next row written: got %v want %v", written, len(row), got, want)
+		}
+		if entry := harness.replayEntry(); entry.roundIndex.cursor != nil {
+			t.Fatalf("a read ending mid-row must not leave a resume point: %#v", entry.roundIndex.cursor)
+		}
+		harness.assertMatchesFullRead(nil)
+
+		harness.appendRaw(row[written:] + "\n")
+		want = append(want, fmt.Sprintf("round-%d", round))
+		harness.assertMatchesFullRead(nil)
+	}
+	if got := readRounds(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("finished rows: got %v want %v", got, want)
+	}
+}
+
 func TestOverlayReplayResultIsIsolatedFromCallers(t *testing.T) {
 	harness := newOverlayReplayHarness(t)
 	harness.appendRows(map[string]any{overlayKindField: overlayKindRoundMarker, "round_id": "round-0", "content": "first", "timestamp": 1_700_000_000_000})
