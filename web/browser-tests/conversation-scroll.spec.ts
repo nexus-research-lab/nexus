@@ -3,17 +3,19 @@
 // POS: Isolated conversation scroll harness; no model or backend requests.
 import { expect, test } from "@playwright/test";
 
-test("generation scroll control stays out of the bottom layout until the reader leaves bottom", async ({ page }) => {
+test("scroll control floats over the feed and reaching the bottom moves nothing", async ({ page }) => {
   await page.goto("/ui-gallery.html");
   await page.evaluate(async () => {
     const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
     const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
     const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
     const layoutPath = "/src/features/conversation/shared/conversation-panel-layout.tsx";
     const modelPath = "/src/features/conversation/shared/conversation-panel-model.ts";
     const { default: React } = await import(reactPath);
     const { default: { createRoot } } = await import(domPath);
     const { I18nProvider } = await import(i18nPath);
+    const { useFollowScroll } = await import(hookPath);
     const {
       ConversationPanelBottomArea,
       ConversationPanelLayout,
@@ -29,8 +31,12 @@ test("generation scroll control stays out of the bottom layout until the reader 
     };
     function Harness() {
       const [isLoading, setIsLoading] = React.useState(true);
-      const [readingEarlier, setReadingEarlier] = React.useState(false);
-      const scrollRef = React.useRef(null);
+      const scroll = useFollowScroll({
+        contentKey: "fixed",
+        messageCount: 1,
+        sessionKey: "scroll-control-test",
+        topologyKey: "fixed",
+      });
       const frame = buildConversationPanelFrameModel({
         conversation: {
           is_history_loading: false,
@@ -40,7 +46,7 @@ test("generation scroll control stays out of the bottom layout until the reader 
           load_session: () => undefined,
           reliability: healthyReliability,
         },
-        history: { handleScroll: () => undefined },
+        history: { handleScroll: scroll.onScroll },
         roundIndexResource: {
           access: false,
           error: null,
@@ -49,19 +55,7 @@ test("generation scroll control stays out of the bottom layout until the reader 
           retry: () => undefined,
         },
         roundScrollRef: { current: null },
-        scroll: {
-          isFollowingLatest: () => !readingEarlier,
-          onPointerDown: () => undefined,
-          onScroll: () => undefined,
-          onTouchEnd: () => undefined,
-          onTouchMove: () => undefined,
-          onTouchStart: () => undefined,
-          onWheel: () => undefined,
-          reconcileFollowLatest: () => undefined,
-          scrollRef,
-          scrollToBottom: () => undefined,
-          showScrollToBottom: readingEarlier,
-        },
+        scroll,
         sessionKey: "scroll-control-test",
         timeline: {},
       }, { isMobileLayout: false, providerWarningVisible: false }, {});
@@ -69,10 +63,9 @@ test("generation scroll control stays out of the bottom layout until the reader 
         h(ConversationPanelLayout, null,
           h(ConversationPanelViewportArea, null,
             h(ConversationPanelViewport, {
-              floatingDockOccupied: frame.scrollToLatest.visible,
               isMobileLayout: false,
               viewport: frame.viewport,
-            }, h("div", { style: { height: 1000 } }, "feed")),
+            }, h("div", { ref: scroll.feedRef, style: { height: 2000, flexShrink: 0 } }, "feed")),
           ),
           h(ConversationPanelBottomArea, {
             children: h("div", { style: { height: 80 } }),
@@ -84,9 +77,6 @@ test("generation scroll control stays out of the bottom layout until the reader 
             reliability: healthyReliability,
             scrollToLatest: frame.scrollToLatest,
           }),
-          h("button", {
-            onClick: () => setReadingEarlier((value: boolean) => !value),
-          }, "Read earlier"),
           h("button", {
             onClick: () => setIsLoading((value: boolean) => !value),
           }, "Toggle generation"),
@@ -101,20 +91,35 @@ test("generation scroll control stays out of the bottom layout until the reader 
   });
 
   const harness = page.locator("[data-scroll-control-harness]");
-  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(0);
-  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(0);
+  const control = harness.locator("[data-scroll-to-latest]");
+  const clearance = harness.locator("[data-conversation-dock-clearance]");
+  const viewport = harness.locator(".overflow-y-auto").last();
+  const geometry = () => viewport.evaluate((element) => ({
+    bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+    scrollHeight: element.scrollHeight,
+  }));
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  await expect(control).toHaveCount(0);
+  const { scrollHeight } = await geometry();
 
-  await page.getByRole("button", { name: "Read earlier" }).click();
-  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(1);
-  await expect(harness.locator("[data-scroll-to-latest]")).toHaveAttribute("data-generating", "true");
-  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(1);
+  // The control appears over the feed: it reserves no tail clearance.
+  await viewport.hover();
+  await page.mouse.wheel(0, -300);
+  await expect(control).toHaveCount(1);
+  await expect(control).toHaveAttribute("data-generating", "true");
+  await expect(clearance).toHaveCount(0);
+  expect(await geometry()).toEqual({ bottomGap: 300, scrollHeight });
 
   await page.getByRole("button", { name: "Toggle generation" }).click();
-  await expect(harness.locator("[data-scroll-to-latest]")).not.toHaveAttribute("data-generating", "true");
+  await expect(control).not.toHaveAttribute("data-generating", "true");
 
-  await page.getByRole("button", { name: "Read earlier" }).click();
-  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(0);
-  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(0);
+  // Arriving hides the control without changing the scroll content, so the
+  // tail the reader scrolled to neither slides down nor keeps a blank gap.
+  await viewport.hover();
+  await page.mouse.wheel(0, 400);
+  await expect(control).toHaveCount(0);
+  await expect(clearance).toHaveCount(0);
+  expect(await geometry()).toEqual({ bottomGap: 0, scrollHeight });
 });
 
 test("activity Dock clearance keeps FOLLOW pinned at the real bottom", async ({ page }) => {

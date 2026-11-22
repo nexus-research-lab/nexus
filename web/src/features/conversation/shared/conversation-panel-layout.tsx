@@ -1,6 +1,6 @@
 /**
  * INPUT: 面板状态、内容节点、滚动 refs、会话导航、Goal、可靠性快照、底部活动入口与统一输入事件。
- * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈；Goal 复用现有节点锚在 Composer 上缘，正文只按浮层真实高度增加滚动尾部避让。
+ * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈；Goal 复用现有节点锚在 Composer 上缘，正文只按 Goal 与活动层的真实高度增加滚动尾部避让，回到底部控件悬浮不占位。
  * POS: DM 与 Room 主对话面板的共享纯视图骨架。
  */
 import {
@@ -86,13 +86,14 @@ export function ConversationPanelViewportArea({
 
 export function ConversationPanelViewport({
   children,
-  floatingDockOccupied,
+  floatingDockOccupied = false,
   isMobileLayout,
   tourAnchor,
   viewport,
 }: {
   children: ReactNode;
-  floatingDockOccupied: boolean;
+  /** 活动层（Task、WorkGraph、Room 协作）是否占用正文尾部；回到底部控件不计入。 */
+  floatingDockOccupied?: boolean;
   isMobileLayout: boolean;
   tourAnchor?: string;
   viewport: ConversationViewportModel;
@@ -252,6 +253,7 @@ export function ConversationPanelFloatingControls({
     return null;
   }
   const anchoredToGoal = anchor === "goal";
+  // 只有活动层参与正文尾部避让的测量；回到底部控件悬浮在正文之上，不占位。
   return (
     <div
       className={
@@ -263,7 +265,7 @@ export function ConversationPanelFloatingControls({
             ? `pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[720px] ${CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME} items-center justify-center px-4`
             : `pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[880px] ${CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME} items-center justify-center px-3 sm:px-5 xl:px-6`
       }
-      data-conversation-activity-dock
+      data-conversation-activity-dock={activity ? true : undefined}
     >
       {scrollToLatest.visible ? (
         <div
