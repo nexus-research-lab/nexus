@@ -1,6 +1,6 @@
 /**
  * INPUT: 会话消息、Room slot/permission/execution 易失态、运行轮次与服务端 round 索引。
- * OUTPUT: DM / Room 共用的消息及易失态根轮次分组、历史窗口可见性与 feed 顺序纯投影。
+ * OUTPUT: DM / Room 共用的消息及易失态根轮次分组、历史窗口可见性与 feed 顺序纯投影；已解析轮次只凭投影过的消息正文留在导航索引，运行态证据不留存。
  * POS: 时间线顺序的唯一真相源；驻留轮次只由 buildResidentRoundIds 输出，feed 与 navigator 不得自行修正轮次。
  */
 import type {
@@ -255,7 +255,31 @@ export function filterSupersededRoundIndexItems(
 }
 
 /**
- * 目标窗口请求成功后，只保留实际投影出用户可见内容的已解析轮次。
+ * 已解析轮次一旦投影过可见消息正文就持续记入；连续窗口随后淘汰其正文，不代表该轮为空。
+ * live、slot、permission、execution 等运行态证据是瞬时的，清除后不能证明该轮有内容，因此不记入。
+ * 结果始终是 resolvedRoundIds 的子集，会话重置时随之清空；无变化时返回原数组。
+ */
+export function retainResolvedContentRoundIds(
+  retainedRoundIds: string[],
+  resolvedRoundIds: string[],
+  messageGroups: ReadonlyMap<string, Message[]>,
+): string[] {
+  const retained = new Set(retainedRoundIds);
+  const next = resolvedRoundIds.filter((roundId) => {
+    if (retained.has(roundId)) {
+      return true;
+    }
+    const messages = messageGroups.get(roundId);
+    return messages !== undefined && !isBlankNoReplyRound(messages);
+  });
+  return next.length === retainedRoundIds.length
+    && next.every((roundId, index) => roundId === retainedRoundIds[index])
+    ? retainedRoundIds
+    : next;
+}
+
+/**
+ * 目标窗口请求成功后，只保留当前驻留或曾投影过消息正文的已解析轮次。
  * 未解析轮次仍保留短暂占位，避免请求完成前导航与 feed 出现空洞。
  */
 export function filterResolvedEmptyRoundIndexItems(
