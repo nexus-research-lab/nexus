@@ -107,9 +107,9 @@ export function DmChatPanelView({
         ) : undefined}
       >
         <ConversationPanelViewport
-          floatingDockOccupied={model.scrollToLatest.visible || (!model.embedded && (
+          floatingDockOccupied={!model.embedded && (
             model.executionPanel !== null || model.todos.length > 0
-          ))}
+          )}
           isMobileLayout={isMobileLayout}
           tourAnchor={CONVERSATION_TOUR_ANCHORS.feed}
           viewport={viewport}

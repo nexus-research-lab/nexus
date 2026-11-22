@@ -400,7 +400,6 @@ function ContactConversation({
     <ConversationPanelLayout>
       <ConversationPanelViewportArea>
         <ConversationPanelViewport
-          floatingDockOccupied={scroll.showScrollToBottom}
           isMobileLayout={isCompactLayout}
           viewport={{
             isHistoryLoading,

@@ -130,7 +130,6 @@ function ActiveGroupConversation({
             model.executionPanel !== null
             || model.taskProcesses.length > 0
             || model.collaborationActivity !== null
-            || model.scrollToLatest.visible
           }
           isMobileLayout={isMobileLayout}
           viewport={viewport}
