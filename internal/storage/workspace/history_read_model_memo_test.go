@@ -227,7 +227,7 @@ func TestHistoryReadModelMemoSurvivesRepeatedRebuilds(t *testing.T) {
 	for index := range maxHistoryReadModelMemoScopes {
 		store.storeRounds(fmt.Sprintf("other-%d", index), 0, chunks)
 	}
-	if _, ok := store.loadRounds("scope", 0); ok {
+	if store.load("scope", "generation") != nil {
 		t.Fatal("最旧的 scope 应被淘汰")
 	}
 	if _, ok := store.loadRounds("other-0", 0); !ok {
