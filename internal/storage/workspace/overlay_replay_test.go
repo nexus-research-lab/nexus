@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -418,6 +419,29 @@ func TestRoundIndexReadSkipsPartiallyWrittenLastRow(t *testing.T) {
 	}
 	if got := readRounds(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("finished rows: got %v want %v", got, want)
+	}
+}
+
+// 一行中断在等值的位置后又有完整行追加：后一行会被解码成前一行的字段值，文件以换行结尾。
+// 这不是写到一半的行，读取必须报错，不能悄悄丢掉后一轮并把续读位置推到它之后。
+func TestRoundIndexReadRejectsIncompleteRowBeforeFinishedAppend(t *testing.T) {
+	harness := newOverlayReplayHarness(t)
+	read := func() (protocol.SessionRoundIndex, error) {
+		return harness.history.ReadRoundIndex(harness.workspacePath, harness.session, nil)
+	}
+	harness.appendRaw(`{"nexus_overlay_kind":"round_marker","round_id":"round-0","content":"第 0 轮","timestamp":1700000000000}` + "\n")
+	harness.appendRaw(`{"nexus_overlay_kind":"round_marker","round_id":"round-1","content":`)
+	index, err := read()
+	if err != nil || len(index.Items) != 1 {
+		t.Fatalf("interrupted last row: got %#v, %v", index.Items, err)
+	}
+
+	harness.appendRaw(`{"nexus_overlay_kind":"round_marker","round_id":"round-2","content":"第 2 轮","timestamp":1700000002000}` + "\n")
+	if index, err = read(); !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("finished append after an interrupted row: got %#v, %v", index.Items, err)
+	}
+	if entry := harness.replayEntry(); entry.roundIndex.cursor != nil {
+		t.Fatalf("a failed read must not leave a resume point: %#v", entry.roundIndex.cursor)
 	}
 }
 
