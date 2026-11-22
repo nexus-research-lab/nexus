@@ -263,19 +263,23 @@ func (s *RoomHistoryStore) resumeRoomFrozenTranscripts(
 		key := ref.cacheKey()
 		member := wanted[key]
 		needed := member != nil
-		transcript := -1
+		transcript, rewritten := -1, false
 		var before, after []historyPageSourceSnapshot
 		for index, source := range previous {
 			if !ref.dependsOn(source) {
 				continue
 			}
-			needed = needed || source != current[index]
+			next := current[index]
+			needed = needed || source != next
+			// 只把变长的文件当作追加；长度不变的改动是原地改写，首尾指纹看不到两端之间的内容，必须重读整份文件。
+			// overlay 变长的同时两端之外被改写仍看不到，判定强度与 overlay 进程内回放一致。
+			rewritten = rewritten || (source != next && next.Size <= source.Size)
 			if source.Kind == historyPageSourceTranscript {
 				transcript = len(before)
 			}
-			before, after = append(before, source), append(after, current[index])
+			before, after = append(before, source), append(after, next)
 		}
-		if !needed || transcript < 0 {
+		if !needed || rewritten || transcript < 0 {
 			continue
 		}
 		// marker 对齐的续接只核对下标，检查点之前的 marker 内容要靠 overlay 只被追加来证明。
@@ -283,10 +287,6 @@ func (s *RoomHistoryStore) resumeRoomFrozenTranscripts(
 			continue
 		} else if err != nil {
 			return err
-		}
-		// 只把变长的 transcript 当作追加；长度不变的改动是原地改写，必须重读整份文件。
-		if before, after := before[transcript], after[transcript]; after != before && after.Size <= before.Size {
-			continue
 		}
 		overlayState, err := ownerHistory.readOverlayHistoryStateContext(ctx, ref.WorkspacePath, ref.PrivateSessionKey)
 		if err != nil {

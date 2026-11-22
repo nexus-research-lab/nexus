@@ -254,6 +254,26 @@ func TestRoomFrozenTranscriptRejectsChangedPublishedMessages(t *testing.T) {
 		requireRoomTailRebuilt(t, f)
 	})
 
+	t.Run("marker in the middle of a long overlay edited in place", func(t *testing.T) {
+		f := newRoomLongSessionFixture(t, 120, 64)
+		f.readFirstPage(t)
+		// 首尾指纹只取样文件两端各 4 KiB：改动落在两端之间、长度不变时指纹照旧，只能靠“长度没变就是改写”拦下。
+		overlay := f.private().paths.SessionOverlayPath(f.workspacePath, f.sessionKey)
+		content, err := os.ReadFile(overlay)
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := bytes.Index(content, []byte("private-00060"))
+		if at < 4096 || at+4096 > len(content) {
+			t.Fatalf("marker at %d of %d is not between the sampled edges", at, len(content))
+		}
+		edited := bytes.Replace(content, []byte("private-00060"), []byte("private-edit6"), 1)
+		if err = os.WriteFile(overlay, edited, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		requireRoomTailRebuilt(t, f)
+	})
+
 	t.Run("marker before the checkpoint rewritten", func(t *testing.T) {
 		f := newRoomLongSessionFixture(t, 6, 64)
 		f.readFirstPage(t)
