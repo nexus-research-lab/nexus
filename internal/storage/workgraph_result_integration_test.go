@@ -132,7 +132,8 @@ func TestWorkGraphRuntimeResultIntegration(t *testing.T) {
 				}
 			})
 			// The hook's receipt is durable before the tool starts and is applied
-			// while the tool is between its own Attempt and Submission writes.
+			// while the tool is mid-delivery: the tool's Attempt completion must
+			// never be visible without its Submission.
 			t.Run("hook_applies_while_tool_delivers", func(t *testing.T) {
 				actor, declaration := runtimeResultFixture(t, repository, "window")
 				snapshot, _ := repository.GetSnapshot(t.Context(), actor.ExecutionID)
