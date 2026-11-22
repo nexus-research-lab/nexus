@@ -164,6 +164,23 @@ func TestWorkGraphRuntimeResultIntegration(t *testing.T) {
 					t.Fatal("race duplicated delivery")
 				}
 			})
+			t.Run("hook_confirms_tool_delivery", func(t *testing.T) {
+				actor, declaration := runtimeResultFixture(t, repository, "tool-first")
+				service := svc.NewService(repository)
+				snapshot, _ := repository.GetSnapshot(t.Context(), actor.ExecutionID)
+				delivered, err := service.SubmitWork(t.Context(), actor, svc.SubmitWorkInput{ExecutionID: actor.ExecutionID, SnapshotRevision: snapshot.Execution.Version, CommandID: "explicit-first-result", ResultSummary: declaration.Delivery.ResultSummary, Evidence: declaration.Delivery.Evidence})
+				if err != nil || delivered.Outcome != svc.MutationApplied {
+					t.Fatalf("tool delivery=%+v %v", delivered, err)
+				}
+				outcome, err := service.AcceptRuntimeResult(t.Context(), actor, declaration)
+				if err != nil || outcome.State != "applied" {
+					t.Fatalf("hook result=%+v %v", outcome, err)
+				}
+				snapshot, _ = repository.GetSnapshot(t.Context(), actor.ExecutionID)
+				if len(snapshot.Submissions) != 1 || len(snapshot.ReviewDispatches) != 1 {
+					t.Fatal("hook duplicated the tool's delivery")
+				}
+			})
 			t.Run("terminal_after_intake", func(t *testing.T) {
 				actor, declaration := runtimeResultFixture(t, repository, "terminal")
 				service := svc.NewService(&resultFaultRepository{Repository: repository, failSubmit: true})
