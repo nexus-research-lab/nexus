@@ -162,6 +162,22 @@ describe.each<ChatKind>(["dm", "room"])("%s user rows keyed by input_seq", (kind
     expect(userRows(recovered)).toEqual(expectedRows(first));
   });
 
+  it("settles to one row when the acknowledgement never arrives and the refresh lands before the replayed live row", () => {
+    const refreshed = refresh(send([], first), first);
+    const replayed = live(refreshed, first);
+
+    expect(userRows(kind === "room" ? replayed : refreshed)).toEqual(expectedRows(first));
+    expect(userRows(live(replayed, first))).toEqual(expectedRows(first));
+  });
+
+  it("settles to one row when the acknowledgement never arrives and the live row lands before the refresh", () => {
+    const delivered = live(send([], first), first);
+    const refreshed = refresh(delivered, first);
+
+    expect(userRows(kind === "dm" ? refreshed : delivered)).toEqual(expectedRows(first));
+    expect(userRows(refresh(refreshed, first))).toEqual(expectedRows(first));
+  });
+
   it("does not drop an acknowledged row that a stale refresh has not caught up with", () => {
     const settled = ack(send(ack(send([], first), first), second), second);
 

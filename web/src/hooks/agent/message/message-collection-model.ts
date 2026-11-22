@@ -88,46 +88,44 @@ function isPendingUserMessage(message: Message): boolean {
 }
 
 /**
- * 找出与 durable 用户行是同一条输入的本地行：游标相同即同一行；没有游标的
- * optimistic 行只能由点名它的 client_message_id 绑定一次，之后一律按游标配对。
+ * 找出与 durable 用户行是同一条输入的全部本地行：游标相同的行，以及被它的
+ * client_message_id 点名、尚无游标的 optimistic 行。ACK 丢失时两者会并存
+ * （历史或实时行先带来游标，optimistic 行还在等受理证据），必须一起收口。
  */
-function findSameUserInputIndex(
+function findSameUserInputIndexes(
   messages: readonly Message[],
   durable: Message,
-): number {
+): number[] {
   if (durable.role !== "user") {
-    return -1;
+    return [];
   }
-  const inputSeq = durable.input_seq;
-  if (inputSeq !== undefined) {
-    const boundIndex = messages.findIndex(
-      (message) => userInputSeq(message) === inputSeq,
-    );
-    if (boundIndex >= 0) {
-      return boundIndex;
-    }
-  }
-  const clientMessageId = durable.client_message_id;
-  if (!clientMessageId) {
-    return -1;
-  }
-  return messages.findIndex(
-    (message) => (
-      isPendingUserMessage(message) && message.message_id === clientMessageId
-    ),
-  );
+  const { client_message_id: clientMessageId, input_seq: inputSeq } = durable;
+  return messages.flatMap((message, index) => {
+    const sharesCursor = inputSeq !== undefined
+      && userInputSeq(message) === inputSeq;
+    const isNamedPendingRow = Boolean(clientMessageId)
+      && isPendingUserMessage(message)
+      && message.message_id === clientMessageId;
+    return sharesCursor || isNamedPendingRow ? [index] : [];
+  });
 }
 
 /** durable 字段以服务端为准；本页发出的行保留 client_message_id 作为 Feed 节点 key。 */
-function adoptDurableUserMessage(local: Message, durable: Message): Message {
-  if (
-    local.role !== "user"
-    || durable.role !== "user"
-    || !local.client_message_id
-  ) {
+function adoptDurableUserMessage(
+  locals: readonly Message[],
+  durable: Message,
+): Message {
+  if (durable.role !== "user") {
     return durable;
   }
-  return { ...durable, client_message_id: local.client_message_id };
+  const clientMessageId = locals.flatMap((local) => (
+    local.role === "user" && local.client_message_id
+      ? [local.client_message_id]
+      : []
+  ))[0];
+  return clientMessageId
+    ? { ...durable, client_message_id: clientMessageId }
+    : durable;
 }
 
 /**
@@ -138,16 +136,22 @@ export function upsertRealtimeMessage(
   messages: Message[],
   incoming: Message,
 ): Message[] {
-  const sameInputIndex = findSameUserInputIndex(messages, incoming);
-  if (sameInputIndex < 0) {
+  const sameInputIndexes = findSameUserInputIndexes(messages, incoming);
+  if (sameInputIndexes.length === 0) {
     return upsertMessage(messages, incoming);
   }
-  const adopted = adoptDurableUserMessage(messages[sameInputIndex], incoming);
+  const adopted = adoptDurableUserMessage(
+    sameInputIndexes.map((index) => messages[index]),
+    incoming,
+  );
   return dedupeMessagesById(messages.flatMap((message, index) => {
-    if (index === sameInputIndex) {
+    if (index === sameInputIndexes[0]) {
       return [adopted];
     }
-    return message.message_id === incoming.message_id ? [] : [message];
+    return sameInputIndexes.includes(index)
+      || message.message_id === incoming.message_id
+      ? []
+      : [message];
   }));
 }
 
@@ -177,15 +181,20 @@ export function mergeLoadedMessages(
   );
   const pairedLocalIndexes = new Set<number>();
   const reconciledLoadedMessages = uniqueLoadedMessages.map((message) => {
-    const sameInputIndex = findSameUserInputIndex(uniqueLocalMessages, message);
-    const localIndex = sameInputIndex >= 0
-      ? sameInputIndex
-      : localIndexesById.get(message.message_id);
-    if (localIndex === undefined) {
+    const sameInputIndexes = findSameUserInputIndexes(
+      uniqueLocalMessages,
+      message,
+    );
+    const sameIdIndex = localIndexesById.get(message.message_id);
+    const localIndexes = sameInputIndexes.length > 0 || sameIdIndex === undefined
+      ? sameInputIndexes
+      : [sameIdIndex];
+    if (localIndexes.length === 0) {
       return message;
     }
-    pairedLocalIndexes.add(localIndex);
-    const localMessage = uniqueLocalMessages[localIndex];
+    localIndexes.forEach((index) => pairedLocalIndexes.add(index));
+    const locals = localIndexes.map((index) => uniqueLocalMessages[index]);
+    const localMessage = locals[0];
     if (
       localMessage.role === "assistant"
       && message.role === "assistant"
@@ -194,13 +203,11 @@ export function mergeLoadedMessages(
     }
     // 历史请求没有版本戳，可能晚于 durable reparent 增量返回。reparent
     // 对同一条用户输入是单向状态；仅保护身份字段，其他服务端字段仍可刷新。
-    if (
-      isReparentedUserMessage(localMessage)
-      && !isReparentedUserMessage(message)
-    ) {
-      return localMessage;
+    const reparented = locals.find(isReparentedUserMessage);
+    if (reparented && !isReparentedUserMessage(message)) {
+      return reparented;
     }
-    return adoptDurableUserMessage(localMessage, message);
+    return adoptDurableUserMessage(locals, message);
   });
   const localOnlyMessages = uniqueLocalMessages.filter(
     (_, index) => !pairedLocalIndexes.has(index),
