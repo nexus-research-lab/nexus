@@ -211,6 +211,19 @@ func TestRoomGoalOnlyPublicMentionHandbackImmediatelyContinues(t *testing.T) {
 			event.Data["role"] == "assistant" && event.Data["is_complete"] == true &&
 			protocol.NormalizePublicHandoffReply(event.Data["handoff_reply"]) != nil
 	})
+	continuationAcked := false
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeChatAck || event.Data["round_id"] != firstPlan.RoundID {
+			continue
+		}
+		continuationAcked = true
+		if _, positioned := event.Data[protocol.InputSeqField]; positioned {
+			t.Fatalf("hidden Goal continuation persists no user row, so its chat_ack must not carry input_seq: %+v", event.Data)
+		}
+	}
+	if !continuationAcked {
+		t.Fatalf("hidden Goal continuation chat_ack missing from realtime events: %+v", events)
+	}
 	var researcherReply protocol.Message
 	for _, event := range events {
 		if event.EventType == protocol.EventTypeMessage &&
