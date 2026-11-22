@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 14 // DM transcript 检查点只保存未定型的 marker 对齐，marker 尾部下标改指全部 round marker。
+	historyReadModelSchemaVersion = 15 // Room 冻结引用改为按封存顺序折叠的摘要，并随成员检查点保存待封存消息。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000

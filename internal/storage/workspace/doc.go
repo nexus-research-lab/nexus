@@ -18,7 +18,10 @@
 //   - room_history_checkpoint.go / room_transcript_stream.go：大 Room 按成员和公开消息 ID 回填可重建检查点，按文件区间读取主链与并行工具，源指纹变化后重新投影。
 //   - room_history_checkpoint_test.go：覆盖多成员恢复、索引失效与工具详情，并提供桌面规模的历史读取基准。
 //   - room_history_incremental.go：在共用后台单飞任务中按 ledger 偏移读取追加，保留原始尾轮，原子更新尾部分页、导航与检查点；依赖身份替换和跨轮修正回退重建。
-//   - room_history_frozen_refs.go：为已离开尾轮的 transcript_ref 保存投影摘要；成员 transcript/overlay 只追加且已发布消息投影不变时继续增量，否则回退重建。
+//   - room_history_frozen_refs.go：为已离开尾轮的 transcript_ref 保存投影摘要与成员 transcript 检查点；成员只追加时从检查点续读并只核对新增内容，
+//     无法证明检查点之前不变时完整读取并比对摘要，已发布消息投影变化则回退重建。
+//   - room_history_frozen_refs_test.go：覆盖重启后续读、流式轮次、引用落在检查点之前，以及原地改写、分支切换、消息续写与 marker 重新归属的回退。
+//   - room_long_session_bench_test.go：长 Room 逐轮追加、冷读与重启后追加的基准（NEXUS_BENCH_ROUNDS 调整轮数），夹具供冻结引用回归复用。
 //   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型；
 //     round marker 携带受理游标 input_seq 并原样物化到用户行，Room inline 用户行自带同一字段，合并同 ID 用户快照时不丢失。
 //   - history_input_cursor_test.go：DM/Room 用户行的受理游标在实时行、分页读模型与完整读取之间一致，刷新与进程重启后不变。
