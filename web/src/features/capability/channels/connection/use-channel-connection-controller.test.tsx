@@ -17,7 +17,7 @@ vi.mock("@/lib/api/capability/channel-api", () => ({
   deleteChannelConfigApi: vi.fn(),
   listChannelsApi: vi.fn(),
 }));
-vi.mock("@/shared/i18n/i18n-context", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+vi.mock("@/shared/i18n/i18n-context", () => ({ useI18n: () => ({ locale: "en", t: (key: string) => key }) }));
 it("keeps the main save locked while the QR login waits for verification", async () => {
   const item = { channel_type: "weixin-personal", agent_id: "agent-1", supports_qr_code: true, configured: true, has_credentials: false, public_config: {}, credential_fields: [] } as unknown as ChannelConfigView;
   api.save.mockResolvedValue(item);
@@ -27,5 +27,6 @@ it("keeps the main save locked while the QR login waits for verification", async
   expect(result.current.loginRunning).toBe(true);
   await act(async () => { expect(await result.current.saveChannel()).toBe(false); });
   expect(api.save).toHaveBeenCalledTimes(1);
+  expect(api.save).toHaveBeenCalledWith("weixin-personal", expect.anything(), "en");
   expect(api.start).toHaveBeenCalledTimes(1);
 });

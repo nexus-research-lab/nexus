@@ -221,8 +221,13 @@ func resetHistoryReadModelsForBenchmark(tb testing.TB, fixture *longSessionFixtu
 // simulateHistoryProcessRestart 丢弃所有进程内状态：解析缓存、投影检查点、读模型连接与落盘备忘。
 func simulateHistoryProcessRestart(tb testing.TB, fixture *longSessionFixture) {
 	tb.Helper()
-	path := historyReadModelPath(filepath.Dir(fixture.workspacePath))
-	if value, ok := historyReadModels.LoadAndDelete(path); ok {
+	closeHistoryReadModelForRestart(filepath.Dir(fixture.workspacePath))
+	fixture.history = NewAgentHistoryStore(filepath.Dir(fixture.workspacePath))
+}
+
+// closeHistoryReadModelForRestart 关闭并忘记 root 对应的读模型连接，下一个 store 会重新打开数据库。
+func closeHistoryReadModelForRestart(root string) {
+	if value, ok := historyReadModels.LoadAndDelete(historyReadModelPath(root)); ok {
 		model := value.(*historyReadModel)
 		model.mu.Lock()
 		if model.db != nil {
@@ -230,7 +235,6 @@ func simulateHistoryProcessRestart(tb testing.TB, fixture *longSessionFixture) {
 		}
 		model.mu.Unlock()
 	}
-	fixture.history = NewAgentHistoryStore(filepath.Dir(fixture.workspacePath))
 }
 
 // BenchmarkLongSessionHistoryRestartUnchanged 重启后打开未变化的长会话，应直接命中落盘读模型。

@@ -368,8 +368,8 @@ func readAgentHistoryCheckpoint(ctx context.Context, db historyReadModelQuerier,
 	return tail, nil
 }
 
-// checkAgentHistorySourcesAppended 只接受同一文件的纯追加。transcript 前缀由续读检查点时的
-// 边缘指纹与起点条目校验证明；overlay 在这里校验旧尺寸处的边缘指纹与完整行边界。
+// checkAgentHistorySourcesAppended 只接受同一文件的纯追加，DM 与 Room 成员的检查点续读共用。transcript 前缀由
+// 续读检查点时的边缘指纹与起点条目校验证明；overlay 在这里校验旧尺寸处的边缘指纹与完整行边界。
 func (s *AgentHistoryStore) checkAgentHistorySourcesAppended(
 	ctx context.Context,
 	workspacePath string,
@@ -391,7 +391,7 @@ func (s *AgentHistoryStore) checkAgentHistorySourcesAppended(
 		if old.FileIdentity != next.FileIdentity || next.Size < old.Size {
 			return fmt.Errorf("source replaced or truncated: %w", errHistoryPageIndexInvalid)
 		}
-		if old.Kind == historyPageSourceDMOverlay && old != next {
+		if (old.Kind == historyPageSourceDMOverlay || old.Kind == historyPageSourceRoomPrivateOverlay) && old != next {
 			if err := s.checkAgentHistoryOverlayPrefix(ctx, workspacePath, sessionKey, old); err != nil {
 				return err
 			}

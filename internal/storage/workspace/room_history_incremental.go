@@ -1,6 +1,6 @@
 // INPUT: Room ledger 追加字节、已发布尾轮原始行和 SQLite 分页代际。
 // OUTPUT: 可验证的追加只重投影尾轮及新增轮次，并原子推进读模型进度。
-// POS: Room 历史的保守增量路径；成员 transcript 追加按冻结引用摘要校验，已发布消息变化、跨轮修正和文件替换回退 canonical 重建。
+// POS: Room 历史的保守增量路径；成员 transcript 追加从成员检查点续读（无法续读时按冻结引用摘要校验），已发布消息变化、跨轮修正和文件替换回退 canonical 重建。
 package workspace
 
 import (
@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"reflect"
@@ -209,7 +210,7 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if !old.Exists || !current.Exists || old.FileIdentity != current.FileIdentity || current.Size < old.Size || current.Size-old.Size > historyPageSourceMaxBytes {
 		return fmt.Errorf("source replaced, truncated or append budget exceeded: %w", errHistoryPageIndexInvalid)
 	}
-	previousDependencies, changedDependencies, err := s.snapshotRoomHistoryDependencies(ctx, owner, previous.Sources[1:])
+	currentDependencies, changedDependencies, err := s.snapshotRoomHistoryDependencies(ctx, owner, previous.Sources[1:])
 	if err != nil {
 		return err
 	}
@@ -225,7 +226,7 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if err = json.Unmarshal(frozenPayload, &frozen); err != nil {
 		return fmt.Errorf("frozen transcript refs unavailable: %w", errHistoryPageIndexInvalid)
 	}
-	transcripts := roomTranscriptIndexCache{}
+	transcripts := newRoomTranscriptIndexCache(true)
 
 	var boundaryTimestamp int64
 	if err = db.QueryRowContext(ctx, `SELECT cursor_timestamp FROM history_read_groups WHERE scope=? AND generation=? AND sequence=?`, scopeKey, previous.Generation, previous.GroupCount-1).Scan(&boundaryTimestamp); err != nil {
@@ -285,7 +286,7 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 		return err
 	}
 	byKey := make(map[string]historyPageSourceSnapshot)
-	for _, source := range append(append([]historyPageSourceSnapshot(nil), previousDependencies...), addedSources...) {
+	for _, source := range append(append([]historyPageSourceSnapshot(nil), currentDependencies...), addedSources...) {
 		byKey[historyPageSourceKey(source)] = source
 	}
 	dependencies := make([]historyPageSourceSnapshot, 0, len(byKey))
@@ -294,8 +295,12 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	}
 	sortHistoryPageSources(dependencies)
 	expected := append([]historyPageSourceSnapshot{current}, dependencies...)
+	members := s.selectRoomRefs(owner, raw)
+	// 只追加的成员从检查点续读，不再受整份 transcript 大小的影响；其余成员走完整读取与摘要校验。
+	if err = s.resumeRoomFrozenTranscripts(ctx, db, owner, scopeKey, frozen, members, previous.Sources[1:], currentDependencies, transcripts); err != nil {
+		return err
+	}
 	if historyPageSourcesExceedLimit(expected, historyPageSourceMaxBytes) {
-		members := s.selectRoomRefs(owner, raw)
 		for _, item := range frozen {
 			ref := item.transcriptRef()
 			_, needed := members[ref.cacheKey()]
@@ -303,9 +308,10 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 				needed = needed || ref.dependsOn(source)
 			}
 			if needed {
-				members.add(ref, item.MessageIDs...)
+				members.add(ref, item.frozenIDs()...)
 			}
 		}
+		maps.DeleteFunc(members, func(key string, _ *roomRefSelection) bool { return transcripts.resumed(key) })
 		if err = s.prepareRoomRefCheckpoints(ctx, owner, conversation, members, dependencies, transcripts, historyReadModelMaxPageBytes); err != nil {
 			return err
 		}
@@ -335,12 +341,16 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 		return errHistoryPageIndexInvalid
 	}
 	// 跨到旧轮次的修正不能局部归并，否则会漏掉去重、引导抑制等全局语义。
+	// 两个条件分别走 group_key 与 cursor_timestamp 的覆盖索引，不扫描已发布的分组。
 	for _, group := range groups {
-		var count int
-		if err = db.QueryRowContext(ctx, `SELECT count(*) FROM history_read_groups WHERE scope=? AND generation=? AND sequence<? AND (group_key=? OR cursor_timestamp>=?)`, scopeKey, previous.Generation, start, group.GroupKey, group.CursorRoundTimestamp).Scan(&count); err != nil {
+		var crossed bool
+		if err = db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM history_read_groups WHERE scope=? AND generation=? AND group_key=? AND sequence<?)
+ OR EXISTS(SELECT 1 FROM history_read_groups WHERE scope=? AND generation=? AND cursor_timestamp>=? AND sequence<?)`,
+			scopeKey, previous.Generation, group.GroupKey, start,
+			scopeKey, previous.Generation, group.CursorRoundTimestamp, start).Scan(&crossed); err != nil {
 			return err
 		}
-		if count != 0 {
+		if crossed {
 			return errHistoryPageIndexInvalid
 		}
 	}
@@ -348,7 +358,8 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if len(nextTail) == 0 {
 		return errHistoryPageIndexInvalid
 	}
-	nextFrozen, err := s.collectRoomFrozenTranscriptRefs(ctx, owner, raw[:len(raw)-len(nextTail)], frozen, transcripts)
+	frozenRows := raw[:len(raw)-len(nextTail)]
+	nextFrozen, frozenKeys, err := s.collectRoomFrozenTranscriptRefs(ctx, owner, frozenRows, s.selectRoomRefs(owner, raw[len(frozenRows):]), frozen, transcripts)
 	if err != nil {
 		return err
 	}
@@ -390,7 +401,10 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 		return errHistoryPageIndexInvalid
 	}
 	if err = s.readModel.replaceTail(ctx, scopeKey, previous, start, groups, expected, mergedIndex, func(tx *sql.Tx) error {
-		return persistHistoryReadTail(ctx, tx, scopeKey, previous.Generation, nextTail, nextFrozen)
+		if err := persistHistoryReadTail(ctx, tx, scopeKey, previous.Generation, nextTail, nextFrozen); err != nil {
+			return err
+		}
+		return insertHistoryReadTailKeys(ctx, tx, scopeKey, frozenKeys)
 	}); err != nil {
 		return err
 	}

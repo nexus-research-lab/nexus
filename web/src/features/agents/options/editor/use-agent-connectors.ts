@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { getConnectorsApi } from "@/lib/api/capability/connector-api";
+import type { Locale } from "@/shared/i18n/locale-settings";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 interface AgentConnectorsState {
@@ -15,7 +16,11 @@ const EMPTY_STATE: AgentConnectorsState = {
   loading: false,
 };
 
-export function useAgentConnectors(isVisible: boolean, fallbackError: string) {
+export function useAgentConnectors(
+  isVisible: boolean,
+  fallbackError: string,
+  locale: Locale,
+) {
   const [state, setState] = useState<AgentConnectorsState>(EMPTY_STATE);
   const [refreshRevision, setRefreshRevision] = useState(0);
   const retry = useCallback(() => {
@@ -26,7 +31,7 @@ export function useAgentConnectors(isVisible: boolean, fallbackError: string) {
     if (!isVisible) return undefined;
     let active = true;
     setState((current) => ({ ...current, error: null, loading: true }));
-    void getConnectorsApi({ status: "available" })
+    void getConnectorsApi({ locale, status: "available" })
       .then((items) => {
         if (active) setState({ error: null, items, loading: false });
       })
@@ -41,7 +46,7 @@ export function useAgentConnectors(isVisible: boolean, fallbackError: string) {
     return () => {
       active = false;
     };
-  }, [fallbackError, isVisible, refreshRevision]);
+  }, [fallbackError, isVisible, locale, refreshRevision]);
 
   return isVisible
     ? { ...state, retry }

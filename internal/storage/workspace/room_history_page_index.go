@@ -305,7 +305,7 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 			return historyPageIndexBuild{}, err
 		}
 		before := append([]historyPageSourceSnapshot{ledgerBefore}, dependenciesBefore...)
-		transcripts := roomTranscriptIndexCache{}
+		transcripts := newRoomTranscriptIndexCache(true)
 		threshold := sourceLimit
 		budget := roomRefBudget(historyReadModelMaxPageBytes)
 		if threshold == 0 {
@@ -343,11 +343,14 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 		}
 		tailRows := roomHistoryTailRows(rawRows, groups, resolved)
 		var frozenRefs []roomFrozenTranscriptRef
+		var frozenKeys historyTailKeys
 		if len(tailRows) > 0 {
-			frozenRefs, err = s.collectRoomFrozenTranscriptRefs(
+			frozenRows := rawRows[:len(rawRows)-len(tailRows)]
+			frozenRefs, frozenKeys, err = s.collectRoomFrozenTranscriptRefs(
 				ctx,
 				ownerUserID,
-				rawRows[:len(rawRows)-len(tailRows)],
+				frozenRows,
+				s.selectRoomRefs(ownerUserID, rawRows[len(frozenRows):]),
 				nil,
 				transcripts,
 			)
@@ -376,6 +379,7 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 		latest = historyPageIndexBuild{
 			TailRows:   tailRows,
 			TailState:  frozenRefs,
+			TailKeys:   frozenKeys,
 			Groups:     groups,
 			RoundIndex: roundIndex.Items,
 			Sources:    after,

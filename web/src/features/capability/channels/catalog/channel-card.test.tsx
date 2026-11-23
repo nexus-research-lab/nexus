@@ -1,5 +1,5 @@
 // INPUT: Channel entry and configuration callback.
-// OUTPUT: Documentation destination and configuration action.
+// OUTPUT: Documentation destination, configuration action and catalog-projected card text.
 // POS: Channel card interaction test.
 
 import { render, screen } from "@testing-library/react";
@@ -43,9 +43,14 @@ describe("ChannelCard", () => {
   it("opens documentation and dispatches configuration", async () => {
     const user = userEvent.setup();
     const onConfigure = vi.fn();
-    render(
+    const { container } = render(
 <ChannelCard item={CHANNEL} onConfigure={onConfigure} />
 );
+
+    expect(screen.getByText("capability.channel_card_agent")).toBeTruthy();
+    expect(screen.getByText("capability.channel_card_stat_users 2")).toBeTruthy();
+    expect(screen.getByText("capability.channel_card_stat_groups 1")).toBeTruthy();
+    expect(container.textContent).not.toMatch(/\p{Script=Han}/u);
 
     const docs = screen.getByRole("link", {
       name: "capability.channel_docs_action",

@@ -161,12 +161,22 @@ type ScheduleSubagentReconciliationCommand struct {
 }
 
 // SubmitCommand 创建 immutable Submission，并用 Assignment version 拒绝 takeover 后迟到提交。
+// FinishAttempt 非空时，Submission 所属的 pending/running Attempt 在同一事务内收口为 succeeded：
+// 并发读者不会看到已成功却没有 Submission 的 Attempt。
 type SubmitCommand struct {
 	ExpectedExecutionVersion  int64
 	ExpectedAssignmentVersion int64
+	FinishAttempt             *SubmitAttemptFinish
 	Submission                protocol.WorkSubmission
 	ReviewDispatch            *protocol.ExecutionReviewDispatch
 	Meta                      CommandMeta
+}
+
+// SubmitAttemptFinish 是随 Submission 一起提交的 Attempt 成功终态及其审计事件身份。
+type SubmitAttemptFinish struct {
+	ExpectedAttemptVersion int64
+	Attempt                protocol.WorkAttempt
+	Meta                   CommandMeta
 }
 
 // ReviewCommand 追加唯一 Acceptance decision，并完成或释放 Assignment。

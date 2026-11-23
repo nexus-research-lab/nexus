@@ -181,20 +181,32 @@ func (r *Repository) FinishAttempt(ctx context.Context, command FinishAttemptCom
 	if mutation.replayed {
 		return r.finishMutation(ctx, mutation, command.Meta, protocol.ExecutionEvent{})
 	}
-	existing, err := r.getAttempt(ctx, mutation.tx, attempt.ID)
+	event, err := r.finishAttemptTx(ctx, mutation.tx, attempt, command.ExpectedAttemptVersion)
 	if err != nil {
 		r.abortMutation(mutation)
 		return nil, err
 	}
+	return r.finishMutation(ctx, mutation, command.Meta, event)
+}
+
+// finishAttemptTx 在调用方事务内写入 Attempt 终态，返回待落库的 Attempt 审计事件。
+func (r *Repository) finishAttemptTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	attempt protocol.WorkAttempt,
+	expectedVersion int64,
+) (protocol.ExecutionEvent, error) {
+	existing, err := r.getAttempt(ctx, tx, attempt.ID)
+	if err != nil {
+		return protocol.ExecutionEvent{}, err
+	}
 	if existing == nil || existing.ExecutionID != attempt.ExecutionID ||
 		(existing.Status != protocol.WorkAttemptStatusPending &&
 			existing.Status != protocol.WorkAttemptStatusRunning) {
-		r.abortMutation(mutation)
-		return nil, fmt.Errorf("%w: Attempt is missing or already terminal", ErrInvariant)
+		return protocol.ExecutionEvent{}, fmt.Errorf("%w: Attempt is missing or already terminal", ErrInvariant)
 	}
-	if err = validateExpectedVersion(command.ExpectedAttemptVersion, "expected Attempt version"); err != nil {
-		r.abortMutation(mutation)
-		return nil, err
+	if err = validateExpectedVersion(expectedVersion, "expected Attempt version"); err != nil {
+		return protocol.ExecutionEvent{}, err
 	}
 	merged := mergeAttemptRuntime(*existing, attempt)
 	merged.Status = attempt.Status
@@ -205,10 +217,9 @@ func (r *Repository) FinishAttempt(ctx context.Context, command FinishAttemptCom
 	}
 	metadataJSON, err := marshalMap(merged.Metadata)
 	if err != nil {
-		r.abortMutation(mutation)
-		return nil, err
+		return protocol.ExecutionEvent{}, err
 	}
-	result, err := mutation.tx.ExecContext(ctx, `
+	result, err := tx.ExecContext(ctx, `
 UPDATE execution_attempts
 SET executor_agent_id = `+r.bind(1)+`,
     parent_agent_id = `+r.bind(2)+`,
@@ -239,26 +250,24 @@ SET executor_agent_id = `+r.bind(1)+`,
 		nullString(merged.ToolUseID), merged.Status, nullString(merged.FailureReason),
 		r.timestamp(finishedAt), nullTime(merged.ParentRoundExitedAt),
 		nullTime(merged.ReconcileAfter), metadataJSON, merged.ID,
-		command.ExpectedAttemptVersion,
+		expectedVersion,
 	)
 	if err != nil {
-		r.abortMutation(mutation)
-		return nil, err
+		return protocol.ExecutionEvent{}, err
 	}
 	if err = requireOne(result); err != nil {
-		r.abortMutation(mutation)
-		return nil, err
+		return protocol.ExecutionEvent{}, err
 	}
-	return r.finishMutation(ctx, mutation, command.Meta, protocol.ExecutionEvent{
+	return protocol.ExecutionEvent{
 		EntityType:    protocol.ExecutionEntityAttempt,
 		EntityID:      merged.ID,
-		EntityVersion: command.ExpectedAttemptVersion + 1,
+		EntityVersion: expectedVersion + 1,
 		PlanID:        merged.PlanID,
 		WorkItemID:    merged.WorkItemID,
 		SpecID:        merged.SpecID,
 		AssignmentID:  merged.AssignmentID,
 		AttemptID:     merged.ID,
-	})
+	}, nil
 }
 
 func (r *Repository) normalizeNewRunningAttempt(

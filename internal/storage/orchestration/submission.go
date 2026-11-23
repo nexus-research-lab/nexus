@@ -1,5 +1,5 @@
-// INPUT: succeeded Attempt 的 immutable Submission 与 reviewer Acceptance command。
-// OUTPUT: append-only Submission/Acceptance、accepted Review completion audit receipt、Assignment completion/release 与事件。
+// INPUT: succeeded（或随交付同事务收口的）Attempt 的 immutable Submission 与 reviewer Acceptance command。
+// OUTPUT: append-only Submission/Acceptance、随交付原子成功的 Attempt、accepted Review completion audit receipt、Assignment completion/release 与事件。
 // POS: worker 交付和 reviewer 决策不可混写的事务边界。
 package orchestration
 
@@ -40,7 +40,7 @@ WHERE submission.execution_id = `+r.bind(1)+`
 	return nil
 }
 
-// Submit 追加 immutable Submission；不会隐式 Acceptance。
+// Submit 追加 immutable Submission，并可在同一事务内成功收口其 Attempt；不会隐式 Acceptance。
 func (r *Repository) Submit(ctx context.Context, command SubmitCommand) (*protocol.ExecutionSnapshot, error) {
 	item := command.Submission
 	item.ID = strings.TrimSpace(item.ID)
@@ -67,6 +67,16 @@ func (r *Repository) Submit(ctx context.Context, command SubmitCommand) (*protoc
 			return nil, err
 		}
 	}
+	finish := command.FinishAttempt
+	if finish != nil {
+		if finish.Attempt.ID != item.AttemptID || finish.Attempt.ExecutionID != item.ExecutionID ||
+			finish.Attempt.Status != protocol.WorkAttemptStatusSucceeded {
+			return nil, fmt.Errorf("%w: Submission can only finish its own Attempt as succeeded", ErrInvariant)
+		}
+		if err := validateMeta(finish.Meta); err != nil {
+			return nil, err
+		}
+	}
 	mutation, err := r.beginMutation(
 		ctx, item.ExecutionID, command.ExpectedExecutionVersion,
 		command.Meta, protocol.ExecutionEventWorkSubmitted,
@@ -76,6 +86,18 @@ func (r *Repository) Submit(ctx context.Context, command SubmitCommand) (*protoc
 	}
 	if mutation.replayed {
 		return r.finishMutation(ctx, mutation, command.Meta, protocol.ExecutionEvent{})
+	}
+	if finish != nil {
+		event, finishErr := r.finishAttemptTx(ctx, mutation.tx, finish.Attempt, finish.ExpectedAttemptVersion)
+		if finishErr == nil {
+			finishErr = r.insertEvent(ctx, mutation.tx, r.commandEvent(
+				item.ExecutionID, protocol.ExecutionEventAttemptTerminal, finish.Meta, event,
+			))
+		}
+		if finishErr != nil {
+			r.abortMutation(mutation)
+			return nil, finishErr
+		}
 	}
 	assignment, err := r.getAssignment(ctx, mutation.tx, item.AssignmentID)
 	if err != nil {

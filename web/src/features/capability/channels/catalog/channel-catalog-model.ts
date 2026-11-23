@@ -2,6 +2,7 @@ import type {
   ChannelConfigView,
   ImChannelType,
 } from "@/lib/api/capability/channel-api";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
@@ -69,31 +70,48 @@ const CHANNEL_FILTERS: Record<
   unconfigured: (item) => !item.configured && !isChannelPlanned(item),
 };
 
-export function buildChannelCardModel(item: ChannelConfigView): ChannelCardModel {
+function getChannelAgentLabel(
+  item: ChannelConfigView,
+  t: I18nContextValue["t"],
+): string {
+  if (!item.configured) {
+    return t("capability.channel_card_agent_unbound");
+  }
+  return item.agent_name
+    ? t("capability.channel_card_agent", { agent: item.agent_name })
+    : t("capability.channel_card_agent_bound");
+}
+
+export function buildChannelCardModel(
+  item: ChannelConfigView,
+  t: I18nContextValue["t"],
+): ChannelCardModel {
   const planned = isChannelPlanned(item);
-  const handlerLabel = item.configured ? item.agent_name || "已绑定" : "未绑定";
   const metadata = [
-    { visible: true, value: `智能体 ${handlerLabel}` },
-    { visible: !item.supports_group, value: "仅私聊" },
+    { visible: true, value: getChannelAgentLabel(item, t) },
+    {
+      visible: !item.supports_group,
+      value: t("capability.channel_card_direct_only"),
+    },
   ].filter(({ visible }) => visible).map(({ value }) => value);
   const statCandidates: ChannelCardStatCandidate[] = [
     {
       kind: "user",
-      label: "用户",
+      label: t("capability.channel_card_stat_users"),
       tone: "default",
       value: item.stats.paired_user_count,
       visible: item.stats.paired_user_count > 0,
     },
     {
       kind: "group",
-      label: "群聊",
+      label: t("capability.channel_card_stat_groups"),
       tone: "default",
       value: item.stats.paired_group_count,
       visible: item.supports_group && item.stats.paired_group_count > 0,
     },
     {
       kind: "pending",
-      label: "待审",
+      label: t("capability.channel_card_stat_pending"),
       tone: item.stats.pending_count > 0 ? "warning" : "default",
       value: item.stats.pending_count,
       visible: item.stats.pending_count > 0,
@@ -121,7 +139,9 @@ export function buildChannelCardModel(item: ChannelConfigView): ChannelCardModel
           }]
         : []),
     ],
-    description: item.description || (planned ? "暂未支持接入。" : "配置机器人凭证后接入。"),
+    description: item.description || t(planned
+      ? "capability.channel_card_planned_description"
+      : "capability.channel_card_setup_description"),
     metadata,
     stats,
   };
