@@ -17,6 +17,7 @@ func MergeHistoryResultSummaries(rows []protocol.Message) []protocol.Message {
 	}
 	merger := newRoundResultSummaryMerger(rows)
 	merger.attachMatchingResults()
+	merger.settleResultAgentRounds()
 	return merger.buildResultRows()
 }
 
@@ -27,6 +28,22 @@ type roundResultSummaryMerger struct {
 	legacyAssistantByAgent map[agentSummaryKey]resultSummaryTarget
 	lastAssistantByRound   map[string]resultSummaryTarget
 	mergedResultMessageIDs map[string]struct{}
+	settledAgentRounds     map[assistantExecutionKey]struct{}
+}
+
+// assistantExecutionKey 是 assistant 行所属的物理 Agent 执行轮；legacy 行缺失的字段按空值参与比较。
+type assistantExecutionKey struct {
+	roundID      string
+	agentRoundID string
+	agentID      string
+}
+
+func assistantExecutionKeyOf(row protocol.Message) assistantExecutionKey {
+	return assistantExecutionKey{
+		roundID:      historyIdentity(row["round_id"]),
+		agentRoundID: historyIdentity(row["agent_round_id"]),
+		agentID:      historyIdentity(row["agent_id"]),
+	}
 }
 
 type agentRoundSummaryKey struct {
@@ -52,6 +69,7 @@ func newRoundResultSummaryMerger(rows []protocol.Message) *roundResultSummaryMer
 		legacyAssistantByAgent: make(map[agentSummaryKey]resultSummaryTarget),
 		lastAssistantByRound:   make(map[string]resultSummaryTarget),
 		mergedResultMessageIDs: make(map[string]struct{}),
+		settledAgentRounds:     make(map[assistantExecutionKey]struct{}),
 	}
 	merger.indexAssistants()
 	return merger
@@ -104,10 +122,28 @@ func (m *roundResultSummaryMerger) attachMatchingResults() {
 		if len(summary) == 0 {
 			continue
 		}
-		assistant["result_summary"] = summary
+		applyResultTerminal(assistant, row, summary)
 		m.rows[target.index] = assistant
+		m.settledAgentRounds[assistantExecutionKeyOf(assistant)] = struct{}{}
 		if messageID := historyIdentity(row["message_id"]); messageID != "" {
 			m.mergedResultMessageIDs[messageID] = struct{}{}
+		}
+	}
+}
+
+// settleResultAgentRounds 把已有 result 的 Agent 执行轮中其余 assistant 行一并收口。
+// 只追加 transcript 逐块落盘且不带 stop_reason，非末尾块（思考、工具调用）不会再得到终态；
+// 不收口时前端把它们当作仍在流式输出，并长期钉在消息窗口里无法淘汰。stop_reason 与摘要仍只属于末尾块。
+func (m *roundResultSummaryMerger) settleResultAgentRounds() {
+	if len(m.settledAgentRounds) == 0 {
+		return
+	}
+	for _, row := range m.rows {
+		if protocol.MessageRole(row) != "assistant" {
+			continue
+		}
+		if _, settled := m.settledAgentRounds[assistantExecutionKeyOf(row)]; settled {
+			row["is_complete"] = true
 		}
 	}
 }

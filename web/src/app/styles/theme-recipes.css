@@ -1137,7 +1137,11 @@
     max-height: 420px;
   }
 
+  /* 代码块尺寸只在外壳上声明一次；高亮与流式纯文本共同消费，阅读面整体覆写变量即可缩放。 */
   .content-code-shell {
+    --content-code-font-size: 0.875rem;
+    --content-code-line-height: 1.625;
+    --content-code-inset: 0.875rem;
     position: relative;
     overflow: hidden;
     border-radius: var(--content-radius-surface);
@@ -1157,7 +1161,7 @@
     font-family: var(--font-sans);
     font-size: var(--text-compact);
     line-height: 1rem;
-    padding: 0.875rem 0.875rem 0;
+    padding: var(--content-code-inset) var(--content-code-inset) 0;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text-muted);
@@ -1191,7 +1195,13 @@
     height: 1.75rem;
     align-items: center;
     white-space: nowrap;
-    padding: 0 0.875rem;
+    padding: 0 var(--content-code-inset);
+  }
+
+  .content-code-body {
+    padding: var(--content-code-inset);
+    font-size: var(--content-code-font-size);
+    line-height: var(--content-code-line-height);
   }
 
   .content-table-scroll {
@@ -2272,6 +2282,17 @@
   .nexus-markdown-body.nexus-message-detail-markdown :is(h1, h2, h3, h4, h5, h6)[data-markdown-anchor] {
     font-size: inherit;
     line-height: 1rem;
+  }
+
+  /* 明细里的代码块跟随明细正文字号与行高，内边距同步收紧，避免代码比上下文大一号。 */
+  .nexus-message-detail-markdown .content-code-shell {
+    --content-code-font-size: 1em;
+    --content-code-line-height: 1rem;
+    --content-code-inset: 0.625rem;
+  }
+
+  .nexus-message-detail-markdown .content-code-label {
+    font-size: inherit;
   }
 
   /* 工作区文件是次级阅读面板，使用紧凑但不拥挤的独立字号与段落节奏。 */

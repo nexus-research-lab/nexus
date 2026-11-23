@@ -71,6 +71,12 @@ const lightSyntaxStyle = {
   "attr-name": { color: LIGHT_PARAMETER_COLOR },
 };
 
+// 尺寸由 .content-code-shell 的变量下发，所在阅读面（如 Thought 明细）可整体缩放；
+// 外壳之外的 workspace 预览没有这些变量，回退到正文默认尺寸。
+const CODE_BLOCK_FONT_SIZE = "var(--content-code-font-size, 0.875rem)";
+const CODE_BLOCK_LINE_HEIGHT = "var(--content-code-line-height, 1.625)";
+const CODE_BLOCK_INSET = "var(--content-code-inset, 0.875rem)";
+
 export function SyntaxHighlightedCode({
   language,
   value,
@@ -91,13 +97,13 @@ export function SyntaxHighlightedCode({
       }}
       customStyle={{
         margin: 0,
-        padding: variant === "workspace" ? 0 : "0.875rem",
+        padding: variant === "workspace" ? 0 : CODE_BLOCK_INSET,
         minHeight: variant === "workspace" ? "100%" : undefined,
         overflow: variant === "workspace" ? "visible" : undefined,
         background: "transparent",
         fontFamily: MESSAGE_CODE_FONT_FAMILY,
-        fontSize: "0.875rem",
-        lineHeight: "1.625",
+        fontSize: CODE_BLOCK_FONT_SIZE,
+        lineHeight: CODE_BLOCK_LINE_HEIGHT,
         borderRadius: variant === "workspace" ? 0 : "var(--content-radius-surface)",
         whiteSpace: "pre",
       }}

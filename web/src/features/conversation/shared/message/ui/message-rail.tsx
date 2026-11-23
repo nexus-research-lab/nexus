@@ -20,8 +20,10 @@ import {
 } from "react";
 
 import {
+  getScrollBottomTop,
   isAtScrollBottom,
   resolveScrollFade,
+  shouldPauseFollowOnScroll,
   type ScrollFade,
 } from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
 
@@ -71,6 +73,7 @@ function MessageDetailScrollRoot({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const followingRef = useRef(followContent);
+  const lastScrollTopRef = useRef(0);
   const [fade, setFade] = useState<ScrollFade>("none");
   const updateFade = useCallback(() => {
     const element = scrollRef.current;
@@ -88,7 +91,8 @@ function MessageDetailScrollRoot({
       return;
     }
     if (followContent && followingRef.current) {
-      element.scrollTop = element.scrollHeight;
+      element.scrollTop = getScrollBottomTop(element);
+      lastScrollTopRef.current = element.scrollTop;
     }
     if (followContent && isAtScrollBottom(element)) {
       followingRef.current = true;
@@ -98,8 +102,15 @@ function MessageDetailScrollRoot({
   const handleScroll = useCallback(() => {
     const element = scrollRef.current;
     if (element) {
-      followingRef.current = followContent
-        && isAtScrollBottom(element);
+      // 只有向上滚动才退出跟随。程序化贴底的 scroll 事件在下一帧才派发，期间新内容可能
+      // 已提交（代码块转正文一次增长几十 px），此时按“是否贴底”判断会把自身贴底误当成用户离开。
+      const previousScrollTop = lastScrollTopRef.current;
+      lastScrollTopRef.current = element.scrollTop;
+      followingRef.current = followContent && (
+        isAtScrollBottom(element)
+        || (followingRef.current
+          && !shouldPauseFollowOnScroll(element, previousScrollTop, true))
+      );
     }
     updateFade();
   }, [followContent, updateFade]);

@@ -39,14 +39,20 @@ func AttachResultSummary(assistant protocol.Message, result protocol.Message) (p
 		return nil, false
 	}
 	merged := protocol.Clone(assistant)
-	merged["result_summary"] = summary
-	// result 是 round 终态信号，挂载摘要时也要同步 assistant 终态，
-	// 否则实时前端会继续把该 assistant 当作 streaming 消息。
-	merged["is_complete"] = true
-	if stopReason := stopReasonFromResult(result); stopReason != "" {
-		merged["stop_reason"] = stopReason
-	}
+	applyResultTerminal(merged, result, summary)
 	return merged, true
+}
+
+// applyResultTerminal 是实时与历史两条配对路径共用的 result 落点：
+// result 是 round 终态信号，挂载摘要必须同时收口 assistant 终态。
+// transcript 只追加，逐块落盘的 assistant 不带 stop_reason；漏掉这一步，
+// 前端会把已结束的历史轮当作 streaming，并隐藏耗时、用量等结果元数据。
+func applyResultTerminal(assistant protocol.Message, result protocol.Message, summary map[string]any) {
+	assistant["result_summary"] = summary
+	assistant["is_complete"] = true
+	if stopReason := stopReasonFromResult(result); stopReason != "" {
+		assistant["stop_reason"] = stopReason
+	}
 }
 
 // BuildGoalCompletionReceipt 从 complete Goal 的稳定聚合报告构造完成收据。
