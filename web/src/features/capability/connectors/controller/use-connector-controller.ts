@@ -19,7 +19,7 @@ import { useConnectorCommands } from "./use-connector-commands";
 import { useConnectorDetail } from "./use-connector-detail";
 
 export function useConnectorController() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [feedback, setFeedback] = useState<ConnectorFeedback | null>(null);
   const reconciliationFeedbackRef = useRef(
     new Map<string, ConnectorFeedback>(),
@@ -43,9 +43,11 @@ export function useConnectorController() {
   }, []);
   const catalog = useConnectorCatalog({
     failureFallback: t("capability.connector_catalog_load_failed_message"),
+    locale,
   });
   const detail = useConnectorDetail({
     failureFallback: t("capability.connector_detail_load_failed_message"),
+    locale,
   });
   const shopDomainPrompt = useShopDomainPrompt();
   const {

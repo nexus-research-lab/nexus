@@ -5,6 +5,7 @@
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
+import type { Locale } from "@/shared/i18n/locale-settings";
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const CHANNEL_API_BASE_URL = `${AGENT_API_BASE_URL}/capability`;
@@ -170,18 +171,21 @@ function buildQuery(params?: Record<string, string | undefined>): string {
   return query ? `?${query}` : "";
 }
 
-export async function listChannelsApi(): Promise<ChannelConfigView[]> {
-  return requestApi<ChannelConfigView[]>(`${CHANNEL_API_BASE_URL}/channels`, {
-    method: "GET",
-  });
+/** 频道目录文案由服务端按界面语言投影；读写同一频道视图的接口都携带 locale。 */
+export async function listChannelsApi(locale: Locale): Promise<ChannelConfigView[]> {
+  return requestApi<ChannelConfigView[]>(
+    `${CHANNEL_API_BASE_URL}/channels${buildQuery({ locale })}`,
+    { method: "GET" },
+  );
 }
 
 export async function upsertChannelConfigApi(
   channelType: ImChannelType,
   payload: UpsertChannelConfigPayload,
+  locale: Locale,
 ): Promise<ChannelConfigView> {
   return requestApi<ChannelConfigView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/config`,
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/config${buildQuery({ locale })}`,
     {
       method: "PUT",
       body: JSON.stringify({
@@ -207,9 +211,10 @@ export async function deleteChannelConfigApi(
 export async function deleteChannelAccountApi(
   channelType: ImChannelType,
   accountId: string,
+  locale: Locale,
 ): Promise<ChannelConfigView> {
   return requestApi<ChannelConfigView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/accounts/${encodeURIComponent(accountId)}`,
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/accounts/${encodeURIComponent(accountId)}${buildQuery({ locale })}`,
     {
       method: "DELETE",
     },

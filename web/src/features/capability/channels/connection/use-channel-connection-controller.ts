@@ -59,7 +59,7 @@ export function useChannelConnectionController({
   onDeleted,
   onSaved,
 }: UseChannelConnectionOptions) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [currentItem, setCurrentItem] = useState(item);
   const [draft, setDraft] = useState(() => createChannelDraft(
     item,
@@ -92,7 +92,7 @@ export function useChannelConnectionController({
   }, []);
 
   const refreshCurrentChannel = useCallback(async () => {
-    const items = await listChannelsApi();
+    const items = await listChannelsApi(locale);
     const updated = items.find(
       (value) => value.channel_type === currentItem.channel_type,
     );
@@ -107,7 +107,7 @@ export function useChannelConnectionController({
       return;
     }
     throw new Error("channel snapshot is unavailable");
-  }, [agents, currentItem.channel_type, onSaved]);
+  }, [agents, currentItem.channel_type, locale, onSaved]);
 
   const {
     loading: loginLoading,
@@ -159,7 +159,7 @@ export function useChannelConnectionController({
           agent_id: draft.agentId,
           config: draft.config,
           credentials: draft.credentials,
-        });
+        }, locale);
         setCurrentItem(saved);
         const shouldStartLogin = shouldStartChannelQRCodeLogin(
           saved,
@@ -184,6 +184,7 @@ export function useChannelConnectionController({
     currentItem.channel_type,
     draft,
     hasManualCredentials,
+    locale,
     onClose,
     onSaved,
     planned,
@@ -246,6 +247,7 @@ export function useChannelConnectionController({
         const updated = await deleteChannelAccountApi(
           currentItem.channel_type,
           account.account_id,
+          locale,
         );
         setCurrentItem(updated);
         notifyCapabilitySummaryMutated({
@@ -261,6 +263,7 @@ export function useChannelConnectionController({
     });
   }, [
     currentItem.channel_type,
+    locale,
     loginMutationBlocked,
     onSaved,
     recovery,
@@ -273,7 +276,7 @@ export function useChannelConnectionController({
       return;
     }
     try {
-      const items = await listChannelsApi();
+      const items = await listChannelsApi(locale);
       const updated = items.find(
         (value) => value.channel_type === recovery.intent.channelType,
       );
@@ -298,7 +301,7 @@ export function useChannelConnectionController({
         ? { ...current, check: "failed" }
         : null);
     }
-  }, [currentItem, onClose, onDeleted, onSaved, recovery]);
+  }, [currentItem, locale, onClose, onDeleted, onSaved, recovery]);
 
   const connectionRecoveryNotice = useMemo<FeedbackBannerProps | null>(() => {
     if (!recovery) {

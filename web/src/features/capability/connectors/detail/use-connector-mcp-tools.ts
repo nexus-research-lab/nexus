@@ -10,12 +10,14 @@ import {
   getResourceFailure,
   type ResourceFailure,
 } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   ConnectorDetail,
   CustomMCPToolCatalog,
 } from "@/types/capability/connector";
 
 export function useConnectorMCPTools(detail: ConnectorDetail | null) {
+  const { t } = useI18n();
   const requestIdRef = useRef(0);
   const [catalogSnapshot, setCatalog] = useState<{ identity: string; value: CustomMCPToolCatalog } | null>(null);
   const [failureSnapshot, setFailure] = useState<{ identity: string; value: ResourceFailure } | null>(null);
@@ -46,7 +48,10 @@ export function useConnectorMCPTools(detail: ConnectorDetail | null) {
       })
       .catch((error: unknown) => {
         if (requestId !== requestIdRef.current) return;
-        const failure = getResourceFailure(error, "工具读取失败");
+        const failure = getResourceFailure(
+          error,
+          t("capability.custom_mcp_tools_load_failed"),
+        );
         if (failure.access) setCatalog(null);
         setFailure({ identity, value: failure });
       })
@@ -56,7 +61,7 @@ export function useConnectorMCPTools(detail: ConnectorDetail | null) {
     return () => {
       if (requestId === requestIdRef.current) requestIdRef.current += 1;
     };
-  }, [connected, detail, identity, revision, supported]);
+  }, [connected, detail, identity, revision, supported, t]);
 
   const refresh = useCallback(() => {
     setRevision((current) => current + 1);

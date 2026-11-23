@@ -85,7 +85,9 @@ it("discards a fixed connector tool snapshot after access loss, including while 
   const retry = deferred();
   vi.mocked(getConnectorMCPToolsApi).mockResolvedValueOnce(catalog)
     .mockRejectedValueOnce(new ApiRequestError("forbidden", 403)).mockReturnValueOnce(retry.promise);
-  const view = renderHook(() => useConnectorMCPTools(fixed));
+  const view = renderHook(() => useConnectorMCPTools(fixed), {
+    wrapper: I18nProvider,
+  });
   await waitFor(() => expect(view.result.current.catalog).toEqual(catalog));
   act(() => view.result.current.refresh());
   await waitFor(() => expect(view.result.current.failure?.access).toBe("forbidden"));

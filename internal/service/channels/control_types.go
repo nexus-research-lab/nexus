@@ -44,6 +44,11 @@ type ChannelConfigView = channelmanagement.ChannelConfigView
 
 type UpsertChannelConfigRequest = channelmanagement.UpsertChannelConfigRequest
 
+// LocalizeChannelConfigView 把频道视图中的目录文案投影为请求的展示语言。
+func LocalizeChannelConfigView(view ChannelConfigView, locale string) ChannelConfigView {
+	return channelmanagement.LocalizeChannelConfigView(view, locale)
+}
+
 func channelCatalog() []ChannelCatalogItem {
 	return channelmanagement.ChannelCatalog()
 }

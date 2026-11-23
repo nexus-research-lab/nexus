@@ -11,6 +11,8 @@ type Translate = (key: TranslationKey) => string;
 const NEXUS_SKILL_DESCRIPTION_KEY_BY_NAME = {
   "avalon-8-10p": "capability.skill_description.avalon_8_10p",
   automation: "capability.skill_description.automation",
+  "caixun-work-hours": "capability.skill_description.caixun_work_hours",
+  "computer-use": "capability.skill_description.computer_use",
   docx: "capability.skill_description.docx",
   "execution-orchestrator": "capability.skill_description.execution_orchestrator",
   "goal-manager": "capability.skill_description.goal_manager",
@@ -21,6 +23,7 @@ const NEXUS_SKILL_DESCRIPTION_KEY_BY_NAME = {
   pdf: "capability.skill_description.pdf",
   pptx: "capability.skill_description.pptx",
   "room-playbook": "capability.skill_description.room_playbook",
+  visualize: "capability.skill_description.visualize",
   "wechat-article-search": "capability.skill_description.wechat_article_search",
   "werewolf-6p": "capability.skill_description.werewolf_6p",
   xlsx: "capability.skill_description.xlsx",
@@ -29,9 +32,11 @@ const NEXUS_SKILL_DESCRIPTION_KEY_BY_NAME = {
 const NEXUS_SKILL_TITLE_KEY_BY_NAME = {
   "avalon-8-10p": "capability.skill_title.avalon_8_10p",
   automation: "capability.skill_title.automation",
+  "caixun-work-hours": "capability.skill_title.caixun_work_hours",
   docx: "capability.skill_title.docx",
   "execution-orchestrator": "capability.skill_title.execution_orchestrator",
   "goal-manager": "capability.skill_title.goal_manager",
+  "ima-skill": "capability.skill_title.ima",
   imagegen: "capability.skill_title.imagegen",
   "nexus-configuration": "capability.skill_title.nexus_configuration",
   "nexus-product-guide": "capability.skill_title.nexus_product_guide",
@@ -39,6 +44,7 @@ const NEXUS_SKILL_TITLE_KEY_BY_NAME = {
   pptx: "capability.skill_title.pptx",
   "room-playbook": "capability.skill_title.room_playbook",
   visualize: "capability.skill_title.visualize",
+  "wechat-article-search": "capability.skill_title.wechat_article_search",
   "werewolf-6p": "capability.skill_title.werewolf_6p",
   xlsx: "capability.skill_title.xlsx",
 } as const satisfies Readonly<Record<string, TranslationKey>>;

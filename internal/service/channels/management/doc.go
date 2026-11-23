@@ -5,6 +5,7 @@
 // 成员清单：
 //   - capabilities.go：通道能力描述。
 //   - catalog.go：通道目录。
+//   - catalog_en.go：通道目录文案的英文投影，按展示语言替换标题、说明与凭据字段文案。
 //   - model.go：管理视图模型，含 Room 会话目标与切换使用的 binding_version。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

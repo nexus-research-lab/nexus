@@ -39,7 +39,7 @@ export function useAgentOptionsEditorController({
   activeTab: controlledActiveTab,
   onTabChange,
 }: AgentOptionsControllerOptions) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const sourceOptions = source.initial.options;
   const initialDraft = useMemo(() => createAgentOptionsDraft({
     defaultTitle: t("agent_options.default_name"),
@@ -89,6 +89,7 @@ export function useAgentOptionsEditorController({
   const connectors = useAgentConnectors(
     isActive && tabs.activeTab === "advanced",
     t("agent_options.advanced.connector_load_failed"),
+    locale,
   );
   const providerOptions = useAgentProviderOptions(
     isActive,

@@ -62,7 +62,7 @@ const EMPTY_SETTINGS: SessionRuntimeSettings = {
 export function useComposerSessionSettings(
   scope?: ComposerSessionSettingsScope,
 ) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [selectedTargetId, setSelectedTargetId] = useState(
     scope?.initialTargetId ?? "",
   );
@@ -171,7 +171,7 @@ export function useComposerSessionSettings(
     }
     let active = true;
     setConnectorsLoading(true);
-    void getConnectorsApi({ status: "available" })
+    void getConnectorsApi({ locale, status: "available" })
       .then((items) => {
         if (active) {
           setConnectors(items.filter(
@@ -196,7 +196,7 @@ export function useComposerSessionSettings(
     return () => {
       active = false;
     };
-  }, [connectorsRevision, scope?.runtimeKind, t]);
+  }, [connectorsRevision, locale, scope?.runtimeKind, t]);
 
   useEffect(() => {
     const handlePreferencesChange = () => {

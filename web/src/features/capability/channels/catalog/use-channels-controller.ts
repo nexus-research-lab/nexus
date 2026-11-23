@@ -20,7 +20,7 @@ import {
 } from "./channel-catalog-model";
 
 export function useChannelsController() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const requestIdRef = useRef(0);
   const [channels, setChannels] = useState<ChannelConfigView[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -36,7 +36,7 @@ export function useChannelsController() {
     setLoading(true);
     try {
       const [channelResult, agentResult] = await Promise.allSettled([
-        listChannelsApi(),
+        listChannelsApi(locale),
         getAgents(),
       ]);
       if (requestId !== requestIdRef.current) {
@@ -80,7 +80,7 @@ export function useChannelsController() {
         setLoading(false);
       }
     }
-  }, [t]);
+  }, [locale, t]);
 
   useEffect(() => {
     void refresh();
@@ -110,11 +110,11 @@ export function useChannelsController() {
     if (announce) {
       setFeedback({
         tone: "success",
-        title: "连接成功",
-        message: `${item.title} 已完成配置`,
+        title: t("capability.channel_saved_title"),
+        message: t("capability.channel_saved_message", { channel: item.title }),
       });
     }
-  }, []);
+  }, [t]);
 
   const deleteChannel = useCallback(async (item: ChannelConfigView) => {
     const refreshed = await refresh();
@@ -122,14 +122,16 @@ export function useChannelsController() {
     setFeedback(refreshed
       ? {
           tone: "success",
-          title: "频道已断开",
-          message: `${item.title} 已移除配置`,
+          title: t("capability.channel_disconnected_title"),
+          message: t("capability.channel_disconnected_message", {
+            channel: item.title,
+          }),
         }
       : {
           impact: t("state.committed_refresh_impact"),
           nextStep: t("state.committed_refresh_next_step"),
           tone: "error",
-          title: "频道已断开，刷新失败",
+          title: t("capability.channel_disconnected_refresh_failed_title"),
         });
   }, [refresh, t]);
 

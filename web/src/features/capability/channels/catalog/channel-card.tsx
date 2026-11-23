@@ -140,7 +140,8 @@ export function ChannelCard({
   item: ChannelConfigView;
   onConfigure: (item: ChannelConfigView) => void;
 }) {
-  const model = buildChannelCardModel(item);
+  const { t } = useI18n();
+  const model = buildChannelCardModel(item, t);
   const planned = model.action.kind === "planned";
   const configure = () => onConfigure(item);
 

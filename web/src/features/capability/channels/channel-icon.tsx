@@ -4,14 +4,37 @@
 
 import { CapabilityBrandIcon } from "@/features/capability/shared/capability-brand-icon";
 import { ImChannelType } from "@/lib/api/capability/channel-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 
-const CHANNEL_ICONS: Record<ImChannelType, { src: string; title: string }> = {
-  dingtalk: { src: "/icon/connector/dingtalk.svg", title: "钉钉" },
-  wechat: { src: "/icon/channel/wecom.svg", title: "企业微信" },
-  "weixin-personal": { src: "/icon/channel/wechat.svg", title: "微信" },
-  feishu: { src: "/icon/connector/feishu.svg", title: "飞书" },
-  telegram: { src: "/icon/channel/telegram.svg", title: "Telegram" },
-  discord: { src: "/icon/channel/discord.svg", title: "Discord" },
+const CHANNEL_ICONS: Record<
+  ImChannelType,
+  { src: string; titleKey: TranslationKey }
+> = {
+  dingtalk: {
+    src: "/icon/connector/dingtalk.svg",
+    titleKey: "capability.pairing_channel_dingtalk",
+  },
+  wechat: {
+    src: "/icon/channel/wecom.svg",
+    titleKey: "capability.pairing_channel_wechat",
+  },
+  "weixin-personal": {
+    src: "/icon/channel/wechat.svg",
+    titleKey: "capability.pairing_channel_weixin_personal",
+  },
+  feishu: {
+    src: "/icon/connector/feishu.svg",
+    titleKey: "capability.pairing_channel_feishu",
+  },
+  telegram: {
+    src: "/icon/channel/telegram.svg",
+    titleKey: "capability.pairing_channel_telegram",
+  },
+  discord: {
+    src: "/icon/channel/discord.svg",
+    titleKey: "capability.pairing_channel_discord",
+  },
 };
 
 export function ChannelIcon({
@@ -21,12 +44,13 @@ export function ChannelIcon({
   type: ImChannelType;
   size?: "card" | "dialog";
 }) {
+  const { t } = useI18n();
   const icon = CHANNEL_ICONS[type];
   return (
     <CapabilityBrandIcon
       size={size === "dialog" ? "lg" : "md"}
       src={icon.src}
-      title={icon.title}
+      title={t(icon.titleKey)}
     />
   );
 }
