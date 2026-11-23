@@ -2198,9 +2198,13 @@
     max-width: min(85%, 720px);
   }
 
-  /* 轮次间距取 0.75 个正文行高，与块间距（0.5 行）同源，调字号/行距后节奏仍成比例。 */
-  .nexus-chat-feed .nexus-chat-round {
-    padding-bottom: calc(var(--chat-font-size, 14px) * var(--chat-line-height, 1.6) * 0.75);
+  /*
+   * 轮次间距取 0.75 个正文行高，与块间距（0.5 行）同源，调字号/行距后节奏仍成比例。
+   * 间距挂在后一轮顶部：最后一轮下方不留空白，新轮次到达时前一轮的测量高度也不变。
+   * 用 index 而非 :first-child 判首轮，虚拟列表只渲染窗口内节点，首个 DOM 子项不一定是首轮。
+   */
+  .nexus-chat-feed .nexus-chat-round:not([data-conversation-round-index="0"]) {
+    padding-top: calc(var(--chat-font-size, 14px) * var(--chat-line-height, 1.6) * 0.75);
   }
 
   /*

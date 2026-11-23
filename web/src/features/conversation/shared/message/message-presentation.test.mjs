@@ -80,7 +80,7 @@ test("a visible ToolBlock exclusively owns its running state", async () => {
   assert.doesNotMatch(html, /正在执行/);
 });
 
-test("a streaming Thought exclusively owns the thinking state", async () => {
+test("Thought stays plain content while the activity row alone owns the thinking state", async () => {
   const { ContentRenderer } = await import("@/features/conversation/shared/message/item/view/content/content-renderer.tsx");
   const { resolveContentActivityState } = await import("@/features/conversation/shared/message/item/activity/message-content-activity.ts");
   const thinking = { type: "thinking", thinking: "Planning the next step" };
@@ -91,8 +91,8 @@ test("a streaming Thought exclusively owns the thinking state", async () => {
     resolvedToolUseIds: new Set(),
     streamingBlockIndexes,
   });
-  assert.equal(resolve(new Set([0])), null);
-  // Thought 已收口但 Agent 仍在推理时，尾随活动继续承接运行态。
+  // 无论 Thought 是否仍在流式，思考态都由尾随活动行表达。
+  assert.equal(resolve(new Set([0])), "thinking");
   assert.equal(resolve(new Set()), "thinking");
 
   const html = await renderWithI18n(React.createElement(ContentRenderer, {
@@ -101,7 +101,9 @@ test("a streaming Thought exclusively owns the thinking state", async () => {
     isStreaming: true,
     streamingBlockIndexes: new Set([0]),
   }));
-  assert.equal(html.match(/正在思考/g)?.length, 1);
+  assert.match(html, /data-activity-row="thinking"[^]*?(思考|Thought)</);
+  assert.equal(html.match(/data-message-activity-icon/g)?.length, 1);
+  assert.doesNotMatch(html, /animate-pulse/);
 });
 
 test("live conversations keep one stable tool segment across consecutive patches", async () => {

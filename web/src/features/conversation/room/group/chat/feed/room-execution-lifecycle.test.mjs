@@ -93,7 +93,7 @@ test("Room streams and completes inside one stable Agent execution shell", async
   );
   assert.match(
     activeHtml,
-    /正在回复/,
+    /data-message-activity-elapsed/,
     "the shared activity indicator must remain visible in the public reply",
   );
   assert.doesNotMatch(
@@ -201,7 +201,7 @@ test("Room public activity survives the pause between reply text and tool work",
   assert.match(continuedHtml, /中执行。/);
   assert.match(
     continuedHtml,
-    /正在思考/,
+    /data-message-activity-elapsed/,
     "an active Agent Thread keeps a public activity row after an intermediate text turn completes",
   );
   assert.equal(

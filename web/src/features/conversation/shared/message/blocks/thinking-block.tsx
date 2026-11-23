@@ -1,7 +1,7 @@
 /**
  * INPUT: Thought 正文、流式状态与展开默认值。
  * OUTPUT: 默认收起的单行正文预览；用户展开后保留选择，流式阶段切换不重置明细。
- * POS: Assistant 执行过程中的 Thought 二级明细入口。
+ * POS: Assistant 执行过程中的 Thought 二级明细入口；只是内容，不表达运行态——“正在思考”由消息活动行独占。
  */
 "use client";
 
@@ -10,8 +10,6 @@ import type { RefObject } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { TranslationKey } from "@/shared/i18n/messages";
-import { cn } from "@/shared/ui/class-name";
 
 import { MarkdownRenderer } from "../markdown-renderer";
 import {
@@ -28,25 +26,6 @@ interface ThinkingBlockProps {
   workspaceAgentId?: string | null;
 }
 
-interface ThinkingPresentation {
-  className: string;
-  labelKey: TranslationKey;
-}
-
-const THINKING_PRESENTATIONS: Readonly<Record<
-  "idle" | "streaming",
-  ThinkingPresentation
->> = {
-  idle: {
-    className: "text-(--icon-muted)",
-    labelKey: "message.thought",
-  },
-  streaming: {
-    className: "motion-safe:animate-pulse text-(--primary)",
-    labelKey: "message.activity_thinking",
-  },
-};
-
 export function ThinkingBlock({
   defaultExpanded,
   thinking,
@@ -58,7 +37,6 @@ export function ThinkingBlock({
   // 展开只由用户选择；流式开始或结束不得自动打开或关闭详情。
   const expansion = useScrollAnchoredState(defaultExpanded ?? false);
   const isExpanded = expansion.isOpen;
-  const presentation = resolveThinkingPresentation(isStreaming);
   const preview = thinking.replace(/\s+/g, " ").trim();
   if (!thinking) {
     return null;
@@ -76,19 +54,15 @@ export function ThinkingBlock({
         expanded={isExpanded}
         leading={(
           <span
-            className={cn(
-              "flex h-5 w-5 shrink-0 items-center justify-center",
-              presentation.className,
-            )}
+            className="flex h-5 w-5 shrink-0 items-center justify-center text-(--icon-muted)"
             data-thinking-block-icon="thinking"
           >
             <Brain aria-hidden className="h-3.5 w-3.5" strokeWidth={1.5} />
           </span>
         )}
         onClick={expansion.toggle}
-        tone={isStreaming ? "active" : "default"}
       >
-        <span className="shrink-0">{t(presentation.labelKey)}</span>
+        <span className="shrink-0">{t("message.thought")}</span>
         {!isExpanded ? (
           <span
             className="min-w-0 flex-1 truncate text-(--text-soft)"
@@ -114,10 +88,4 @@ export function ThinkingBlock({
       ) : null}
     </div>
   );
-}
-
-function resolveThinkingPresentation(
-  isStreaming: boolean,
-): ThinkingPresentation {
-  return THINKING_PRESENTATIONS[isStreaming ? "streaming" : "idle"];
 }

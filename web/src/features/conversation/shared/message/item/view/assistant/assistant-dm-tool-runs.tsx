@@ -43,11 +43,14 @@ interface AssistantToolRunsProps {
   permissions: AssistantPermissionState;
   projection: ContentProjection;
   responseResumed: boolean;
+  /** 过程区是否位于整条回复的尾部；final 已有内容时尾部活动行归 final 之后，过程区不得再挂。 */
+  ownsTail?: boolean;
 }
 
 export function AssistantToolRuns({
   activity,
   environment,
+  ownsTail = true,
   permissions,
   projection,
   responseResumed,
@@ -85,7 +88,7 @@ export function AssistantToolRuns({
       {segments.map((segment, index) => {
         const streaming = (
           activity.showCursor
-          && !responseResumed
+          && ownsTail
           && index === segments.length - 1
         );
         return (

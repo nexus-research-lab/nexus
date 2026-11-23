@@ -3,7 +3,7 @@
  * OUTPUT: 按展示契约渲染用户补充与唯一 assistant 输出。
  * POS: DM / Room 共用轮次视图，用户消息数量不在调用方分支处理。
  */
-import { memo } from "react";
+import { memo, useMemo } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { CONVERSATION_TASK_TOOL_NAMES } from "@/features/conversation/shared/todos/task-tool-names";
@@ -11,6 +11,7 @@ import { CONVERSATION_TASK_TOOL_NAMES } from "@/features/conversation/shared/tod
 import { useMessageItemController } from "./controller/use-message-item-controller";
 import type { MessageItemProps } from "./message-item-types";
 import { MessageAssistantSection } from "./view/assistant/message-assistant-section";
+import { MessageActivityClockProvider } from "./view/message-activity-clock";
 import { MessageUserSection } from "./view/user/message-user-section";
 
 function MessageItemInner({
@@ -62,6 +63,8 @@ function MessageItemInner({
     defaultProcessExpanded,
     assistantContentMode,
   });
+  // 活动计时从本轮最早一条消息（通常是用户发出那一刻）起算，与活动行在哪个位置渲染无关。
+  const startedAt = useMemo(() => resolveRoundStartedAt(messages), [messages]);
 
   return (
     <div
@@ -91,30 +94,42 @@ function MessageItemInner({
           ))
         : null}
 
-      <MessageAssistantSection
-        compact={compact}
-        currentAgentName={currentAgentName}
-        currentAgentAvatar={currentAgentAvatar}
-        canRespondToPermissions={canRespondToPermissions}
-        permissionReadOnlyReason={permissionReadOnlyReason}
-        onPermissionResponse={onPermissionResponse}
-        onOpenAgentContact={onOpenAgentContact}
-        onOpenSubagentTask={onOpenSubagentTask}
-        onOpenWorkspaceFile={onOpenWorkspaceFile}
-        workspaceAgentId={workspaceAgentId}
-        unresolvedToolStatus={unresolvedToolStatus}
-        hiddenToolNames={hiddenToolNames}
-        assistantHeaderAction={assistantHeaderAction}
-        assistantReplyTarget={assistantReplyTarget}
-        assistantEmptyState={assistantEmptyState}
-        assistantContentMode={assistantContentMode}
-        showHeader={showAssistantHeader}
-        showIdentity={showAssistantIdentity}
-        agentMentionDirectory={agentMentionDirectory}
-        assistant={state.assistant}
-      />
+      <MessageActivityClockProvider roundId={roundId} startedAt={startedAt}>
+        <MessageAssistantSection
+          compact={compact}
+          currentAgentName={currentAgentName}
+          currentAgentAvatar={currentAgentAvatar}
+          canRespondToPermissions={canRespondToPermissions}
+          permissionReadOnlyReason={permissionReadOnlyReason}
+          onPermissionResponse={onPermissionResponse}
+          onOpenAgentContact={onOpenAgentContact}
+          onOpenSubagentTask={onOpenSubagentTask}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          workspaceAgentId={workspaceAgentId}
+          unresolvedToolStatus={unresolvedToolStatus}
+          hiddenToolNames={hiddenToolNames}
+          assistantHeaderAction={assistantHeaderAction}
+          assistantReplyTarget={assistantReplyTarget}
+          assistantEmptyState={assistantEmptyState}
+          assistantContentMode={assistantContentMode}
+          showHeader={showAssistantHeader}
+          showIdentity={showAssistantIdentity}
+          agentMentionDirectory={agentMentionDirectory}
+          assistant={state.assistant}
+        />
+      </MessageActivityClockProvider>
     </div>
   );
+}
+
+function resolveRoundStartedAt(messages: MessageItemProps["messages"]): number | null {
+  let startedAt: number | null = null;
+  for (const message of messages) {
+    if (message.timestamp > 0 && (startedAt === null || message.timestamp < startedAt)) {
+      startedAt = message.timestamp;
+    }
+  }
+  return startedAt;
 }
 
 // 默认浅比较覆盖完整 Props 协议，避免手写白名单遗漏动作回调并保留旧闭包。
