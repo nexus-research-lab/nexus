@@ -80,6 +80,30 @@ test("a visible ToolBlock exclusively owns its running state", async () => {
   assert.doesNotMatch(html, /正在执行/);
 });
 
+test("a streaming Thought exclusively owns the thinking state", async () => {
+  const { ContentRenderer } = await import("@/features/conversation/shared/message/item/view/content/content-renderer.tsx");
+  const { resolveContentActivityState } = await import("@/features/conversation/shared/message/item/activity/message-content-activity.ts");
+  const thinking = { type: "thinking", thinking: "Planning the next step" };
+  const resolve = (streamingBlockIndexes) => resolveContentActivityState({
+    consumedBlockIndexes: new Set(),
+    content: [thinking],
+    hiddenToolNames: new Set(),
+    resolvedToolUseIds: new Set(),
+    streamingBlockIndexes,
+  });
+  assert.equal(resolve(new Set([0])), null);
+  // Thought 已收口但 Agent 仍在推理时，尾随活动继续承接运行态。
+  assert.equal(resolve(new Set()), "thinking");
+
+  const html = await renderWithI18n(React.createElement(ContentRenderer, {
+    content: [thinking],
+    fallbackActivityState: "thinking",
+    isStreaming: true,
+    streamingBlockIndexes: new Set([0]),
+  }));
+  assert.equal(html.match(/正在思考/g)?.length, 1);
+});
+
 test("live conversations keep one stable tool segment across consecutive patches", async () => {
   const { projectToolRunSegments } = await import("@/features/conversation/shared/message/item/process/dm-tool-run-segments.ts");
   const toolA = {

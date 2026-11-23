@@ -36,4 +36,5 @@
 - Workspace 文本草稿只能属于创建它的 exact Agent + path；切换 scope 时旧异步响应、实时内容和保存结果都必须被栅栏隔离，首次读取失败不得退化为旧文件预览或可编辑空白文件。
 - 共享 WebSocket 和 Room snapshot 必须捕获挂载时的 auth owner generation；身份 reset 后、React cleanup 前到达的旧事件不得写入 Room context、消息状态或 Workspace Live Store。
 
+- Goal 浮层只在 GoalPanel 实际渲染内容时保留与 Composer 的间距；空 Goal 节点经 `[data-conversation-goal-content]:empty` 隐藏，不得撑出正文尾部避让。
 - 回到底部控件保留44px点击区和具名键盘入口，focus-visible使用主题ring；生成动画遵守共享减少动效规则。

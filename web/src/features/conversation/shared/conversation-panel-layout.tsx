@@ -202,7 +202,7 @@ export function ConversationPanelViewport({
       className={
         isMobileLayout
           ? "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-1 py-2 outline-none"
-          : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 outline-none sm:px-5 sm:py-5 xl:px-7 xl:py-5"
+          : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pb-2 pt-4 outline-none sm:px-5 sm:pt-5 xl:px-7"
       }
       style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
       role={viewport.ariaLabel ? "region" : undefined}
@@ -385,11 +385,15 @@ export function ConversationPanelBottomArea({
         >
           {visibleGoal ? (
             <div
-              className={`pointer-events-none absolute inset-x-0 bottom-full z-20 ${CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME}`}
+              className="pointer-events-none absolute inset-x-0 bottom-full z-20"
               data-conversation-goal-float
             >
               <div className="relative">
-                <div className="pointer-events-auto">
+                {/* GoalPanel 无 Goal 时渲染空节点；empty:hidden 让间距随之消失，不在正文尾部留下空白避让。 */}
+                <div
+                  className={`pointer-events-auto empty:hidden ${CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME}`}
+                  data-conversation-goal-content
+                >
                   {visibleGoal}
                 </div>
                 <ConversationPanelFloatingControls

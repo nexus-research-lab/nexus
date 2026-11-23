@@ -15,7 +15,7 @@
 消息来源 Agent 只有非空身份才覆盖已知 workspace 上下文；空白字段不阻断明确来源，接续 Artifact 的精确 owner 优先级。
 
 Assistant 入口按 header、permissions、direct、process、final、activity、footer 和 layout 消费状态；子视图只接收职责内切片，不索引上层聚合状态。
-Room result 的普通工具活动由共享折叠工具行承载；没有工具内容时才由 `MessageActivityStatus` 占据原活动位，正文流式时跟随内容，三种阶段不得同时重复。
+Room result 的普通工具活动由共享折叠工具行承载；没有工具内容时才由 `MessageActivityStatus` 占据原活动位，正文流式时跟随内容，三种阶段不得同时重复。流式 Thought 的标题就是“正在思考”，此时内容层不再追加同义尾随活动行；Thought 收口后仍在推理才恢复尾随活动。
 流式正文只保持内容身份稳定，不缓存历史最大高度；同一 turn 的 Markdown 前缀按共享公平池追加，工具、活动与 final surface 切换后容器立即服从当前 intrinsic layout，不得用空白偿还先前高度。
 DM 的 final 正文节点从 live 首字到 terminal backlog 排空必须保持同一组件位置；direct 过程与归档过程可以切换，但不得借此迁移或重挂正文。
 `show_widget` 是答案本体，必须从首次流式输入到终态固定在 final surface，不得降级成工具过程卡。

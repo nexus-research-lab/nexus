@@ -1,7 +1,7 @@
 /**
  * INPUT: 已投影的结构化内容、工具完成态与消息级活动 fallback。
  * OUTPUT: 仅在没有可见叶子块持有运行状态时返回消息级尾随活动。
- * POS: ContentRenderer 的状态所有权边界；ToolBlock 自己展示状态时不得再叠加 Agent 活动。
+ * POS: ContentRenderer 的状态所有权边界；ToolBlock 或流式 Thought 自己展示状态时不得再叠加 Agent 活动。
  */
 import type {
   ContentBlock,
@@ -93,33 +93,32 @@ export function resolveContentActivityState({
     // 可见 ToolBlock 已展示 running / waiting；消息层不得再叠加同义状态。
     return null;
   }
-  return resolveLatestVisibleBlockActivity({
-    consumedBlockIndexes,
+  const latestIndex = findLatestVisibleBlockIndex(
     content,
-    context,
+    consumedBlockIndexes,
     hiddenToolNames,
+  );
+  const block = content[latestIndex] ?? null;
+  if (block?.type === "thinking" && streamingBlockIndexes.has(latestIndex)) {
+    // 流式 Thought 的标题本身就是“正在思考”；消息层不得再叠加同义状态。
+    return null;
+  }
+  return resolveLatestVisibleBlockActivity({
+    block,
+    context,
     resolvedToolUseIds,
   });
 }
 
 function resolveLatestVisibleBlockActivity({
-  consumedBlockIndexes,
-  content,
+  block,
   context,
-  hiddenToolNames,
   resolvedToolUseIds,
 }: {
-  consumedBlockIndexes: ReadonlySet<number>;
-  content: readonly ContentBlock[];
+  block: ContentBlock | null;
   context: ContentActivityContext;
-  hiddenToolNames: ReadonlySet<string>;
   resolvedToolUseIds: ReadonlySet<string>;
 }): MessageActivityState {
-  const block = findLatestVisibleBlock(
-    content,
-    consumedBlockIndexes,
-    hiddenToolNames,
-  );
   const fallback = context.fallback ?? "thinking";
   if (!block) {
     return fallback;
@@ -149,22 +148,23 @@ function findLatestPendingToolUse(
   );
 }
 
-function findLatestVisibleBlock(
+function findLatestVisibleBlockIndex(
   content: readonly ContentBlock[],
   consumedBlockIndexes: ReadonlySet<number>,
   hiddenToolNames: ReadonlySet<string>,
-): ContentBlock | null {
-  return findLastActivityBlock(
-    content,
-    (block, index): block is ContentBlock => !HIDDEN_ACTIVITY_BLOCK_RULES.some(
-      (rule) => rule({
-        block,
-        consumedBlockIndexes,
-        hiddenToolNames,
-        index,
-      }),
-    ),
-  );
+): number {
+  for (let index = content.length - 1; index >= 0; index -= 1) {
+    const block = content[index];
+    if (block && !HIDDEN_ACTIVITY_BLOCK_RULES.some((rule) => rule({
+      block,
+      consumedBlockIndexes,
+      hiddenToolNames,
+      index,
+    }))) {
+      return index;
+    }
+  }
+  return -1;
 }
 
 function resolveProgressActivityState(
