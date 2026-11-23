@@ -488,31 +488,23 @@ func TestServiceSubmitWorkTransparentlyRunsAttempt(t *testing.T) {
 			result.Attempts[0].RuntimeRoundID = command.Attempt.RuntimeRoundID
 			return result, nil
 		},
-		finishAttempt: func(_ context.Context, command orchestrationstore.FinishAttemptCommand) (*protocol.ExecutionSnapshot, error) {
-			calls = append(calls, command.Meta.CommandID)
-			if command.ExpectedExecutionVersion != 11 ||
-				command.ExpectedAttemptVersion != 2 ||
-				command.Attempt.Status != protocol.WorkAttemptStatusSucceeded {
-				t.Fatalf("finish command = %#v", command)
-			}
-			result := cloneExecutionSnapshot(initial)
-			result.Execution.Version = 12
-			result.Assignments[0].Status = protocol.WorkAssignmentStatusActive
-			result.Assignments[0].Version = 2
-			result.Attempts[0].Status = protocol.WorkAttemptStatusSucceeded
-			result.Attempts[0].Version = 3
-			return result, nil
-		},
 		submit: func(_ context.Context, command orchestrationstore.SubmitCommand) (*protocol.ExecutionSnapshot, error) {
-			calls = append(calls, command.Meta.CommandID)
-			if command.ExpectedExecutionVersion != 12 ||
+			finish := command.FinishAttempt
+			if finish == nil ||
+				finish.ExpectedAttemptVersion != 2 ||
+				finish.Attempt.ID != "attempt-1" ||
+				finish.Attempt.Status != protocol.WorkAttemptStatusSucceeded {
+				t.Fatalf("finish with submission = %#v", finish)
+			}
+			calls = append(calls, finish.Meta.CommandID, command.Meta.CommandID)
+			if command.ExpectedExecutionVersion != 11 ||
 				command.ExpectedAssignmentVersion != 2 ||
 				command.Submission.AttemptID != "attempt-1" ||
 				command.Submission.SubmitterAgentID != "agent-worker" {
 				t.Fatalf("submit command = %#v", command)
 			}
 			result := cloneExecutionSnapshot(initial)
-			result.Execution.Version = 13
+			result.Execution.Version = 12
 			result.Assignments[0].Status = protocol.WorkAssignmentStatusActive
 			result.Assignments[0].Version = 3
 			result.Attempts[0].Status = protocol.WorkAttemptStatusSucceeded
@@ -537,7 +529,7 @@ func TestServiceSubmitWorkTransparentlyRunsAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != MutationApplied || result.SnapshotRevision != 13 {
+	if result.Outcome != MutationApplied || result.SnapshotRevision != 12 {
 		t.Fatalf("result = %#v", result)
 	}
 	wantCalls := []string{

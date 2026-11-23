@@ -1100,6 +1100,90 @@ WHERE work_item_id = ?`,
 	}
 }
 
+func TestRepositorySubmitFinishesRunningAttemptInOneTransaction(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	snapshot, err := repository.Create(ctx, createTestCommand("atomic-submit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = repository.WritePlan(
+		ctx,
+		testPlanCommand("atomic-submit", snapshot.Execution.Version, "atomic-submit", "", 1),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = repository.Assign(
+		ctx,
+		assignTestCommand(snapshot, "work-atomic-submit-1", "spec-atomic-submit-1", "atomic-submit", "agent-worker"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	running := startTestAttempt(t, ctx, repository, snapshot, "assignment-atomic-submit", "attempt-atomic-submit")
+	assignment := findAssignment(t, running, "assignment-atomic-submit")
+	attempt := findAttempt(t, running, "attempt-atomic-submit")
+	terminal := attempt
+	terminal.Status = protocol.WorkAttemptStatusSucceeded
+	command := SubmitCommand{
+		ExpectedExecutionVersion:  running.Execution.Version,
+		ExpectedAssignmentVersion: assignment.Version + 1,
+		FinishAttempt: &SubmitAttemptFinish{
+			ExpectedAttemptVersion: attempt.Version,
+			Attempt:                terminal,
+			Meta:                   testMeta("atomic-submit-finish"),
+		},
+		Submission: protocol.WorkSubmission{
+			ID:               "submission-atomic-submit",
+			ExecutionID:      assignment.ExecutionID,
+			PlanID:           assignment.PlanID,
+			WorkItemID:       assignment.WorkItemID,
+			SpecID:           assignment.SpecID,
+			AssignmentID:     assignment.ID,
+			AttemptID:        attempt.ID,
+			SubmitterAgentID: "agent-worker",
+			ResultSummary:    "completed",
+		},
+		Meta: testMeta("atomic-submit-record"),
+	}
+
+	if _, err = repository.Submit(ctx, command); !errors.Is(err, ErrVersionConflict) {
+		t.Fatalf("stale Assignment submit = %v", err)
+	}
+	rolledBack, err := repository.GetSnapshot(ctx, running.Execution.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kept := findAttempt(t, rolledBack, attempt.ID); kept.Status != protocol.WorkAttemptStatusRunning ||
+		kept.Version != attempt.Version ||
+		rolledBack.Execution.Version != running.Execution.Version ||
+		len(rolledBack.Submissions) != 0 {
+		t.Fatalf("rejected Submission left the Attempt finished: attempt=%+v submissions=%d", kept, len(rolledBack.Submissions))
+	}
+
+	command.ExpectedAssignmentVersion = assignment.Version
+	delivered, err := repository.Submit(ctx, command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished := findAttempt(t, delivered, attempt.ID); finished.Status != protocol.WorkAttemptStatusSucceeded ||
+		finished.Version != attempt.Version+1 ||
+		delivered.Execution.Version != running.Execution.Version+1 ||
+		len(delivered.Submissions) != 1 || delivered.Submissions[0].AttemptID != attempt.ID {
+		t.Fatalf("delivery was not one commit: attempt=%+v submissions=%+v", finished, delivered.Submissions)
+	}
+	for commandID, eventType := range map[string]protocol.ExecutionEventType{
+		command.FinishAttempt.Meta.CommandID: protocol.ExecutionEventAttemptTerminal,
+		command.Meta.CommandID:               protocol.ExecutionEventWorkSubmitted,
+	} {
+		event, findErr := repository.findEventByCommand(ctx, repository.db, running.Execution.ID, commandID)
+		if findErr != nil || event == nil || event.Type != eventType || event.AttemptID != attempt.ID {
+			t.Fatalf("audit event %q = %+v %v", commandID, event, findErr)
+		}
+	}
+}
+
 func TestRepositoryPlanRevisionNeverDropsUnreviewedSubmission(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()

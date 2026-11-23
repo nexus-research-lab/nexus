@@ -17,16 +17,13 @@ import (
 
 type resultFaultRepository struct {
 	*repo.Repository
-	failFinish, failSettle, failAfterSubmit bool
+	failSubmit, failSettle, failAfterSubmit bool
 }
 
-func (r *resultFaultRepository) FinishAttempt(ctx context.Context, command repo.FinishAttemptCommand) (*protocol.ExecutionSnapshot, error) {
-	if r.failFinish {
-		return nil, errors.New("injected crash before finishing Attempt")
-	}
-	return r.Repository.FinishAttempt(ctx, command)
-}
 func (r *resultFaultRepository) Submit(ctx context.Context, command repo.SubmitCommand) (*protocol.ExecutionSnapshot, error) {
+	if r.failSubmit {
+		return nil, errors.New("injected crash before recording Submission")
+	}
 	result, err := r.Repository.Submit(ctx, command)
 	if err == nil && r.failAfterSubmit {
 		return nil, errors.New("injected lost committed submission reply")
@@ -40,6 +37,32 @@ func (r *resultFaultRepository) SetRuntimeResultState(ctx context.Context, id, s
 	return r.Repository.SetRuntimeResultState(ctx, id, state, reason, next)
 }
 
+// toolAtSubmitRepository parks the explicit tool where it records its Submission.
+type toolAtSubmitRepository struct {
+	*repo.Repository
+	atSubmit, hookDone chan struct{}
+}
+
+func (r *toolAtSubmitRepository) Submit(ctx context.Context, command repo.SubmitCommand) (*protocol.ExecutionSnapshot, error) {
+	close(r.atSubmit)
+	<-r.hookDone
+	return r.Repository.Submit(ctx, command)
+}
+
+// hookAfterReceiptRepository runs a step once the hook's receipt is durable.
+type hookAfterReceiptRepository struct {
+	*repo.Repository
+	afterReceipt func()
+}
+
+func (r *hookAfterReceiptRepository) PutRuntimeResultReceipt(ctx context.Context, value repo.RuntimeResultReceipt) (*repo.RuntimeResultReceipt, error) {
+	stored, err := r.Repository.PutRuntimeResultReceipt(ctx, value)
+	if err == nil {
+		r.afterReceipt()
+	}
+	return stored, err
+}
+
 func TestWorkGraphRuntimeResultIntegration(t *testing.T) {
 	for _, driver := range []string{"sqlite", "postgres"} {
 		t.Run(driver, func(t *testing.T) {
@@ -47,10 +70,10 @@ func TestWorkGraphRuntimeResultIntegration(t *testing.T) {
 			migrateIntegrationDatabase(t, cfg, 0)
 			database := openIntegrationDatabase(t, cfg)
 			repository := repo.NewSQLRepository(driver, database)
-			for _, mode := range []string{"normal", "before_finish", "after_submit", "before_receipt"} {
+			for _, mode := range []string{"normal", "before_submit", "after_submit", "before_receipt"} {
 				t.Run(mode, func(t *testing.T) {
 					actor, declaration := runtimeResultFixture(t, repository, mode)
-					faults := &resultFaultRepository{Repository: repository, failFinish: mode == "before_finish", failAfterSubmit: mode == "after_submit", failSettle: mode == "before_receipt"}
+					faults := &resultFaultRepository{Repository: repository, failSubmit: mode == "before_submit", failAfterSubmit: mode == "after_submit", failSettle: mode == "before_receipt"}
 					service := svc.NewService(faults)
 					outcome, err := service.AcceptRuntimeResult(t.Context(), actor, declaration)
 					if mode == "normal" && (err != nil || outcome.State != "applied") {
@@ -108,9 +131,59 @@ func TestWorkGraphRuntimeResultIntegration(t *testing.T) {
 					t.Fatal("race duplicated delivery")
 				}
 			})
+			// The hook's receipt is durable before the tool starts and is applied
+			// while the tool is mid-delivery: the tool's Attempt completion must
+			// never be visible without its Submission.
+			t.Run("hook_applies_while_tool_delivers", func(t *testing.T) {
+				actor, declaration := runtimeResultFixture(t, repository, "window")
+				snapshot, _ := repository.GetSnapshot(t.Context(), actor.ExecutionID)
+				tool := &toolAtSubmitRepository{Repository: repository, atSubmit: make(chan struct{}), hookDone: make(chan struct{})}
+				toolResult, toolReturned := make(chan error, 1), make(chan struct{})
+				hook := svc.NewService(&hookAfterReceiptRepository{Repository: repository, afterReceipt: func() {
+					go func() {
+						defer close(toolReturned)
+						_, err := svc.NewService(tool).SubmitWork(t.Context(), actor, svc.SubmitWorkInput{ExecutionID: actor.ExecutionID, SnapshotRevision: snapshot.Execution.Version, CommandID: "explicit-window-result", ResultSummary: declaration.Delivery.ResultSummary, Evidence: declaration.Delivery.Evidence})
+						toolResult <- err
+					}()
+					select {
+					case <-tool.atSubmit:
+					case <-toolReturned:
+						t.Error("explicit tool returned before recording its Submission")
+					}
+				}})
+				outcome, err := hook.AcceptRuntimeResult(t.Context(), actor, declaration)
+				close(tool.hookDone)
+				if toolErr := <-toolResult; toolErr != nil {
+					t.Fatal(toolErr)
+				}
+				if err != nil || outcome.State != "applied" {
+					t.Fatalf("race result=%+v %v", outcome, err)
+				}
+				snapshot, _ = repository.GetSnapshot(t.Context(), actor.ExecutionID)
+				if len(snapshot.Submissions) != 1 || len(snapshot.ReviewDispatches) != 1 {
+					t.Fatal("race duplicated delivery")
+				}
+			})
+			t.Run("hook_confirms_tool_delivery", func(t *testing.T) {
+				actor, declaration := runtimeResultFixture(t, repository, "tool-first")
+				service := svc.NewService(repository)
+				snapshot, _ := repository.GetSnapshot(t.Context(), actor.ExecutionID)
+				delivered, err := service.SubmitWork(t.Context(), actor, svc.SubmitWorkInput{ExecutionID: actor.ExecutionID, SnapshotRevision: snapshot.Execution.Version, CommandID: "explicit-first-result", ResultSummary: declaration.Delivery.ResultSummary, Evidence: declaration.Delivery.Evidence})
+				if err != nil || delivered.Outcome != svc.MutationApplied {
+					t.Fatalf("tool delivery=%+v %v", delivered, err)
+				}
+				outcome, err := service.AcceptRuntimeResult(t.Context(), actor, declaration)
+				if err != nil || outcome.State != "applied" {
+					t.Fatalf("hook result=%+v %v", outcome, err)
+				}
+				snapshot, _ = repository.GetSnapshot(t.Context(), actor.ExecutionID)
+				if len(snapshot.Submissions) != 1 || len(snapshot.ReviewDispatches) != 1 {
+					t.Fatal("hook duplicated the tool's delivery")
+				}
+			})
 			t.Run("terminal_after_intake", func(t *testing.T) {
 				actor, declaration := runtimeResultFixture(t, repository, "terminal")
-				service := svc.NewService(&resultFaultRepository{Repository: repository, failFinish: true})
+				service := svc.NewService(&resultFaultRepository{Repository: repository, failSubmit: true})
 				intake, err := service.AcceptRuntimeResult(t.Context(), actor, declaration)
 				if err != nil || intake.State != "pending" {
 					t.Fatalf("intake: %+v %v", intake, err)
@@ -155,7 +228,7 @@ func TestWorkGraphRuntimeResultIntegration(t *testing.T) {
 			})
 			t.Run("intake_cannot_move_to_new_attempt", func(t *testing.T) {
 				actor, declaration := runtimeResultFixture(t, repository, "new-attempt")
-				service := svc.NewService(&resultFaultRepository{Repository: repository, failFinish: true})
+				service := svc.NewService(&resultFaultRepository{Repository: repository, failSubmit: true})
 				intake, err := service.AcceptRuntimeResult(t.Context(), actor, declaration)
 				if err != nil || intake.State != "pending" {
 					t.Fatalf("intake=%+v %v", intake, err)
@@ -195,7 +268,7 @@ func TestWorkGraphRuntimeResultIntegration(t *testing.T) {
 			})
 			t.Run("ended_attempt_is_not_resubmitted", func(t *testing.T) {
 				actor, declaration := runtimeResultFixture(t, repository, "ended-attempt")
-				service := svc.NewService(&resultFaultRepository{Repository: repository, failFinish: true})
+				service := svc.NewService(&resultFaultRepository{Repository: repository, failSubmit: true})
 				intake, err := service.AcceptRuntimeResult(t.Context(), actor, declaration)
 				if err != nil || intake.State != "pending" {
 					t.Fatalf("intake=%+v %v", intake, err)

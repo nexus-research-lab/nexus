@@ -30,7 +30,7 @@ type SubmitWorkInput struct {
 	ToolUseID         string
 }
 
-// SubmitWork 透明启动并成功结束当前 root Attempt，然后记录 Submission。
+// SubmitWork 透明启动当前 root Attempt，并在同一事务内成功结束它与记录 Submission。
 func (s *Service) SubmitWork(
 	ctx context.Context,
 	actor ActorContext,
@@ -162,24 +162,20 @@ func (s *Service) SubmitWork(
 	if assignment == nil || attempt == nil {
 		return MutationResult{}, fmt.Errorf("repository returned an incomplete Assignment/Attempt snapshot")
 	}
-	if attempt.Status == protocol.WorkAttemptStatusRunning {
+	// A running root Attempt succeeds in the Submission's own transaction, so
+	// no reader (a result hook, recovery) sees a delivered Attempt without it.
+	var finishAttempt *orchestrationstore.SubmitAttemptFinish
+	switch attempt.Status {
+	case protocol.WorkAttemptStatusRunning:
 		terminal := mergeSubmissionRuntime(*attempt, actor, input)
 		terminal.Status = protocol.WorkAttemptStatusSucceeded
-		updated, finishErr := s.repository.FinishAttempt(ctx, orchestrationstore.FinishAttemptCommand{
-			ExpectedExecutionVersion: snapshot.Execution.Version,
-			ExpectedAttemptVersion:   attempt.Version,
-			Attempt:                  terminal,
-			Meta:                     s.commandMeta(actor, input.CommandID, "submit-finish"),
-		})
-		if finishErr != nil {
-			return s.storageMutationResult(snapshot, finishErr, nextActions(snapshot, actor))
+		finishAttempt = &orchestrationstore.SubmitAttemptFinish{
+			ExpectedAttemptVersion: attempt.Version,
+			Attempt:                terminal,
+			Meta:                   s.commandMeta(actor, input.CommandID, "submit-finish"),
 		}
-		s.invalidateSnapshot(ctx, updated)
-		snapshot = updated
-		assignment = findAssignmentByID(snapshot, assignment.ID)
-		attempt = findAttemptByID(snapshot, attempt.ID)
-	}
-	if assignment == nil || attempt == nil || attempt.Status != protocol.WorkAttemptStatusSucceeded {
+	case protocol.WorkAttemptStatusSucceeded:
+	default:
 		return RejectedResult(snapshot, newDomainError(
 			ErrorCodeDuplicateAttempt,
 			"current Attempt is terminal without success; refresh Execution context and use an allowed coordinator recovery action to create a fresh Attempt before submitting again",
@@ -224,6 +220,7 @@ func (s *Service) SubmitWork(
 	updated, submitErr := s.repository.Submit(ctx, orchestrationstore.SubmitCommand{
 		ExpectedExecutionVersion:  snapshot.Execution.Version,
 		ExpectedAssignmentVersion: assignment.Version,
+		FinishAttempt:             finishAttempt,
 		Submission:                submissionRecord,
 		ReviewDispatch:            reviewDispatch,
 		Meta:                      s.commandMeta(actor, input.CommandID, "submit-record"),
