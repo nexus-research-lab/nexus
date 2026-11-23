@@ -114,7 +114,7 @@ func (s *RoomHistoryStore) prepareRoomRefCheckpoints(ctx context.Context, owner,
 			}
 		}
 		reused += len(member.ids) - len(missing)
-		cache[key] = items
+		cache.members[key] = &roomTranscriptProjection{Messages: items}
 		if len(missing) == 0 {
 			continue
 		}

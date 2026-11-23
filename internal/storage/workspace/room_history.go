@@ -199,12 +199,37 @@ func (s *RoomHistoryStore) resolveRoomHistoryRowsContext(
 	conversationID string,
 	rows []map[string]any,
 ) ([]protocol.Message, error) {
-	return s.resolveRoomHistoryRowsWithCache(ctx, ownerUserID, conversationID, rows, roomTranscriptIndexCache{})
+	return s.resolveRoomHistoryRowsWithCache(ctx, ownerUserID, conversationID, rows, newRoomTranscriptIndexCache(false))
+}
+
+// roomTranscriptProjection 是一次读取里某个成员 transcript 的投影。
+type roomTranscriptProjection struct {
+	// Messages 按 message_id 索引；Resumed 时只含成员检查点之后的消息。
+	Messages map[string]protocol.Message
+	// Replay 是产生 Messages 的投影及其轮次起点，用来建立或推进成员检查点；
+	// 不需要检查点的读取、按消息回填的大 Room 成员和没有可用起点的 transcript 为 nil。
+	Replay *transcriptReplay
+	// Resumed 表示 Messages 来自成员检查点之后的续读，检查点之前的投影已被证明没有变化。
+	Resumed bool
 }
 
 // roomTranscriptIndexCache 以 transcript ref 身份缓存成员 transcript 投影，
 // 让一次读模型构建同时完成行解析和冻结引用摘要，不重复读取大文件。
-type roomTranscriptIndexCache map[string]map[string]protocol.Message
+type roomTranscriptIndexCache struct {
+	members map[string]*roomTranscriptProjection
+	// withReplay 让完整读取同时保留轮次起点；只有会发布读模型的构建和刷新需要。
+	withReplay bool
+}
+
+func newRoomTranscriptIndexCache(withReplay bool) roomTranscriptIndexCache {
+	return roomTranscriptIndexCache{members: make(map[string]*roomTranscriptProjection), withReplay: withReplay}
+}
+
+// resumed 判断成员是否已由检查点续读得到投影。
+func (cache roomTranscriptIndexCache) resumed(key string) bool {
+	projection := cache.members[key]
+	return projection != nil && projection.Resumed
+}
 
 // 校验只在这次遍历的 owner 范围内复用；实际文件仍由固定根句柄打开。
 type roomWorkspaceChecks map[string]bool
@@ -265,11 +290,11 @@ func (s *RoomHistoryStore) resolveTranscriptReferenceContext(
 	if !ok || !checked.allows(s.paths, ownerUserID, ref.WorkspacePath) {
 		return nil, false, nil
 	}
-	messageIndex, err := s.loadRoomTranscriptIndex(ctx, ownerUserID, ref, cache)
+	projection, err := s.loadRoomTranscriptIndex(ctx, ownerUserID, ref, cache)
 	if err != nil {
 		return nil, false, err
 	}
-	transcriptMessage, ok := messageIndex[ref.MessageID]
+	transcriptMessage, ok := projection.Messages[ref.MessageID]
 	if !ok {
 		return nil, false, nil
 	}
@@ -312,13 +337,13 @@ func (s *RoomHistoryStore) loadRoomTranscriptIndex(
 	ownerUserID string,
 	ref roomTranscriptRef,
 	cache roomTranscriptIndexCache,
-) (map[string]protocol.Message, error) {
+) (*roomTranscriptProjection, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	cacheKey := ref.cacheKey()
-	if messageIndex, exists := cache[cacheKey]; exists {
-		return messageIndex, nil
+	if projection, exists := cache.members[cacheKey]; exists {
+		return projection, nil
 	}
 	ownerHistory := s.agentHistory.ForOwner(ownerUserID)
 	overlayState, err := ownerHistory.readOverlayHistoryStateContext(
@@ -329,7 +354,7 @@ func (s *RoomHistoryStore) loadRoomTranscriptIndex(
 	if err != nil {
 		return nil, err
 	}
-	transcriptRows, err := ownerHistory.readTranscriptMessagesContext(
+	transcriptRows, replay, err := ownerHistory.readTranscriptReplayContext(
 		ctx,
 		ref.WorkspacePath,
 		ref.PrivateSessionKey,
@@ -337,17 +362,17 @@ func (s *RoomHistoryStore) loadRoomTranscriptIndex(
 		ref.SessionID,
 		overlayState.RoundMarkers,
 		"",
+		cache.withReplay,
 	)
 	if errors.Is(err, os.ErrNotExist) {
-		cache[cacheKey] = map[string]protocol.Message{}
-		return cache[cacheKey], nil
+		cache.members[cacheKey] = &roomTranscriptProjection{Messages: map[string]protocol.Message{}}
+		return cache.members[cacheKey], nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	messageIndex := indexRoomTranscriptMessages(transcriptRows)
-	cache[cacheKey] = messageIndex
-	return messageIndex, nil
+	cache.members[cacheKey] = &roomTranscriptProjection{Messages: indexRoomTranscriptMessages(transcriptRows), Replay: replay}
+	return cache.members[cacheKey], nil
 }
 
 func buildRoomTranscriptReference(

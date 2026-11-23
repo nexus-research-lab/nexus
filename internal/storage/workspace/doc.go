@@ -12,13 +12,17 @@
 //     重建沿用上一代际并只重写签名变化的分组，进程内分组结构哈希备忘让未变化分组跳过投影与序列化；
 //     round index 按固定 round 数分块保存，全量重建与尾部刷新都只写内容变化的块（进程内摘要凭 scope 行的 round_revision 确认库内仍是自己写入的那一版，否则回读各块）；canonical 历史不迁移。
 //   - history_read_tail.go：DM 与 Room 增量刷新共用的尾部状态持久化：每个 scope 一份尾部原始行与状态 JSON，以及已冻结前缀的身份键集合，与分组在同一事务内发布。
+//   - history_read_tail_test.go：身份键批量写入后按原值可查的回归，覆盖引号、NUL、多字节与非法 UTF-8。
 //   - agent_history_incremental.go：DM 每轮刷新从读模型里的尾轮状态与 transcript 检查点续接，只重新规范化尾部分组，
 //     只物化仍在尾部分组里与新增的 round marker；进程重启后同样成立，无法证明前缀不变时回退重建。
 //   - history_long_session_bench_test.go：长会话逐轮追加（整页刷新与单独的 overlay 读取）、热读、冷读与重启后追加的基准（NEXUS_BENCH_ROUNDS 调整轮数）。
 //   - room_history_checkpoint.go / room_transcript_stream.go：大 Room 按成员和公开消息 ID 回填可重建检查点，按文件区间读取主链与并行工具，源指纹变化后重新投影。
 //   - room_history_checkpoint_test.go：覆盖多成员恢复、索引失效与工具详情，并提供桌面规模的历史读取基准。
 //   - room_history_incremental.go：在共用后台单飞任务中按 ledger 偏移读取追加，保留原始尾轮，原子更新尾部分页、导航与检查点；依赖身份替换和跨轮修正回退重建。
-//   - room_history_frozen_refs.go：为已离开尾轮的 transcript_ref 保存投影摘要；成员 transcript/overlay 只追加且已发布消息投影不变时继续增量，否则回退重建。
+//   - room_history_frozen_refs.go：为已离开尾轮的 transcript_ref 保存投影摘要与成员 transcript 检查点；成员只追加时从检查点续读并只核对新增内容，
+//     无法证明检查点之前不变时完整读取并比对摘要，已发布消息投影变化则回退重建。
+//   - room_history_frozen_refs_test.go：覆盖重启后续读、流式轮次、引用落在检查点之前或无换行末行，以及原地改写、分支切换、消息续写、marker 改写与重新归属的回退。
+//   - room_long_session_bench_test.go：长 Room 逐轮追加、冷读与重启后追加的基准（NEXUS_BENCH_ROUNDS 调整轮数），夹具供冻结引用回归复用。
 //   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型；
 //     round marker 携带受理游标 input_seq 并原样物化到用户行，Room inline 用户行自带同一字段，合并同 ID 用户快照时不丢失。
 //   - history_input_cursor_test.go：DM/Room 用户行的受理游标在实时行、分页读模型与完整读取之间一致，刷新与进程重启后不变。
