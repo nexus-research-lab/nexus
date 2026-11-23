@@ -81,8 +81,6 @@ export function ThinkingBlock({
               presentation.className,
             )}
             data-thinking-block-icon="thinking"
-            data-timeline-anchor
-            data-timeline-anchor-mode="box"
           >
             <Brain aria-hidden className="h-3.5 w-3.5" strokeWidth={1.5} />
           </span>

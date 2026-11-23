@@ -36,7 +36,6 @@ export interface ContentRendererProps {
   renderLeadingSlashCommand?: boolean;
   /** 外层过程栏已拥有瞬时状态时，禁止再追加同义尾随活动。 */
   showTrailingActivity?: boolean;
-  showTimelineDots?: boolean;
   streamingBlockIndexes?: ReadonlySet<number>;
   /** 执行已终止但 provider 未返回 tool_result 时的权威消息级收口。 */
   unresolvedToolStatus?: UnresolvedToolStatus;

@@ -15,7 +15,7 @@ import type {
   ToolUseContent,
 } from "@/types/conversation/message/content";
 
-import { type ContentProjection, shouldShowAssistantTimeline } from "../../message-item-projection";
+import type { ContentProjection } from "../../message-item-projection";
 import { getLocalizedToolActivityLabel } from "../../../tool-activity";
 import { ProcessActivityIconStack } from "../../../ui/activity-icon";
 import { LocalizedMessageActivityStatus, ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME } from "../message-activity-status";
@@ -294,7 +294,6 @@ function AssistantDirectContent({
       pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
-      showTimelineDots={shouldShowAssistantTimeline(environment.mode)}
       streamingBlockIndexes={direct.projection.streamingIndexes}
       unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}

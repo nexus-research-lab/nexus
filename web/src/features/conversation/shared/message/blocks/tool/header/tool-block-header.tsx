@@ -123,8 +123,6 @@ function ToolSemanticIcon({ model }: { model: ToolBlockViewModel }) {
         model.status === "running" && "text-(--primary)",
       )}
       data-tool-block-icon={model.toolVisualKind}
-      data-timeline-anchor
-      data-timeline-anchor-mode="box"
 
     >
       <ToolActivityIcon className="h-3.5 w-3.5" kind={model.toolVisualKind} />

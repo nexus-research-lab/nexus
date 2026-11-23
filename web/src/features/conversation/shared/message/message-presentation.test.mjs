@@ -658,9 +658,8 @@ test("DM and Room Thread activity groups default to collapsed", async () => {
   );
 
   assert.doesNotMatch(toolRunHtml, /Thought 0|data-tool-run-detail-list/);
-  assert.match(toolRunHtml, /before:bottom-0/);
-  assert.match(toolRunHtml, /data-timeline-dot/);
-  assert.match(toolRunHtml, /nexus-chat-timeline-block/);
+  // 过程区不再绘制时间线主轨和节点圆点。
+  assert.doesNotMatch(toolRunHtml, /before:bottom-0|data-timeline-dot|nexus-chat-timeline-block/);
   assert.doesNotMatch(toolRunHtml, /正在执行/);
 
   const liveToolRunHtml = await renderWithI18n(React.createElement(
@@ -692,9 +691,6 @@ test("DM and Room Thread activity groups default to collapsed", async () => {
   assert.match(threadHtml, /aria-expanded="false"/);
   assert.doesNotMatch(threadHtml, /data-tool-run-detail-list/);
   assert.doesNotMatch(threadHtml, /Thought 0/);
-  assert.doesNotMatch(threadHtml, /before:bottom-0/);
-  assert.doesNotMatch(threadHtml, /data-timeline-dot/);
-  assert.doesNotMatch(threadHtml, /nexus-chat-timeline-block/);
 
   const liveThreadHtml = await renderWithI18n(React.createElement(
     AssistantToolRuns,
@@ -1261,33 +1257,12 @@ test("DM live and terminal keep the final response on one content surface", asyn
     AssistantMessageContent,
     messageContentProps,
   ));
-  assert.doesNotMatch(
-    html,
-    /nexus-chat-final-content[^\"]*before:left-\[5\.5px\]/,
-    "the final reply must stay outside the process rail",
-  );
   assert.match(
     html,
     /nexus-chat-final-content mt-3\.5 first:mt-0/,
     "a final reply after process content matches the footer spacing",
   );
-  assert.equal(
-    html.match(/data-timeline-dot/g)?.length,
-    1,
-    "only the process Thought keeps a timeline node",
-  );
-
-  const roomHtml = await renderWithI18n(React.createElement(
-    AssistantMessageContent,
-    {
-      ...messageContentProps,
-      environment: {
-        ...messageContentProps.environment,
-        mode: "room_result",
-      },
-    },
-  ));
-  assert.doesNotMatch(roomHtml, /before:left-\[5\.5px\]|data-timeline-dot/);
+  assert.doesNotMatch(html, /before:left-\[5\.5px\]|data-timeline-dot/);
 });
 
 test("failed Assistant result does not expose the fork action", async () => {

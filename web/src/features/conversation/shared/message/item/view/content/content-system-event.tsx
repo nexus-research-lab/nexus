@@ -58,8 +58,6 @@ export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
       )}>
         <span
           className="flex h-4 w-4 shrink-0 items-center justify-center"
-          data-timeline-anchor
-          data-timeline-anchor-mode="box"
         >
           <Icon className={cn("h-3 w-3", style.iconClassName)} />
         </span>
@@ -87,8 +85,6 @@ function CompactSystemEvent({
     >
       <span
         className="flex h-5 w-5 shrink-0 items-center justify-center text-(--icon-muted)"
-        data-timeline-anchor
-        data-timeline-anchor-mode="box"
       >
         <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={1.5} />
       </span>
@@ -167,8 +163,6 @@ function ApiRetrySystemEvent({
       >
         <span
           className="flex h-5 w-5 shrink-0 items-center justify-center text-(--icon-muted)"
-          data-timeline-anchor
-          data-timeline-anchor-mode="box"
         >
           <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={1.5} />
         </span>

@@ -17,7 +17,6 @@ import {
   projectStructuredContent,
   type StructuredContentProjection,
 } from "./content-renderer-model";
-import { TIMELINE_LINE_CLASS_NAME } from "./content-renderer-timeline";
 
 const EMPTY_HIDDEN_TOOL_NAMES: readonly string[] = [];
 const NON_RENDERING_CONTENT_BLOCK_TYPES = new Set<ContentBlock["type"]>([
@@ -50,7 +49,6 @@ export function StructuredContentRenderer(
     pendingPermissionsByToolUseId,
     permissionReadOnlyReason,
     showTrailingActivity,
-    showTimelineDots,
     streamingBlockIndexes,
     unresolvedToolStatus,
     workspaceAgentId,
@@ -87,7 +85,7 @@ export function StructuredContentRenderer(
   };
   const renderGroups = buildStructuredContentRenderGroups({
     content,
-    enableSubagentTaskGroup: Boolean(onOpenSubagentTask) && !showTimelineDots,
+    enableSubagentTaskGroup: Boolean(onOpenSubagentTask),
     hiddenToolNames: hiddenToolNameSet,
     pendingPermissionsByToolUseId,
     projection,
@@ -98,7 +96,6 @@ export function StructuredContentRenderer(
       className={cn(
         "nexus-chat-block-stack min-w-0 space-y-2.5",
         className,
-        showTimelineDots && TIMELINE_LINE_CLASS_NAME,
       )}
     >
       {renderGroups.map((group) => (
@@ -109,23 +106,21 @@ export function StructuredContentRenderer(
             key={`subagent-tasks:${group.blockIndexes[0]}`}
           >
             {group.blockIndexes.map((blockIndex) => (
-              <StructuredContentBlock
+              <ContentBlockView
                 block={content[blockIndex]}
                 blockIndex={blockIndex}
                 key={blockIndex}
-                renderContext={renderContext}
-                showTimelineDots={false}
+                context={renderContext}
                 streaming={streamingBlockIndexes?.has(blockIndex) ?? false}
               />
             ))}
           </div>
         ) : (
-          <StructuredContentBlock
+          <ContentBlockView
             block={content[group.blockIndex]}
             blockIndex={group.blockIndex}
             key={group.blockIndex}
-            renderContext={renderContext}
-            showTimelineDots={showTimelineDots}
+            context={renderContext}
             streaming={streamingBlockIndexes?.has(group.blockIndex) ?? false}
           />
         )
@@ -195,32 +190,7 @@ function normalizeStructuredContentRendererProps(
     isStreaming: props.isStreaming ?? false,
     pendingInteractionOwner: props.pendingInteractionOwner ?? "content",
     showTrailingActivity: props.showTrailingActivity ?? true,
-    showTimelineDots: props.showTimelineDots ?? false,
   };
-}
-
-function StructuredContentBlock({
-  block,
-  blockIndex,
-  renderContext,
-  showTimelineDots,
-  streaming,
-}: {
-  block: ContentBlock;
-  blockIndex: number;
-  renderContext: ContentBlockRenderContext;
-  showTimelineDots: boolean;
-  streaming: boolean;
-}) {
-  return (
-    <ContentBlockView
-      block={block}
-      context={renderContext}
-      showTimelineDots={showTimelineDots}
-      streaming={streaming}
-      blockIndex={blockIndex}
-    />
-  );
 }
 
 function resolveStructuredActivityState({

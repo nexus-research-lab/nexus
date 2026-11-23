@@ -2420,11 +2420,6 @@
       margin-bottom: 0.375rem;
     }
 
-    .nexus-chat-feed .nexus-chat-timeline-block {
-      grid-template-columns: 0.625rem minmax(0, 1fr);
-      gap: 0.5rem;
-    }
-
     .nexus-chat-feed .nexus-chat-message-stats {
       gap: 0.5rem;
       padding-top: 0.25rem;

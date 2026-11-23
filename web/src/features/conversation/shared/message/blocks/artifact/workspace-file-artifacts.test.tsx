@@ -36,7 +36,7 @@ function localized(children: ReactNode, locale: I18nContextValue["locale"] = "en
 function routeView(route: string, artifact: WorkspaceFileArtifactContent, workspaceAgentId: string | null, onOpenWorkspaceFile: WorkspaceFileOpenHandler) {
   const environment: AssistantContentEnvironment = { canRespondToPermissions: false, hiddenToolNames: [], mode: route === "room result" ? "room_result" : "dm_live", workspaceAgentId, onOpenWorkspaceFile };
   const projection = { content: [artifact], streamingIndexes: new Set<number>() };
-  if (route === "body") return <ContentBlockView block={artifact} blockIndex={0} showTimelineDots={false} streaming={false} context={{ canRespondToPermissions: false, hiddenToolNames: new Set(), onOpenWorkspaceFile, pendingInteractionOwner: "composer", projection: projectStructuredContent([artifact]), workspaceAgentId }} />;
+  if (route === "body") return <ContentBlockView block={artifact} blockIndex={0} streaming={false} context={{ canRespondToPermissions: false, hiddenToolNames: new Set(), onOpenWorkspaceFile, pendingInteractionOwner: "composer", projection: projectStructuredContent([artifact]), workspaceAgentId }} />;
   if (["archived process", "expanded process", "tool process", "standalone artifact", "room result"].includes(route)) {
     const content = [
       { type: "tool_use" as const, id: "prepare-report", name: "Read", input: { file_path: "input.md" } },
