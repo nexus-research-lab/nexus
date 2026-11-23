@@ -28,7 +28,8 @@ import (
 )
 
 const (
-	historyPageIndexVersion      = 4
+	// 索引缓存 normalize 后的行；result 配对等归一化规则变化时提升，旧读模型按需重建。
+	historyPageIndexVersion      = 5
 	historyPageEdgeHashBytes     = 4 * 1024
 	historyPageBuildAttempts     = 2
 	historyPageRebuildTimeout    = 15 * time.Minute

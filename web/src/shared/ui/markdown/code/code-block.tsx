@@ -33,7 +33,7 @@ const PlainCodeBlock = memo(function PlainCodeBlock({ language, value, isStreami
       contentClassName="overflow-x-auto"
     >
       <pre
-        className="message-code-font min-w-full whitespace-pre p-3.5 text-sm leading-relaxed text-(--text-strong)"
+        className="content-code-body message-code-font min-w-full whitespace-pre text-(--text-strong)"
       >
         {value}
       </pre>
