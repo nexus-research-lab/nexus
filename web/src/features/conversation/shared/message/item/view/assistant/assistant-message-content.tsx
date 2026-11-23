@@ -67,6 +67,8 @@ export function AssistantMessageContent({
     };
   }, [direct, process, final]);
   const artifacts = useWorkspaceFileArtifactsFromContent(filePresentation.content, environment.workspaceAgentId);
+  // 尾部活动行只有一个 owner：final 已有可见内容（正文、Widget 等）时它在最底部，过程区让出活动行。
+  const finalOwnsTail = final.visible && hasVisibleContent(filePresentation.final.content);
   return (
     <>
       <StandaloneActivity
@@ -78,9 +80,9 @@ export function AssistantMessageContent({
         activity={activity}
         direct={filePresentation.direct}
         environment={environment}
+        ownsTail={!finalOwnsTail}
         permissions={permissions}
         responseResumed={final.isStreaming}
-        responseStreaming={final.isStreaming}
       />
       <AssistantProcessCallchain
         activity={activity}
@@ -94,6 +96,11 @@ export function AssistantMessageContent({
         final={filePresentation.final}
         permissions={permissions}
         showTrailingActivity={!direct.visible}
+      />
+      <FinalTailActivity
+        activity={activity}
+        environment={environment}
+        visible={finalOwnsTail && !final.isStreaming}
       />
       <RoomResultProcessActivity
         activity={activity}
@@ -226,6 +233,40 @@ function RoomResultTrailingActivity({
   );
 }
 
+/**
+ * final 已有内容但不在流式正文时（如 Widget 仍在生成）的唯一尾部活动行，位于整条回复最底部。
+ * 流式正文本身就是“正在回复”，此时不追加；Room 公区由自己的单行活动位负责。
+ */
+function FinalTailActivity({
+  activity,
+  environment,
+  visible,
+}: {
+  activity: AssistantActivityState;
+  environment: AssistantContentEnvironment;
+  visible: boolean;
+}) {
+  if (
+    !visible
+    || environment.mode === "room_result"
+    || !activity.showCursor
+    || !activity.state
+  ) {
+    return null;
+  }
+  return (
+    <LocalizedMessageActivityStatus
+      className="pt-1"
+      label={activity.label}
+      state={activity.state}
+    />
+  );
+}
+
+function hasVisibleContent(content: AssistantFinalState["content"]): boolean {
+  return typeof content === "string" ? Boolean(content.trim()) : Boolean(content?.length);
+}
+
 function StandaloneActivity({
   activity,
   stableSlot,
@@ -252,16 +293,16 @@ function AssistantDirectContent({
   activity,
   direct,
   environment,
+  ownsTail,
   permissions,
   responseResumed,
-  responseStreaming,
 }: {
   activity: AssistantActivityState;
   direct: AssistantDirectState;
   environment: AssistantContentEnvironment;
+  ownsTail: boolean;
   permissions: AssistantPermissionState;
   responseResumed: boolean;
-  responseStreaming: boolean;
 }) {
   if (!direct.visible) {
     return null;
@@ -274,6 +315,7 @@ function AssistantDirectContent({
       <AssistantToolRuns
         activity={activity}
         environment={environment}
+        ownsTail={ownsTail}
         permissions={permissions}
         projection={direct.projection}
         responseResumed={responseResumed}
@@ -287,7 +329,7 @@ function AssistantDirectContent({
       fallbackActivityLabel={activity.label}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
-      isStreaming={activity.showCursor && !responseStreaming}
+      isStreaming={activity.showCursor && ownsTail && !responseResumed}
       onOpenSubagentTask={environment.onOpenSubagentTask}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
       onPermissionResponse={environment.onPermissionResponse}
