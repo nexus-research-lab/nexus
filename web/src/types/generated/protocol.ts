@@ -196,6 +196,13 @@ export interface ContextUsageData {
   max_tokens: number;
   percentage: number;
   model?: string;
+  categories?: ContextUsageCategory[];
+}
+
+export interface ContextUsageCategory {
+  name: string;
+  tokens: number;
+  deferred?: boolean;
 }
 
 export interface ChatAckPendingSlot {

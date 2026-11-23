@@ -11,6 +11,15 @@ type ContextUsageData struct {
 	MaxTokens   int     `json:"max_tokens"`
 	Percentage  float64 `json:"percentage"`
 	Model       string  `json:"model,omitempty"`
+	// Categories 是 runtime 给出的分类明细；deferred 分类不计入已用总量，只作按需加载提示。
+	Categories []ContextUsageCategory `json:"categories,omitempty"`
+}
+
+// ContextUsageCategory 是上下文占用的一个分类（系统提示、工具、消息、空闲等）。
+type ContextUsageCategory struct {
+	Name     string `json:"name"`
+	Tokens   int    `json:"tokens"`
+	Deferred bool   `json:"deferred,omitempty"`
 }
 
 // ExternalSessionIdentity 是外部 IM Session 的可展示传输身份。

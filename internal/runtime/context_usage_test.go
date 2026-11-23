@@ -67,3 +67,31 @@ func TestManagerContextUsageSnapshotsIgnoreInvalidIdentity(t *testing.T) {
 		t.Fatalf("ContextUsageSnapshots() = %#v, want empty", snapshots)
 	}
 }
+
+func TestNormalizeContextUsageKeepsNamedCategories(t *testing.T) {
+	usage, valid := normalizeContextUsage(agentclient.ContextUsageResponse{
+		TotalTokens: 30,
+		MaxTokens:   100,
+		Categories: []agentclient.ContextUsageCategory{
+			{Name: " Messages ", Tokens: 30, Color: "#fff"},
+			{Name: "", Tokens: 5},
+			{Name: "Skills", Tokens: 0},
+			{Name: "Deferred MCP tools", Tokens: 12, IsDeferred: true},
+		},
+	})
+	if !valid {
+		t.Fatal("normalizeContextUsage() valid = false, want true")
+	}
+	want := []protocol.ContextUsageCategory{
+		{Name: "Messages", Tokens: 30},
+		{Name: "Deferred MCP tools", Tokens: 12, Deferred: true},
+	}
+	if len(usage.Categories) != len(want) {
+		t.Fatalf("categories = %#v, want %#v", usage.Categories, want)
+	}
+	for index := range want {
+		if usage.Categories[index] != want[index] {
+			t.Fatalf("categories = %#v, want %#v", usage.Categories, want)
+		}
+	}
+}

@@ -150,4 +150,31 @@ describe("ComposerContextUsage", () => {
     expect(screen.getAllByRole("tooltip")).toHaveLength(1);
     expect(trigger.getAttribute("aria-describedby")).toBe(detail.id);
   });
+
+  it("breaks the window down by category when the runtime reports one", () => {
+    const usage = {
+      ...USAGE,
+      categories: [
+        { name: "System prompt", tokens: 6_800 },
+        { name: "Messages", tokens: 10_100 },
+        { name: "Autocompact buffer", tokens: 33_000 },
+        { name: "Free space", tokens: 950_100 },
+        { name: "Deferred MCP tools", tokens: 19_200, deferred: true },
+      ],
+      model: "claude-opus-5-5",
+    };
+    render(<I18N_CONTEXT.Provider value={LOCALIZATION}><ComposerContextUsage usage={usage} /></I18N_CONTEXT.Provider>);
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "composer.context_usage_label" }));
+    const detail = screen.getByRole("tooltip");
+    expect(within(detail).getByText("claude-opus-5-5")).toBeTruthy();
+    expect(within(detail).getByText("composer.context_category_system_prompt")).toBeTruthy();
+    expect(within(detail).getByText("6.8K")).toBeTruthy();
+    expect(within(detail).getByText("0.7%")).toBeTruthy();
+    const deferred = within(detail).getByRole("list", { name: "composer.context_category_deferred_group" });
+    expect(within(deferred).getByText("composer.context_category_deferred")).toBeTruthy();
+    expect(within(deferred).getByText("—")).toBeTruthy();
+    // 空闲空间只是轨道底色，不画成占用切片。
+    expect(detail.querySelector('[data-context-usage-segment="free_space"]')).toBeNull();
+    expect(detail.querySelector('[data-context-usage-segment="messages"]')).toBeTruthy();
+  });
 });

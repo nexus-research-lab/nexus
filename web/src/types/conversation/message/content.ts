@@ -177,6 +177,9 @@ export interface SystemEventContent {
   retry_delay_ms?: number;
   error_status?: string | number | null;
   error?: string | null;
+  /** compact_boundary 的压缩前后上下文 token（runtime 估算口径）；未知为 null。 */
+  compact_pre_tokens?: number | null;
+  compact_post_tokens?: number | null;
 }
 
 export type ContentBlock =

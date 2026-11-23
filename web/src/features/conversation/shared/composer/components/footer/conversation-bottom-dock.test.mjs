@@ -50,7 +50,10 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
   };
 
   assert.deepEqual(projectContextUsage(usage), {
+    categories: [],
+    deferredCategories: [],
     maxTokens: 258_000,
+    model: null,
     percentage: 76,
     tone: "soft",
     totalTokens: 196_000,
