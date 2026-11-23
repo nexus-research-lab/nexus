@@ -28,10 +28,6 @@ import {
   type ToolRunSegment,
 } from "../../process/dm-tool-run-segments";
 import { ContentRenderer } from "../content/content-renderer";
-import {
-  TIMELINE_LINE_CLASS_NAME,
-  TimelineBlock,
-} from "../content/content-renderer-timeline";
 import { LocalizedMessageActivityStatus } from "../message-activity-status";
 import { MessageDetailToggle } from "../../../ui/message-detail-toggle";
 import type {
@@ -39,10 +35,7 @@ import type {
   AssistantContentEnvironment,
   AssistantPermissionState,
 } from "./assistant-message-model";
-import {
-  shouldShowAssistantTimeline,
-  type ContentProjection,
-} from "../../message-item-projection";
+import type { ContentProjection } from "../../message-item-projection";
 
 interface AssistantToolRunsProps {
   activity: AssistantActivityState;
@@ -83,14 +76,10 @@ export function AssistantToolRuns({
       activity.toolUseSummary,
     ],
   );
-  const showTimeline = shouldShowAssistantTimeline(environment.mode);
 
   return (
     <div
-      className={cn(
-        "nexus-chat-block-stack min-w-0 space-y-0.5",
-        showTimeline && TIMELINE_LINE_CLASS_NAME,
-      )}
+      className="nexus-chat-block-stack min-w-0 space-y-0.5"
       data-tool-run-list="true"
     >
       {segments.map((segment, index) => {
@@ -106,7 +95,6 @@ export function AssistantToolRuns({
             key={segment.id}
             permissions={permissions}
             segment={segment}
-            showTimeline={showTimeline}
             streaming={streaming}
           />
         );
@@ -120,14 +108,12 @@ function ToolProcessSegmentView({
   environment,
   permissions,
   segment,
-  showTimeline,
   streaming,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
   permissions: AssistantPermissionState;
   segment: ToolProcessSegment;
-  showTimeline: boolean;
   streaming: boolean;
 }) {
   if (segment.kind === "tool_run" && shouldCollapseToolRun(segment)) {
@@ -137,13 +123,12 @@ function ToolProcessSegmentView({
         environment={environment}
         permissions={permissions}
         segment={segment}
-        showTimeline={showTimeline}
         streaming={streaming}
       />
     );
   }
   return (
-    <TimelineBlock active={streaming} showRail={showTimeline}>
+    <div className="min-w-0">
       <ToolProcessSegmentContent
         activity={activity}
         environment={environment}
@@ -152,7 +137,7 @@ function ToolProcessSegmentView({
         showTrailingActivity
         streaming={streaming}
       />
-    </TimelineBlock>
+    </div>
   );
 }
 
@@ -168,14 +153,12 @@ function ToolRun({
   environment,
   permissions,
   segment,
-  showTimeline,
   streaming,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
   permissions: AssistantPermissionState;
   segment: ToolRunSegment;
-  showTimeline: boolean;
   streaming: boolean;
 }) {
   const { t } = useI18n();
@@ -214,64 +197,56 @@ function ToolRun({
   );
 
   return (
-    <TimelineBlock active={streaming && active} showRail={showTimeline}>
-      <div
-        className="py-1.5"
-        data-conversation-process-group-id={segment.id}
-        data-tool-run-id={segment.id}
-        data-tool-run-phase={phase}
-        ref={expansion.anchorRef as RefObject<HTMLDivElement>}
-      >
-        <MessageDetailToggle
-          aria-controls={contentId}
-          data-timeline-anchor
-          data-timeline-anchor-mode="box"
-          expanded={expanded}
-          leading={expanded ? (
-            <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-          ) : (
-            <ProcessActivityIconStack content={segment.projection.content} />
-          )}
-          onClick={expansion.toggle}
-          tone={warning ? "danger" : active ? "active" : "default"}
-        >
-          <span
-            aria-live={active ? "polite" : undefined}
-            className={cn(
-              "min-w-0 flex-1 truncate",
-              active && "nexus-live-tool-text",
-            )}
-            data-live-tool-text={active || undefined}
-          >
-            {summary}
-          </span>
-        </MessageDetailToggle>
-
-        {expanded ? (
-          <div data-tool-run-detail-list className="pt-1" id={contentId}>
-            <MessageDetailScroll followContent={streaming && active}>
-              <ToolProcessSegmentContent
-                activity={activity}
-                environment={environment}
-                permissions={permissions}
-                projection={segment.projection}
-                showTrailingActivity={false}
-                streaming={streaming && active}
-              />
-            </MessageDetailScroll>
-          </div>
+    <div
+      className="min-w-0 py-1.5"
+      data-conversation-process-group-id={segment.id}
+      data-tool-run-id={segment.id}
+      data-tool-run-phase={phase}
+      ref={expansion.anchorRef as RefObject<HTMLDivElement>}
+    >
+      <MessageDetailToggle
+        aria-controls={contentId}
+        expanded={expanded}
+        leading={expanded ? (
+          <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
         ) : (
-          <>
-            {streaming && activity.state ? (
-              <LocalizedMessageActivityStatus
-                className="pt-1"
-                state={activity.state}
-              />
-            ) : null}
-          </>
+          <ProcessActivityIconStack content={segment.projection.content} />
         )}
-      </div>
-    </TimelineBlock>
+        onClick={expansion.toggle}
+        tone={warning ? "danger" : active ? "active" : "default"}
+      >
+        <span
+          aria-live={active ? "polite" : undefined}
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            active && "nexus-live-tool-text",
+          )}
+          data-live-tool-text={active || undefined}
+        >
+          {summary}
+        </span>
+      </MessageDetailToggle>
+
+      {expanded ? (
+        <div data-tool-run-detail-list className="pt-1" id={contentId}>
+          <MessageDetailScroll followContent={streaming && active}>
+            <ToolProcessSegmentContent
+              activity={activity}
+              environment={environment}
+              permissions={permissions}
+              projection={segment.projection}
+              showTrailingActivity={false}
+              streaming={streaming && active}
+            />
+          </MessageDetailScroll>
+        </div>
+      ) : streaming && activity.state ? (
+        <LocalizedMessageActivityStatus
+          className="pt-1"
+          state={activity.state}
+        />
+      ) : null}
+    </div>
   );
 }
 

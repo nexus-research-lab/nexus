@@ -1,15 +1,10 @@
 // INPUT: String or structured message content and exact rendering context.
-// OUTPUT: Markdown or structured blocks with independently controlled timeline geometry.
+// OUTPUT: Markdown or structured blocks.
 // POS: Shared content entry; className does not decide behavior.
 "use client";
 
-import { cn } from "@/shared/ui/class-name";
 import { MarkdownRenderer } from "../../../markdown-renderer";
 import type { ContentRendererProps } from "./content-renderer-contract";
-import {
-  TIMELINE_LINE_CLASS_NAME,
-  TimelineBlock,
-} from "./content-renderer-timeline";
 import { StructuredContentRenderer } from "./structured-content-renderer";
 
 export function ContentRenderer({ content, ...props }: ContentRendererProps) {
@@ -26,7 +21,6 @@ function MarkdownContent({
   content,
   isStreaming = false,
   onOpenWorkspaceFile,
-  showTimelineDots = false,
 	workspaceAgentId,
 	onOpenAgentContact,
   renderLeadingSlashCommand = false,
@@ -37,7 +31,6 @@ function MarkdownContent({
   content: string;
   isStreaming?: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
-  showTimelineDots?: boolean;
 	workspaceAgentId?: string | null;
 	onOpenAgentContact?: ContentRendererProps["onOpenAgentContact"];
   renderLeadingSlashCommand?: boolean;
@@ -54,15 +47,5 @@ function MarkdownContent({
       renderLeadingSlashCommand={renderLeadingSlashCommand}
     />
   );
-  if (!className && !showTimelineDots) {
-    return markdown;
-  }
-
-  return (
-    <div className={cn(className, showTimelineDots && TIMELINE_LINE_CLASS_NAME)}>
-      {showTimelineDots ? (
-        <TimelineBlock active={isStreaming}>{markdown}</TimelineBlock>
-      ) : markdown}
-    </div>
-  );
+  return className ? <div className={className}>{markdown}</div> : markdown;
 }

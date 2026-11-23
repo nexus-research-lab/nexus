@@ -26,7 +26,6 @@ import {
 } from "./content-renderer-model";
 import { ContentSystemEvent } from "./content-system-event";
 import { ContentToolBlock } from "./content-tool-block";
-import { TimelineBlock } from "./content-renderer-timeline";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 import type { PendingInteractionOwner } from "../../message-item-projection";
 import type { UnresolvedToolStatus } from "./content-renderer-contract";
@@ -95,13 +94,11 @@ const CONTENT_BLOCK_RENDERERS = {
 export function ContentBlockView({
   block,
   context,
-  showTimelineDots,
   streaming,
   blockIndex,
 }: {
   block: ContentBlock;
   context: ContentBlockRenderContext;
-  showTimelineDots: boolean;
   streaming: boolean;
   blockIndex: number;
 }) {
@@ -116,10 +113,7 @@ export function ContentBlockView({
   if (node === null || node === undefined || node === false) {
     return null;
   }
-  if (!showTimelineDots) {
-    return <div>{node}</div>;
-  }
-  return <TimelineBlock active={streaming}>{node}</TimelineBlock>;
+  return <div>{node}</div>;
 }
 
 function renderTextBlock(

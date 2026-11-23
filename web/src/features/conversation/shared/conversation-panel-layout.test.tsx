@@ -63,6 +63,18 @@ describe("ConversationPanelBottomArea Goal anchoring", () => {
     expect(activityDock?.querySelector("[data-test-activity]")).toBeTruthy();
   });
 
+  it("collapses the Goal spacing when the Goal panel renders nothing", () => {
+    const EmptyGoal = () => null;
+    const { container } = renderBottomArea(<EmptyGoal />);
+    const goalContent = container.querySelector<HTMLElement>("[data-conversation-goal-content]");
+
+    // 空节点依赖 :empty 隐藏，Goal 间距不得继续撑出正文尾部避让。
+    expect(goalContent?.childElementCount).toBe(0);
+    expect(goalContent?.className).toContain("empty:hidden");
+    expect(container.querySelector<HTMLElement>("[data-conversation-goal-float]")?.className)
+      .not.toMatch(/\bp[by]-/);
+  });
+
   it("keeps Goal hidden when a higher-priority reliability notice owns the status slot", () => {
     const { container } = render(
       <I18N_CONTEXT.Provider value={I18N_VALUE}>

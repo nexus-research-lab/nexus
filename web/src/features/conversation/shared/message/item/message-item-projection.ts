@@ -18,7 +18,6 @@ export type PendingInteractionOwner = "composer" | "content";
 interface AssistantContentModePolicy {
   pendingInteractionOwner: PendingInteractionOwner;
   responseSurface: AssistantResponseSurface;
-  showTimeline: boolean;
 }
 
 const ASSISTANT_CONTENT_MODE_POLICIES: Readonly<Record<
@@ -28,27 +27,22 @@ const ASSISTANT_CONTENT_MODE_POLICIES: Readonly<Record<
   dm_archived: {
     pendingInteractionOwner: "composer",
     responseSurface: "final",
-    showTimeline: true,
   },
   dm_live: {
     pendingInteractionOwner: "composer",
     responseSurface: "final",
-    showTimeline: true,
   },
   room_result: {
     pendingInteractionOwner: "composer",
     responseSurface: "final",
-    showTimeline: false,
   },
   room_thread: {
     pendingInteractionOwner: "composer",
     responseSurface: "direct",
-    showTimeline: false,
   },
   room_thread_process: {
     pendingInteractionOwner: "composer",
     responseSurface: "direct",
-    showTimeline: false,
   },
 };
 
@@ -62,12 +56,6 @@ export function resolvePendingInteractionOwner(
   mode: AssistantContentMode,
 ): PendingInteractionOwner {
   return ASSISTANT_CONTENT_MODE_POLICIES[mode].pendingInteractionOwner;
-}
-
-export function shouldShowAssistantTimeline(
-  mode: AssistantContentMode,
-): boolean {
-  return ASSISTANT_CONTENT_MODE_POLICIES[mode].showTimeline;
 }
 
 export interface OrderedAssistantEntry {
