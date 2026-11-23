@@ -289,10 +289,26 @@ func readRoundIndexFromRootContext(
 	return buildSessionRoundIndex(entries), nil
 }
 
+// lastByteReader 记住已读到的最后一个字节。
+type lastByteReader struct {
+	source io.Reader
+	last   byte
+}
+
+func (r *lastByteReader) Read(buffer []byte) (int, error) {
+	count, err := r.source.Read(buffer)
+	if count > 0 {
+		r.last = buffer[count-1]
+	}
+	return count, err
+}
+
 // decodeRoundIndexOverlayRows 解码一段 overlay 并按 message_id 最后写入语义去掉被覆盖的行，
-// 保留行的相对顺序不变。
+// 保留行的相对顺序不变。overlay 只追加：输入停在一行 JSON 中间且末尾没有换行，
+// 说明追加方还没写完最后一行；已写完的行照常返回，这一行留给下一次读取。
 func decodeRoundIndexOverlayRows(ctx context.Context, source io.Reader) ([]roundIndexOverlayJSONRow, error) {
-	decoder := json.NewDecoder(source)
+	input := &lastByteReader{source: source}
+	decoder := json.NewDecoder(input)
 	rows := make([]roundIndexOverlayJSONRow, 0)
 	latestByMessageID := make(map[string]int)
 	for {
@@ -301,7 +317,9 @@ func decodeRoundIndexOverlayRows(ctx context.Context, source io.Reader) ([]round
 		}
 		var row roundIndexOverlayJSONRow
 		if err := decoder.Decode(&row); err != nil {
-			if errors.Is(err, io.EOF) {
+			// 以换行结尾却仍缺内容的是已经写完的坏行，不是写到一半的行，照旧报错。
+			if errors.Is(err, io.EOF) ||
+				(errors.Is(err, io.ErrUnexpectedEOF) && input.last != '\n') {
 				break
 			}
 			return nil, err
