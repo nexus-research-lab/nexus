@@ -33,18 +33,18 @@ type RuntimeWakeTrigger struct {
 
 // Content 是该轮 round marker 与 transcript 用户行共用的对齐文本。
 func (t RuntimeWakeTrigger) Content() string {
-	if summary := strings.TrimSpace(t.Summary); summary != "" {
-		return summary
+	if t.Summary != "" {
+		return t.Summary
 	}
 	if t.kind() == runtimeWakeTriggerRuntime {
 		return "Agent resumed on its own"
 	}
-	return "Background task " + textutil.FirstNonEmpty(strings.TrimSpace(t.Status), "finished")
+	return "Background task " + textutil.FirstNonEmpty(t.Status, "finished")
 }
 
 // kind 区分后台任务唤醒与没有任务证据的其它自唤醒（如定时唤醒）。
 func (t RuntimeWakeTrigger) kind() string {
-	if strings.TrimSpace(t.TaskID) == "" && strings.TrimSpace(t.Summary) == "" && strings.TrimSpace(t.Status) == "" {
+	if t.TaskID == "" && t.Summary == "" && t.Status == "" {
 		return runtimeWakeTriggerRuntime
 	}
 	return runtimeWakeTriggerBackgroundTask
@@ -56,11 +56,11 @@ func (t RuntimeWakeTrigger) Metadata() map[string]string {
 		"input_kind":   RuntimeWakeInputKind,
 		"trigger_kind": t.kind(),
 	}
-	if taskID := strings.TrimSpace(t.TaskID); taskID != "" {
-		metadata["task_id"] = taskID
+	if t.TaskID != "" {
+		metadata["task_id"] = t.TaskID
 	}
-	if status := strings.TrimSpace(t.Status); status != "" {
-		metadata["task_status"] = status
+	if t.Status != "" {
+		metadata["task_status"] = t.Status
 	}
 	return metadata
 }
