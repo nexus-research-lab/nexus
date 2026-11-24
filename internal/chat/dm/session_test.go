@@ -1,6 +1,7 @@
 package dm
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
@@ -54,7 +55,7 @@ func TestRoomBackedSessionKeepsLocalContextUsage(t *testing.T) {
 	roomSession.ContextUsage = nil
 
 	merged := MergeRoomBackedSession(current, roomSession)
-	if merged.ContextUsage == nil || *merged.ContextUsage != *current.ContextUsage {
+	if merged.ContextUsage == nil || !reflect.DeepEqual(*merged.ContextUsage, *current.ContextUsage) {
 		t.Fatalf("Room Session 合并丢失 context usage: %+v", merged.ContextUsage)
 	}
 	if SessionsEqual(current, roomSession) {
