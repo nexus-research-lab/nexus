@@ -6,6 +6,7 @@
 import {
   asUnknownRecord,
   hasFiniteNumberFields,
+  readBoolean,
   hasNonEmptyStringFields,
   isStringArray,
   readNumber,
@@ -28,6 +29,7 @@ import type {
   CommandCatalogData,
   CommandCatalogStatus,
   CommandDescriptor,
+  ContextUsageCategory,
   CommandExecution,
   ContextUsageData,
   InputQueueAckData,
@@ -195,12 +197,30 @@ export function parseContextUsageData(
     return null;
   }
   const model = readString(data, "model");
+  const categories = readContextUsageCategories(data.categories);
   return {
     total_tokens: totalTokens,
     max_tokens: maxTokens,
     percentage,
     ...(model ? { model } : {}),
+    ...(categories.length > 0 ? { categories } : {}),
   };
+}
+
+/** 分类明细是可选增强：逐项校验，坏项丢弃而不拒绝整份快照。 */
+function readContextUsageCategories(value: unknown): ContextUsageCategory[] {
+  if (!Array.isArray(value)) return [];
+  const categories: ContextUsageCategory[] = [];
+  for (const item of value) {
+    const record = asUnknownRecord(item);
+    if (!record) continue;
+    const name = readString(record, "name");
+    const tokens = readNumber(record, "tokens");
+    if (!name || tokens === null || tokens < 0) continue;
+    const deferred = readBoolean(record, "deferred") === true;
+    categories.push({ name, tokens, ...(deferred ? { deferred } : {}) });
+  }
+  return categories;
 }
 
 const COMMAND_CATALOG_STATUS_RANK: Record<CommandCatalogStatus, number> = {

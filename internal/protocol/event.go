@@ -339,6 +339,20 @@ func NewContextUsageEvent(
 	if model := strings.TrimSpace(data.Model); model != "" {
 		payload["model"] = model
 	}
+	if len(data.Categories) > 0 {
+		categories := make([]map[string]any, 0, len(data.Categories))
+		for _, category := range data.Categories {
+			item := map[string]any{
+				"name":   category.Name,
+				"tokens": category.Tokens,
+			}
+			if category.Deferred {
+				item["deferred"] = true
+			}
+			categories = append(categories, item)
+		}
+		payload["categories"] = categories
+	}
 	event := NewEvent(EventTypeContextUsage, payload)
 	event.SessionKey = strings.TrimSpace(sessionKey)
 	event.AgentID = strings.TrimSpace(agentID)
