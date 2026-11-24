@@ -24,6 +24,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -1078,6 +1079,12 @@ func buildHistoryPageIndexedGroups(
 		groups[len(groups)-1].Items = append(groups[len(groups)-1].Items, row)
 	}
 	return groups, nil
+}
+
+// historyPageRulesVersion 是读模型 scope 的规则版本段：索引格式或归约规则任一变化，
+// DM 与 Room 的旧读模型都换 scope 重建；Room 成员 transcript 同样经 message.Reducer 投影。
+func historyPageRulesVersion() string {
+	return fmt.Sprintf("v%d.p%d", historyPageIndexVersion, message.ProjectionVersion)
 }
 
 func historyPageScope(parts ...string) string {

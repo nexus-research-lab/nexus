@@ -6,7 +6,6 @@ package workspace
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -18,7 +17,7 @@ import (
 )
 
 func roomHistoryScope(ownerUserID, conversationID string) string {
-	return historyPageScope("room", fmt.Sprintf("v%d", historyPageIndexVersion), strings.TrimSpace(ownerUserID), strings.TrimSpace(conversationID))
+	return historyPageScope("room", historyPageRulesVersion(), strings.TrimSpace(ownerUserID), strings.TrimSpace(conversationID))
 }
 
 func (s *RoomHistoryStore) historyPageAccess(
