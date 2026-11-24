@@ -75,6 +75,8 @@ github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.2.10 h1:8fi7+qriP2g6FLiy
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.2.10/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.2.11-0.20261120080610-7a6bec3aed0a h1:mYhDkB+nqllrRkBAwtkrR5LjIAZFR6vSyCAmjJDOQFI=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.2.11-0.20261120080610-7a6bec3aed0a/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.3.0 h1:L18zDQTKgWT4FGwGR/I8OoJBXxzI2goCcM1vIhKqN2I=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.3.0/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261020065623-52bbc5884427 h1:8Wv5i9FvoFAOIBeVSCpzjYhJmlKbvTFotvBBuCMyDCk=
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261020065623-52bbc5884427/go.mod h1:kpyjRR4TNNCih9QtOEh7Af29FykKJxZkAIYnLdoHawI=
 github.com/nexus-research-lab/nexus-cua/sdk/go v0.0.0-20261103021413-236fb583ddcf h1:t+ptPQlVqoNb49LMbnzrK3MkW2erSOWtVt48Ev6ZoOs=

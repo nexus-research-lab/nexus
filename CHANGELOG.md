@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-24
+
+### 升级提示
+
+- 手动维护 nxs 设置的用户请在升级前将模型配置移至 `runtime.*`、记忆配置移至 `memory.*`，并将 `runtime.env` 移至顶层 `env`。旧键会导致设置加载失败，错误信息会指出应使用的键。
+
 ### Added
 
 - 上下文占用详情改为类似 Claude Code `/context` 的分类明细：标题旁显示模型，下方是“已用百分比 + 已用/上限”、按类别着色的分段占用条，以及系统提示词、系统工具、MCP 工具、记忆文件、技能、消息、自动压缩预留和剩余空间各自的 token 与占比；按需加载的工具单独列在分隔线下，不计入占比。中文界面的用量单位统一写作 “tokens”，不再译作“标记”。
