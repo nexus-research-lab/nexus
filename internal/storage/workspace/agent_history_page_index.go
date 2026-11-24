@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
-	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -22,9 +21,7 @@ func (s *AgentHistoryStore) historyPageAccess(
 ) historyPageIndexAccess {
 	scopeParts := []string{
 		"dm",
-		fmt.Sprintf("v%d", historyPageIndexVersion),
-		// 归约规则变化后同一份 transcript 会投影出不同的行，旧读模型不能续用。
-		fmt.Sprintf("p%d", message.ProjectionVersion),
+		historyPageRulesVersion(),
 		filepath.Clean(strings.TrimSpace(workspacePath)),
 		strings.TrimSpace(sessionValue.SessionKey),
 		strings.TrimSpace(sessionValue.AgentID),
