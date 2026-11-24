@@ -89,7 +89,29 @@ function projectSystemEventBlock(
     retry_delay_ms: systemMessage.metadata?.retry_delay_ms,
     error_status: systemMessage.metadata?.error_status,
     error: systemMessage.metadata?.error,
+    ...projectCompactTokens(systemMessage),
   };
+}
+
+// Claude Code 输出 snake_case（pre_tokens），nxs 输出 transcript 的 camelCase（preTokens）；两者都只在入口读取一次。
+function projectCompactTokens(
+  message: SystemMessage,
+): Pick<SystemEventContent, "compact_post_tokens" | "compact_pre_tokens"> {
+  if (message.metadata?.subtype !== "compact_boundary") {
+    return {};
+  }
+  const raw = message.metadata.compact_metadata;
+  const metadata = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  return {
+    compact_post_tokens: positiveTokenCount(metadata.post_tokens ?? metadata.postTokens),
+    compact_pre_tokens: positiveTokenCount(metadata.pre_tokens ?? metadata.preTokens),
+  };
+}
+
+function positiveTokenCount(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : null;
 }
 
 function getTextSystemMessage(

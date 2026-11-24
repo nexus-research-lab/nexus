@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 统计、Goal 完成回执、模型与记忆引用投影。
- * OUTPUT: 可压缩的消息尾部元数据、共享微型动作与语义记忆引用浮层。
+ * OUTPUT: 可压缩的消息尾部元数据（桌面 hover/焦点才显现，Goal 回执常显）、共享微型动作与语义记忆引用浮层。
  * POS: Assistant 消息正文下方的唯一统计与回执展示面。
  */
 import {
@@ -98,10 +98,14 @@ export function AssistantMessageStats({
       ) : null}
 
       {hasSecondaryMetadata || receiptItems.length === 0 ? (
-        <div className={cn(
-          "flex min-w-0 items-center justify-between gap-3",
-          receiptItems.length > 0 && "pt-1",
-        )}>
+        <div
+          className={cn(
+            // 耗时、用量、模型与动作只在 hover / 键盘焦点时显现；透明不出流，显现时正文不跳动。触屏保持常显。
+            "flex min-w-0 items-center justify-between gap-3 transition-opacity duration-(--motion-duration-fast) sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 [@media(hover:none)]:opacity-100",
+            receiptItems.length > 0 && "pt-1",
+          )}
+          data-assistant-stats-row
+        >
           <div className="flex min-w-0 flex-1 items-center">
             {statsItems.length > 0 ? (
               <div className="nexus-chat-message-stat-list flex min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden whitespace-nowrap leading-tight">

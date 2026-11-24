@@ -124,5 +124,28 @@ func normalizeContextUsage(
 		MaxTokens:   maxTokens,
 		Percentage:  math.Round(percentage*10) / 10,
 		Model:       strings.TrimSpace(response.Model),
+		Categories:  normalizeContextUsageCategories(response.Categories),
 	}, true
+}
+
+// normalizeContextUsageCategories 只保留有名称、有占用的分类；颜色由前端主题决定。
+func normalizeContextUsageCategories(
+	categories []agentclient.ContextUsageCategory,
+) []protocol.ContextUsageCategory {
+	result := make([]protocol.ContextUsageCategory, 0, len(categories))
+	for _, category := range categories {
+		name := strings.TrimSpace(category.Name)
+		if name == "" || category.Tokens <= 0 {
+			continue
+		}
+		result = append(result, protocol.ContextUsageCategory{
+			Name:     name,
+			Tokens:   category.Tokens,
+			Deferred: category.IsDeferred,
+		})
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
