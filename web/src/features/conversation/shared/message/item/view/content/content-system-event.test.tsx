@@ -1,7 +1,7 @@
 // INPUT: Current and expired Provider retry events.
-// OUTPUT: Countdown timers stop at the deadline and never run for historical retries.
+// OUTPUT: Countdown timers stop at the deadline and never run for historical retries; compaction rows report saved tokens.
 // POS: System event timer lifecycle regression.
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { ContentSystemEvent } from "./content-system-event";
@@ -19,4 +19,13 @@ it("stops the countdown timer and skips expired history", () => {
     expect(interval).toHaveBeenCalledTimes(1);
     unmount();
   } finally { interval.mockRestore(); vi.useRealTimers(); }
+});
+
+it("shows how many tokens a compaction saved instead of the SDK text", () => {
+  const block = { type: "system_event" as const, source_message_id: "compact", subtype: "compact_boundary", icon: "status" as const, tone: "neutral" as const, label: "x", content: "Conversation compacted", timestamp: 1 };
+  const { rerender } = render(<I18nProvider><ContentSystemEvent block={{ ...block, compact_pre_tokens: 120_000, compact_post_tokens: 15_600 }} /></I18nProvider>);
+  expect(screen.getByText(/104\.4K/)).toBeTruthy();
+  expect(screen.queryByText("Conversation compacted")).toBeNull();
+  rerender(<I18nProvider><ContentSystemEvent block={{ ...block, compact_pre_tokens: 120_000 }} /></I18nProvider>);
+  expect(screen.getByText(/120K/)).toBeTruthy();
 });

@@ -13,7 +13,7 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 - `composer-session-control-layout.ts` 统一 DM/Room 模型的 256px 内容宽度、Room 返回栏 recipe 和可见面板总高。双栏是否可用由两列内容、公共间距和视口留白组成的媒体查询决定，订阅使用公共 useMediaQuery；定位/限宽继续交给 Overlay，单栏 Panel 填满约束后的宽度。宽窄两种布局只渲染同一份 SessionModelMenu，保留真实列表 DOM、焦点和滚动；Room 的思考强度始终在模型面板内原位进入，Escape/左方向键先回模型页再回 Agent；DM 强度侧栏宽度与并排媒体查询也在这里定义；返回栏计入整体限高，正文独立滚动，不让两套选项 JSX 漂移。
 - Room 菜单为用户选中的 Agent/Session 保存临时绑定，目标失效或换 Session 时关闭；提交前还要对上当前控制器目标，不因目录刷新把迟到点击落到另一个 Session。持久设置和失败对账仍完全归控制器。布局变化只在原焦点节点已移除且焦点掉到 body 时恢复，不抢外部控件或上层模态焦点。
 - `composer-session-control-options.tsx`: 统一投影 DM 与 Room 共用的模型分组/权限/思考强度选项与菜单形状，并唯一分派模型值的解码与强度选择；继承判定交给控制器，非法值不能变成清空配置。模型名保留完整原文提示，分组名直接使用公共 metadata/muted，复合标签保持单行几何，不能回到私有 10px 淡字。
-- `composer-context-usage*.ts*`: 把 runtime 每轮快照投影为模型控件左侧的只读上下文占用环；Room 入口显示最高占用，唯一详情浮层逐 Agent 展示各自快照；详情按实际内容展开到公共 preset/视口上限，标题固定、列表内部滚动，不用估算行高裁切成员；入口关闭 IconButton 自动 Tooltip，只读详情开关保持原焦点
+- `composer-context-usage*.ts*`: 把 runtime 每轮快照投影为模型控件左侧的只读上下文占用环；DM 快照带分类明细时详情为“用量 + 分段占用条 + 逐类 token/占比”，按需加载分类以弱色列在分隔线下且不计占比，分类色只组合主题语义色；Room 入口显示最高占用，唯一详情浮层逐 Agent 展示各自快照；详情按实际内容展开到公共 preset/视口上限，标题固定、列表内部滚动，不用估算行高裁切成员；入口关闭 IconButton 自动 Tooltip，只读详情开关保持原焦点
 - `composer-footer-status.tsx`: 展示唯一的当前运行状态；只把 model 的语义 tone 和 indicator 交给共享 Typography/LoadingOrb，不让状态正文整体 pulse
 - `composer-footer-metadata.tsx`: 展示字符数和历史位置
 - `composer-footer-model.ts`: 定义状态优先级、语义 tone 和加载阶段，不得返回 class、字符帧或动效名称

@@ -68,6 +68,16 @@ export function ProductControlsGallery() {
     </div>
     <div className="flex flex-wrap items-center justify-end gap-6">
       <div className="flex items-center gap-2" data-gallery-context="dm"><span>DM</span><ComposerContextUsage usage={usage} /></div>
+      <div className="flex items-center gap-2" data-gallery-context="dm-breakdown"><span>DM · breakdown</span><ComposerContextUsage usage={{
+        max_tokens: 300_000, model: "claude-opus-5-5", percentage: 28.7, total_tokens: 86_100,
+        categories: [
+          { name: "System prompt", tokens: 6_800 }, { name: "System tools", tokens: 22_900 },
+          { name: "MCP tools", tokens: 32_800 }, { name: "Memory files", tokens: 3_800 },
+          { name: "Skills", tokens: 5_800 }, { name: "Messages", tokens: 14_000 },
+          { name: "Autocompact buffer", tokens: 33_000 }, { name: "Free space", tokens: 180_900 },
+          { name: "System tools", tokens: 30_500, deferred: true }, { name: "MCP tools", tokens: 19_200, deferred: true },
+        ],
+      }} /></div>
       <div className="flex items-center gap-2" data-gallery-context="room"><span>Room</span><ComposerContextUsage items={[
         { agentId: "reader", name: "Reader", usage }, { agentId: "writer", name: "Writer", usage: null },
         { agentId: "reviewer", name: "Reviewer", usage: { ...usage, percentage: 3, total_tokens: 29_500 } },

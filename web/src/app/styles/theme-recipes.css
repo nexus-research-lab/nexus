@@ -2218,11 +2218,10 @@
   }
 
   /*
-   * Assistant 正文的文字块左缩 4px 与头像图标光学对齐，右侧随版心宽度留出最多 56px 止动区，缩短长行；
-   * 代码块、表格、图片等结构块不在名单内，仍贴满版心，保证卡片左右边线整齐。
+   * Assistant 正文文字块与过程行、文件卡、页脚共用同一左边线，不再单独内缩；
+   * 右侧随版心宽度留出最多 56px 止动区，缩短长行；代码块、表格、图片等结构块不在名单内，仍贴满版心。
    */
   .nexus-chat-feed .nexus-chat-assistant .nexus-markdown-body > :is([data-markdown-anchor], .markdown-list) {
-    margin-inline-start: 4px;
     margin-inline-end: clamp(0px, (100% - 384px) * 0.175, 56px);
   }
 

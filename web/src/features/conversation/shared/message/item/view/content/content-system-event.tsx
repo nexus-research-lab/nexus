@@ -1,5 +1,5 @@
 // INPUT: 已投影的系统事件内容、重试时序和本地化文案。
-// OUTPUT: 紧凑系统事件，以及可独立展开错误详情的 Provider 重试活动行。
+// OUTPUT: 紧凑系统事件、显示节省 token 的上下文压缩行，以及可独立展开错误详情的 Provider 重试活动行。
 // POS: Conversation 消息内容视图；只解释系统事件展示，不拥有协议投影或重试状态。
 
 import { useEffect } from "react";
@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { formatTokens } from "@/lib/format/token-count";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
@@ -47,6 +48,9 @@ export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
   if (block.subtype === "memory_saved") {
     return <CompactSystemEvent block={block} Icon={Icon} />;
   }
+  if (block.subtype === "compact_boundary") {
+    return <ContextCompactedSystemEvent block={block} Icon={Icon} />;
+  }
   return (
     <div
       className="min-w-0 max-w-full overflow-hidden border-l-2 pl-4"
@@ -70,6 +74,34 @@ export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
   );
 }
 
+/** 压缩边界只说结果：节省多少、压缩前后各多少；runtime 未给出数字时只保留标题，不展示 SDK 原文。 */
+function ContextCompactedSystemEvent({
+  block,
+  Icon,
+}: {
+  block: SystemEventContent;
+  Icon: LucideIcon;
+}) {
+  const { t } = useI18n();
+  const pre = block.compact_pre_tokens ?? null;
+  const post = block.compact_post_tokens ?? null;
+  const detail = pre != null && post != null && pre > post
+    ? t("message.context_compacted_saved", {
+        post: formatTokens(post),
+        pre: formatTokens(pre),
+        saved: formatTokens(pre - post),
+      })
+    : pre != null
+      ? t("message.context_compacted_from", { pre: formatTokens(pre) })
+      : "";
+  return (
+    <CompactSystemEvent
+      block={{ ...block, content: detail, label: t("message.context_compacted") }}
+      Icon={Icon}
+    />
+  );
+}
+
 function CompactSystemEvent({
   block,
   Icon,
@@ -90,12 +122,14 @@ function CompactSystemEvent({
       </span>
       <span className="flex min-w-0 items-baseline gap-1.5">
         <span className="shrink-0">{block.label}</span>
-        <span
-          className="min-w-0 flex-1 truncate"
-          data-system-event-detail="inline"
-        >
-          {block.content}
-        </span>
+        {block.content ? (
+          <span
+            className="min-w-0 flex-1 truncate"
+            data-system-event-detail="inline"
+          >
+            {block.content}
+          </span>
+        ) : null}
       </span>
     </div>
   );
