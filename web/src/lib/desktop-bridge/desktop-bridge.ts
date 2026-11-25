@@ -8,6 +8,7 @@ type DesktopBridgeKind =
   | "app.open_external_url"
   | "app.start_browser_extension_setup"
   | "app.start_computer_use_permission_setup"
+  | "app.update_computer_use_permission_setup"
   | "app.get_workspace_file_applications"
   | "app.open_workspace_file"
   | "app.export_logs"
@@ -87,15 +88,7 @@ export interface DesktopBrowserExtensionSetupResult {
   opened: boolean;
 }
 
-export interface DesktopComputerUsePermissionSetupResult {
-  opened: boolean;
-  permission?: "screen_capture" | "accessibility" | "input_control";
-}
-
-export type DesktopComputerUsePermission =
-  | "screen_capture"
-  | "accessibility"
-  | "input_control";
+type ComputerUsePermissionFacts = Partial<Record<"screen_capture" | "accessibility" | "input_control", string>>;
 
 interface NativeDesktopBridge {
   invoke<TPayload, TResult>(message: DesktopBridgeRequest<TPayload>): Promise<TResult>;
@@ -162,17 +155,15 @@ export async function startDesktopBrowserExtensionSetup(): Promise<DesktopBrowse
   );
 }
 
-/** 打开当前 macOS 权限的隐私面板；授权必须由用户手动完成，宿主不代为授权。 */
-export async function startDesktopComputerUsePermissionSetup(
-  permission: DesktopComputerUsePermission = "screen_capture",
-): Promise<DesktopComputerUsePermissionSetupResult> {
-  return invokeDesktopBridge<
-    { permission: DesktopComputerUsePermission },
-    DesktopComputerUsePermissionSetupResult
-  >(
-    "app.start_computer_use_permission_setup",
-    { permission },
-  );
+/** 权限向导使用原生窗口，运行时的回读仍统一经过设置页的 API。 */
+export function startDesktopComputerUsePermissionSetup(locale: string, permissions?: ComputerUsePermissionFacts) {
+  return invokeDesktopBridge("app.start_computer_use_permission_setup", { locale, permissions });
+}
+
+export function updateDesktopComputerUsePermissionSetup(
+  update: { permissions: ComputerUsePermissionFacts } | { check_failed: true } | { dismiss: true },
+) {
+  return invokeDesktopBridge("app.update_computer_use_permission_setup", update);
 }
 
 export async function getDesktopWorkspaceFileApplications(

@@ -11,8 +11,12 @@ Nexus 通过 pinned 的 `nexus-cua` SDK/sidecar 使用原生桌面能力。模�
 当前固定使用 v0.2.0。未安装时，Nexus 会从
 `nexus-research-lab/nexus-cua` 下载与内置 SDK 同版本的 GitHub Release 安装包，完成
 源码固定 SHA256、Release checksum 与 manifest 校验后安装到状态根的 `computer-use/versions/` 下，再启用并
-自动检查系统权限。macOS 上 Screen Recording / Accessibility / Input Control 任一未授予时，
-按设置页引导前往 系统设置 → 隐私与安全性 完成授权，然后「重新检查权限」。
+自动检查系统权限。macOS 如有权限待开启，会弹出「启用电脑操控」。总开关已开启时，点「设置权限」可继续。
+
+1. 在向导中找到要处理的权限，点「允许」。
+2. 在系统权限列表中打开当前 Nexus 应用的开关。如果列表里没有它，将提示条中的应用拖入列表，再按系统提示确认。放弃拖动可重试，左箭头可返回向导。
+3. 返回 Nexus，向导会自动复查并标记已开启的权限。若 macOS 提示退出并重新打开应用，请先按提示重新打开，再回来继续。
+
 Windows 使用当前交互式桌面的权限状态，设置页显示 Runtime 返回的结果。
 
 已安装的组件与当前 Nexus 所需版本不匹配时，设置页显示「更新组件」。
@@ -41,8 +45,7 @@ cargo run --locked --package nexus-cua -- doctor
 
 macOS 需要由运行 sidecar 的稳定应用身份取得 `Screen Recording`、`Accessibility`
 和前台输入对应的系统授权。`doctor` 返回的三类 permission state 是当前事实；
-没有授权时不要通过其他工具绕过。设置页会分别展示三项权限，用户点击某一项的「开启」
-按钮后进入对应系统设置页面；返回 Nexus 后页面会自动复查。
+没有授权时不要通过其他工具绕过。输入控制依赖辅助功能中的事件发送授权和输入监控中的事件监听授权，向导会打开当前需要处理的面板。
 
 默认关闭。Nexus 启动时不会启动 sidecar；本轮第一次调用 `computer` domain 时，
 它才会检查普通可执行文件、创建私有 endpoint/token/artifact root 并等待协议就绪。

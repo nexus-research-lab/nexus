@@ -1,177 +1,163 @@
-/**
- * INPUT: Host Computer Use installation status and explicit enable/permission actions.
- * OUTPUT: CUA settings state and user-facing actions for the dedicated settings page.
- * POS: Computer Use settings controller; it does not participate in runtime preferences.
- */
+// INPUT: 电脑操控安装状态、运行时权限检测与用户主动发起的授权操作。
+// OUTPUT: 设置开关、可恢复的 macOS 权限向导和按真实检测结果推进的步骤。
+// POS: 设置域管理引导生命周期，系统授权由桌面宿主与用户完成。
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getDesktopPlatform } from "@/config/desktop-runtime";
 import {
   checkComputerUsePermissionsApi,
   getComputerUseStatusApi,
   installComputerUseApi,
   setComputerUseEnabledApi,
 } from "@/lib/api/settings/runtime-api";
-import {
-  startDesktopComputerUsePermissionSetup,
-  type DesktopComputerUsePermission,
-} from "@/lib/desktop-bridge/desktop-bridge";
-import type {
-  CUAInstallationPermissionKey,
-  CUAInstallationStatus,
-} from "@/types/settings/preferences";
+import { startDesktopComputerUsePermissionSetup, updateDesktopComputerUsePermissionSetup } from "@/lib/desktop-bridge/desktop-bridge";
+import type { Locale } from "@/shared/i18n/messages";
+import type { CUAInstallationStatus } from "@/types/settings/preferences";
 
-const PERMISSION_ORDER: readonly CUAInstallationPermissionKey[] = [
-  "screen_capture",
-  "accessibility",
-  "input_control",
-];
+export const PERMISSION_ORDER = ["accessibility", "screen_capture", "input_control"] as const;
 
-function nextMissingPermission(status: CUAInstallationStatus | null): CUAInstallationPermissionKey | null {
-  if (!status?.enabled) return null;
-  const permissions = status.permissions;
-  if (!permissions) return "screen_capture";
-  return PERMISSION_ORDER.find((permission) => {
-    const state = permissions[permission];
+export function nextMissingPermission(status: CUAInstallationStatus | null) {
+  if (!status?.enabled || status.update_required) return;
+  return PERMISSION_ORDER.find((key) => {
+    const state = status.permissions?.[key];
     return state !== "granted" && state !== "not_applicable";
-  }) ?? null;
+  });
 }
 
-export function useComputerUseSettingsController() {
+export function useComputerUseSettingsController(locale: Locale) {
   const [status, setStatus] = useState<CUAInstallationStatus | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<"component" | "check" | "setup" | null>(null);
+  const guideOpen = useRef(false);
+  const mounted = useRef(false);
   const requestInFlight = useRef(false);
-  const permissionSetupPending = useRef(false);
+
+  const dismissGuide = useCallback(() => {
+    if (!guideOpen.current) return;
+    guideOpen.current = false;
+    void updateDesktopComputerUsePermissionSetup({ dismiss: true }).catch(() => {});
+  }, []);
+
+  const openGuide = useCallback(async (next: CUAInstallationStatus | null) => {
+    if (!mounted.current || getDesktopPlatform() !== "macos" || !nextMissingPermission(next)) return;
+    guideOpen.current = true;
+    try {
+      await startDesktopComputerUsePermissionSetup(locale, next?.permissions);
+    } catch {
+      guideOpen.current = false;
+      setError("setup");
+    }
+  }, [locale]);
+
+  const checkPermissions = useCallback(async () => {
+    try {
+      const next = await checkComputerUsePermissionsApi();
+      setStatus(next);
+      setError(null);
+      if (guideOpen.current) {
+        if (!next.enabled || next.update_required) dismissGuide();
+        else await updateDesktopComputerUsePermissionSetup({ permissions: next.permissions ?? {} }).catch(() => {
+          setError("setup");
+        });
+      }
+      return next;
+    } catch {
+      setError("check");
+      if (guideOpen.current) await updateDesktopComputerUsePermissionSetup({ check_failed: true }).catch(() => {});
+    }
+  }, [dismissGuide]);
 
   const refresh = useCallback(async () => {
     try {
       const next = await getComputerUseStatusApi();
-      if (next.enabled && !next.update_required) {
-        try {
-          setStatus(await checkComputerUsePermissionsApi());
-        } catch {
-          setStatus(next);
-          setError(true);
-          return;
-        }
-      } else {
-        setStatus(next);
-      }
-      setError(false);
+      setStatus(next);
+      setError(null);
+      if (next.enabled && !next.update_required) await checkPermissions();
     } catch {
-      setError(true);
+      setError("component");
+    }
+  }, [checkPermissions]);
+
+  // 初次读取、开关变更和返回时的复查共用一条请求路径，避免旧结果覆盖新的开关状态。
+  const runRequest = useCallback(async (action: () => Promise<unknown>) => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+    } finally {
+      requestInFlight.current = false;
+      setBusy(false);
     }
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    mounted.current = true;
+    void runRequest(refresh);
+    return () => {
+      mounted.current = false;
+      dismissGuide();
+    };
+  }, [dismissGuide, refresh, runRequest]);
 
-  const onChange = useCallback(async (enabled: boolean) => {
-    if (requestInFlight.current) return;
-    requestInFlight.current = true;
-    setBusy(true);
-    setError(false);
+  const onChange = (enabled: boolean) => runRequest(async () => {
+    dismissGuide();
     try {
-      let next = status;
-      if (enabled && (!next?.installed || next.update_required)) {
-        next = await installComputerUseApi();
+      if (enabled && (!status?.installed || status.update_required)) {
+        await installComputerUseApi();
       }
-      next = await setComputerUseEnabledApi(enabled);
-      if (enabled) {
-        try {
-          next = await checkComputerUsePermissionsApi();
-        } catch {
-          permissionSetupPending.current = false;
-          setError(true);
-        }
-      }
+      const next = await setComputerUseEnabledApi(enabled);
       setStatus(next);
+      if (next.enabled) {
+        const checked = await checkPermissions();
+        // 只有用户主动启用时才弹出向导。重新进入设置时保留继续入口。
+        await openGuide(checked ?? next);
+      }
     } catch {
       await refresh();
-      setError(true);
-    } finally {
-      requestInFlight.current = false;
-      setBusy(false);
+      setError("component");
     }
-  }, [refresh, status]);
+  });
 
-  const onUpdate = useCallback(async () => {
-    if (requestInFlight.current) return;
-    requestInFlight.current = true;
-    setBusy(true);
-    setError(false);
+  const onUpdate = () => runRequest(async () => {
     try {
       const next = await installComputerUseApi();
       setStatus(next);
-      if (next.enabled) {
-        setStatus(await checkComputerUsePermissionsApi());
-      }
+      if (next.enabled) await checkPermissions();
     } catch {
       await refresh();
-      setError(true);
-    } finally {
-      requestInFlight.current = false;
-      setBusy(false);
+      setError("component");
     }
-  }, [refresh]);
+  });
 
-  const onCheckPermissions = useCallback(async () => {
-    if (requestInFlight.current) return;
-    requestInFlight.current = true;
-    setBusy(true);
-    setError(false);
-    try {
-      setStatus(await checkComputerUsePermissionsApi());
-    } catch {
-      await refresh();
-      setError(true);
-    } finally {
-      requestInFlight.current = false;
-      setBusy(false);
-    }
-  }, [refresh]);
-
-  const onOpenPermissions = useCallback(async (permission?: DesktopComputerUsePermission) => {
-    const nextPermission = permission ?? nextMissingPermission(status);
-    if (!nextPermission) return;
-    permissionSetupPending.current = true;
-    try {
-      await startDesktopComputerUsePermissionSetup(nextPermission);
-    } catch {
-      permissionSetupPending.current = false;
-      setError(true);
-    }
-  }, [status]);
-
-  const onPermissionPageReturn = useCallback(() => {
-    if (
-      !permissionSetupPending.current
-      || requestInFlight.current
-      || status?.enabled !== true
-      || document.visibilityState === "hidden"
-    ) return;
-    permissionSetupPending.current = false;
-    void onCheckPermissions();
-  }, [onCheckPermissions, status?.enabled]);
+  const onCheckPermissions = useCallback(() => runRequest(checkPermissions), [checkPermissions, runRequest]);
 
   useEffect(() => {
-    window.addEventListener("focus", onPermissionPageReturn);
-    document.addEventListener("visibilitychange", onPermissionPageReturn);
-    return () => {
-      window.removeEventListener("focus", onPermissionPageReturn);
-      document.removeEventListener("visibilitychange", onPermissionPageReturn);
+    // 设置 App 返回的是原生向导窗口，WKWebView 不一定获得 focus。
+    const recheck = () => { if (guideOpen.current) void onCheckPermissions(); };
+    const closed = () => {
+      if (!guideOpen.current) return;
+      guideOpen.current = false;
+      void onCheckPermissions();
     };
-  }, [onPermissionPageReturn]);
+    window.addEventListener("focus", recheck);
+    window.addEventListener("nexus:computer-use-check", recheck);
+    window.addEventListener("nexus:computer-use-guide-closed", closed);
+    return () => {
+      window.removeEventListener("focus", recheck);
+      window.removeEventListener("nexus:computer-use-check", recheck);
+      window.removeEventListener("nexus:computer-use-guide-closed", closed);
+    };
+  }, [onCheckPermissions]);
 
   return {
     busy,
     error,
     onChange,
     onCheckPermissions,
-    onOpenPermissions,
+    onOpenPermissions: () => openGuide(status),
     onUpdate,
-    refresh,
     status,
   };
 }
