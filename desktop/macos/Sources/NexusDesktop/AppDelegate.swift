@@ -8,7 +8,8 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private static let notificationPrefix = Bundle.main.bundleIdentifier ?? "com.leemysw.nexus"
   private static let showMainWindowNotification = Notification.Name("\(notificationPrefix).showMainWindow")
-  private static let showLauncherNotification = Notification.Name("\(notificationPrefix).showLauncher")
+  // 通知名沿用旧值，保证新旧版本的重复启动都能唤起已运行实例。
+  private static let activateRunningInstanceNotification = Notification.Name("\(notificationPrefix).showLauncher")
   private static let exitNotification = Notification.Name("\(notificationPrefix).exit")
   private static let exitCommandArgument = "--nexus-desktop-exit"
 
@@ -56,8 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     DistributedNotificationCenter.default().addObserver(
       self,
-      selector: #selector(showLauncherFromDistributedNotification(_:)),
-      name: Self.showLauncherNotification,
+      selector: #selector(activateFromDistributedNotification(_:)),
+      name: Self.activateRunningInstanceNotification,
       object: nil
     )
     DistributedNotificationCenter.default().addObserver(
@@ -108,8 +109,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc
-  func showLauncher(_ sender: Any?) {
-    windowManager?.showLauncher()
+  func showMainWindowFromMenu(_ sender: Any?) {
+    windowManager?.reopenMainWindow()
   }
 
   @objc
@@ -173,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       )
       windowManager = manager
       startupTimeline.mark("window_manager.ready")
-      GlobalShortcutPreferences.disableDefaultLauncherShortcut()
+      GlobalShortcutPreferences.disableDefaultShortcut()
       applyGlobalShortcutPreference()
       drainPendingStartupActions(manager: manager)
     } catch {
@@ -245,7 +246,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     let handledURL = handleApplicationURLs(urls)
     if !showSettings && !handledURL {
-      manager.showLauncher()
+      manager.showMainWindow()
     }
   }
 
@@ -272,19 +273,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     globalShortcutMonitor = nil
     globalShortcutLastError = nil
 
-    guard GlobalShortcutPreferences.launcherEnabled else {
+    guard GlobalShortcutPreferences.enabled else {
       return
     }
 
-    guard GlobalShortcutPreferences.launcherAccelerator != GlobalShortcutPreferences.defaultLauncherAccelerator else {
-      GlobalShortcutPreferences.launcherEnabled = false
+    guard GlobalShortcutPreferences.accelerator != GlobalShortcutPreferences.defaultAccelerator else {
+      GlobalShortcutPreferences.enabled = false
       return
     }
 
     let definition: GlobalShortcutDefinition
     do {
-      definition = try GlobalShortcutDefinition.parse(GlobalShortcutPreferences.launcherAccelerator)
-      GlobalShortcutPreferences.launcherAccelerator = definition.accelerator
+      definition = try GlobalShortcutDefinition.parse(GlobalShortcutPreferences.accelerator)
+      GlobalShortcutPreferences.accelerator = definition.accelerator
     } catch {
       globalShortcutLastError = DesktopFailureCopy.globalShortcutMessage
       NSLog("[Nexus App] global shortcut invalid: \(error.localizedDescription)")
@@ -292,7 +293,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     let monitor = GlobalShortcutMonitor { [weak self] in
-      self?.windowManager?.showLauncher()
+      // 全局快捷键只唤起主窗口，保留当前路由。
+      self?.windowManager?.reopenMainWindow()
     }
     do {
       try monitor.start(definition: definition)
@@ -305,11 +307,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func globalShortcutStatus() -> [String: Any] {
     var payload: [String: Any] = [
-      "enabled": GlobalShortcutPreferences.launcherEnabled,
+      "enabled": GlobalShortcutPreferences.enabled,
       "registered": globalShortcutMonitor != nil,
-      "accelerator": GlobalShortcutPreferences.launcherAccelerator,
-      "default_accelerator": GlobalShortcutPreferences.defaultLauncherAccelerator,
-      "is_default": GlobalShortcutPreferences.launcherAccelerator == GlobalShortcutPreferences.defaultLauncherAccelerator,
+      "accelerator": GlobalShortcutPreferences.accelerator,
+      "default_accelerator": GlobalShortcutPreferences.defaultAccelerator,
+      "is_default": GlobalShortcutPreferences.accelerator == GlobalShortcutPreferences.defaultAccelerator,
     ]
     if let globalShortcutLastError {
       payload["error_message"] = globalShortcutLastError
@@ -318,7 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func setGlobalShortcutEnabled(_ enabled: Bool) -> [String: Any] {
-    GlobalShortcutPreferences.launcherEnabled = enabled
+    GlobalShortcutPreferences.enabled = enabled
     applyGlobalShortcutPreference()
     return globalShortcutStatus()
   }
@@ -326,8 +328,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func setGlobalShortcutAccelerator(_ accelerator: String) -> [String: Any] {
     do {
       let definition = try GlobalShortcutDefinition.parse(accelerator)
-      GlobalShortcutPreferences.launcherAccelerator = definition.accelerator
-      GlobalShortcutPreferences.launcherEnabled = true
+      GlobalShortcutPreferences.accelerator = definition.accelerator
+      GlobalShortcutPreferences.enabled = true
       applyGlobalShortcutPreference()
     } catch {
       globalShortcutLastError = DesktopFailureCopy.globalShortcutMessage
@@ -336,8 +338,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func resetGlobalShortcutAccelerator() -> [String: Any] {
-    GlobalShortcutPreferences.resetLauncherAccelerator()
-    GlobalShortcutPreferences.launcherEnabled = false
+    GlobalShortcutPreferences.resetAccelerator()
+    GlobalShortcutPreferences.enabled = false
     applyGlobalShortcutPreference()
     return globalShortcutStatus()
   }
@@ -348,8 +350,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc
-  private func showLauncherFromDistributedNotification(_ notification: Notification) {
-    windowManager?.showLauncher()
+  private func activateFromDistributedNotification(_ notification: Notification) {
+    windowManager?.reopenMainWindow()
   }
 
   @objc
@@ -370,7 +372,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func notifyRunningInstance() {
     DistributedNotificationCenter.default().postNotificationName(
-      Self.showLauncherNotification,
+      Self.activateRunningInstanceNotification,
       object: nil,
       userInfo: nil,
       deliverImmediately: true

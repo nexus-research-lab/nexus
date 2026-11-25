@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- 移除独立的 Launcher 启动页。登录、初始化、加入组织后以及桌面端冷启动都直接进入 `/app` 工作台，侧栏 NEXUS 字标也链接到工作台；macOS 全局快捷键与「窗口 › 显示主窗口」只唤起主窗口、不改写当前页面。浏览器扩展「在 Nexus 中询问」和旧 `nexus://launcher` 深链目前只唤起工作台，暂不携带页面草稿。后端移除仅供启动页使用的 `/launcher/query`、`/launcher/suggestions` 接口和 `nexusctl launcher` 命令；侧栏目录继续使用 `/launcher/bootstrap`。
+
 ### Fixed
 
 - 修复执行过程标题被误标为「执行失败」并整段标红：过程中某个工具报错、模型随后换了做法继续执行时，标题此前仍显示「执行过程 · 执行失败 · 1 个异常」，容易误以为整轮失败。现在只有停在最后一步且没有后续动作的失败才标红；已被后续动作接上的失败只显示「执行过程 · 1 个异常」，展开后仍可查看出错的调用。

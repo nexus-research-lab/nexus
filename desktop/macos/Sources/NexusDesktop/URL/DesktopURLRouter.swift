@@ -107,15 +107,6 @@ enum DesktopURLRouter {
     if isSettingsURL(url) {
       return DesktopWebRoute(path: "/settings", entry: .settings)
     }
-    if isLauncherURL(url) {
-      let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-      return DesktopWebRoute(
-        path: "/launcher",
-        percentEncodedQuery: components?.percentEncodedQuery,
-        percentEncodedFragment: components?.percentEncodedFragment,
-        entry: .app
-      )
-    }
     if isConnectorOAuthCallbackURL(url) {
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
       return DesktopWebRoute(
@@ -133,8 +124,10 @@ enum DesktopURLRouter {
         percentEncodedFragment: components?.percentEncodedFragment
       )
     }
-    if url.host?.lowercased() == "open" || url.host == nil && url.path.isEmpty {
-      return DesktopWebRoute(path: "/launcher", entry: .app)
+    // 旧 nexus://launcher（Browser 扩展仍在使用）与 open 同义：只唤起工作台，暂不交接草稿。
+    if isWorkspaceURL(url) {
+      let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+      return DesktopWebRoute(path: "/app", percentEncodedQuery: components?.percentEncodedQuery, entry: .app)
     }
     return nil
   }
@@ -143,8 +136,9 @@ enum DesktopURLRouter {
     url.host?.lowercased() == "settings" || normalizedPath(url) == "/settings"
   }
 
-  private static func isLauncherURL(_ url: URL) -> Bool {
-    url.host?.lowercased() == "launcher" || normalizedPath(url) == "/launcher"
+  private static func isWorkspaceURL(_ url: URL) -> Bool {
+    let host = url.host?.lowercased()
+    return host == "open" || host == "launcher" || host == nil && (url.path.isEmpty || normalizedPath(url) == "/launcher")
   }
 
   private static func isConnectorOAuthCallbackURL(_ url: URL) -> Bool {

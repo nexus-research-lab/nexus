@@ -6,7 +6,6 @@ import {
   DM_CONVERSATION_TOUR_ID,
   ROOM_CONVERSATION_TOUR_ID,
 } from "@/features/onboarding/tours/conversation-tour";
-import { LAUNCHER_TOUR_ID } from "@/features/onboarding/tours/launcher-tour";
 import {
   buildSidebarNavigationTour,
   SIDEBAR_NAVIGATION_TOUR_ID,
@@ -85,7 +84,6 @@ export function useGuideCenterController({
     openConnectorsGuide,
     openDmTour,
     openGoalGuide,
-    openLauncherTour,
     openProvidersGuide,
     openRoomTour,
     openSidebarTour,
@@ -111,7 +109,6 @@ export function useGuideCenterController({
     [GUIDE_CENTER_ADVANCED_ITEM_IDS.subagents]: () => void openSubagentsGuide(),
     [GUIDE_CENTER_ADVANCED_ITEM_IDS.thread]: () => void openThreadGuide(),
     [GUIDE_CENTER_ADVANCED_ITEM_IDS.workgraph]: openWorkGraphGuide,
-    [LAUNCHER_TOUR_ID]: openLauncherTour,
     [ROOM_CONVERSATION_TOUR_ID]: () => void openRoomTour(),
     [SIDEBAR_NAVIGATION_TOUR_ID]: openSidebarTour,
     [SKILLS_TOUR_ID]: openSkillsTour,
@@ -120,7 +117,6 @@ export function useGuideCenterController({
     openConnectorsGuide,
     openDmTour,
     openGoalGuide,
-    openLauncherTour,
     openProvidersGuide,
     openRoomTour,
     openSidebarTour,

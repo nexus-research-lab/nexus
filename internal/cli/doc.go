@@ -11,7 +11,7 @@
 //   - automation*.go：自动化任务的查询、变更、运行与运维命令；新投递目标绑定既有结构化 Session。
 //   - skill.go / skill_agent.go / skill_external.go：技能目录、Agent 安装与来源管理命令。
 //   - 其余领域文件：agent / channel / connector / conversation（含空白会话维护）/ emotion /
-//     imagegen / launcher / room / session / workspace 命令域。
+//     imagegen / room / session / workspace 命令域。
 //   - output.go：输出格式。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

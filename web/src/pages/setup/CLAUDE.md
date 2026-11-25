@@ -1,6 +1,6 @@
 # Setup Page
 
-- `setup-page.tsx` 只承担首次 Deployment owner 初始化；成功后刷新统一 Auth 状态并进入 Launcher。
+- `setup-page.tsx` 只承担首次 Deployment owner 初始化；成功后刷新统一 Auth 状态并进入 `/app` 工作台。
 - 就绪页消费与 Login 共用的 Access 布局和宣传标题，并排字段选择 wide 表单列；表单与关闭状态说明使用公共 Panel，普通文本使用 Typography，不另写玻璃表面或字号配方。
 - 表单使用 Panel `filled` 减弱装饰背景穿透，与 Login 共用同一填充配方。
 - Setup capability 只保存在当前表单内，不写入 localStorage、URL 或日志。
