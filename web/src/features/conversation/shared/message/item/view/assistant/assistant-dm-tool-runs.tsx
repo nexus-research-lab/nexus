@@ -290,7 +290,8 @@ function formatToolRunSummary(
   ) {
     parts.push(t(statusKey));
   }
-  if (phase === "error" && segment.errorCount > 0) {
+  // 被恢复的历史失败不再染红，但异常数仍保留在审计摘要里。
+  if (phase !== "active" && segment.errorCount > 0) {
     const errorKey = segment.errorCount === 1
       ? "message.tool_run_error_one"
       : "message.tool_run_error_other";

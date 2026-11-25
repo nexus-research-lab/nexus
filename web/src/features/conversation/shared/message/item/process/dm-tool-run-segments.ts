@@ -163,7 +163,10 @@ export function projectToolRunSegments({
 
   flushToolRun(responseResumed || !live);
   flushPendingProcess();
-  return attachToolUseSummary(segments, toolUseSummary);
+  return attachToolUseSummary(
+    settleRecoveredToolRuns(segments),
+    toolUseSummary,
+  );
 }
 
 function buildToolRunSegment({
@@ -198,11 +201,7 @@ function buildToolRunSegment({
   );
   const phase: ToolRunPhase = !terminal
     ? "active"
-    : resolveTerminalToolRunPhase(
-        toolUseIds[toolUseIds.length - 1],
-        run.indexes,
-        projection.content,
-      );
+    : resolveTerminalToolRunPhase(run.indexes, projection.content);
   return {
     errorCount,
     id: `tool-run:${toolUseIds[0]}`,
@@ -367,41 +366,46 @@ function countToolRunErrors(
   return count;
 }
 
+// 段内按最后一个落定的结果判定终态：前面的失败若被后续工具成功接上，只计入 errorCount，
+// 不把整段标成失败。
 function resolveTerminalToolRunPhase(
-  _lastToolUseId: string | undefined,
   indexes: ReadonlySet<number>,
   content: readonly ContentBlock[],
 ): Exclude<ToolRunPhase, "active"> {
-  let hasError = false;
-  let hasRejected = false;
-  let hasSuperseded = false;
-  let hasStopped = false;
+  let phase: Exclude<ToolRunPhase, "active"> = "complete";
   [...indexes]
     .sort((left, right) => left - right)
     .forEach((index) => {
-      const block = content[index];
-      if (block?.type === "tool_use_error") {
-        hasError = true;
-        return;
-      }
-      if (block?.type !== "tool_result") {
-        return;
-      }
-      if (isInterruptedToolResult(block)) {
-        hasStopped = true;
-      } else if (block.is_error) {
-        hasError = true;
-      } else if (isRejectedToolResult(block)) {
-        hasRejected = true;
-      } else if (isSupersededToolResult(block)) {
-        hasSuperseded = true;
-      }
+      phase = resolveToolOutcome(content[index]) ?? phase;
     });
-  if (hasError) return "error";
-  if (hasRejected) return "rejected";
-  if (hasSuperseded) return "superseded";
-  if (hasStopped) return "stopped";
+  return phase;
+}
+
+function resolveToolOutcome(
+  block: ContentBlock | undefined,
+): Exclude<ToolRunPhase, "active"> | null {
+  if (block?.type === "tool_use_error") return "error";
+  if (block?.type !== "tool_result") return null;
+  if (isInterruptedToolResult(block)) return "stopped";
+  if (block.is_error) return "error";
+  if (isRejectedToolResult(block)) return "rejected";
+  if (isSupersededToolResult(block)) return "superseded";
   return "complete";
+}
+
+// 失败段之后只要还有任何过程或正文，说明模型已读到错误并继续推进，
+// 失败被后续动作恢复：只保留异常计数，警示色留给真正停在失败上的最后一段。
+function settleRecoveredToolRuns(
+  segments: ToolProcessSegment[],
+): ToolProcessSegment[] {
+  const lastIndex = segments.length - 1;
+  return segments.map((segment, index) => (
+    segment.kind === "tool_run"
+    && segment.phase === "error"
+    && index < lastIndex
+      ? { ...segment, phase: "complete" }
+      : segment
+  ));
 }
 
 function countUnresolvedToolUses(

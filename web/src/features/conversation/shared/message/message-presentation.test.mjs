@@ -278,7 +278,7 @@ test("tool segments absorb completed questions but preserve active interactions"
       {
         id: "tool-run:tool-failed",
         kind: "tool_run",
-        phase: "error",
+        phase: "complete",
       },
       {
         id: "interactive-tool:tool-permission-boundary",
@@ -317,6 +317,43 @@ test("tool segments absorb completed questions but preserve active interactions"
     ["tool_use", "tool_result"],
     "a pending permission tool stays outside the collapsible run",
   );
+});
+
+test("tool run failure only warns when it is the unrecovered last action", async () => {
+  const { projectToolRunSegments } = await import("@/features/conversation/shared/message/item/process/dm-tool-run-segments.ts");
+  const tool = (id) => ({ type: "tool_use", id, name: "Bash", input: { command: id } });
+  const result = (id, isError) => ({
+    type: "tool_result",
+    tool_use_id: id,
+    content: isError ? "exit 1" : "ok",
+    is_error: isError,
+  });
+  const project = (content) => projectToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: false,
+    projection: { content, streamingIndexes: new Set() },
+    responseResumed: true,
+    toolUseSummary: null,
+  });
+
+  const [recoveredInRun] = project([
+    tool("a"), result("a", true), tool("b"), result("b", false),
+  ]);
+  assert.equal(recoveredInRun.phase, "complete");
+  assert.equal(recoveredInRun.errorCount, 1);
+
+  const [failedThenNarrated, narration] = project([
+    tool("c"), result("c", false), tool("d"), result("d", true),
+    { type: "text", text: "继续翻页看看全貌" },
+  ]);
+  assert.equal(failedThenNarrated.phase, "complete");
+  assert.equal(failedThenNarrated.errorCount, 1);
+  assert.equal(narration.kind, "content");
+
+  const [unrecovered] = project([
+    tool("e"), result("e", false), tool("f"), result("f", true),
+  ]);
+  assert.equal(unrecovered.phase, "error");
 });
 
 test("ToolUseSummary updates the matching uninterrupted tool row and text stays visible", async () => {
