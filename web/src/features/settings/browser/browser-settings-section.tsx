@@ -1,12 +1,10 @@
 /**
  * INPUT: 桌面浏览器扩展状态、安装命令和 CDP 偏好。
- * OUTPUT: Browser 设置、连接状态、可执行恢复动作与精确关联风险/说明的 CDP 开关。
+ * OUTPUT: 复用设置详情 Pattern 的 Browser 页：身份头与安装动作、示例、连接与恢复、CDP 开关和扩展信息。
  * POS: 设置目录的 Browser 分区，移动端页面身份由应用栏承载。
  */
 "use client";
 
-import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
-import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   AppWindow,
@@ -37,11 +35,22 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 import { PreferencesReliabilityNotice } from "../general/components/preferences-reliability-notice";
 import { useUserPreferences } from "../general/use-user-preferences";
 import {
-  SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_SECTION_TITLE_CLASS_NAME,
-} from "../shared/settings-panel-ui";
+  SETTINGS_DETAIL_BODY_CLASS_NAME,
+  SettingsDetailExamples,
+  SettingsDetailHeader,
+  SettingsDetailInfo,
+  SettingsDetailOverview,
+  SettingsDetailSection,
+} from "../shared/settings-detail-page";
+import { SETTINGS_CARD_CLASS_NAME, SETTINGS_CONTENT_BODY_CLASS_NAME } from "../shared/settings-panel-ui";
 
 const STATUS_POLL_INTERVAL_MS = 2_000;
+
+const EXAMPLE_KEYS = [
+  "settings.browser.example_notifications",
+  "settings.browser.example_export",
+  "settings.browser.example_compare",
+] as const;
 
 const INSTALL_STEPS: ReadonlyArray<{
   descriptionKey: TranslationKey;
@@ -146,192 +155,195 @@ export function BrowserSettingsSection() {
         title={t("settings.browser.section_title")}
       />
 
-      <section className={`${SETTINGS_CONTENT_BODY_CLASS_NAME} space-y-2.5`}>
-        <div className={SETTINGS_CARD_CLASS_NAME}>
-          <div className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center radius-control-md bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-                <AppWindow className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
-                  {browserName}
-                </h2>
-                <div aria-live="polite" className="mt-1 flex flex-wrap items-center gap-2">
-                  <UiBadge showDot size="sm" tone={statusTone}>
-                    {statusLabel}
-                  </UiBadge>
-                  {connected && status?.extension_version ? (
-                    <span className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>
-                      {t("settings.browser.status_version", { version: status.extension_version })}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            <UiButton
-              aria-busy={openingSetup}
-              disabled={openingSetup}
-              onClick={() => void openSetup()}
-              size="sm"
-              tone={connected ? "default" : "primary"}
-              variant={connected ? "surface" : "solid"}
-            >
-              {openingSetup ? (
-                <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
-              ) : (
-                <FolderOpen className="h-3.5 w-3.5" />
-              )}
-              {openingSetup
-                ? t("settings.browser.install_opening")
-                : incompatible
-                  ? t("settings.browser.install_update")
-                  : connected || setup !== null
-                  ? t("settings.browser.install_reopen")
-                  : t("settings.browser.install_action")}
-            </UiButton>
-          </div>
-
-          <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-          <div className="px-4 py-3">
-            {connected ? (
-              <div className={cn(
-                "flex items-center gap-2",
-                getUiTypographyClassName({ role: "metadata", tone: "success", weight: "medium" }),
-              )}>
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <span>{t("settings.browser.install_success", { browser: browserName })}</span>
-              </div>
-            ) : incompatible ? (
-              <UiResourceState
-                className="p-0"
-                impact={t("settings.browser.incompatible_impact")}
-                nextStep={t("settings.browser.incompatible_next_step")}
+      <section className={SETTINGS_CONTENT_BODY_CLASS_NAME}>
+        <div className={SETTINGS_DETAIL_BODY_CLASS_NAME}>
+          <SettingsDetailHeader
+            action={(
+              <UiButton
+                aria-busy={openingSetup}
+                disabled={openingSetup}
+                onClick={() => void openSetup()}
                 size="sm"
-                state="error"
-                title={t("settings.browser.incompatible_title")}
-                tone="warning"
-                variant="plain"
-              />
-            ) : setup !== null ? (
-              <div>
-                <p
-                  className={getUiTypographyClassName({
-                    role: "metadata",
-                    tone: "strong",
-                    weight: "semibold",
-                  })}
-                >
-                  {t("settings.browser.install_guide_title", { browser: browserName })}
-                </p>
-                <ol className="mt-3 grid gap-4 md:grid-cols-3">
-                  {INSTALL_STEPS.map((step, index) => (
-                    <li className="flex items-start gap-2.5" key={step.titleKey}>
-                      <span className={cn(
-                        "flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)]",
-                        getUiTypographyClassName({ role: "caption", tone: "brand", weight: "semibold" }),
-                      )}>
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p
-                          className={getUiTypographyClassName({
-                            role: "metadata",
-                            tone: "strong",
-                            weight: "semibold",
-                          })}
-                        >
-                          {t(step.titleKey)}
-                        </p>
-                        <p className={cn("mt-1", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
-                          {t(step.descriptionKey, { browser: browserName })}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            ) : (
-              <p className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>
-                {t("settings.browser.install_hint")}
-              </p>
+                tone={connected ? "default" : "primary"}
+                variant={connected ? "surface" : "solid"}
+              >
+                {openingSetup ? (
+                  <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
+                ) : (
+                  <FolderOpen className="h-3.5 w-3.5" />
+                )}
+                {openingSetup
+                  ? t("settings.browser.install_opening")
+                  : incompatible
+                    ? t("settings.browser.install_update")
+                    : connected || setup !== null
+                    ? t("settings.browser.install_reopen")
+                    : t("settings.browser.install_action")}
+              </UiButton>
             )}
+            icon={<AppWindow />}
+            subtitle={(
+              <span aria-live="polite" className="flex flex-wrap items-center gap-2">
+                <span>{browserName}</span>
+                <UiBadge showDot size="sm" tone={statusTone}>{statusLabel}</UiBadge>
+              </span>
+            )}
+            title={t("settings.browser.section_title")}
+          />
+          <SettingsDetailExamples
+            icon={<AppWindow />}
+            items={EXAMPLE_KEYS.map((key) => t(key))}
+            label={t("settings.browser.examples_label")}
+            name={t("settings.browser.section_title")}
+          />
+          <SettingsDetailOverview>{t("settings.browser.section_description")}</SettingsDetailOverview>
 
-            {setupError || statusError ? (
-              <UiResourceState
-                className="mt-3 p-0"
-                impact={t(setupError
-                  ? "settings.browser.install_failed_impact"
-                  : "settings.browser.status_failed_impact")}
-                primaryAction={{
-                  icon: <RefreshCw className="h-3 w-3" />,
-                  label: setupError
-                    ? t("settings.browser.install_action")
-                    : t("settings.browser.refresh"),
-                  onClick: () => {
-                    if (setupError) {
-                      void openSetup();
-                      return;
-                    }
-                    setStatusRefresh((value) => value + 1);
-                  },
-                }}
-                size="sm"
-                state="error"
-                title={t(setupError
-                  ? "settings.browser.install_failed"
-                  : "settings.browser.status_failed")}
-                variant="plain"
-              />
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-7 space-y-2.5">
-        <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
-          {t("settings.browser.developer_title")}
-        </h2>
-        <PreferencesReliabilityNotice
-          feedback={preferences.feedback}
-          recovery={preferences.recovery}
-        />
-        <div className={cn(SETTINGS_CARD_CLASS_NAME, "px-4 py-4")}>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
-              <div className="min-w-0 break-words">
-                <p
-                  id={cdpRiskId}
-                  className={getUiTypographyClassName({
-                    role: "caption",
-                    tone: "warning",
-                    weight: "semibold",
-                  })}
-                >
-                  {t("settings.browser.cdp_risk")}
-                </p>
-                <h3 className={cn("mt-1", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}>
-                  {t("settings.browser.cdp_title")}
-                </h3>
-                <p id={cdpDescriptionId} className={cn(
-                  "mt-1 max-w-[720px]",
-                  getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          <SettingsDetailSection title={t("settings.browser.connection_title")}>
+            <div className={cn(SETTINGS_CARD_CLASS_NAME, "px-4 py-3")}>
+              {connected ? (
+                <div className={cn(
+                  "flex items-center gap-2",
+                  getUiTypographyClassName({ role: "metadata", tone: "success", weight: "medium" }),
                 )}>
-                  {t("settings.browser.cdp_description")}
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>{t("settings.browser.install_success", { browser: browserName })}</span>
+                </div>
+              ) : incompatible ? (
+                <UiResourceState
+                  className="p-0"
+                  impact={t("settings.browser.incompatible_impact")}
+                  nextStep={t("settings.browser.incompatible_next_step")}
+                  size="sm"
+                  state="error"
+                  title={t("settings.browser.incompatible_title")}
+                  tone="warning"
+                  variant="plain"
+                />
+              ) : setup !== null ? (
+                <div>
+                  <p
+                    className={getUiTypographyClassName({
+                      role: "metadata",
+                      tone: "strong",
+                      weight: "semibold",
+                    })}
+                  >
+                    {t("settings.browser.install_guide_title", { browser: browserName })}
+                  </p>
+                  <ol className="mt-3 grid gap-4 md:grid-cols-3">
+                    {INSTALL_STEPS.map((step, index) => (
+                      <li className="flex items-start gap-2.5" key={step.titleKey}>
+                        <span className={cn(
+                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)]",
+                          getUiTypographyClassName({ role: "caption", tone: "brand", weight: "semibold" }),
+                        )}>
+                          {index + 1}
+                        </span>
+                        <div>
+                          <p
+                            className={getUiTypographyClassName({
+                              role: "metadata",
+                              tone: "strong",
+                              weight: "semibold",
+                            })}
+                          >
+                            {t(step.titleKey)}
+                          </p>
+                          <p className={cn("mt-1", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
+                            {t(step.descriptionKey, { browser: browserName })}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : (
+                <p className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>
+                  {t("settings.browser.install_hint")}
                 </p>
+              )}
+
+              {setupError || statusError ? (
+                <UiResourceState
+                  className="mt-3 p-0"
+                  impact={t(setupError
+                    ? "settings.browser.install_failed_impact"
+                    : "settings.browser.status_failed_impact")}
+                  primaryAction={{
+                    icon: <RefreshCw className="h-3 w-3" />,
+                    label: setupError
+                      ? t("settings.browser.install_action")
+                      : t("settings.browser.refresh"),
+                    onClick: () => {
+                      if (setupError) {
+                        void openSetup();
+                        return;
+                      }
+                      setStatusRefresh((value) => value + 1);
+                    },
+                  }}
+                  size="sm"
+                  state="error"
+                  title={t(setupError
+                    ? "settings.browser.install_failed"
+                    : "settings.browser.status_failed")}
+                  variant="plain"
+                />
+              ) : null}
+            </div>
+          </SettingsDetailSection>
+
+          <SettingsDetailSection title={t("settings.browser.developer_title")}>
+            <PreferencesReliabilityNotice
+              feedback={preferences.feedback}
+              recovery={preferences.recovery}
+            />
+            <div className={cn(SETTINGS_CARD_CLASS_NAME, "px-4 py-4")}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
+                  <div className="min-w-0 break-words">
+                    <p
+                      id={cdpRiskId}
+                      className={getUiTypographyClassName({
+                        role: "caption",
+                        tone: "warning",
+                        weight: "semibold",
+                      })}
+                    >
+                      {t("settings.browser.cdp_risk")}
+                    </p>
+                    <h3 className={cn("mt-1", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}>
+                      {t("settings.browser.cdp_title")}
+                    </h3>
+                    <p id={cdpDescriptionId} className={cn(
+                      "mt-1 max-w-[720px]",
+                      getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+                    )}>
+                      {t("settings.browser.cdp_description")}
+                    </p>
+                  </div>
+                </div>
+                <GlassSwitch
+                  aria-describedby={`${cdpRiskId} ${cdpDescriptionId}`}
+                  aria-label={t("settings.browser.cdp_toggle")}
+                  checked={cdpEnabled}
+                  disabled={preferences.loading || preferences.saving || !preferences.writable}
+                  onChange={updateCDPAccess}
+                  size="sm"
+                />
               </div>
             </div>
-            <GlassSwitch
-              aria-describedby={`${cdpRiskId} ${cdpDescriptionId}`}
-              aria-label={t("settings.browser.cdp_toggle")}
-              checked={cdpEnabled}
-              disabled={preferences.loading || preferences.saving || !preferences.writable}
-              onChange={updateCDPAccess}
-              size="sm"
-            />
-          </div>
+          </SettingsDetailSection>
+
+          <SettingsDetailInfo
+            rows={[
+              [t("settings.browser.info_status"), statusLabel],
+              [t("settings.browser.info_browser"), browserName],
+              ...(status?.extension_version ? [[t("settings.browser.info_version"), status.extension_version] as [string, string]] : []),
+            ]}
+            title={t("settings.browser.info_title")}
+          />
         </div>
       </section>
     </div>

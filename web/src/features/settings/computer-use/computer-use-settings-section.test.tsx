@@ -41,7 +41,8 @@ it("offers the required component update for an installed legacy version", async
     status: { installed: true, enabled: true, version: "0.1.0", required_version: "0.2.0", update_required: true },
   });
   renderSettings();
-  expect(screen.getByText("仅操作你授权的应用 · 组件 0.1.0")).toBeTruthy();
+  expect(screen.getByText("0.1.0")).toBeTruthy();
+  expect(screen.getByText("0.2.0")).toBeTruthy();
   expect(screen.getByText("当前 Nexus 需要电脑操控组件 0.2.0。")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "重新检查权限" })).toBeNull();
   await userEvent.setup().click(screen.getByRole("button", { name: "更新组件" }));
@@ -78,16 +79,19 @@ it("renders CUA in its own settings page and keeps the switch action local", asy
     onOpenPermissions: ReturnType<typeof vi.fn>;
   };
 
-  expect(screen.getByRole("heading", { name: "电脑操控" })).toBeTruthy();
+  expect(screen.getAllByRole("heading", { name: "电脑操控" }).length).toBeGreaterThan(0);
+  expect(within(screen.getByRole("list", { name: "示例任务" })).getAllByRole("listitem")).toHaveLength(3);
+  expect(within(screen.getByRole("list", { name: "示例任务" })).queryByRole("button")).toBeNull();
   const toggle = screen.getByRole("switch", { name: "允许 Nexus 操作电脑" });
   expect(toggle.getAttribute("aria-checked")).toBe("true");
   expect(screen.getByText("2 项待处理")).toBeTruthy();
-  expect(screen.getByText("屏幕录制")).toBeTruthy();
-  expect(screen.getByText("已开启")).toBeTruthy();
-  expect(screen.getByText("辅助功能")).toBeTruthy();
-  expect(screen.getByText("未开启")).toBeTruthy();
-  expect(screen.getByText("输入控制")).toBeTruthy();
-  expect(screen.getByText("待确认")).toBeTruthy();
+  const list = within(screen.getByRole("list", { name: "系统权限" }));
+  expect(list.getByText("屏幕录制")).toBeTruthy();
+  expect(list.getByText("已开启")).toBeTruthy();
+  expect(list.getByText("辅助功能")).toBeTruthy();
+  expect(list.getByText("未开启")).toBeTruthy();
+  expect(list.getByText("输入控制")).toBeTruthy();
+  expect(list.getByText("待确认")).toBeTruthy();
   expect(screen.queryByRole("dialog")).toBeNull();
   await user.click(screen.getByRole("button", { name: "设置权限" }));
   expect(controller.onOpenPermissions).toHaveBeenCalledOnce();
@@ -158,8 +162,7 @@ it("shows a complete permission result without a next-step action", () => {
   renderSettings();
 
   expect(screen.getByText("已全部开启")).toBeTruthy();
-  // 已开启只保留给读屏，界面上由勾选图标表达。
-  expect(screen.getAllByText("已开启").every((node) => node.classList.contains("sr-only"))).toBe(true);
+  expect(within(screen.getByRole("list", { name: "系统权限" })).getAllByText("已开启")).toHaveLength(3);
   expect(screen.queryByRole("button", { name: "设置权限" })).toBeNull();
   expect(screen.getByRole("button", { name: "重新检查权限" })).toBeTruthy();
 });
