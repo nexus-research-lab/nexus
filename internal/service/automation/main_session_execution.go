@@ -1,6 +1,6 @@
-// INPUT: heartbeat 领取的 scheduled_task.trigger 事件、task-owned run 与 owner scope。
-// OUTPUT: 使用原 job/run/revision 权限上下文串行下发到 Main Session，并完成 run ledger。
-// POS: Main Session 定时任务执行桥；heartbeat 只负责唤醒和串行，不接管任务授权。
+// INPUT: scheduled task 写入的 scheduled_task.trigger 事件、task-owned run 与 owner scope。
+// OUTPUT: 写入即唤醒、按 Agent 串行领取并以原 job/run/revision 权限上下文下发到 Main Session。
+// POS: Main Session 定时任务执行桥；派发器只负责唤醒和串行，不接管任务授权。
 package automation
 
 import (
@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
@@ -28,20 +27,94 @@ type scheduledMainSessionEventPayload struct {
 	TriggerKind                     string `json:"trigger_kind"`
 }
 
-func selectHeartbeatSystemEvents(items []automationdomain.SystemEvent) []automationdomain.SystemEvent {
-	for _, item := range items {
-		if isTaskBoundScheduledMainSessionEvent(item) {
-			return []automationdomain.SystemEvent{item}
-		}
-	}
-	return items
+// wakeMainSession 在事件落库后立即尝试派发；同 Agent 已有在途事件时由其收尾接力。
+func (s *Service) wakeMainSession(agentID string) {
+	go s.dispatchNextMainSessionEvent(strings.TrimSpace(agentID))
 }
 
-func scheduledMainSessionEvent(items []automationdomain.SystemEvent) (automationdomain.SystemEvent, bool) {
-	if len(items) != 1 || !isTaskBoundScheduledMainSessionEvent(items[0]) {
-		return automationdomain.SystemEvent{}, false
+// dispatchNextMainSessionEvent 领取该 Agent 最早的一条任务事件并下发；没有可领取事件时释放串行位。
+func (s *Service) dispatchNextMainSessionEvent(agentID string) {
+	if agentID == "" || !s.acquireMainSession(agentID) {
+		return
 	}
-	return items[0], true
+	ctx, err := s.mainSessionOwnerContext(agentID)
+	if err != nil {
+		s.loggerFor(ctx).Error("Main Session 事件解析 Agent owner 失败", "agent_id", agentID, "err", err)
+		s.releaseMainSession(agentID)
+		return
+	}
+	event, ok, err := s.claimNextMainSessionEvent(ctx, agentID)
+	if err != nil || !ok {
+		if err != nil {
+			s.loggerFor(ctx).Error("Main Session 事件领取失败", "agent_id", agentID, "err", err)
+		}
+		s.releaseMainSession(agentID)
+		return
+	}
+	s.dispatchScheduledMainSessionEvent(ctx, agentID, automationexec.BuildMainSessionKey(agentID), event)
+}
+
+// finishMainSessionEvent 先释放串行位再重新领取，避免在途期间写入的事件丢失唤醒。
+func (s *Service) finishMainSessionEvent(agentID string) {
+	s.releaseMainSession(agentID)
+	s.dispatchNextMainSessionEvent(strings.TrimSpace(agentID))
+}
+
+func (s *Service) acquireMainSession(agentID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mainSessionBusy[agentID] {
+		return false
+	}
+	s.mainSessionBusy[agentID] = true
+	return true
+}
+
+func (s *Service) releaseMainSession(agentID string) {
+	s.mu.Lock()
+	delete(s.mainSessionBusy, strings.TrimSpace(agentID))
+	s.mu.Unlock()
+}
+
+func (s *Service) mainSessionOwnerContext(agentID string) (context.Context, error) {
+	ctx := context.Background()
+	if s.agents == nil {
+		return ctx, nil
+	}
+	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	if err != nil {
+		return ctx, err
+	}
+	if agentValue == nil || strings.TrimSpace(agentValue.OwnerUserID) == "" {
+		return ctx, errors.New("Main Session Agent 缺少 owner_user_id")
+	}
+	return contextForOwner(ctx, agentValue.OwnerUserID), nil
+}
+
+// claimNextMainSessionEvent 按写入顺序 CAS 领取首个任务事件；不可解析的遗留行直接收口为 failed。
+func (s *Service) claimNextMainSessionEvent(
+	ctx context.Context,
+	agentID string,
+) (automationdomain.SystemEvent, bool, error) {
+	items, err := s.repository.ListNewSystemEventsByAgent(ctx, agentID)
+	if err != nil {
+		return automationdomain.SystemEvent{}, false, err
+	}
+	for _, item := range items {
+		if !isTaskBoundScheduledMainSessionEvent(item) {
+			_ = s.repository.MarkSystemEventStatus(context.Background(), item.EventID, "failed")
+			continue
+		}
+		claimed, claimErr := s.repository.ClaimSystemEvent(ctx, item.EventID)
+		if claimErr != nil {
+			return automationdomain.SystemEvent{}, false, claimErr
+		}
+		if claimed {
+			item.Status = "processing"
+			return item, true, nil
+		}
+	}
+	return automationdomain.SystemEvent{}, false, nil
 }
 
 func isTaskBoundScheduledMainSessionEvent(event automationdomain.SystemEvent) bool {
@@ -90,7 +163,7 @@ func (s *Service) dispatchScheduledMainSessionEvent(
 	}
 	if strings.TrimSpace(ownerUserID) == "" ||
 		(payload.OwnerUserID != "" && payload.OwnerUserID != ownerUserID) {
-		s.failScheduledMainSessionEvent(ctx, agentID, event, nil, payload.RunID, errors.New("scheduled main-session event owner does not match heartbeat owner"))
+		s.failScheduledMainSessionEvent(ctx, agentID, event, nil, payload.RunID, errors.New("scheduled main-session event owner does not match agent owner"))
 		return
 	}
 	job, err := s.repository.GetScheduledTask(ctx, ownerUserID, payload.JobID)
@@ -169,7 +242,6 @@ func (s *Service) dispatchScheduledMainSessionEvent(
 		return
 	}
 	_ = s.repository.MarkSystemEventStatus(context.Background(), event.EventID, "processed")
-	s.markScheduledHeartbeatStarted(ctx, agentID, startedAt)
 	s.loggerFor(ctx).Info("Main Session 定时任务已下发",
 		"agent_id", agentID,
 		"job_id", job.JobID,
@@ -185,22 +257,10 @@ func (s *Service) dispatchScheduledMainSessionEvent(
 		cleanup,
 		func() {
 			completeAttempt()
-			finishedAt := s.nowFn()
-			s.finishHeartbeatRuntime(agentID, &startedAt, &finishedAt, nil)
-			s.continuePendingSystemEvents(agentID)
+			s.finishMainSessionEvent(agentID)
 		},
 		resumeAttempt,
 	)
-}
-
-func (s *Service) markScheduledHeartbeatStarted(ctx context.Context, agentID string, startedAt time.Time) {
-	s.mu.Lock()
-	if runtime := s.heartbeatState[strings.TrimSpace(agentID)]; runtime != nil {
-		runtime.LastHeartbeatAt = cloneTimePointer(&startedAt)
-		runtime.DeliveryError = nil
-	}
-	s.mu.Unlock()
-	_ = s.persistHeartbeatTimes(ctx, agentID, &startedAt, nil)
 }
 
 func (s *Service) failScheduledMainSessionEvent(
@@ -215,20 +275,11 @@ func (s *Service) failScheduledMainSessionEvent(
 	if job != nil && strings.TrimSpace(runID) != "" {
 		_ = s.commitFailedRunTerminal(backgroundContextForJobOwner(*job), *job, runID, runErr)
 	}
-	s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(runErr))
 	s.loggerFor(ctx).Error("Main Session 定时任务事件处理失败",
 		"agent_id", agentID,
 		"event_id", event.EventID,
 		"run_id", runID,
 		"err", runErr,
 	)
-	s.continuePendingSystemEvents(agentID)
-}
-
-func (s *Service) continuePendingSystemEvents(agentID string) {
-	items, err := s.repository.ListNewSystemEventsByAgent(context.Background(), strings.TrimSpace(agentID))
-	if err != nil || len(items) == 0 {
-		return
-	}
-	go s.dispatchHeartbeat(strings.TrimSpace(agentID), "pending-system-event")
+	s.finishMainSessionEvent(agentID)
 }

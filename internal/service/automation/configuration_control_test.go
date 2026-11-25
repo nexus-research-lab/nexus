@@ -10,7 +10,6 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -404,129 +403,7 @@ func TestScheduledTaskConcurrentCASHasSingleWinner(t *testing.T) {
 	}
 }
 
-func TestHeartbeatCASAndRuntimePersistenceKeepConfigurationVersion(t *testing.T) {
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		newAutomationTestDB(t),
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
-	initial, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
-	if err != nil {
-		t.Fatalf("GetHeartbeatStatus: %v", err)
-	}
-	enabled := automationdomain.HeartbeatUpdateInput{
-		Enabled:      true,
-		EverySeconds: 60,
-		TargetMode:   automationdomain.HeartbeatTargetNone,
-		AckMaxChars:  120,
-	}
-	updated, err := service.UpdateHeartbeatAtVersion(
-		context.Background(),
-		"agent-1",
-		initial.ConfigurationVersion,
-		enabled,
-	)
-	if err != nil {
-		t.Fatalf("UpdateHeartbeatAtVersion: %v", err)
-	}
-	if updated.ConfigurationVersion != initial.ConfigurationVersion+1 {
-		t.Fatalf("heartbeat version = %d, want %d", updated.ConfigurationVersion, initial.ConfigurationVersion+1)
-	}
-	if _, err = service.UpdateHeartbeatAtVersion(
-		context.Background(),
-		"agent-1",
-		initial.ConfigurationVersion,
-		enabled,
-	); !errors.Is(err, automationdomain.ErrConfigurationVersionConflict) {
-		t.Fatalf("stale heartbeat update error = %v, want version conflict", err)
-	}
-
-	if err = service.repository.PersistHeartbeatRuntimeState(
-		context.Background(),
-		"runtime-state",
-		automationdomain.HeartbeatConfig{
-			AgentID:              updated.AgentID,
-			Enabled:              updated.Enabled,
-			EverySeconds:         updated.EverySeconds,
-			TargetMode:           updated.TargetMode,
-			AckMaxChars:          updated.AckMaxChars,
-			ConfigurationVersion: updated.ConfigurationVersion,
-		},
-		nil,
-		nil,
-	); err != nil {
-		t.Fatalf("PersistHeartbeatRuntimeState: %v", err)
-	}
-	afterRuntime, err := service.GetHeartbeatStatus(context.Background(), "agent-1")
-	if err != nil {
-		t.Fatalf("GetHeartbeatStatus after runtime write: %v", err)
-	}
-	if afterRuntime.ConfigurationVersion != updated.ConfigurationVersion {
-		t.Fatalf(
-			"runtime persistence changed version: got %d want %d",
-			afterRuntime.ConfigurationVersion,
-			updated.ConfigurationVersion,
-		)
-	}
-
-	staleRuntimeAt := time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC)
-	freshRuntimeAt := staleRuntimeAt.Add(time.Minute)
-	configValue := automationdomain.HeartbeatConfig{
-		AgentID:              updated.AgentID,
-		Enabled:              updated.Enabled,
-		EverySeconds:         updated.EverySeconds,
-		TargetMode:           updated.TargetMode,
-		AckMaxChars:          updated.AckMaxChars,
-		ConfigurationVersion: updated.ConfigurationVersion,
-	}
-	if err = service.repository.PersistHeartbeatRuntimeState(
-		context.Background(),
-		"runtime-state",
-		configValue,
-		&freshRuntimeAt,
-		&freshRuntimeAt,
-	); err != nil {
-		t.Fatalf("persist fresh heartbeat runtime: %v", err)
-	}
-	configValue.EverySeconds = 90
-	if err = service.repository.UpsertHeartbeatStateAtVersion(
-		context.Background(),
-		"config-state",
-		configValue,
-		&staleRuntimeAt,
-		&staleRuntimeAt,
-		updated.ConfigurationVersion,
-	); err != nil {
-		t.Fatalf("versioned heartbeat config update: %v", err)
-	}
-	persisted, lastHeartbeatAt, lastAckAt, err := service.repository.GetHeartbeatState(
-		context.Background(),
-		updated.AgentID,
-	)
-	if err != nil {
-		t.Fatalf("GetHeartbeatState: %v", err)
-	}
-	if persisted == nil ||
-		persisted.ConfigurationVersion != updated.ConfigurationVersion+1 ||
-		persisted.EverySeconds != 90 {
-		t.Fatalf("persisted heartbeat config = %+v", persisted)
-	}
-	if lastHeartbeatAt == nil || !lastHeartbeatAt.Equal(freshRuntimeAt) ||
-		lastAckAt == nil || !lastAckAt.Equal(freshRuntimeAt) {
-		t.Fatalf(
-			"config CAS overwrote fresher runtime timestamps: heartbeat=%v ack=%v",
-			lastHeartbeatAt,
-			lastAckAt,
-		)
-	}
-}
-
-func TestAutomationCommandCreateRetryAndHeartbeatControl(t *testing.T) {
+func TestAutomationCommandCreateRetryReplaysSameTask(t *testing.T) {
 	fixture := newAutomationCommandFixture(t, "ok")
 	createArgs := map[string]any{
 		"request_id":     "mcp-create-stable",
@@ -575,60 +452,6 @@ func TestAutomationCommandCreateRetryAndHeartbeatControl(t *testing.T) {
 	if len(tasks) != 1 {
 		t.Fatalf("task count after replay = %d, want 1", len(tasks))
 	}
-
-	updateResult, updateError := callAutomationCommand(
-		t,
-		fixture.Service,
-		fixture.ServerContext,
-		"update_heartbeat",
-		map[string]any{
-			"enabled":       true,
-			"every_seconds": 120,
-			"target_mode":   automationdomain.HeartbeatTargetNone,
-			"ack_max_chars": 200,
-		},
-	)
-	if updateError {
-		t.Fatalf("update_heartbeat: %s", automationCommandText(t, updateResult))
-	}
-	heartbeat := decodeAutomationCommandJSON[automationdomain.HeartbeatStatus](t, updateResult)
-	if heartbeat.ConfigurationVersion != 1 || !heartbeat.Enabled || heartbeat.EverySeconds != 120 {
-		t.Fatalf("heartbeat update = %+v", heartbeat)
-	}
-	wakeResult, wakeError := callAutomationCommand(
-		t,
-		fixture.Service,
-		command.Actor{
-			AgentID:           fixture.ServerContext.AgentID,
-			OwnerUserID:       fixture.ServerContext.OwnerUserID,
-			SourceContextType: "agent",
-		},
-		"wake_heartbeat",
-		map[string]any{"mode": automationdomain.WakeModeNextHeartbeat},
-	)
-	if wakeError {
-		t.Fatalf("wake_heartbeat: %s", automationCommandText(t, wakeResult))
-	}
-	wake := decodeAutomationCommandJSON[automationdomain.HeartbeatWakeResult](t, wakeResult)
-	if wake.AgentID != fixture.ServerContext.AgentID ||
-		wake.Mode != automationdomain.WakeModeNextHeartbeat ||
-		wake.Scheduled {
-		t.Fatalf("wake result = %+v", wake)
-	}
-	afterWake, err := fixture.Service.GetHeartbeatStatus(
-		automationCommandTestOwnerContext(fixture.ServerContext.OwnerUserID),
-		fixture.ServerContext.AgentID,
-	)
-	if err != nil {
-		t.Fatalf("GetHeartbeatStatus after wake: %v", err)
-	}
-	if afterWake.ConfigurationVersion != heartbeat.ConfigurationVersion {
-		t.Fatalf(
-			"wake changed configuration version: before=%d after=%d",
-			heartbeat.ConfigurationVersion,
-			afterWake.ConfigurationVersion,
-		)
-	}
 }
 
 func automationConfigurationTaskInput(name string) automationdomain.CreateJobInput {
@@ -639,8 +462,7 @@ func automationConfigurationTaskInput(name string) automationdomain.CreateJobInp
 		Schedule:    automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: &interval, Timezone: "UTC"},
 		Instruction: "run",
 		SessionTarget: automationdomain.SessionTarget{
-			Kind:     automationdomain.SessionTargetIsolated,
-			WakeMode: automationdomain.WakeModeNow,
+			Kind: automationdomain.SessionTargetIsolated,
 		},
 		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Source: automationdomain.Source{

@@ -1,5 +1,5 @@
 // INPUT: automation 配置、持久化连接、Agent/Room/统一 Session/投递依赖与 artifact 删除协调器。
-// OUTPUT: deadline/wake 调度、任务控制、heartbeat、运行态编排与 isolated Session tombstone 清理服务。
+// OUTPUT: deadline/wake 调度、任务控制、Main Session 事件派发、运行态编排与 isolated Session tombstone 清理服务。
 // POS: Automation 服务的依赖装配、deadline loop 与进程内 catalog 状态根。
 package automation
 
@@ -121,7 +121,7 @@ func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event autom
 	}
 }
 
-// Service 提供 scheduled tasks 与 heartbeat 的真实业务能力。
+// Service 提供 scheduled tasks 的真实业务能力。
 type Service struct {
 	config             config.Config
 	repository         *automationstore.Repository
@@ -146,13 +146,12 @@ type Service struct {
 	// taskControlMu serializes short human-control-plane configuration changes.
 	// taskExecutionFences serialize start/delete/recovery/delivery side effects for
 	// one task without making runtime or external dispatch block unrelated tasks.
-	taskControlMu           sync.Mutex
-	taskExecutionFences     sync.Map
-	heartbeatControlMu      sync.Mutex
-	mu                      sync.Mutex
-	jobStates               map[string]*automationexec.JobRuntimeState
-	heartbeatState          map[string]*automationexec.HeartbeatRuntimeState
-	wakeRequests            map[string][]automationexec.HeartbeatWakeRequest
+	taskControlMu       sync.Mutex
+	taskExecutionFences sync.Map
+	mu                  sync.Mutex
+	jobStates           map[string]*automationexec.JobRuntimeState
+	// mainSessionBusy 按 Agent 串行 Main Session 定时任务事件；由 mu 保护。
+	mainSessionBusy         map[string]bool
 	attemptMu               sync.Mutex
 	physicalAttempts        map[physicalAttemptKey]*physicalAttempt
 	scriptAttemptMu         sync.Mutex
@@ -213,8 +212,7 @@ func NewService(
 		idFactory:             automationexec.NewID,
 		schedulerOwnerID:      automationexec.NewID("scheduler"),
 		jobStates:             make(map[string]*automationexec.JobRuntimeState),
-		heartbeatState:        make(map[string]*automationexec.HeartbeatRuntimeState),
-		wakeRequests:          make(map[string][]automationexec.HeartbeatWakeRequest),
+		mainSessionBusy:       make(map[string]bool),
 		physicalAttempts:      make(map[physicalAttemptKey]*physicalAttempt),
 		scriptAttempts:        make(map[string]*scriptAttempt),
 		deletionRecoveries:    make(map[string]string),

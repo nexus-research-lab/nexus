@@ -462,7 +462,6 @@ test("scheduled task payload keeps executor and recipient identities independent
   assert.equal(payload.agent_id, "agent-a");
   assert.deepEqual(payload.session_target, {
     kind: "isolated",
-    wake_mode: "next-heartbeat",
   });
   assert.deepEqual(payload.delivery, {
     mode: "last",
@@ -520,7 +519,6 @@ test("Room execution payload uses explicit member after the shared session", asy
   assert.deepEqual(payload.session_target, {
     bound_session_key: "room:group:conversation-1",
     kind: "bound",
-    wake_mode: "next-heartbeat",
   });
   assert.deepEqual(payload.delivery, { mode: "none" });
 });

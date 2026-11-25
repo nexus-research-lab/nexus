@@ -13,7 +13,7 @@
 //   - private_skill_schema.go：旧版私有 Skill 00061 与 Execution 迁移编号冲突的精确识别、账本迁移与顺序补跑。
 //   - automation_permission_schema.go：旧版定时任务权限 00071 与私有 Skill 00071/权限 00086 的完整 schema 识别、账本修复与顺序补跑。
 //   - goal_schema.go：旧 Goal 分支 00087-00089 与 main 联系人/Automation 迁移的完整 schema 识别、账本映射与顺序补跑。
-//   - agent_creation_schema.go：旧 Automation/Agent 恢复迁移 00121-00125 与 Agent 标签 00121 的连续 schema 识别、账本映射与顺序补跑。
+//   - schema_inspect.go：兼容修复共用的只读列/索引探测。
 //   - control_schema.go：旧 Control 分支 00128/00129 与正式 Connector 迁移的完整 schema 识别、账本映射与顺序补跑。
 //   - SQL 00128：把旧自定义 MCP 的隐式连接状态一次性迁成显式 enabled 可用性字段。
 //   - SQL 00129 / connector_credentials.go：为 Connector connection 密文增加稳定 key_id，
@@ -29,13 +29,14 @@
 //   - retired_skills.go：已退役系统 Skill 清理迁移。
 //   - retired_sandbox_resources.go：旧版 macOS 桌面沙箱监督根与带租约标记 scratch 的尽力清理；失败只告警并下次重试。
 //   - SQL 00160–00162 / workgraph_history*.go：冻结旧 Execution 回填集合、读取分类/恢复/连线目标索引及 canonical transcript 的可重试 Subagent 回填。
+//   - SQL 00169：Heartbeat 退役，删除配置表、wake outbox 行与 00125 的 wake 列/部分索引。
 //   - SQL 00159：删除无状态沙箱后已无读取方的启动记录、策略回执与 scratch 恢复表。
 //   - provider_scope_recovery.go：桌面 App 本地 SQLite 的旧 Provider scope 数据补偿。
 //   - state_root.go / state_root_metadata.go：桌面整体状态根复制后的数据库、transcript、Room 与 Session 删除恢复路径提交。
 //   - room_files.go：旧 app/rooms 到用户 state/rooms 与 workspace/.rooms 的 owner 级迁移。
 //   - room_files_hardlink_*.go：跨平台 Room 文件迁移硬链接校验。
 //
-// 暴露接口：RepairLegacyAgentDisabledSkillSchema、RepairLegacyPrivateSkillMigrationCollision、RepairLegacyAutomationPermissionMigrationCollision、RepairLegacyGoalMigrationCollision、RepairLegacyAgentCreationMigrationCollision、RepairLegacyControlMigrationCollision、RepairLegacyExecutionIdentityClaimSchema、RunStateLayout、RunWorkspaceLayout、MergeSkippedStateLayoutDatabase、MergeSkippedStateLayoutUsers、RunDesktopStateRootRebase、RunWorkspaceFiles、RunRoomFiles、RunDesktopLegacyConversationDraftRepair、RunRuntimeIdentitySync、RepairDesktopProviderScope、RunConnectorCredentialKeyMigration。
+// 暴露接口：RepairLegacyAgentDisabledSkillSchema、RepairLegacyPrivateSkillMigrationCollision、RepairLegacyAutomationPermissionMigrationCollision、RepairLegacyGoalMigrationCollision、RepairLegacyControlMigrationCollision、RepairLegacyExecutionIdentityClaimSchema、RunStateLayout、RunWorkspaceLayout、MergeSkippedStateLayoutDatabase、MergeSkippedStateLayoutUsers、RunDesktopStateRootRebase、RunWorkspaceFiles、RunRoomFiles、RunDesktopLegacyConversationDraftRepair、RunRuntimeIdentitySync、RepairDesktopProviderScope、RunConnectorCredentialKeyMigration。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package migration

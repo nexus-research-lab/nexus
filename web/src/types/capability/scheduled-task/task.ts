@@ -6,7 +6,6 @@
 
 import type { AutomationPermissionRequest } from "./permission";
 
-export type ScheduledTaskWakeMode = "now" | "next-heartbeat";
 export type ScheduledTaskDeliveryMode = "none" | "last" | "explicit";
 export type ScheduledTaskSourceKind = "user_page" | "agent" | "cli" | "system";
 export type ScheduledTaskSourceContextType = "agent" | "room" | "chat";
@@ -51,25 +50,21 @@ export type ScheduledTaskSessionTarget =
       kind: "isolated";
       bound_session_key?: null;
       named_session_key?: null;
-      wake_mode?: ScheduledTaskWakeMode;
     }
   | {
       kind: "main";
       bound_session_key?: null;
       named_session_key?: null;
-      wake_mode?: ScheduledTaskWakeMode;
     }
   | {
       kind: "bound";
       bound_session_key: string;
       named_session_key?: null;
-      wake_mode?: ScheduledTaskWakeMode;
     }
   | {
       kind: "named";
       bound_session_key?: null;
       named_session_key: string;
-      wake_mode?: ScheduledTaskWakeMode;
     };
 
 export interface ScheduledTaskDeliveryTarget {

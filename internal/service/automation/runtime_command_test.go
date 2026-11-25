@@ -310,7 +310,7 @@ func TestRuntimeCommandApplyRejectsStaleTaskRevision(t *testing.T) {
 	}
 }
 
-func TestRuntimeCommandReplayDoesNotDuplicateRunOrWake(t *testing.T) {
+func TestRuntimeCommandReplayDoesNotDuplicateRun(t *testing.T) {
 	fixture := newAutomationCommandFixture(t, "ok")
 	actor := fixture.ServerContext
 	created := createRuntimeCommandTask(t, fixture, actor, "replay task", "runtime-replay-create")
@@ -345,35 +345,6 @@ func TestRuntimeCommandReplayDoesNotDuplicateRunOrWake(t *testing.T) {
 		t.Fatalf("run replay IDs: first=%+v second=%+v", firstRun, secondRun)
 	}
 
-	wakeInput := automationdomain.AutomationCommandInput{Mode: automationdomain.WakeModeNextHeartbeat}
-	wakePlan, err := fixture.Service.PlanRuntimeCommand(
-		context.Background(), actor, automationdomain.AutomationCommandOperationWake, wakeInput,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wakeRequest := automationdomain.AutomationCommandRequest{
-		Action:    automationdomain.AutomationCommandActionApply,
-		Operation: automationdomain.AutomationCommandOperationWake,
-		Input:     wakeInput, RequestID: "runtime-wake-replay",
-		ExpectedRevision: wakePlan.CurrentRevision, PlanDigest: wakePlan.PlanDigest,
-	}
-	if _, err = fixture.Service.ApplyRuntimeCommand(
-		context.Background(), actor, wakeRequest, RuntimeCommandApplyOptions{HumanConfirmed: true, HumanApprovalRequestID: "test-approval"},
-	); err != nil {
-		t.Fatal(err)
-	}
-	if replayed, replayErr := fixture.Service.ApplyRuntimeCommand(
-		context.Background(), actor, wakeRequest, RuntimeCommandApplyOptions{HumanConfirmed: true, HumanApprovalRequestID: "test-approval"},
-	); replayErr != nil || replayed.Outcome != "replayed" {
-		t.Fatalf("wake replay = %+v err=%v", replayed, replayErr)
-	}
-	wake, err := fixture.Service.repository.GetHeartbeatWakeByRequest(
-		context.Background(), "user-1", "runtime-wake-replay",
-	)
-	if err != nil || wake.RequestID != "runtime-wake-replay" || wake.Status != "new" {
-		t.Fatalf("durable wake request = %+v err=%v", wake, err)
-	}
 }
 
 func TestRuntimeCommandReplayRecoversAcceptedRunAfterReceiptLoss(t *testing.T) {

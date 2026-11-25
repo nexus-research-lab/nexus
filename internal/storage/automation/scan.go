@@ -1,5 +1,5 @@
 // INPUT: 与 automation task/run 查询字段顺序一致的 SQL scanner。
-// OUTPUT: 归一化的 ScheduledTask、ScheduledTaskRun 和 Heartbeat 领域快照。
+// OUTPUT: 归一化的 ScheduledTask、ScheduledTaskRun 领域快照。
 // POS: Automation storage 的单一扫描投影；新增持久字段必须在此同步接入。
 package automation
 
@@ -66,7 +66,7 @@ func scanScheduledTask(scanner interface {
 		&item.SessionTarget.Kind,
 		&boundSessionKey,
 		&namedSessionKey,
-		&item.SessionTarget.WakeMode,
+		new(string), // wake_mode：Heartbeat 退役后的遗留列，只读不解释
 		&item.Delivery.Mode,
 		&deliveryChannel,
 		&deliveryTo,

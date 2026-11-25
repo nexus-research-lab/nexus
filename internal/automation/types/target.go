@@ -15,7 +15,6 @@ type SessionTarget struct {
 	Kind            string `json:"kind"`
 	BoundSessionKey string `json:"bound_session_key,omitempty"`
 	NamedSessionKey string `json:"named_session_key,omitempty"`
-	WakeMode        string `json:"wake_mode,omitempty"`
 }
 
 // Validate 校验会话目标。
@@ -23,16 +22,6 @@ func (t SessionTarget) Validate() error {
 	kind := strings.TrimSpace(t.Kind)
 	boundSessionKey := strings.TrimSpace(t.BoundSessionKey)
 	namedSessionKey := strings.TrimSpace(t.NamedSessionKey)
-	wakeMode := strings.TrimSpace(t.WakeMode)
-	if wakeMode == "" {
-		wakeMode = WakeModeNextHeartbeat
-	}
-	switch wakeMode {
-	case WakeModeNow, WakeModeNextHeartbeat:
-	default:
-		return errors.New("wake_mode must be one of now, next-heartbeat")
-	}
-
 	switch kind {
 	case SessionTargetIsolated, SessionTargetMain:
 		if boundSessionKey != "" || namedSessionKey != "" {
@@ -67,10 +56,6 @@ func (t SessionTarget) Normalized() SessionTarget {
 	}
 	result.BoundSessionKey = strings.TrimSpace(result.BoundSessionKey)
 	result.NamedSessionKey = strings.TrimSpace(result.NamedSessionKey)
-	result.WakeMode = strings.TrimSpace(result.WakeMode)
-	if result.WakeMode == "" {
-		result.WakeMode = WakeModeNextHeartbeat
-	}
 	return result
 }
 

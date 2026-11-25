@@ -49,25 +49,6 @@ type JobRuntimeState struct {
 	LastDeliveryStatus string
 }
 
-// HeartbeatRuntimeState 是进程内的 heartbeat 运行态。
-type HeartbeatRuntimeState struct {
-	Config          types.HeartbeatConfig
-	Running         bool
-	PendingWake     bool
-	NextRunAt       *time.Time
-	LastHeartbeatAt *time.Time
-	LastAckAt       *time.Time
-	DeliveryError   *string
-}
-
-// HeartbeatWakeRequest 表示待合并进 heartbeat 指令的一次唤醒请求。
-type HeartbeatWakeRequest struct {
-	AgentID    string
-	SessionKey string
-	WakeMode   string
-	Text       string
-}
-
 var retryBackoffs = []time.Duration{
 	30 * time.Second,
 	2 * time.Minute,

@@ -673,9 +673,7 @@ func (s *Service) queueResumedMainSessionRun(
 		requestPolicyRevision,
 	)
 	if err == nil {
-		err = s.wakeHeartbeatForSystemEvent(ctx, job.AgentID, automationdomain.WakeModeNow)
-	}
-	if err == nil {
+		s.wakeMainSession(job.AgentID)
 		return nil
 	}
 	if eventID != "" {

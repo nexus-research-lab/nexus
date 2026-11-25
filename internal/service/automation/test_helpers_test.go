@@ -603,19 +603,6 @@ CREATE TABLE automation_scheduler_leases (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
-CREATE TABLE automation_heartbeat_states (
-    state_id VARCHAR(64) NOT NULL PRIMARY KEY,
-    agent_id VARCHAR(64) NOT NULL UNIQUE,
-    enabled BOOLEAN NOT NULL,
-    every_seconds INTEGER NOT NULL,
-    target_mode VARCHAR(32) NOT NULL,
-    ack_max_chars INTEGER NOT NULL,
-    last_heartbeat_at DATETIME,
-    last_ack_at DATETIME,
-    configuration_version INTEGER NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
 CREATE TABLE automation_task_create_requests (
     owner_user_id VARCHAR(64) NOT NULL,
     request_id VARCHAR(128) NOT NULL,
@@ -661,19 +648,10 @@ CREATE TABLE automation_system_events (
     source_id VARCHAR(64),
     payload JSON NOT NULL,
     status VARCHAR(32) NOT NULL,
-    owner_user_id VARCHAR(64),
-    request_id VARCHAR(128),
-    intent_digest VARCHAR(64),
-    accepted_configuration_version INTEGER,
-    claim_token VARCHAR(128),
-    claim_expires_at DATETIME,
     processed_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
-CREATE UNIQUE INDEX uq_automation_heartbeat_wake_request
-    ON automation_system_events (owner_user_id, request_id)
-    WHERE event_type = 'heartbeat.wake' AND request_id IS NOT NULL;
 CREATE TABLE automation_task_events (
     event_id VARCHAR(64) NOT NULL PRIMARY KEY,
     job_id VARCHAR(64) NOT NULL,

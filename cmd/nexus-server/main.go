@@ -122,13 +122,6 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 				return fmt.Errorf("repair legacy execution identity claim schema: %w", err)
 			}
 		}
-		agentCreationReplay, repairErr := migration.RepairLegacyAgentCreationMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("repair shifted recovery migration version collision: %w", repairErr)
-		}
-		allowMissing = allowMissing || agentCreationReplay
 		controlReplay, repairErr := migration.RepairLegacyControlMigrationCollision(
 			context.Background(), cfg.DatabaseDriver, db, logger,
 		)
@@ -188,15 +181,6 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 		}
 		if goalPending {
 			return errors.New("Goal migration collision repair remains incomplete")
-		}
-		agentCreationPending, repairErr := migration.RepairLegacyAgentCreationMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("finalize shifted recovery migration collision repair: %w", repairErr)
-		}
-		if agentCreationPending {
-			return errors.New("shifted recovery migration collision repair remains incomplete")
 		}
 		controlPending, repairErr := migration.RepairLegacyControlMigrationCollision(
 			context.Background(), cfg.DatabaseDriver, db, logger,

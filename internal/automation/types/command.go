@@ -18,14 +18,11 @@ const (
 	AutomationCommandOperationEvents          = "events"
 	AutomationCommandOperationReport          = "report"
 	AutomationCommandOperationDeliveryTargets = "delivery_targets"
-	AutomationCommandOperationHeartbeat       = "heartbeat"
 	AutomationCommandOperationCreate          = "create"
 	AutomationCommandOperationUpdate          = "update"
 	AutomationCommandOperationDelete          = "delete"
 	AutomationCommandOperationRun             = "run"
 	AutomationCommandOperationRetryDelivery   = "retry_delivery"
-	AutomationCommandOperationSetHeartbeat    = "set_heartbeat"
-	AutomationCommandOperationWake            = "wake"
 )
 
 // AutomationCommandSchedule 是面向对话和 UI 的调度形状；service 会翻译成持久 Schedule。
@@ -79,12 +76,6 @@ type AutomationCommandInput struct {
 	EventLimit     int    `json:"event_limit,omitempty"`
 	Date           string `json:"date,omitempty"`
 	Timezone       string `json:"timezone,omitempty"`
-
-	EverySeconds int    `json:"every_seconds,omitempty"`
-	TargetMode   string `json:"target_mode,omitempty"`
-	AckMaxChars  *int   `json:"ack_max_chars,omitempty"`
-	Mode         string `json:"mode,omitempty"`
-	Text         string `json:"text,omitempty"`
 }
 
 // AutomationCommandDeliverySession 是宿主返回给当前 Agent 的可投递真实会话。

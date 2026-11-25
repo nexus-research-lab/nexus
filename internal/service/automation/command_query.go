@@ -162,18 +162,6 @@ func (s *Service) InspectRuntimeCommand(
 		return s.runtimeCommandReport(ctx, actor, input)
 	case automationdomain.AutomationCommandOperationDeliveryTargets:
 		return s.runtimeCommandDeliveryTargets(ctx, actor, input)
-	case automationdomain.AutomationCommandOperationHeartbeat:
-		if strings.TrimSpace(actor.SourceContextType) == "agent_paired" {
-			return nil, errors.New("外部 IM round 不开放 Agent heartbeat 配置查询")
-		}
-		agentID, err := runtimeCommandAgentID(actor, input.AgentID)
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(actor.CurrentJobID) != "" && agentID != actor.AgentID {
-			return nil, errors.New("后台 scheduled run 只能读取当前 Agent heartbeat")
-		}
-		return s.GetHeartbeatStatus(ctx, agentID)
 	default:
 		return nil, fmt.Errorf("未知 Automation inspect operation %q", operation)
 	}

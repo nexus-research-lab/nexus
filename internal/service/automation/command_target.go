@@ -128,7 +128,7 @@ func runtimeCommandSessionTarget(
 			return automationdomain.SessionTarget{}, errors.New("execution_mode=main 只允许主智能体私有 DM")
 		}
 		return automationdomain.SessionTarget{
-			Kind: automationdomain.SessionTargetMain, WakeMode: automationdomain.WakeModeNextHeartbeat,
+			Kind: automationdomain.SessionTargetMain,
 		}.Normalized(), nil
 	case "existing":
 		sessionKey := strings.TrimSpace(input.SelectedSessionKey)
@@ -144,7 +144,7 @@ func runtimeCommandSessionTarget(
 		return target, target.Validate()
 	case "temporary":
 		return automationdomain.SessionTarget{
-			Kind: automationdomain.SessionTargetIsolated, WakeMode: automationdomain.WakeModeNextHeartbeat,
+			Kind: automationdomain.SessionTargetIsolated,
 		}.Normalized(), nil
 	case "dedicated":
 		if !actor.CrossAgentAllowed() {
