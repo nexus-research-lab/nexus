@@ -1,4 +1,4 @@
-// INPUT: Automation durable catalog/lease/delivery deadline、内存 task/heartbeat deadline 与变更唤醒。
+// INPUT: Automation durable catalog/lease/delivery deadline、内存 task deadline、待恢复 Main Session 事件与变更唤醒。
 // OUTPUT: 单 leader 的精确定时分发、版本化自动停用、超时恢复、失败投递重试和 bounded cross-instance audit。
 // POS: Automation deadline coordinator；任务/投递 repository 仍是权威状态，loop 不做每秒扫描。
 package automation
@@ -38,9 +38,8 @@ type scheduledTaskDisableCandidate struct {
 }
 
 type dueAutomationWork struct {
-	dueTasks          []dueScheduledTask
-	tasksToDisable    []scheduledTaskDisableCandidate
-	heartbeatAgentIDs []string
+	dueTasks       []dueScheduledTask
+	tasksToDisable []scheduledTaskDisableCandidate
 }
 
 func (s *Service) schedulerLeaseTTL() time.Duration {
@@ -292,30 +291,13 @@ func (s *Service) bootstrapRuntime(ctx context.Context) error {
 		s.ensureJobState(item)
 	}
 
-	configs, err := s.repository.ListEnabledHeartbeatStates(ctx)
+	// 写入后即时唤醒可能因重启或派发失败丢失；审计时为仍有 new 事件的 Agent 补一次唤醒。
+	pendingMainAgentIDs, err := s.repository.ListAgentIDsWithNewSystemEvents(ctx)
 	if err != nil {
 		return err
 	}
-	seenHeartbeats := make(map[string]struct{}, len(configs))
-	for _, item := range configs {
-		seenHeartbeats[item.AgentID] = struct{}{}
-		if _, stateErr := s.refreshHeartbeatState(ctx, item.AgentID); stateErr != nil {
-			return stateErr
-		}
-	}
-	pendingWakeAgentIDs, err := s.repository.ListPendingHeartbeatWakeAgentIDs(ctx)
-	if err != nil {
-		return err
-	}
-	for _, agentID := range pendingWakeAgentIDs {
-		seenHeartbeats[agentID] = struct{}{}
-		state, stateErr := s.refreshHeartbeatState(ctx, agentID)
-		if stateErr != nil {
-			return stateErr
-		}
-		s.mu.Lock()
-		state.PendingWake = true
-		s.mu.Unlock()
+	for _, agentID := range pendingMainAgentIDs {
+		s.wakeMainSession(agentID)
 	}
 
 	// PostgreSQL deployments may accept a mutation on a non-leader process. The
@@ -333,17 +315,6 @@ func (s *Service) bootstrapRuntime(ctx context.Context) error {
 			continue
 		}
 		delete(s.jobStates, jobID)
-	}
-	for agentID, state := range s.heartbeatState {
-		if _, ok := seenHeartbeats[agentID]; ok {
-			continue
-		}
-		if state != nil && state.Running {
-			state.Config.Enabled = false
-			state.NextRunAt = nil
-			continue
-		}
-		delete(s.heartbeatState, agentID)
 	}
 	s.schedulerCatalogReadAt = s.nowFn().UTC()
 	s.mu.Unlock()
@@ -439,11 +410,6 @@ func (s *Service) reconcileAutomationDeadline(
 		s.startDeliveryRetryBatch(now)
 	}
 	nextDueAt := s.nextAutomationDeadline()
-	heartbeatWakeAt, err := s.repository.NextRecoverableHeartbeatWakeAt(ctx)
-	if err != nil {
-		return duework.Result{}, err
-	}
-	nextDueAt = earliestAutomationDeadline(nextDueAt, heartbeatWakeAt)
 	if !s.deliveryRetryBatchRunning() && deliveryAt != nil && deliveryAt.After(now) {
 		nextDueAt = earliestAutomationDeadline(nextDueAt, deliveryAt)
 	}
@@ -460,58 +426,11 @@ func (s *Service) runDueOnceAt(now time.Time) {
 	work := s.collectDueAutomationWork(now)
 	s.disableScheduledTasks(work.tasksToDisable, now)
 	s.dispatchScheduledTasks(work.dueTasks, now)
-	s.dispatchDueHeartbeats(work.heartbeatAgentIDs)
-	if err := s.dispatchRecoverableHeartbeatWakes(context.Background(), now); err != nil {
-		s.loggerFor(context.Background()).Warn("恢复 durable heartbeat wake 失败", "err", err)
-	}
-}
-
-func (s *Service) dispatchRecoverableHeartbeatWakes(ctx context.Context, now time.Time) error {
-	expired, err := s.repository.FailExpiredHeartbeatWakeClaims(ctx, now.UTC())
-	if err != nil {
-		return err
-	}
-	if expired > 0 {
-		s.loggerFor(ctx).Warn("heartbeat wake 的原派发结果未知，已停止自动重放", "count", expired)
-		pendingAgentIDs, pendingErr := s.repository.ListPendingHeartbeatWakeAgentIDs(ctx)
-		if pendingErr != nil {
-			return pendingErr
-		}
-		pending := make(map[string]struct{}, len(pendingAgentIDs))
-		for _, agentID := range pendingAgentIDs {
-			pending[agentID] = struct{}{}
-		}
-		s.mu.Lock()
-		for agentID, state := range s.heartbeatState {
-			if state != nil {
-				_, state.PendingWake = pending[agentID]
-			}
-		}
-		s.mu.Unlock()
-	}
-	agentIDs, err := s.repository.ListRecoverableHeartbeatWakeAgentIDs(ctx, now.UTC())
-	if err != nil {
-		return err
-	}
-	for _, agentID := range agentIDs {
-		state, stateErr := s.ensureHeartbeatState(ctx, agentID)
-		if stateErr != nil {
-			return stateErr
-		}
-		s.mu.Lock()
-		state.PendingWake = true
-		running := state.Running
-		s.mu.Unlock()
-		if !running {
-			go s.dispatchHeartbeat(agentID, "durable-wake-recovery")
-		}
-	}
-	return nil
 }
 
 func (s *Service) nextAutomationDeadline() *time.Time {
 	s.mu.Lock()
-	deadlines := make([]*time.Time, 0, len(s.jobStates)+len(s.heartbeatState)+2)
+	deadlines := make([]*time.Time, 0, len(s.jobStates)+1)
 	if !s.schedulerLeaseRenewAt.IsZero() {
 		deadlines = append(deadlines, cloneTimePointer(&s.schedulerLeaseRenewAt))
 	}
@@ -532,11 +451,6 @@ func (s *Service) nextAutomationDeadline() *time.Time {
 			(strings.TrimSpace(state.Job.PermissionState) == "" ||
 				strings.TrimSpace(state.Job.PermissionState) == automationdomain.TaskPermissionStateReady) &&
 			(!state.Running || automationdomain.NormalizeOverlapPolicy(state.Job.OverlapPolicy) != automationdomain.OverlapPolicySkip) {
-			deadlines = append(deadlines, cloneTimePointer(state.NextRunAt))
-		}
-	}
-	for _, state := range s.heartbeatState {
-		if state != nil && state.Config.Enabled && !state.Running && state.NextRunAt != nil {
 			deadlines = append(deadlines, cloneTimePointer(state.NextRunAt))
 		}
 	}
@@ -638,9 +552,8 @@ func (s *Service) collectDueAutomationWork(now time.Time) dueAutomationWork {
 	defer s.mu.Unlock()
 	dueTasks, tasksToDisable := s.collectScheduledTaskWorkLocked(now)
 	return dueAutomationWork{
-		dueTasks:          dueTasks,
-		tasksToDisable:    tasksToDisable,
-		heartbeatAgentIDs: s.collectDueHeartbeatAgentIDsLocked(now),
+		dueTasks:       dueTasks,
+		tasksToDisable: tasksToDisable,
 	}
 }
 
@@ -695,27 +608,6 @@ func isRunnableScheduledTaskState(state *automationexec.JobRuntimeState, now tim
 		return false
 	}
 	return !state.NextRunAt.After(now)
-}
-
-func (s *Service) collectDueHeartbeatAgentIDsLocked(now time.Time) []string {
-	agentIDs := make([]string, 0)
-	for agentID, state := range s.heartbeatState {
-		if state == nil || state.Running {
-			continue
-		}
-		if !state.Config.Enabled {
-			continue
-		}
-		if s.hasImmediateWakeRequestLocked(agentID) {
-			agentIDs = append(agentIDs, agentID)
-			continue
-		}
-		if state.NextRunAt == nil || state.NextRunAt.After(now) {
-			continue
-		}
-		agentIDs = append(agentIDs, agentID)
-	}
-	return agentIDs
 }
 
 func (s *Service) disableScheduledTasks(tasks []scheduledTaskDisableCandidate, now time.Time) {
@@ -852,12 +744,6 @@ func (s *Service) skipScheduledMisfire(task dueScheduledTask, now time.Time) boo
 		)
 	}
 	return true
-}
-
-func (s *Service) dispatchDueHeartbeats(agentIDs []string) {
-	for _, agentID := range agentIDs {
-		go s.dispatchHeartbeat(agentID, "heartbeat")
-	}
 }
 
 func (s *Service) startDeliveryRetryBatch(now time.Time) {

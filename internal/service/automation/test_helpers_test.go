@@ -603,19 +603,6 @@ CREATE TABLE automation_scheduler_leases (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
-CREATE TABLE automation_heartbeat_states (
-    state_id VARCHAR(64) NOT NULL PRIMARY KEY,
-    agent_id VARCHAR(64) NOT NULL UNIQUE,
-    enabled BOOLEAN NOT NULL,
-    every_seconds INTEGER NOT NULL,
-    target_mode VARCHAR(32) NOT NULL,
-    ack_max_chars INTEGER NOT NULL,
-    last_heartbeat_at DATETIME,
-    last_ack_at DATETIME,
-    configuration_version INTEGER NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
 CREATE TABLE automation_task_create_requests (
     owner_user_id VARCHAR(64) NOT NULL,
     request_id VARCHAR(128) NOT NULL,

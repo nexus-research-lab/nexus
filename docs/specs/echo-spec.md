@@ -50,7 +50,7 @@ Echo 不是提醒器，也不是让 Agent 定时找话说：对话暂停后仍�
 | Goal continuation | 已存在 Goal 的受控延续条件 | 绑定 Goal authority 的内部 round | Goal/Execution 推进 |
 
 - Echo 不复用 Automation 的主会话后台队列，不把主动跟进伪装成定时任务；只复用后台调度基础设施和 DM 内部输入能力。
-- 旧 Heartbeat 不再是用户可见、可配置的产品模块；定时任务仍可使用内部主会话事件调度。
+- 周期 Heartbeat 已删除；定时任务通过内部主会话事件立即唤醒调度。
 
 ## 4. 核心不变量
 
@@ -497,7 +497,7 @@ web/src/features/settings/general/sections/settings-general-behavior-section.tsx
 
 | 方案 | 拒绝原因 |
 | --- | --- |
-| 直接复用 heartbeat | 使用不同 Session 和后台语义，无法保证原对话身份 |
+| 复用 Automation 主会话事件 | 使用不同 Session 和后台语义，无法保证原对话身份 |
 | 固定周期扫描所有 DM | 成本高、难去重，没有清晰 anchor |
 | 让小模型直接写最终消息 | 绕过原 Agent persona、runtime 与真实历史 |
 | classifier 出错就唤醒主 Agent | 主动打扰不是关键任务，应保持沉默 |

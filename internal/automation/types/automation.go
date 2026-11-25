@@ -21,11 +21,6 @@ const (
 	// SessionTargetNamed 表示绑定到命名自动化会话。
 	SessionTargetNamed = "named"
 
-	// WakeModeNow 表示立即唤醒。
-	WakeModeNow = "now"
-	// WakeModeNextHeartbeat 表示在下一次 heartbeat 时消费。
-	WakeModeNextHeartbeat = "next-heartbeat"
-
 	// DeliveryModeNone 表示不做外部投递。
 	DeliveryModeNone = "none"
 	// DeliveryModeLast 表示投递到最近通道。
@@ -124,13 +119,6 @@ const (
 	TaskEventActionPermissionRetry = "permission_retry"
 	// TaskEventActionSessionBindingInvalidated 表示 Session 删除后任务已停用并等待重绑。
 	TaskEventActionSessionBindingInvalidated = "session_binding_invalidated"
-
-	// HeartbeatTargetNone 表示不投递。
-	HeartbeatTargetNone = "none"
-	// HeartbeatTargetLast 表示投递到最近通道。
-	HeartbeatTargetLast = "last"
-	// HeartbeatTargetExplicit 表示投递到显式目标。
-	HeartbeatTargetExplicit = "explicit"
 )
 
 var (
@@ -174,12 +162,8 @@ var (
 	ErrPermissionRunNotResumable = errors.New("automation permission run is not resumable")
 	// ErrPermissionConnectorNotReady 表示 connector 尚未恢复可用连接。
 	ErrPermissionConnectorNotReady = errors.New("automation permission connector is not ready")
-	// ErrHeartbeatConfigInvalid 表示 heartbeat 配置非法。
-	ErrHeartbeatConfigInvalid = errors.New("heartbeat config is invalid")
 	// ErrDailyReportDateInvalid 表示日报日期不符合查询契约。
 	ErrDailyReportDateInvalid = errors.New("daily report date is invalid")
 	// ErrDailyReportTimezoneInvalid 表示日报时区无法解析。
 	ErrDailyReportTimezoneInvalid = errors.New("daily report timezone is invalid")
-	// ErrHeartbeatWakeRequestConflict 表示同 owner 的 durable wake request_id 被复用于不同意图。
-	ErrHeartbeatWakeRequestConflict = errors.New("heartbeat wake request conflicts with an existing intent")
 )

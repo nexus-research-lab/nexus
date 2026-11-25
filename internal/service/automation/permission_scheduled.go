@@ -348,7 +348,7 @@ func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegen
 			return sdkpermission.Deny("定时任务后台运行收到空工具授权请求", false), nil
 		}
 		if toolpolicy.MatchesItem(toolName, "AskUserQuestion") {
-			return sdkpermission.Deny("后台 heartbeat 不支持交互式确认；请先把必要信息写入配置", true), nil
+			return sdkpermission.Deny("后台定时任务不支持交互式确认；请先把必要信息写入任务指令", true), nil
 		}
 		if toolpolicy.IsManagedRuntimeCommandTool(toolName) {
 			if readOnlyAutomationCommandRequest(request) {

@@ -77,7 +77,6 @@ func ScheduledTaskSearchTerms(job types.ScheduledTask) []string {
 		job.SessionTarget.Kind,
 		job.SessionTarget.BoundSessionKey,
 		job.SessionTarget.NamedSessionKey,
-		job.SessionTarget.WakeMode,
 		job.Delivery.Mode,
 		job.Delivery.Channel,
 		job.Delivery.To,

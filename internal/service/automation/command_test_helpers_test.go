@@ -270,8 +270,6 @@ func automationCommandTestRoute(name string, args map[string]any) (string, map[s
 		operation = "delete"
 	case "get_scheduled_task_report":
 		operation = "report"
-	case "get_heartbeat":
-		operation = "heartbeat"
 	case "run_scheduled_task":
 		operation = "run"
 	case "repair_scheduled_task":
@@ -284,15 +282,11 @@ func automationCommandTestRoute(name string, args map[string]any) (string, map[s
 			operation = "retry_delivery"
 		}
 		delete(routed, "action")
-	case "update_heartbeat":
-		operation = "set_heartbeat"
-	case "wake_heartbeat":
-		operation = "wake"
 	case "automation_query", "automation_update":
 		return name, routed
 	}
 	routed["operation"] = operation
-	if operation == "list" || operation == "get" || operation == "runs" || operation == "events" || operation == "report" || operation == "heartbeat" {
+	if operation == "list" || operation == "get" || operation == "runs" || operation == "events" || operation == "report" {
 		return "automation_query", routed
 	}
 	return "automation_update", routed

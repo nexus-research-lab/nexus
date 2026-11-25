@@ -720,14 +720,6 @@ func TestMainSessionPermissionRequestKeepsOriginalTaskRunContext(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
-		Enabled:      true,
-		EverySeconds: 3600,
-		TargetMode:   automationdomain.HeartbeatTargetNone,
-		AckMaxChars:  300,
-	}); err != nil {
-		t.Fatalf("UpdateHeartbeat 失败: %v", err)
-	}
 	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "主会话搜索",
 		AgentID:     "agent-1",
@@ -738,8 +730,7 @@ func TestMainSessionPermissionRequestKeepsOriginalTaskRunContext(t *testing.T) {
 			Timezone:        "Asia/Shanghai",
 		},
 		SessionTarget: automationdomain.SessionTarget{
-			Kind:     automationdomain.SessionTargetMain,
-			WakeMode: automationdomain.WakeModeNow,
+			Kind: automationdomain.SessionTargetMain,
 		},
 		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
@@ -792,7 +783,7 @@ func TestMainSessionPermissionRequestKeepsOriginalTaskRunContext(t *testing.T) {
 	}
 }
 
-func TestMainSessionTaskArrivingDuringHeartbeatRunsImmediatelyAfterCurrentRound(t *testing.T) {
+func TestMainSessionTaskArrivingDuringRunDispatchesAfterCurrentRound(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{permission: permission, delay: 200 * time.Millisecond}
@@ -803,59 +794,52 @@ func TestMainSessionTaskArrivingDuringHeartbeatRunsImmediatelyAfterCurrentRound(
 		dm,
 		nil,
 		permission,
-		&fakeWorkspaceReader{files: map[string]string{
-			"HEARTBEAT.md": "检查一次当前状态。",
-		}},
+		&fakeWorkspaceReader{},
 		nil,
 	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
-		Enabled:      true,
-		EverySeconds: 3600,
-		TargetMode:   automationdomain.HeartbeatTargetNone,
-		AckMaxChars:  300,
-	}); err != nil {
-		t.Fatalf("UpdateHeartbeat 失败: %v", err)
+	createMainTask := func(name string) *automationdomain.ScheduledTask {
+		task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
+			Name:        name,
+			AgentID:     "agent-1",
+			Instruction: "处理" + name,
+			Schedule: automationdomain.Schedule{
+				Kind:            automationdomain.ScheduleKindEvery,
+				IntervalSeconds: intRef(3600),
+				Timezone:        "Asia/Shanghai",
+			},
+			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetMain},
+			Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+			Enabled:       true,
+		})
+		if err != nil {
+			t.Fatalf("CreateTask 失败: %v", err)
+		}
+		return task
 	}
-	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
-		Name:        "并发到达的主会话任务",
-		AgentID:     "agent-1",
-		Instruction: "处理刚刚到达的定时任务",
-		Schedule: automationdomain.Schedule{
-			Kind:            automationdomain.ScheduleKindEvery,
-			IntervalSeconds: intRef(3600),
-			Timezone:        "Asia/Shanghai",
-		},
-		SessionTarget: automationdomain.SessionTarget{
-			Kind:     automationdomain.SessionTargetMain,
-			WakeMode: automationdomain.WakeModeNow,
-		},
-		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
-		Enabled:  true,
-	})
-	if err != nil {
-		t.Fatalf("CreateTask 失败: %v", err)
-	}
-	if _, err = service.WakeHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatWakeInput{
-		Mode: automationdomain.WakeModeNow,
-	}); err != nil {
-		t.Fatalf("WakeHeartbeat 失败: %v", err)
+	first := createMainTask("先到的主会话任务")
+	second := createMainTask("运行中到达的主会话任务")
+	if _, err := service.RunTaskNow(context.Background(), first.JobID); err != nil {
+		t.Fatalf("首个 Main Session task 入队失败: %v", err)
 	}
 	waitFor(t, time.Second, func() bool {
 		return len(dm.Requests()) == 1
 	})
-	result, err := service.RunTaskNow(context.Background(), task.JobID)
+	result, err := service.RunTaskNow(context.Background(), second.JobID)
 	if err != nil || result.RunID == nil || result.Status != automationdomain.RunStatusQueuedToMain {
 		t.Fatalf("运行中到达的 Main Session task 入队失败: result=%+v err=%v", result, err)
 	}
+	if got := len(dm.Requests()); got != 1 {
+		t.Fatalf("同一 Agent 的 Main Session 必须串行，当前轮未结束时已派发 %d 轮", got)
+	}
 	waitFor(t, 2*time.Second, func() bool {
-		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		runs, listErr := service.ListTaskRuns(context.Background(), second.JobID)
 		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusSucceeded
 	})
 	requests := dm.Requests()
-	if len(requests) != 2 || requests[1].PermissionHandler == nil {
-		t.Fatalf("普通 heartbeat 完成后应立即以 task 权限上下文执行下一轮: %+v", requests)
+	if len(requests) != 2 || requests[0].PermissionHandler == nil || requests[1].PermissionHandler == nil {
+		t.Fatalf("当前轮完成后应立即以 task 权限上下文执行下一轮: %+v", requests)
 	}
-	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
+	runs, err := service.ListTaskRuns(context.Background(), second.JobID)
 	if err != nil || len(runs) != 1 || runs[0].RunID != *result.RunID || runs[0].Attempts != 1 {
 		t.Fatalf("并发到达任务应完成原 logical run: runs=%+v err=%v", runs, err)
 	}

@@ -123,29 +123,6 @@ func (s *Service) PlanRuntimeCommand(
 			plan.CurrentRevision = runtimeDeliveryRevision(scope.Job, *selected)
 			plan.ObservedConfigurationVersion = scope.Job.ConfigurationVersion
 		}
-	case automationdomain.AutomationCommandOperationSetHeartbeat,
-		automationdomain.AutomationCommandOperationWake:
-		var agentID string
-		agentID, err = runtimeCommandAgentID(actor, input.AgentID)
-		if err == nil {
-			input.AgentID = agentID
-			var status *automationdomain.HeartbeatStatus
-			status, err = s.GetHeartbeatStatus(ctx, agentID)
-			if err != nil {
-				break
-			}
-			plan.Target = agentID
-			plan.CurrentRevision = runtimeHeartbeatRevision(*status)
-			plan.ObservedConfigurationVersion = status.ConfigurationVersion
-			if operation == automationdomain.AutomationCommandOperationSetHeartbeat {
-				err = validateRuntimeHeartbeatInput(input, *status)
-				plan.Summary = fmt.Sprintf("修改 Agent %s 的 heartbeat 配置", agentID)
-			} else {
-				err = validateRuntimeWakeInput(input)
-				plan.Summary = fmt.Sprintf("唤醒 Agent %s", agentID)
-				plan.Risk = "external_effect"
-			}
-		}
 	default:
 		err = fmt.Errorf("未知 Automation mutation operation %q", operation)
 	}
@@ -279,29 +256,6 @@ func (s *Service) ApplyRuntimeCommand(
 		result.Data, err = s.RetryRunDeliveryAtVersion(
 			ctx, scope.JobID, runID, plan.ObservedConfigurationVersion,
 		)
-	case automationdomain.AutomationCommandOperationSetHeartbeat:
-		status, statusErr := s.GetHeartbeatStatus(ctx, plan.Target)
-		if statusErr != nil {
-			return nil, statusErr
-		}
-		update := runtimeHeartbeatUpdate(plan.Input, *status)
-		result.Data, err = s.UpdateHeartbeatAtVersion(
-			ctx, plan.Target, plan.ObservedConfigurationVersion, update,
-		)
-	case automationdomain.AutomationCommandOperationWake:
-		_, statusErr := s.GetHeartbeatStatus(ctx, plan.Target)
-		if statusErr != nil {
-			return nil, statusErr
-		}
-		result.Data, err = s.wakeHeartbeat(
-			ctx,
-			plan.Target,
-			automationdomain.HeartbeatWakeInput{Mode: strings.TrimSpace(plan.Input.Mode), Text: commandOptionalString(plan.Input.Text)},
-			&plan.ObservedConfigurationVersion,
-			heartbeatWakeIdentity{
-				ownerUserID: actor.OwnerUserID, requestID: request.RequestID, intentDigest: intentDigest,
-			},
-		)
 	default:
 		return nil, fmt.Errorf("未知 Automation apply operation %q", plan.Operation)
 	}
@@ -384,46 +338,7 @@ func (s *Service) ReplayRuntimeCommand(
 				Operation: record.Operation, Outcome: "replayed", Data: runResult,
 			}, true, nil
 		}
-		if record.Operation != automationdomain.AutomationCommandOperationWake {
-			return nil, false, automationdomain.ErrRuntimeCommandUncertain
-		}
-		wake, wakeErr := s.repository.GetHeartbeatWakeByRequest(ctx, actor.OwnerUserID, request.RequestID)
-		if errors.Is(wakeErr, sql.ErrNoRows) {
-			return nil, false, automationdomain.ErrRuntimeCommandUncertain
-		}
-		if wakeErr != nil {
-			return nil, false, wakeErr
-		}
-		expectedAgentID, agentErr := runtimeCommandAgentID(actor, request.Input.AgentID)
-		if agentErr != nil {
-			return nil, false, agentErr
-		}
-		if wake.IntentDigest != intentDigest || wake.SourceID != expectedAgentID {
-			return nil, false, automationdomain.ErrRuntimeCommandConflict
-		}
-		var wakePayload struct {
-			Mode string `json:"wake_mode"`
-		}
-		if err = json.Unmarshal([]byte(wake.Payload), &wakePayload); err != nil {
-			return nil, false, automationdomain.ErrRuntimeCommandUncertain
-		}
-		wakeResult := &automationdomain.HeartbeatWakeResult{
-			AgentID:   strings.TrimSpace(wake.SourceID),
-			Mode:      strings.TrimSpace(wakePayload.Mode),
-			Scheduled: strings.TrimSpace(wakePayload.Mode) == automationdomain.WakeModeNow,
-		}
-		encoded, encodeErr := json.Marshal(wakeResult)
-		if encodeErr != nil {
-			return nil, false, encodeErr
-		}
-		if err = s.repository.CompleteRuntimeCommandFromHeartbeatWake(
-			ctx, actor.OwnerUserID, request.RequestID, intentDigest, string(encoded),
-		); err != nil {
-			return nil, false, err
-		}
-		return &automationdomain.AutomationCommandApplyResult{
-			Operation: record.Operation, Outcome: "replayed", Data: wakeResult,
-		}, true, nil
+		return nil, false, automationdomain.ErrRuntimeCommandUncertain
 	}
 	data, err := decodeRuntimeAutomationCommandResult(record.Operation, record.ResultJSON)
 	if err != nil {
@@ -449,10 +364,6 @@ func decodeRuntimeAutomationCommandResult(operation string, raw string) (any, er
 		target = &automationdomain.ExecutionResult{}
 	case automationdomain.AutomationCommandOperationRetryDelivery:
 		target = &automationdomain.ScheduledTaskRun{}
-	case automationdomain.AutomationCommandOperationSetHeartbeat:
-		target = &automationdomain.HeartbeatStatus{}
-	case automationdomain.AutomationCommandOperationWake:
-		target = &automationdomain.HeartbeatWakeResult{}
 	default:
 		return nil, fmt.Errorf("未知 Automation command replay operation %q", operation)
 	}
@@ -680,10 +591,6 @@ func runtimeTaskRevision(task automationdomain.ScheduledTask) string {
 	return fmt.Sprintf("task:%s:%d", strings.TrimSpace(task.JobID), task.ConfigurationVersion)
 }
 
-func runtimeHeartbeatRevision(status automationdomain.HeartbeatStatus) string {
-	return fmt.Sprintf("heartbeat:%s:%d", strings.TrimSpace(status.AgentID), status.ConfigurationVersion)
-}
-
 func runtimeDeliveryRevision(task automationdomain.ScheduledTask, run automationdomain.ScheduledTaskRun) string {
 	return fmt.Sprintf("delivery:%s:%d:%s:%d", task.JobID, task.ConfigurationVersion, run.RunID, run.DeliveryAttempts)
 }
@@ -734,46 +641,6 @@ func runtimeAutomationIntentDigest(
 	}
 	sum := sha256.Sum256(encoded)
 	return hex.EncodeToString(sum[:]), nil
-}
-
-func validateRuntimeHeartbeatInput(input automationdomain.AutomationCommandInput, current automationdomain.HeartbeatStatus) error {
-	update := runtimeHeartbeatUpdate(input, current)
-	config := automationdomain.HeartbeatConfig{
-		AgentID: current.AgentID, Enabled: update.Enabled, EverySeconds: update.EverySeconds,
-		TargetMode: update.TargetMode, AckMaxChars: update.AckMaxChars,
-	}
-	return config.Normalized().Validate()
-}
-
-func runtimeHeartbeatUpdate(input automationdomain.AutomationCommandInput, current automationdomain.HeartbeatStatus) automationdomain.HeartbeatUpdateInput {
-	result := automationdomain.HeartbeatUpdateInput{
-		Enabled: current.Enabled, EverySeconds: current.EverySeconds,
-		TargetMode: current.TargetMode, AckMaxChars: current.AckMaxChars,
-	}
-	if input.Enabled != nil {
-		result.Enabled = *input.Enabled
-	}
-	if input.EverySeconds > 0 {
-		result.EverySeconds = input.EverySeconds
-	}
-	if strings.TrimSpace(input.TargetMode) != "" {
-		result.TargetMode = strings.TrimSpace(input.TargetMode)
-	}
-	if input.AckMaxChars != nil {
-		result.AckMaxChars = *input.AckMaxChars
-	}
-	return result
-}
-
-func validateRuntimeWakeInput(input automationdomain.AutomationCommandInput) error {
-	mode := strings.TrimSpace(input.Mode)
-	if mode == "" {
-		mode = automationdomain.WakeModeNow
-	}
-	if mode != automationdomain.WakeModeNow && mode != automationdomain.WakeModeNextHeartbeat {
-		return errors.New("wake mode 必须是 now 或 next-heartbeat")
-	}
-	return nil
 }
 
 func commandOptionalString(value string) *string {

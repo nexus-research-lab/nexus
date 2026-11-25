@@ -154,7 +154,6 @@ func TestSessionDeletionRecoveryInvalidatesBoundAutomationTask(t *testing.T) {
 		SessionTarget: automationdomain.SessionTarget{
 			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: sessionKey,
-			WakeMode:        automationdomain.WakeModeNow,
 		},
 		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Source:   automationdomain.Source{Kind: automationdomain.SourceKindUserPage},

@@ -51,7 +51,7 @@ id, slug, name, description, definition, status, workspace_path
 		ExecutionKind:  automationdomain.ExecutionKindAgent,
 		PermissionMode: automationdomain.PermissionModeDefault,
 		SessionTarget: automationdomain.SessionTarget{
-			Kind: automationdomain.SessionTargetIsolated, WakeMode: automationdomain.WakeModeNextHeartbeat,
+			Kind: automationdomain.SessionTargetIsolated,
 		},
 		Delivery:            automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Source:              automationdomain.Source{Kind: automationdomain.SourceKindSystem},

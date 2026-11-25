@@ -15,6 +15,9 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
+// legacyWakeModeColumnValue 填充 wake_mode NOT NULL/CHECK 遗留列；主会话任务一律立即唤醒，列值不再被读取。
+const legacyWakeModeColumnValue = "now"
+
 // ListScheduledTasks 列出定时任务。ownerUserID 为空时表示全局作用域。
 func (r *Repository) ListScheduledTasks(ctx context.Context, ownerUserID string, agentID string) ([]automationdomain.ScheduledTask, error) {
 	query := `
@@ -649,7 +652,7 @@ func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) ([]any, err
 		job.SessionTarget.Kind,
 		nullString(job.SessionTarget.BoundSessionKey),
 		nullString(job.SessionTarget.NamedSessionKey),
-		job.SessionTarget.WakeMode,
+		legacyWakeModeColumnValue,
 		job.Delivery.Mode,
 		nullString(job.Delivery.Channel),
 		nullString(job.Delivery.To),

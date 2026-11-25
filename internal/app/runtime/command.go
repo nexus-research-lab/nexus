@@ -732,11 +732,6 @@ func automationConfirmationInput(plan automationdomain.AutomationCommandPlan) ma
 	add("enabled", command.Enabled, command.Enabled != nil)
 	add("cancel_active_run", command.CancelActiveRun, command.CancelActiveRun)
 	add("run_id", command.RunID, strings.TrimSpace(command.RunID) != "")
-	add("every_seconds", command.EverySeconds, command.EverySeconds > 0)
-	add("target_mode", command.TargetMode, strings.TrimSpace(command.TargetMode) != "")
-	add("ack_max_chars", command.AckMaxChars, command.AckMaxChars != nil)
-	add("wake_mode", command.Mode, strings.TrimSpace(command.Mode) != "")
-	add("text", command.Text, strings.TrimSpace(command.Text) != "")
 	if len(changes) > 0 {
 		input["changes"] = changes
 	}

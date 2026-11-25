@@ -270,34 +270,3 @@ func deliveryRetrySchedule(status string, attemptsAfter int, now time.Time) (*ti
 	next := now.UTC().Add(deliveryRetryBackoffs[index])
 	return &next, nil
 }
-
-func (s *Service) deliverHeartbeatObservation(
-	ctx context.Context,
-	agentID string,
-	configValue automationdomain.HeartbeatConfig,
-	observation automationexec.ExecutionObservation,
-) *string {
-	targetMode := strings.TrimSpace(configValue.TargetMode)
-	if targetMode == "" || targetMode == automationdomain.HeartbeatTargetNone {
-		return nil
-	}
-	if s.delivery == nil {
-		return stringPointer("delivery router is not configured")
-	}
-	filtered := automationexec.FilterHeartbeatResponse(
-		textutil.FirstNonEmpty(observation.ResultText, observation.AssistantText),
-		configValue.AckMaxChars,
-	)
-	if !filtered.ShouldDeliver || strings.TrimSpace(filtered.Text) == "" {
-		return nil
-	}
-	if _, err := s.delivery.DeliverMessage(
-		ctx,
-		agentID,
-		filtered.Text,
-		channels.DeliveryTarget{Mode: targetMode},
-	); err != nil {
-		return errorPointer(err)
-	}
-	return nil
-}

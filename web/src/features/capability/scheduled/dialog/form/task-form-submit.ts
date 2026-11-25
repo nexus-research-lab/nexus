@@ -211,19 +211,16 @@ function buildSessionTarget(
     return {
       bound_session_key: selectedSession.sessionKey,
       kind: "bound",
-      wake_mode: "next-heartbeat",
     };
   }
   if (form.executionMode === "dedicated") {
     return {
       kind: "named",
       named_session_key: form.dedicatedSessionKey.trim(),
-      wake_mode: "next-heartbeat",
     };
   }
   return {
     kind: form.executionMode === "main" ? "main" : "isolated",
-    wake_mode: "next-heartbeat",
   };
 }
 

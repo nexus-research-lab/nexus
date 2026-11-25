@@ -672,7 +672,6 @@ WHERE job_id IN (SELECT job_id FROM automation_scheduled_tasks WHERE agent_id = 
 		{query: `UPDATE automation_scheduled_tasks SET source_creator_agent_id = NULL WHERE source_creator_agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `DELETE FROM automation_scheduled_tasks WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `DELETE FROM automation_delivery_routes WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
-		{query: `DELETE FROM automation_heartbeat_states WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `DELETE FROM im_ingress_messages WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `
 DELETE FROM im_pairings

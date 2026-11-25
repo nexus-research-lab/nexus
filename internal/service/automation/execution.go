@@ -189,17 +189,11 @@ func (s *jobExecutionStarter) startMainSession() (*automationdomain.ExecutionRes
 		s.failPendingRun(err)
 		return nil, err
 	}
-	mode := normalizedWakeMode(s.job.SessionTarget.WakeMode)
-	if err = s.service.wakeHeartbeatForSystemEvent(s.ctx, s.job.AgentID, mode); err != nil {
-		_ = s.service.repository.MarkSystemEventStatus(context.Background(), eventID, "failed")
-		s.failPendingRun(err)
-		s.logger.Error("自动化任务唤醒主会话 heartbeat 失败", "err", err)
-		return nil, err
-	}
+	s.service.wakeMainSession(s.job.AgentID)
 	s.logger.Info("自动化任务已排入主会话",
 		"run_id", s.runID,
+		"event_id", eventID,
 		"session_key", s.sessionKey,
-		"wake_mode", mode,
 	)
 	return s.queuedMainResult(), nil
 }
@@ -214,13 +208,6 @@ func (s *jobExecutionStarter) prepareMainIdentity() error {
 	}
 	s.sessionKey = sessionKey
 	return nil
-}
-
-func normalizedWakeMode(mode string) string {
-	if strings.TrimSpace(mode) == "" {
-		return automationdomain.WakeModeNextHeartbeat
-	}
-	return mode
 }
 
 func (s *jobExecutionStarter) queuedMainResult() *automationdomain.ExecutionResult {

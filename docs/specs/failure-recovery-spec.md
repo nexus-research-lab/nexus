@@ -156,9 +156,9 @@ Subscription Admin：
 
 ### Automation
 
-服务端真相：`configuration_version`、创建/立即运行 request ID、run、delivery attempt、deletion token 和 heartbeat outbox。
+服务端真相：`configuration_version`、创建/立即运行 request ID、run、delivery attempt、deletion token 和 Main Session 系统事件。
 
-运行领取、执行结束、首次投递、人工重投、任务删除和 Heartbeat wake 是六个独立的持久阶段：
+运行领取、执行结束、首次投递、人工重投、任务删除和 Main Session 事件派发是六个独立的持久阶段：
 
 | 阶段 | 规则 |
 | --- | --- |
@@ -169,7 +169,7 @@ Subscription Admin：
 | 任务删除 | 先持久 claim、禁用新运行并推进配置版本；再中断 exact 本地 attempt，原子收口 run/权限/投递/审计并删除定义 |
 | 删除未证实停止 | 无法证明原执行实例已停止时进入 `review_required`，保留任务与历史，禁止按超时猜测 |
 | 删除中迟到 terminal | 只能走 exact deletion token 的独立 suppressed commit，强制 `not_attempted`，不得投递或改写 task runtime |
-| Heartbeat wake | 在配置事务栅栏内先写 durable outbox；未领取项可恢复；已开始但结果未知的 claim 不得自动重投 |
+| Main Session 事件 | 事件先落库再唤醒；按 status CAS 唯一领取，同一 Agent 串行；仍为 new 的事件由审计补唤醒，已领取事件不自动重投 |
 
 - 查询不得隐式写策略或调度状态。
 - deadline 由索引、合并唤醒和低频审计驱动，不做 per-task 轮询。

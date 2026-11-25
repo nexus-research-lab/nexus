@@ -162,7 +162,7 @@ id, slug, name, description, definition, status, workspace_path
 		JobID: "atomic-job", OwnerUserID: "atomic-owner", Name: "Atomic run", AgentID: "atomic-agent",
 		Schedule:    automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: &intervalSeconds, Timezone: "UTC"},
 		Instruction: "run atomically", ExecutionKind: automationdomain.ExecutionKindAgent, PermissionMode: automationdomain.PermissionModeDefault,
-		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated, WakeMode: automationdomain.WakeModeNextHeartbeat},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
 		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}, Source: automationdomain.Source{Kind: automationdomain.SourceKindSystem},
 		OverlapPolicy: overlapPolicy, SessionBindingState: automationdomain.TaskSessionBindingStateReady,
 		PermissionPolicy: automationdomain.TaskPermissionPolicy{Version: 1, Revision: 1},

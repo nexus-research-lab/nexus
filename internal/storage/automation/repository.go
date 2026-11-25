@@ -11,19 +11,17 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
-// Repository 封装自动化任务与 heartbeat 的 SQL 读写。
+// Repository 封装自动化任务与主会话事件的 SQL 读写。
 type Repository struct {
-	db                           *sql.DB
-	isPostgres                   bool
-	dialect                      storage.SQLDialect
-	upsertScheduledTaskQuery     string
-	insertRunPendingQuery        string
-	markRunRunningQuery          string
-	markRunFinishedQuery         string
-	upsertHeartbeatStateQuery    string
-	persistHeartbeatRuntimeQuery string
-	insertSystemEventQuery       string
-	markSystemEventStatusQuery   string
+	db                         *sql.DB
+	isPostgres                 bool
+	dialect                    storage.SQLDialect
+	upsertScheduledTaskQuery   string
+	insertRunPendingQuery      string
+	markRunRunningQuery        string
+	markRunFinishedQuery       string
+	insertSystemEventQuery     string
+	markSystemEventStatusQuery string
 }
 
 const upsertScheduledTaskQueryTemplate = `
@@ -195,47 +193,6 @@ SET status = %s,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s`,
 		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4), repository.bind(5), repository.bind(6), repository.bind(7), repository.bind(8), repository.bind(9), repository.bind(10), repository.bind(11), repository.bind(12), repository.bind(13), repository.bind(14), repository.bind(15), repository.bind(16), repository.bind(17),
-	)
-	repository.upsertHeartbeatStateQuery = fmt.Sprintf(
-		`INSERT INTO automation_heartbeat_states (
-    state_id,
-    agent_id,
-    enabled,
-    every_seconds,
-    target_mode,
-    ack_max_chars,
-    last_heartbeat_at,
-    last_ack_at,
-    created_at,
-    updated_at
-) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-ON CONFLICT(agent_id) DO UPDATE SET
-    enabled = EXCLUDED.enabled,
-    every_seconds = EXCLUDED.every_seconds,
-    target_mode = EXCLUDED.target_mode,
-    ack_max_chars = EXCLUDED.ack_max_chars,
-    configuration_version = automation_heartbeat_states.configuration_version + 1,
-    updated_at = CURRENT_TIMESTAMP`,
-		repository.bindList(8),
-	)
-	repository.persistHeartbeatRuntimeQuery = fmt.Sprintf(
-		`INSERT INTO automation_heartbeat_states (
-    state_id,
-    agent_id,
-    enabled,
-    every_seconds,
-    target_mode,
-    ack_max_chars,
-    last_heartbeat_at,
-    last_ack_at,
-    created_at,
-    updated_at
-) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-ON CONFLICT(agent_id) DO UPDATE SET
-    last_heartbeat_at = EXCLUDED.last_heartbeat_at,
-    last_ack_at = EXCLUDED.last_ack_at,
-    updated_at = CURRENT_TIMESTAMP`,
-		repository.bindList(8),
 	)
 	repository.insertSystemEventQuery = fmt.Sprintf(
 		`INSERT INTO automation_system_events (

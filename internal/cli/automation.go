@@ -102,7 +102,6 @@ func (f scheduledTaskTargetFlags) value() automationdomain.SessionTarget {
 		Kind:            f.kind,
 		BoundSessionKey: f.boundSessionKey,
 		NamedSessionKey: f.namedSessionKey,
-		WakeMode:        automationdomain.WakeModeNextHeartbeat,
 	}
 }
 

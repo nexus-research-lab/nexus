@@ -100,8 +100,9 @@
 ## Main Session 对齐
 
 - Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`、owner 和策略修订；权限恢复还携带已处理的 request ID。
-- heartbeat 每次只消费一个绑定任务的事件，并用该任务自己的权限处理器派发原任务；普通 heartbeat 工作继续使用 Agent 默认权限处理器。
-- 批准恢复 Main Session run 时，重新入队同一个 logical run，不派发匿名 heartbeat 指令。
+- 事件落库后立即唤醒 Main Session 派发器；同一 Agent 一次只领取一个绑定任务的事件，并用该任务自己的权限处理器派发原任务。当前轮结束后立即领取下一条，低频审计为仍处于 new 的事件补唤醒。
+- 不存在周期 Heartbeat、HEARTBEAT.md 或匿名主会话指令；系统事件只承载 `scheduled_task.trigger`。
+- 批准恢复 Main Session run 时，重新入队同一个 logical run 并立即唤醒。
 
 ## 脚本边界
 
@@ -159,7 +160,6 @@ list/get 范围：
 
 - “这里、当前群、当前会话”等词按 Actor 的结构化 SessionKey 匹配任务 source、bound execution Session 和 delivery Session。
 - active-paired 外部 IM 的空 list/report 默认只覆盖当前会话；零匹配返回空，不得回退到 Agent 全量。
-- 外部 IM 不开放 heartbeat 配置查询。
 - 已删除任务的 runs/events 仍接受精确 job_id。
 - `enabled` 和会话过滤必须在用户 limit 之前执行。
 
