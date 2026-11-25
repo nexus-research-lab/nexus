@@ -57,16 +57,34 @@
   padding-inline: 10px;
 }
 
+/* 会话页的视图入口始终只显示图标，名称由共享 Tooltip 与读屏标签承载。 */
 .workspace-surface-header-with-session-tabs
-  .workspace-surface-header-view-tab {
+  .workspace-surface-header-view-tab,
+.workspace-surface-header-with-session-tabs
+  .workspace-surface-header-view-tab[aria-pressed="true"] {
   --workspace-header-control-height: 32px;
-  gap: 5px;
-  padding-inline: 8px;
+  width: var(--workspace-header-control-height);
+  justify-content: center;
+  gap: 0;
+  padding-inline: 0;
 }
 
 .workspace-surface-header-with-session-tabs
-  .workspace-surface-header-view-tab[aria-pressed="true"] {
-  padding-inline: 8px;
+  .workspace-surface-header-view-tab-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.workspace-surface-header-with-session-tabs
+  .workspace-surface-header-member-label {
+  display: none;
 }
 
 .workspace-surface-header-with-session-tabs
@@ -354,14 +372,6 @@
   }
 
   .workspace-surface-header-with-session-tabs
-    .workspace-surface-header-view-tab {
-    width: 36px;
-    justify-content: center;
-    gap: 0;
-    padding-inline: 0;
-  }
-
-  .workspace-surface-header-with-session-tabs
     .workspace-surface-header-member-control {
     width: 36px;
     justify-content: center;
@@ -375,23 +385,8 @@
   }
 
   .workspace-surface-header-with-session-tabs
-    .workspace-surface-header-member-avatars,
-  .workspace-surface-header-with-session-tabs
-    .workspace-surface-header-member-label {
+    .workspace-surface-header-member-avatars {
     display: none;
-  }
-
-  .workspace-surface-header-with-session-tabs
-    .workspace-surface-header-view-tab-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 }
 
