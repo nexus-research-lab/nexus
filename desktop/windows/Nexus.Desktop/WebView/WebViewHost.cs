@@ -27,7 +27,7 @@ internal sealed class WebViewHost : IDisposable
     private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
     private ulong lastNavigationId;
-    private DesktopWebRoute lastRoute = DesktopWebRoute.Launcher;
+    private DesktopWebRoute lastRoute = DesktopWebRoute.App;
 
     private sealed record ResumeProbeResult(bool IsReady, DesktopWebRoute? CurrentRoute, string Snapshot);
 

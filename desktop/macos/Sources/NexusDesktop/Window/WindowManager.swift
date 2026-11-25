@@ -45,15 +45,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   func showMainWindow() {
-    showMainWindow(route: DesktopWebRoute(path: "/launcher", entry: .app))
+    showMainWindow(route: defaultMainRoute())
   }
 
   func reopenMainWindow() {
     showMainWindow(route: mainWindow == nil ? defaultMainRoute() : nil)
-  }
-
-  func showLauncher() {
-    showMainWindow(route: DesktopWebRoute(path: "/launcher", entry: .app))
   }
 
   func showSettings() {
@@ -240,7 +236,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   private func defaultMainRoute() -> DesktopWebRoute {
-    DesktopWebRoute(path: "/launcher", entry: .app)
+    DesktopWebRoute(path: "/app", entry: .app)
   }
 
   private static func initialWindowSizing(screen: NSScreen? = NSScreen.main) -> (frame: NSRect, minimumSize: NSSize) {

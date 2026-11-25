@@ -78,7 +78,7 @@ export function JoinOrganizationPage() {
         username: draft.username.trim(), display_name: draft.displayName.trim(), password: draft.password,
       });
       await refreshStatus();
-      navigate(APP_ROUTE_PATHS.launcher, { replace: true });
+      navigate(APP_ROUTE_PATHS.home, { replace: true });
     } catch {
       setFailed(true);
     } finally {

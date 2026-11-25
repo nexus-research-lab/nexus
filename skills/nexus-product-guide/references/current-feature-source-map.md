@@ -15,7 +15,7 @@
 | 功能 | 主要事实来源 |
 | --- | --- |
 | 页面与入口 | `web/src/app/router/route-paths.ts`、`web/src/shared/i18n/catalog/zh/navigation.ts` |
-| 启动页和首次设置 | `web/src/features/launcher/`、`web/src/features/onboarding/` |
+| 启动页和首次设置 | `web/src/pages/home/`、`web/src/features/onboarding/` |
 | 左侧能力目录 | `web/src/features/capability/sidebar/capability-sidebar-model.ts` |
 | 会话标签和固定会话 | `web/src/shared/ui/workspace/controls/`、`web/src/store/room-navigation.ts` |
 | 会话历史 | `web/src/features/conversation/room/surface/history/` |

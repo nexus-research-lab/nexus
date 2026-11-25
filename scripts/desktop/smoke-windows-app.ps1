@@ -571,9 +571,9 @@ try {
     }
     $current = $log.Substring($markerIndex)
     return $current.Contains("event=sidecar.health_ready") -and
-      ($current.Contains("event=main_window.route_load") -and $current.Contains("path=/launcher")) -and
-      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/launcher"))
-  } $TimeoutSeconds "launcher web.ready"
+      ($current.Contains("event=main_window.route_load") -and $current.Contains("path=/app")) -and
+      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/app"))
+  } $TimeoutSeconds "app web.ready"
 
   $sidecars = @(Find-SidecarProcess $process.Id $AppDir)
   if ($sidecars.Count -eq 0) {
@@ -719,8 +719,8 @@ try {
     if ($index -lt 0) { return $false }
     $current = $log.Substring($index)
     return $current.Contains("event=sidecar.health_ready") -and
-      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/launcher"))
-  } $TimeoutSeconds "reopened launcher web.ready"
+      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/app"))
+  } $TimeoutSeconds "reopened app web.ready"
   Write-Host "==> Choosing exit from the window close dialog"
   $exitTimer = [System.Diagnostics.Stopwatch]::StartNew()
   Invoke-WindowCloseAction $process "退出 Nexus"

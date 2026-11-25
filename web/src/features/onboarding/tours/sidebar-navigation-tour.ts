@@ -4,7 +4,6 @@ import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-contr
 export const SIDEBAR_NAVIGATION_TOUR_ID = "sidebar-navigation";
 
 export const SIDEBAR_TOUR_ANCHORS = {
-  launcher: "sidebar-launcher-entry",
   chat_tab: "sidebar-chat-tab",
   contacts_tab: "sidebar-contacts-tab",
   capabilities_tab: "sidebar-capabilities-tab",
@@ -32,13 +31,6 @@ export function buildSidebarNavigationTour(
           { icon: "users", text: t("sidebar.guide_contacts") },
           { icon: "puzzle", text: t("sidebar.guide_capabilities") },
         ],
-      },
-      {
-        id: "launcher",
-        title: t("sidebar.tour_launcher_title"),
-        description: t("sidebar.tour_launcher_description"),
-        target: SIDEBAR_TOUR_ANCHORS.launcher,
-        placement: "right",
       },
       {
         id: "chat",

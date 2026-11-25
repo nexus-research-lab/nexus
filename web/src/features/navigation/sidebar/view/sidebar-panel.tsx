@@ -37,7 +37,7 @@ interface SidebarPanelProps {
   activeTab: SidebarPrimaryTab;
   collapsed: boolean;
   expandedWidth: number | string;
-  launcherLabel: string;
+  brandLabel: string;
   navigationLabel: string;
   onPointerDown: PointerEventHandler<HTMLDivElement>;
   onPointerLeave: PointerEventHandler<HTMLDivElement>;
@@ -77,7 +77,7 @@ export function SidebarPanel({
   activeTab,
   collapsed,
   expandedWidth,
-  launcherLabel,
+  brandLabel,
   navigationLabel,
   onPointerDown,
   onPointerLeave,
@@ -145,7 +145,7 @@ export function SidebarPanel({
           }
           data-desktop-window-drag-region
         >
-          <SidebarBrandLink collapsed={collapsed} label={launcherLabel} />
+          <SidebarBrandLink collapsed={collapsed} label={brandLabel} />
           <div aria-hidden="true" className="w-4 shrink-0 self-stretch" />
           {!collapsed ? (
             <div className="sidebar-panel-header-toggle shrink-0">

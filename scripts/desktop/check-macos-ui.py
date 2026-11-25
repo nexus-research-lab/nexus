@@ -307,19 +307,15 @@ def run_case(client: NativeClient, theme: str, locale: str, width: int) -> dict:
 
 def run_app_shell_case(client: NativeClient, theme: str, locale: str, width: int) -> dict:
     name = f"app-{theme}-{locale}-{width}"
-    query = "document.querySelector('input[data-tour-anchor], [data-tour-anchor=launcher-composer] input')"
-    enter = "document.querySelector('[data-tour-anchor=launcher-enter-app]')"
     sidebar = "document.querySelector('.sidebar-panel-shell')"
     client.command("resize", width=width, height=820 if width > 360 else 640)
     client.command("route", query=urlencode({"theme": theme, "locale": locale, "qa_case": name}))
-    client.wait(f"location.pathname === '/launcher' && new URL(location.href).searchParams.get('qa_case') === {json.dumps(name)} && !!({enter})",
-                f"real Launcher route {name}")
+    client.wait(f"location.pathname === '/app' && new URL(location.href).searchParams.get('qa_case') === {json.dumps(name)} && !!({sidebar})",
+                f"real workbench route {name}")
     client.wait("document.readyState === 'complete' && document.fonts.status === 'loaded'", "App styles ready")
     client.activate()
     require(client.evaluate("document.documentElement.dataset.theme") == theme, "App theme did not hydrate")
     require(client.evaluate("document.documentElement.lang") == ("zh-CN" if locale == "zh" else "en"), "App locale did not hydrate")
-    client.wait(inside(enter), "Launcher entry fits the window")
-    client.wait(inside(query), "Launcher input fits the window")
     # Exercise DesktopWindow's drag-region double click. A CSS/JS resize cannot
     # satisfy the native frame observations used for zoom and unzoom.
     before_zoom = client.command("status")["window"]
@@ -329,12 +325,7 @@ def run_app_shell_case(client: NativeClient, theme: str, locale: str, width: int
     client.click("document.querySelector('header[data-desktop-window-drag-region]')", count=2)
     eventually(lambda: client.command("status")["window"] == before_zoom, "native title-region unzoom")
     restored = client.command("status")["window"]
-    client.click(query)
-    client.key("q", 12)
-    client.wait(f"({query}).value === 'q'", "real controlled Launcher input")
-    client.snapshot(name + "-launcher")
-    client.click(enter)
-    client.wait(f"location.pathname === '/app' && !!({sidebar})", "Launcher navigates through the real App router")
+    client.snapshot(name + "-app")
     client.wait(inside(sidebar), "workbench sidebar fits the native window")
     client.wait("document.querySelector('main').scrollWidth <= innerWidth + 1", "workbench horizontal bounds")
     client.wait("(() => { const labels = [...document.querySelectorAll('.shell-navigation-rail button[aria-pressed] > span:nth-child(2)')]; return labels.length === 3 && labels.every(e => { const range = document.createRange(); range.selectNodeContents(e); const text = range.getBoundingClientRect(); const box = e.getBoundingClientRect(); const style = getComputedStyle(e); return text.left >= box.left + parseFloat(style.paddingLeft) - 0.01 && text.right <= box.right - parseFloat(style.paddingRight) + 0.01; }); })()",

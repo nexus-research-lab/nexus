@@ -13,7 +13,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   private let lifecycleHandler: DesktopLifecycleHandler
   private let windowInteractionHandler: DesktopWindowInteractionHandler
   private var lastRequestedURL: URL?
-  private var lastRoute = DesktopWebRoute(path: "/launcher", entry: .app)
+  private var lastRoute = DesktopWebRoute(path: "/app", entry: .app)
   private var resumeCheckInFlight = false
   private var consecutiveResumeProbeFailures = 0
   private var lastResumeCheckAt = Date.distantPast

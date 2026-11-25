@@ -1,11 +1,10 @@
 // INPUT: Launcher 配置、Agent/Room 服务与只读 Session 目录投影。
-// OUTPUT: Launcher 查询、推荐与首屏目录服务。
-// POS: Launcher 业务装配边界；首屏不得依赖 transcript/history 读取能力。
+// OUTPUT: 侧栏与通知共用的首屏目录服务（Bootstrap）。
+// POS: 目录 bootstrap 装配边界（路由沿用 /launcher/bootstrap）；首屏不得依赖 transcript/history 读取能力。
 package launcher
 
 import (
 	"context"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -15,19 +14,13 @@ import (
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
-const (
-	actionOpenAgentDM = "open_agent_dm"
-	actionOpenRoom    = "open_room"
-	actionOpenApp     = "open_app"
-)
-
 // directorySessionReader 首屏只消费目录与持久摘要，不具备历史页读取能力。
 type directorySessionReader interface {
 	ListDirectorySessions(context.Context) ([]protocol.Session, error)
 	ListRoomReplyPreviews(context.Context) (map[string]string, error)
 }
 
-// Service 提供 Launcher 查询和推荐能力。
+// Service 提供首屏目录快照。
 type Service struct {
 	config       config.Config
 	agentService *agentsvc.Service
@@ -48,226 +41,6 @@ func NewService(
 		roomService:  roomService,
 		session:      sessionService,
 	}
-}
-
-// Query 解析 Launcher 输入并生成动作。
-func (s *Service) Query(ctx context.Context, query string) (QueryResponse, error) {
-	trimmedQuery := strings.TrimSpace(query)
-	if trimmedQuery == "" {
-		return QueryResponse{
-			ActionType: actionOpenApp,
-			TargetID:   "app",
-		}, nil
-	}
-
-	if keyword, initialMessage, matched := splitTriggeredQuery(trimmedQuery, "@"); matched {
-		agentValue, err := s.findAgentByKeyword(ctx, keyword)
-		if err != nil {
-			return QueryResponse{}, err
-		}
-		if agentValue != nil {
-			return QueryResponse{
-				ActionType:     actionOpenAgentDM,
-				TargetID:       agentValue.AgentID,
-				InitialMessage: initialMessage,
-			}, nil
-		}
-		return QueryResponse{
-			ActionType:     actionOpenApp,
-			TargetID:       "app",
-			InitialMessage: trimmedQuery,
-		}, nil
-	}
-
-	if keyword, initialMessage, matched := splitTriggeredQuery(trimmedQuery, "#"); matched {
-		roomValue, err := s.findRoomByKeyword(ctx, keyword)
-		if err != nil {
-			return QueryResponse{}, err
-		}
-		if roomValue != nil {
-			return QueryResponse{
-				ActionType:     actionOpenRoom,
-				TargetID:       roomValue.Room.ID,
-				InitialMessage: initialMessage,
-			}, nil
-		}
-		return QueryResponse{
-			ActionType:     actionOpenApp,
-			TargetID:       "app",
-			InitialMessage: trimmedQuery,
-		}, nil
-	}
-
-	agentValue, err := s.findAgentByKeyword(ctx, trimmedQuery)
-	if err != nil {
-		return QueryResponse{}, err
-	}
-	if agentValue != nil {
-		return QueryResponse{
-			ActionType: actionOpenAgentDM,
-			TargetID:   agentValue.AgentID,
-		}, nil
-	}
-
-	roomValue, err := s.findRoomByKeyword(ctx, trimmedQuery)
-	if err != nil {
-		return QueryResponse{}, err
-	}
-	if roomValue != nil {
-		return QueryResponse{
-			ActionType: actionOpenRoom,
-			TargetID:   roomValue.Room.ID,
-		}, nil
-	}
-
-	return QueryResponse{
-		ActionType:     actionOpenApp,
-		TargetID:       "app",
-		InitialMessage: trimmedQuery,
-	}, nil
-}
-
-// Suggestions 返回 Launcher 推荐项。
-func (s *Service) Suggestions(ctx context.Context) (SuggestionsResponse, error) {
-	agents, err := s.agentService.ListAgentRecords(ctx)
-	if err != nil {
-		return SuggestionsResponse{}, err
-	}
-	rooms, err := s.roomService.ListRooms(ctx, 15)
-	if err != nil {
-		return SuggestionsResponse{}, err
-	}
-
-	agentItems := make([]Suggestion, 0, len(agents))
-	for _, agentValue := range agents {
-		if agentValue.IsMain {
-			continue
-		}
-		agentItems = append(agentItems, Suggestion{
-			Type:   "agent",
-			ID:     agentValue.AgentID,
-			Name:   agentValue.Name,
-			Avatar: agentValue.Avatar,
-		})
-		if len(agentItems) >= 8 {
-			break
-		}
-	}
-
-	roomItems := make([]Suggestion, 0, len(rooms))
-	for _, roomValue := range rooms {
-		if roomValue.Room.RoomType != protocol.RoomTypeGroup {
-			continue
-		}
-		lastActivity := roomValue.Room.UpdatedAt
-		if lastActivity.IsZero() {
-			lastActivity = roomValue.Room.CreatedAt
-		}
-		roomName := strings.TrimSpace(roomValue.Room.Name)
-		if roomName == "" {
-			roomName = "未命名 Room"
-		}
-		roomItems = append(roomItems, Suggestion{
-			Type:         "room",
-			ID:           roomValue.Room.ID,
-			Name:         roomName,
-			LastActivity: isoString(lastActivity),
-		})
-		if len(roomItems) >= 5 {
-			break
-		}
-	}
-
-	return SuggestionsResponse{
-		Agents: agentItems,
-		Rooms:  roomItems,
-	}, nil
-}
-
-func (s *Service) findAgentByKeyword(ctx context.Context, keyword string) (*protocol.Agent, error) {
-	agents, err := s.agentService.ListAgentRecords(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	normalizedKeyword := strings.ToLower(strings.TrimSpace(keyword))
-	if normalizedKeyword == "" {
-		return nil, nil
-	}
-
-	for _, agentValue := range agents {
-		if agentValue.IsMain {
-			continue
-		}
-		if strings.ToLower(agentValue.Name) == normalizedKeyword {
-			item := agentValue
-			return &item, nil
-		}
-	}
-	for _, agentValue := range agents {
-		if agentValue.IsMain {
-			continue
-		}
-		if strings.Contains(strings.ToLower(agentValue.Name), normalizedKeyword) {
-			item := agentValue
-			return &item, nil
-		}
-	}
-	return nil, nil
-}
-
-func (s *Service) findRoomByKeyword(ctx context.Context, keyword string) (*protocol.RoomAggregate, error) {
-	rooms, err := s.roomService.ListRooms(ctx, 100)
-	if err != nil {
-		return nil, err
-	}
-
-	normalizedKeyword := strings.ToLower(strings.TrimSpace(keyword))
-	if normalizedKeyword == "" {
-		return nil, nil
-	}
-
-	for _, roomValue := range rooms {
-		if roomValue.Room.RoomType != protocol.RoomTypeGroup {
-			continue
-		}
-		if strings.ToLower(roomValue.Room.Name) == normalizedKeyword {
-			item := roomValue
-			return &item, nil
-		}
-	}
-	for _, roomValue := range rooms {
-		if roomValue.Room.RoomType != protocol.RoomTypeGroup {
-			continue
-		}
-		if strings.Contains(strings.ToLower(roomValue.Room.Name), normalizedKeyword) {
-			item := roomValue
-			return &item, nil
-		}
-	}
-	return nil, nil
-}
-
-func splitTriggeredQuery(value string, trigger string) (string, string, bool) {
-	trimmedValue := strings.TrimSpace(value)
-	if !strings.HasPrefix(trimmedValue, trigger) {
-		return "", "", false
-	}
-
-	body := strings.TrimSpace(strings.TrimPrefix(trimmedValue, trigger))
-	if body == "" {
-		return "", "", true
-	}
-	parts := strings.Fields(body)
-	if len(parts) == 0 {
-		return "", "", true
-	}
-	keyword := parts[0]
-	initialMessage := ""
-	if len(parts) > 1 {
-		initialMessage = strings.Join(parts[1:], " ")
-	}
-	return keyword, initialMessage, true
 }
 
 func isoString(value interface {

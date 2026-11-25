@@ -1,4 +1,4 @@
-// INPUT: Room 降级导航面与用户对返回、联系人和交接动作的键盘选择。
+// INPUT: Room 降级导航面与用户对返回工作台和联系人动作的键盘选择。
 // OUTPUT: 证明共享目录主动作仍进入原来的目标路由。
 // POS: Room 降级页 DOM 回归；Room 历史筛选仍由原模型合同覆盖。
 
@@ -17,9 +17,8 @@ function Location() {
 
 describe("GroupRouteEntry", () => {
   it.each([
-    ["room.route_back_launcher", "/launcher", 1],
+    ["room.route_back_home", "/app", 1],
     ["room.route_browse_agents", "/contacts", 2],
-    ["room.route_handoff", "/launcher", 3],
   ] as const)("keeps %s keyboard navigation on a shared catalog action", async (label, route, tabCount) => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/rooms/unavailable"]}>

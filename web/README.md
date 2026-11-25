@@ -64,7 +64,7 @@ pnpm run typecheck
 ## 路由
 
 ```text
-/                                   Launcher
+/                                   重定向到 /app 工作台
 /dms                                私聊目录
 /rooms                              房间目录
 /rooms/:room_id                     房间入口

@@ -26,20 +26,21 @@ internal static class DesktopProtocolRouter
     {
         if (string.IsNullOrWhiteSpace(message))
         {
-            return DesktopWebRoute.Launcher;
+            return DesktopWebRoute.App;
         }
 
         if (!Uri.TryCreate(message.Trim(), UriKind.Absolute, out Uri? uri) ||
             !string.Equals(uri.Scheme, "nexus", StringComparison.OrdinalIgnoreCase))
         {
-            return DesktopWebRoute.Launcher;
+            return DesktopWebRoute.App;
         }
 
         string host = uri.Host.ToLowerInvariant();
         string path = uri.AbsolutePath.TrimEnd('/');
+        // 旧 nexus://launcher（浏览器扩展仍在使用）与 open 同义：只唤起工作台，暂不交接草稿。
         if (host is "launcher" or "open")
         {
-            return DesktopWebRoute.FromPath($"/launcher{uri.Query}");
+            return DesktopWebRoute.App;
         }
         if (host == "settings")
         {
@@ -54,6 +55,6 @@ internal static class DesktopProtocolRouter
             return DesktopWebRoute.FromPath($"/capability{uri.AbsolutePath}{uri.Query}");
         }
 
-        return DesktopWebRoute.Launcher;
+        return DesktopWebRoute.App;
     }
 }

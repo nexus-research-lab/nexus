@@ -1,24 +1,3 @@
-export interface BlobPoint {
-  x: number;
-  y: number;
-}
-
-export interface LauncherTokenSwatch {
-  fill: string;
-  text: string;
-  ring: string;
-}
-
-export interface SpotlightToken {
-  key: string;
-  label: string;
-  /** Full accessible display name; label remains decorative initials. */
-  name?: string;
-  agent_id: string | null;
-  kind: "agent" | "room";
-  swatch: LauncherTokenSwatch;
-}
-
 export interface LauncherAgentSummary {
   id: string;
   name: string;

@@ -86,8 +86,8 @@ enum ApplicationMenuBuilder {
     let item = NSMenuItem()
     let menu = NSMenu(title: "窗口")
     menu.addItem(menuItem(
-      "显示启动器",
-      action: #selector(AppDelegate.showLauncher(_:)),
+      "显示主窗口",
+      action: #selector(AppDelegate.showMainWindowFromMenu(_:)),
       target: target
     ))
     menu.addItem(.separator())
