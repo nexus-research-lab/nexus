@@ -10,7 +10,7 @@
 - 原生反馈：菜单、更新和启动错误统一使用 Nexus 原生主题与模态对话框；系统 `MessageBox`、菜单默认模板和独立更新窗口不得形成第二套视觉语言。
 - `Theme/NexusNativeTheme.cs` 当前投影 Web 浅色主题；颜色所有权与校验方式见[前端工程规范](../../docs/specs/frontend-engineering-spec.md#41-design-token)。前端门禁会检查投影漂移，但不替代 Windows 实机的菜单、对话框与 WebView2 验收。
 - Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`，正式包优先使用 `Resources\bin\nxs.exe` 作为 `nxs` runtime。
-- Web UI：复用 `web/dist/app.html`，默认路由为完整 launcher `/launcher`。
+- Web UI：复用 `web/dist/app.html`，默认路由为工作台 `/app`；旧 `nexus://launcher` 深链与 `nexus://open` 同义。
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。
 - GitHub OAuth：桌面包只注入公开 `NEXUS_DESKTOP_GITHUB_CLIENT_ID`，WebView 内使用 Device Flow 授权码完成连接，不打包 Client Secret。
 

@@ -1,5 +1,5 @@
 /**
- * INPUT: 当前路由、视口尺寸、侧栏可见性、移动页头动作与全局聊天完成事件。
+ * INPUT: 当前路由、视口尺寸、移动页头动作与全局聊天完成事件。
  * OUTPUT: 稳定承载侧栏、移动端页头及动作槽、子路由和聊天完成订阅的应用布局。
  * POS: 路由布局根，独占页头动作挂载点生命周期并通过中立 Context 提供；通知订阅固定在此，窄屏详情页不渲染侧栏时仍接收 Room 未读。
  */
@@ -21,13 +21,13 @@ import { PageHeaderActionsContext } from "@/shared/lib/react/page-header-actions
 import { MobileAppPageHeader } from "./mobile-app-page-header";
 import { resolveMobileAppRoute } from "./mobile-app-route-model";
 
-export function AppLayout({ showSidebar = true }: { showSidebar?: boolean }) {
+export function AppLayout() {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const { t } = useI18n();
   const isNarrowViewport = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   const mobileRoute = resolveMobileAppRoute({ pathname, search });
-  const isMobileAppLayout = showSidebar && isNarrowViewport;
+  const isMobileAppLayout = isNarrowViewport;
   const isMobileDirectory = (
     isMobileAppLayout
     && mobileRoute.mode === "directory"
@@ -42,7 +42,7 @@ export function AppLayout({ showSidebar = true }: { showSidebar?: boolean }) {
 
   return (
     <main className="desktop-window-frame relative flex h-dvh w-full overflow-hidden bg-transparent text-foreground">
-      {showSidebar && (!isMobileAppLayout || isMobileDirectory) ? (
+      {!isMobileAppLayout || isMobileDirectory ? (
         <SidebarWidePanel
           fillAvailableWidth={isMobileDirectory}
           navigationOnly={isMobileDirectory}

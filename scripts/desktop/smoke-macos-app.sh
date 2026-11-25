@@ -10,13 +10,12 @@ APP_EXECUTABLE="${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}"
 LOG_FILE="${NEXUS_DESKTOP_SMOKE_LOG:-${TMPDIR:-/tmp}/nexus-desktop-smoke.log}"
 MAIN_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS:-15}"
 MAIN_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_URL_TIMEOUT_SECONDS:-3}"
-LAUNCHER_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_LAUNCHER_URL_TIMEOUT_SECONDS:-3}"
 EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-file}"
 EXPECT_NXS_RUNTIME="${NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME:-0}"
 ALLOW_FALLBACK="${NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK:-0}"
-MAIN_READY_ROUTE_PATTERN="event=web\\.ready.*location_path=/launcher .*surface=main"
+MAIN_READY_ROUTE_PATTERN="event=web\\.ready.*location_path=/app .*surface=main"
 MAIN_NAVIGATION_FINISHED_PATTERN="event=webview\\.navigation_finished.*surface=main"
-LAUNCHER_ROUTE_PATTERN="/launcher($|[[:space:]])"
+MAIN_ROUTE_PATTERN="/app($|[[:space:]])"
 
 APP_PID=""
 APP_BUNDLE_IDENTIFIER=""
@@ -217,11 +216,11 @@ wait_for_log "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 main_ready_count="$(log_match_count "${MAIN_READY_ROUTE_PATTERN}")"
 main_navigation_count="$(log_match_count "${MAIN_NAVIGATION_FINISHED_PATTERN}")"
 if [[ -n "${APP_URL_SCHEME}" ]] && open -a "${APP_BUNDLE}" "${APP_URL_SCHEME}://open" >/dev/null 2>&1 &&
-  wait_for_log_match "event=app\\.url_route.*host=open .*route_path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_URL_TIMEOUT_SECONDS}"; then
-  wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
+  wait_for_log_match "event=app\\.url_route.*host=open .*route_path=${MAIN_ROUTE_PATTERN}" "${MAIN_URL_TIMEOUT_SECONDS}"; then
+  wait_for_log "event=main_window\\.route_load.*path=${MAIN_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 else
   post_app_notification showMainWindow || fail "failed to request the target app's main window"
-  wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
+  wait_for_log "event=main_window\\.route_load.*path=${MAIN_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 fi
 if ! wait_for_new_log_match "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${main_navigation_count}" "${MAIN_TIMEOUT_SECONDS}"; then
   fail "timed out waiting for the nexus://open navigation to finish"
@@ -230,20 +229,9 @@ if ! wait_for_new_log_match "${MAIN_READY_ROUTE_PATTERN}" "${main_ready_count}" 
   fail "timed out waiting for the nexus://open route to become ready"
 fi
 
-main_ready_count="$(log_match_count "${MAIN_READY_ROUTE_PATTERN}")"
-main_navigation_count="$(log_match_count "${MAIN_NAVIGATION_FINISHED_PATTERN}")"
-if [[ -n "${APP_URL_SCHEME}" ]] && open -a "${APP_BUNDLE}" "${APP_URL_SCHEME}://launcher" >/dev/null 2>&1 &&
-  wait_for_log_match "event=app\\.url_route.*host=launcher .*route_path=${LAUNCHER_ROUTE_PATTERN}" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
-  wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
-else
-  post_app_notification showLauncher || fail "failed to request the target app's launcher route"
-  wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
-fi
-if ! wait_for_new_log_match "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${main_navigation_count}" "${MAIN_TIMEOUT_SECONDS}"; then
-  fail "timed out waiting for the nexus://launcher navigation to finish"
-fi
-if ! wait_for_new_log_match "${MAIN_READY_ROUTE_PATTERN}" "${main_ready_count}" "${MAIN_TIMEOUT_SECONDS}"; then
-  fail "timed out waiting for the nexus://launcher route to become ready"
+# 旧 nexus://launcher 深链（Browser 扩展）只唤起工作台。
+if [[ -n "${APP_URL_SCHEME}" ]] && open -a "${APP_BUNDLE}" "${APP_URL_SCHEME}://launcher?initial=smoke" >/dev/null 2>&1; then
+  wait_for_log "event=app\\.url_route.*host=launcher .*route_path=${MAIN_ROUTE_PATTERN}" "${MAIN_URL_TIMEOUT_SECONDS}"
 fi
 
 unexpected_pattern="webview\\.content_process_terminated|startup\\.failed"

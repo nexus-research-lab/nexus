@@ -1,4 +1,4 @@
-// INPUT: A private local port and native launcher routes from the UI harness.
+// INPUT: A private local port and native app routes from the UI harness.
 // OUTPUT: Current-source Gallery or real App shell, with isolated read fixtures and rejected mutations.
 // POS: Native UI fixture server; never participates in product builds or backend requests.
 
@@ -51,7 +51,7 @@ const server = await createServer({
           return;
         }
         if (url.pathname === "/app.html" && !appShell) {
-          const route = new URL(url.searchParams.get("desktop_route") ?? "/launcher", url.origin);
+          const route = new URL(url.searchParams.get("desktop_route") ?? "/app", url.origin);
           const query = new URLSearchParams({ theme: route.searchParams.get("theme") ?? "light",
             locale: route.searchParams.get("locale") ?? "en", section: route.searchParams.get("section") ?? "foundation",
             qa_case: route.searchParams.get("qa_case") ?? "initial" });

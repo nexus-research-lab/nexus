@@ -1,39 +1,40 @@
 import Foundation
 
 enum GlobalShortcutPreferences {
-  static let defaultLauncherAccelerator = "Option + Space"
+  static let defaultAccelerator = "Option + Space"
 
-  static var launcherAccelerator: String {
+  static var accelerator: String {
     get {
-      UserDefaults.standard.string(forKey: launcherAcceleratorKey) ?? defaultLauncherAccelerator
+      UserDefaults.standard.string(forKey: acceleratorKey) ?? defaultAccelerator
     }
     set {
-      UserDefaults.standard.set(newValue, forKey: launcherAcceleratorKey)
+      UserDefaults.standard.set(newValue, forKey: acceleratorKey)
     }
   }
 
-  static var launcherEnabled: Bool {
+  static var enabled: Bool {
     get {
-      guard UserDefaults.standard.object(forKey: launcherEnabledKey) != nil else {
+      guard UserDefaults.standard.object(forKey: enabledKey) != nil else {
         return false
       }
-      return UserDefaults.standard.bool(forKey: launcherEnabledKey)
+      return UserDefaults.standard.bool(forKey: enabledKey)
     }
     set {
-      UserDefaults.standard.set(newValue, forKey: launcherEnabledKey)
+      UserDefaults.standard.set(newValue, forKey: enabledKey)
     }
   }
 
-  static func resetLauncherAccelerator() {
-    launcherAccelerator = defaultLauncherAccelerator
+  static func resetAccelerator() {
+    accelerator = defaultAccelerator
   }
 
-  static func disableDefaultLauncherShortcut() {
-    if launcherAccelerator == defaultLauncherAccelerator {
-      launcherEnabled = false
+  static func disableDefaultShortcut() {
+    if accelerator == defaultAccelerator {
+      enabled = false
     }
   }
 
-  private static let launcherEnabledKey = "launcher.globalShortcut.enabled"
-  private static let launcherAcceleratorKey = "launcher.globalShortcut.accelerator"
+  // 键名沿用旧值，升级后保留用户已设置的快捷键。
+  private static let enabledKey = "launcher.globalShortcut.enabled"
+  private static let acceleratorKey = "launcher.globalShortcut.accelerator"
 }

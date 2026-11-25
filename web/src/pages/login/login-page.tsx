@@ -21,8 +21,8 @@ import { UiButton } from "@/shared/ui/button/button";
 const LOGIN_SIGNAL_ITEMS = [
   {
     Icon: Compass,
-    copy: "login.intro_launcher_copy",
-    title: "login.intro_launcher_title",
+    copy: "login.intro_chat_copy",
+    title: "login.intro_chat_title",
   },
   {
     Icon: PanelRightOpen,
@@ -94,7 +94,7 @@ export function LoginPage() {
         variant="ghost"
         size="sm"
         disabled={controller.isSubmitting}
-        onClick={() => navigate(APP_ROUTE_PATHS.launcher, { replace: true })}
+        onClick={() => navigate(APP_ROUTE_PATHS.home, { replace: true })}
       >
         <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         {t("login.skip")}

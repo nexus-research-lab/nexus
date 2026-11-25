@@ -75,7 +75,6 @@ func New(cfg config.Config) (*App, error) {
 	root.AddCommand(newWorkspaceCommand(services))
 	root.AddCommand(newSkillCommand(services))
 	root.AddCommand(newConnectorCommand(services))
-	root.AddCommand(newLauncherCommand(services))
 	root.AddCommand(newChannelCommand(services))
 	root.AddCommand(newAutomationCommand(services))
 	root.AddCommand(newImagegenCommand(services))

@@ -16,12 +16,12 @@
 - Shell 会把本地 session token 同步进 WKWebView cookie store，保证 WebSocket 握手也能通过本地 API 校验。
 - Shell 在正式签名包中优先使用 macOS Keychain 持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 `~/.nexus/app/config/connector-credentials.key` 的 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。sidecar 通过 `CONNECTOR_CREDENTIALS_KEY` 使用现有 Go 加密存储。
 - Go sidecar 在任何布局/数据库迁移前独立持有状态根 `app/sidecar.lock` 的内核独占锁，直到所有服务关闭；第二个采用同协议的 sidecar 拒绝启动。锁文件不按 PID/年龄清除，不向执行的子进程继承。此锁不能单独证明旧版未持锁的遗留宿主退出，完整监督自动恢复仍需单独接线。
-- Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动和重复启动已有实例默认显示 launcher，Dock 重新打开只恢复现有主窗口，不主动改写当前路由。
+- Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动默认显示 `/app` 工作台；重复启动、全局快捷键、「窗口 › 显示主窗口」与 Dock 重新打开只恢复现有主窗口，不主动改写当前路由。旧 `nexus://launcher` 深链与 `nexus://open` 同义，只唤起工作台。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
-- 主窗口使用 titlebar-only 原生框保留 16pt 系统圆角，标准 traffic lights 在每次原生布局后对齐 24pt 中线，让 full-size Web Header 获得 48pt 高度；宿主把窗口按钮尾部安全区和红色按钮双轴中心注入 Web，使 NEXUS、Launcher 灯组、折叠动作和红灯共用水平中线且上下等距，导航轨的横向几何仍由 Web 设计规范持有。Web 只同步窗口手势面与编辑控件矩形，`NSWindow` 用 AppKit 事件跟踪仲裁完整鼠标序列：4pt 内松手仍向 WKWebView 分发原始点击，越过阈值则把原始 mouse-down 交给系统窗口拖动，双击执行缩放。标签、按钮和菜单因此同时支持点击与按住拖窗，输入控件不被接管。
+- 主窗口使用 titlebar-only 原生框保留 16pt 系统圆角，标准 traffic lights 在每次原生布局后对齐 24pt 中线，让 full-size Web Header 获得 48pt 高度；宿主把窗口按钮尾部安全区和红色按钮双轴中心注入 Web，使 NEXUS、折叠动作和红灯共用水平中线且上下等距，导航轨的横向几何仍由 Web 设计规范持有。Web 只同步窗口手势面与编辑控件矩形，`NSWindow` 用 AppKit 事件跟踪仲裁完整鼠标序列：4pt 内松手仍向 WKWebView 分发原始点击，越过阈值则把原始 mouse-down 交给系统窗口拖动，双击执行缩放。标签、按钮和菜单因此同时支持点击与按住拖窗，输入控件不被接管。
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
-- Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
+- Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/app` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/app`、`/settings` 和 OAuth callback。
 - 最小 native bridge 已支持版本读取、状态根目录选择与完整迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
 - 日志导出包会包含宿主 `app/logs`、`app/debug` 和本地 owner 的 `users/__system__/runtime/logs`（包含嵌套 SDK 诊断）、`runtime/debug`，分别保存为 `Logs`、`Debug`、`RuntimeLogs`、`RuntimeDebug`。`diagnostics.json` 记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/app/logs` 写入 `startup-failure-*.json`。
 - 启动、主窗口和更新失败统一说明“发生了什么、已有数据是否受影响、接下来能做什么”；底层错误、诊断路径和进程输出只进入日志或诊断报告，不直接显示给用户。更新检查与下载/校验失败按实际阶段分别说明，后者在安装程序启动前不会替换当前 App。
@@ -50,20 +50,20 @@ scripts/desktop/package-macos-app.sh
 `run-macos-dev.sh` 会先构建前端，再启动 Swift shell。直接运行 Swift shell 时若 `web/dist` 缺失或已过期，启动会明确失败并提示执行 `make app-run-dev`；正式 `.app` 内的打包资源不参与该开发态时效校验。首次启动会初始化桌面专用 SQLite 数据库。
 应用图标的矢量母版为 `desktop/macos/Resources/AppIconSource.svg`。更新时先导出透明背景的 1024×1024 `AppIconSource.png`，再运行 `swift scripts/desktop/generate-macos-icon.swift` 生成 Finder / Dock 使用的 `AppIcon.icns`。Windows 的 `desktop/windows/Nexus.Desktop/Resources/AppIcon.ico` 从同一 PNG 导出，包含 16、24、32、48、64、128、256 像素层；同步更新官网仓 `nexus-atlas/public/images/nexus-app-icon.png`，首页、下载页及结构化数据复用该文件。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
-`smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。
+`smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 `/app` ready reveal、`nexus://open` 路由 ready、旧 `nexus://launcher` 进入 `/app`、material 标记和退出后 sidecar 无残留。
 测试从目标 App 的 Info.plist 读取 bundle ID，通知和 URL 路由只发给该 App。未注册 URL scheme 的独立预览包通过自身通知验证窗口路由，不注册或打开正式版的深链接。
 `make app-check-ui` 从当前 Swift 源码编译独立 QA App，复用实际 `WindowManager`、
 `WebViewHost` 和 bridge，通过临时端口加载当前前端 Gallery。它使用独立 Bundle ID、
 偏好 suite、状态根和 Vite 缓存，不启动 `AppDelegate`、sidecar 或更新器，业务 API
 在测试服务器上统一拒绝；远端聊天字体与浏览器夹具一样阻断，等待本地样式就绪后测量。
-`make app-check-ui-app` 改为加载真实 `app.html`、Launcher 与 App Router，提供固定的
+`make app-check-ui-app` 改为加载真实 `app.html` 与 App Router，提供固定的
 认证、目录、Provider 只读快照和空闲事件连接。测试服务器禁用 Vite 的 HTTP/WS
 后端代理，只接受已登记的读取及 ping/订阅；未知请求和业务命令均失败关闭。
 独立合同测试用本地哨兵确认不会向后端转发。
 需要已解锁的 macOS 图形会话、Command Line Tools、Node
 及已安装的 `web` 依赖；运行时 QA 窗口会取得焦点，应保持其在前台直到检查结束。
 三主题、双语和 360/1280pt 窗口检查原生输入、Select 碰撞、嵌套弹窗焦点与隐藏恢复。
-App 套件使用同一矩阵检查真实输入、Launcher 到工作台导航、完整标签、响应式切换、
+App 套件使用同一矩阵检查真实输入、工作台导航、完整标签、响应式切换、
 Header 双击缩放与窗口隐藏恢复；`--suite app-shell --smoke` 仅运行浅色英文桌面一组。
 产物默认保存于 `/tmp/nexus-native-ui/<run>/`，含源码 SHA-256 清单、日志、JSON
 报告和 WKWebView 截图；截图不含系统窗口 chrome，原生按钮指标另记录在报告中。

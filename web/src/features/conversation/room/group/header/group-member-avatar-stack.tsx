@@ -9,6 +9,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { getAgentDisplayName } from "@/lib/agent-display-name";
 
 interface GroupMemberAvatarStackProps {
@@ -30,16 +31,18 @@ export function GroupMemberAvatarStack({
   const visibleMembers = members.slice(0, 4);
   const overflowCount = Math.max(0, members.length - visibleMembers.length);
 
+  const label = t("room.members_with_count", { count: members.length });
+
+  // 成员文字常驻隐藏，名称与人数由共享 Tooltip 和 aria-label 承载。
   return (
-    <UiButton
+    <UiTooltip label={label}><UiButton
       aria-busy={isLoading || undefined}
-      aria-label={t("room.members_with_count", { count: members.length })}
+      aria-label={label}
       className="workspace-surface-header-control-segment workspace-surface-header-member-control h-9 min-h-0 gap-1.5 px-2.5"
       data-tour-anchor={tourAnchor}
       disabled={disabled || isLoading}
       onClick={onClick}
       size="md"
-      title={t("room.members_with_count", { count: members.length })}
       variant="ghost"
     >
       <UsersRound aria-hidden="true" className="workspace-surface-header-member-icon hidden h-3.5 w-3.5" />
@@ -64,6 +67,6 @@ export function GroupMemberAvatarStack({
         </div>
       ) : null}
       <span className="workspace-surface-header-member-label">{t("room.members")}</span>
-    </UiButton>
+    </UiButton></UiTooltip>
   );
 }

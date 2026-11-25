@@ -7,7 +7,6 @@ import {
   type LucideIcon,
   MessageSquare,
   MessagesSquare,
-  Rocket,
   Target,
   Workflow,
   Wrench,
@@ -18,7 +17,6 @@ import {
   ROOM_CONVERSATION_TOUR_ID,
   ROOM_EMPTY_CONVERSATION_TOUR_ID,
 } from "@/features/onboarding/tours/conversation-tour";
-import { LAUNCHER_TOUR_ID } from "@/features/onboarding/tours/launcher-tour";
 import { SIDEBAR_NAVIGATION_TOUR_ID } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { SKILLS_TOUR_ID } from "@/features/onboarding/tours/skills-tour";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
@@ -29,7 +27,6 @@ import type {
 } from "@/types/app/launcher";
 
 type GuideCenterTourId =
-  | typeof LAUNCHER_TOUR_ID
   | typeof SIDEBAR_NAVIGATION_TOUR_ID
   | typeof DM_CONVERSATION_TOUR_ID
   | typeof ROOM_CONVERSATION_TOUR_ID
@@ -85,15 +82,6 @@ export interface RoomTourNavigationTarget {
 }
 
 const GUIDE_CENTER_DEFINITIONS: readonly GuideCenterDefinition[] = [
-  {
-    actionLabelKey: "common.view_guide",
-    completedTourIds: [LAUNCHER_TOUR_ID],
-    descriptionKey: "launcher.tour_intro_description",
-    icon: Rocket,
-    id: LAUNCHER_TOUR_ID,
-    section: "basics",
-    titleKey: "launcher.tour_intro_title",
-  },
   {
     actionLabelKey: "common.view_guide",
     completedTourIds: [SIDEBAR_NAVIGATION_TOUR_ID],

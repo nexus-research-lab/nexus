@@ -1,5 +1,5 @@
 // INPUT: 认证启动状态、一次性 Setup capability、owner 草稿与初始化命令结果。
-// OUTPUT: 共享访问入口布局内的首次 Deployment owner 初始化表单、公共 Panel 与失败提示及成功后的 Launcher 导航。
+// OUTPUT: 共享访问入口布局内的首次 Deployment owner 初始化表单、公共 Panel 与失败提示及成功后的工作台导航。
 // POS: Setup 页面业务入口；不持久化 capability，也不在结果未知时自动重放创建请求。
 "use client";
 
@@ -60,7 +60,7 @@ export function SetupPage() {
     return (
       <Navigate
         replace
-        to={status.authenticated ? APP_ROUTE_PATHS.launcher : APP_ROUTE_PATHS.login}
+        to={status.authenticated ? APP_ROUTE_PATHS.home : APP_ROUTE_PATHS.login}
       />
     );
   }
@@ -102,14 +102,14 @@ export function SetupPage() {
         password: draft.password,
       });
       await refreshStatus();
-      navigate(APP_ROUTE_PATHS.launcher, { replace: true });
+      navigate(APP_ROUTE_PATHS.home, { replace: true });
     } catch {
       setFailure(true);
       await refreshStatus()
         .then((nextStatus) => {
           if (!nextStatus.setup_required) {
             navigate(
-              nextStatus.authenticated ? APP_ROUTE_PATHS.launcher : APP_ROUTE_PATHS.login,
+              nextStatus.authenticated ? APP_ROUTE_PATHS.home : APP_ROUTE_PATHS.login,
               { replace: true },
             );
           }

@@ -279,7 +279,7 @@ app-smoke: ## 烟测已组装的 macOS .app
 app-check-ui: ## 在独立 macOS 窗口验证当前前端组件与原生输入
 	python3 scripts/desktop/check-macos-ui.py
 
-app-check-ui-app: ## 在独立 macOS 窗口验证真实 Launcher、工作台与窗口恢复
+app-check-ui-app: ## 在独立 macOS 窗口验证真实工作台与窗口恢复
 	python3 scripts/desktop/check-macos-ui.py --suite app-shell
 
 app-package: ## 构建 macOS app zip、sha256 和 metadata

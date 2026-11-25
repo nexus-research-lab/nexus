@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - macOS 电脑操控新增独立权限向导。点「允许」后可将应用拖入系统权限列表；拖入成功或系统弹出确认时提示条收起，返回向导自动复查。
 - 设置页的电脑操控卡片改为逐项显示系统权限状态与待处理数量，组件版本并入说明行；出错时提供与失败步骤对应的重试操作。
+- 聊天页顶部的工作图、子智能体、工作区和简介入口只显示图标，鼠标悬停时显示名称；成员入口只保留头像，不再显示「成员」文字，悬停显示成员人数。
+
+### Removed
+
+- 移除独立的 Launcher 启动页。登录、初始化、加入组织后以及桌面端冷启动都直接进入 `/app` 工作台，侧栏 NEXUS 字标也链接到工作台；macOS 全局快捷键与「窗口 › 显示主窗口」只唤起主窗口、不改写当前页面。浏览器扩展「在 Nexus 中询问」和旧 `nexus://launcher` 深链目前只唤起工作台，暂不携带页面草稿。后端移除仅供启动页使用的 `/launcher/query`、`/launcher/suggestions` 接口和 `nexusctl launcher` 命令；侧栏目录继续使用 `/launcher/bootstrap`。
 
 ### Fixed
 

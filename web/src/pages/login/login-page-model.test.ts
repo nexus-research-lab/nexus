@@ -7,7 +7,7 @@ describe("buildLoginPageState", () => {
     expect(buildLoginPageState({
       isBootstrapped: true,
       loading: false,
-      redirectPath: "/launcher",
+      redirectPath: "/app",
       status: {
         auth_required: false,
         authenticated: true,
