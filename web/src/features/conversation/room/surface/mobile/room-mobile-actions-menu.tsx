@@ -18,6 +18,7 @@ import { buildRoomMobileActionItems } from "./room-mobile-actions-model";
 type RoomMobileAuxiliaryTab = Exclude<RoomSurfaceTabKey, "chat">;
 
 interface RoomMobileActionsMenuProps {
+  canCreateConversation: boolean;
   canOpenSubagents: boolean;
   isMembersLoading: boolean;
   scopeKey: string;
@@ -27,6 +28,7 @@ interface RoomMobileActionsMenuProps {
 }
 
 export function RoomMobileActionsMenu({
+  canCreateConversation,
   canOpenSubagents,
   isMembersLoading,
   scopeKey,
@@ -38,6 +40,7 @@ export function RoomMobileActionsMenu({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useResettableState(false, scopeKey);
   const items = buildRoomMobileActionItems({
+    canCreateConversation,
     canOpenSubagents,
     includeMembers: Boolean(onManageMembers),
     isMembersLoading,

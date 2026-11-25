@@ -16,6 +16,7 @@ import {
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
+import { isMainAgent } from "@/config/runtime-options";
 import { coalescePendingPermissions } from "@/lib/conversation/pending-permission-match";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
@@ -246,7 +247,8 @@ function buildDmFeedModel({
       currentAgentName,
       historyDividerLabel,
       onEditLastUserMessage,
-      onForkRound: onForkConversation,
+      // 主智能体只有一个主窗口对话，不提供分支。
+      onForkRound: isMainAgent(workspaceAgentId) ? undefined : onForkConversation,
       onOpenAgentContact,
       onOpenSubagentTask,
       onOpenWorkspaceFile,

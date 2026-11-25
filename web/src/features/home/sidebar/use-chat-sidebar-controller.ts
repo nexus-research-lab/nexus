@@ -180,8 +180,10 @@ export function useChatSidebarController({
     }
     setActiveItem(item.id);
 
-    const route = item.unreadConversationId
-      ? AppRouteBuilders.roomConversation(routeRoomId, item.unreadConversationId)
+    // 主智能体只有一个主窗口对话，直接进入它，不恢复其他历史标签。
+    const conversationId = item.isPinned ? item.conversationId : item.unreadConversationId;
+    const route = conversationId
+      ? AppRouteBuilders.roomConversation(routeRoomId, conversationId)
       : AppRouteBuilders.room(routeRoomId);
     navigate(route);
   }, [clearRoomNotifications, clearTargetNotifications, navigate, setActiveItem]);

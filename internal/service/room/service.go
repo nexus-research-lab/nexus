@@ -23,6 +23,8 @@ var (
 	ErrConversationNotFound = errors.New("conversation not found")
 	// ErrConversationForkUnsupported 表示当前房间不支持对话分支。
 	ErrConversationForkUnsupported = errors.New("当前仅支持单 Agent 直聊分支")
+	// ErrMainAgentSingleConversation 表示主智能体 DM 只保留一个主窗口对话。
+	ErrMainAgentSingleConversation = errors.New("主智能体只有一个主窗口对话，不能新建或分支对话")
 	// ErrRoomMemberNotFound 表示房间成员不存在。
 	ErrRoomMemberNotFound = errors.New("room member not found")
 	// ErrPrivateMessagingDisabled 表示 Room 私域通信能力已被 owner 撤销。

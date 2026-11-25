@@ -17,6 +17,8 @@ type AgentRuntimeRef struct {
 	DisplayName string
 	RuntimeID   string
 	Status      string
+	// IsMain 标记 owner 的主智能体；主智能体 DM 只保留一个主窗口对话。
+	IsMain bool
 }
 
 // NewEntityID 创建 Room 内部短 ID。

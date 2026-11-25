@@ -12,7 +12,7 @@ import { MESSAGES } from "@/shared/i18n/messages";
 import { RoomMobileActionsMenu } from "./room-mobile-actions-menu";
 
 function setup() {
-  return { canOpenSubagents: true, isMembersLoading: false, scopeKey: "a",
+  return { canCreateConversation: true, canOpenSubagents: true, isMembersLoading: false, scopeKey: "a",
     onCreateConversation: vi.fn(async () => null), onManageMembers: vi.fn(), onOpenAuxiliaryTab: vi.fn() };
 }
 function view(props: ComponentProps<typeof RoomMobileActionsMenu>, locale: "en" | "zh" = "en") {
@@ -79,4 +79,13 @@ it("consumes old scope state, preserves language updates and uses current capabi
   await user.keyboard("{Enter}");
   expect(next.onCreateConversation).toHaveBeenCalledOnce();
   expect(props.onCreateConversation).not.toHaveBeenCalled();
+});
+
+it("omits new conversation for the single main window", async () => {
+  const user = userEvent.setup();
+  const props = { ...setup(), canCreateConversation: false };
+  render(view(props));
+  await user.click(screen.getByRole("button", { name: "More actions" }));
+  expect(screen.queryByRole("menuitem", { name: MESSAGES.en["room.new_conversation"] })).toBeNull();
+  expect(screen.getAllByRole("menuitem")[0]?.textContent).toBe(MESSAGES.en["room.members"]);
 });

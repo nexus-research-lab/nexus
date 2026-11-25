@@ -44,6 +44,13 @@ func (s *Service) ForkConversation(
 	}
 
 	sourceSession := source.Sessions[0]
+	sourceAgentRefs, err := s.loadAgentRefs(ctx, []string{sourceSession.AgentID})
+	if err != nil {
+		return nil, err
+	}
+	if hasMainAgentRef(sourceAgentRefs) {
+		return nil, ErrMainAgentSingleConversation
+	}
 	sourceSessionKey := protocol.BuildRoomAgentSessionKey(
 		sourceConversationID,
 		sourceSession.AgentID,
