@@ -60,137 +60,16 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	}
 	defer db.Close()
 
-	allowMissing := false
 	version, err := goose.GetDBVersion(db)
 	if err != nil {
 		logger.Info("无法获取当前 migration 版本，尝试初始化", "err", err)
-	} else {
-		if err = migration.RepairLegacyAgentDisabledSkillSchema(
-			context.Background(),
-			cfg.DatabaseDriver,
-			db,
-			version,
-			logger,
-		); err != nil {
-			return fmt.Errorf("repair legacy migration version collision: %w", err)
-		}
-		version, err = goose.GetDBVersion(db)
-		if err != nil {
-			return fmt.Errorf("read migration version after compatibility repair: %w", err)
-		}
-		automationPermissionReplay, repairErr := migration.RepairLegacyAutomationPermissionMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, version, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("repair automation permission migration version collision: %w", repairErr)
-		}
-		allowMissing = allowMissing || automationPermissionReplay
-		version, err = goose.GetDBVersion(db)
-		if err != nil {
-			return fmt.Errorf("read migration version after automation permission repair: %w", err)
-		}
-		privateSkillReplay, repairErr := migration.RepairLegacyPrivateSkillMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, version, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("repair private Skill migration version collision: %w", repairErr)
-		}
-		allowMissing = allowMissing || privateSkillReplay
-		version, err = goose.GetDBVersion(db)
-		if err != nil {
-			return fmt.Errorf("read migration version after private Skill repair: %w", err)
-		}
-		goalMigrationReplay, repairErr := migration.RepairLegacyGoalMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("repair Goal migration version collision: %w", repairErr)
-		}
-		allowMissing = allowMissing || goalMigrationReplay
-		version, err = goose.GetDBVersion(db)
-		if err != nil {
-			return fmt.Errorf("read migration version after Goal repair: %w", err)
-		}
-		if !allowMissing {
-			if err = migration.RepairLegacyExecutionIdentityClaimSchema(
-				context.Background(),
-				cfg.DatabaseDriver,
-				db,
-				version,
-				logger,
-			); err != nil {
-				return fmt.Errorf("repair legacy execution identity claim schema: %w", err)
-			}
-		}
-		controlReplay, repairErr := migration.RepairLegacyControlMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("repair Control migration version collision: %w", repairErr)
-		}
-		allowMissing = allowMissing || controlReplay
-		version, err = goose.GetDBVersion(db)
-		if err != nil {
-			return fmt.Errorf("read migration version after Control repair: %w", err)
-		}
 	}
-
 	logger.Info("执行数据库迁移", "current_version", version, "dir", dir)
 	if version > 0 {
 		logger.Info("数据库迁移版本就绪", "current_version", version)
 	}
-	var options []goose.OptionsFunc
-	if allowMissing {
-		options = append(options, goose.WithAllowMissing())
-	}
-	if err = goose.Up(db, dir, options...); err != nil {
+	if err = goose.Up(db, dir); err != nil {
 		return fmt.Errorf("run goose up: %w", err)
-	}
-	if allowMissing {
-		version, err = goose.GetDBVersion(db)
-		if err != nil {
-			return fmt.Errorf("read migration version after compatibility replay: %w", err)
-		}
-		automationPending, repairErr := migration.RepairLegacyAutomationPermissionMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, version, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("finalize automation permission migration collision repair: %w", repairErr)
-		}
-		if automationPending {
-			return errors.New("automation permission migration collision repair remains incomplete")
-		}
-		version, err = goose.GetDBVersion(db)
-		if err != nil {
-			return fmt.Errorf("read migration version after automation permission repair finalization: %w", err)
-		}
-		pending, repairErr := migration.RepairLegacyPrivateSkillMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, version, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("finalize private Skill migration collision repair: %w", repairErr)
-		}
-		if pending {
-			return errors.New("private Skill migration collision repair remains incomplete")
-		}
-		goalPending, repairErr := migration.RepairLegacyGoalMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("finalize Goal migration collision repair: %w", repairErr)
-		}
-		if goalPending {
-			return errors.New("Goal migration collision repair remains incomplete")
-		}
-		controlPending, repairErr := migration.RepairLegacyControlMigrationCollision(
-			context.Background(), cfg.DatabaseDriver, db, logger,
-		)
-		if repairErr != nil {
-			return fmt.Errorf("finalize Control migration collision repair: %w", repairErr)
-		}
-		if controlPending {
-			return errors.New("Control migration collision repair remains incomplete")
-		}
 	}
 	return nil
 }
