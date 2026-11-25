@@ -246,14 +246,35 @@ func TestWebSocketInputQueueAckAndErrorPreserveClientIDs(t *testing.T) {
 		t.Fatalf("发送 input_queue delete 失败: %v", err)
 	}
 
+	// 主窗口的 delete 即撤回：不存在或已被取走的消息必须拒绝，并回显请求身份。
+	rejected := readEventMatching(t, conn, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeError &&
+			event.Data["client_request_id"] == "request-input-queue-delete"
+	})
+	if rejected.Data["client_message_id"] != "message-input-queue-delete" ||
+		rejected.Data["action"] != "delete" ||
+		rejected.Data["item_id"] != "missing-item" {
+		t.Fatalf("撤回失败未完整回显请求身份: %+v", rejected)
+	}
+
+	if err = wsjson.Write(ctx, conn, map[string]any{
+		"type":              "input_queue",
+		"session_key":       sessionKey,
+		"action":            "enqueue",
+		"content":           "先记下这件事",
+		"client_request_id": "request-input-queue-enqueue",
+		"client_message_id": "message-input-queue-enqueue",
+	}); err != nil {
+		t.Fatalf("发送 input_queue enqueue 失败: %v", err)
+	}
 	ack := readEventMatching(t, conn, func(event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeInputQueueAck
 	})
 	if ack.SessionKey != sessionKey ||
-		ack.Data["client_request_id"] != "request-input-queue-delete" ||
-		ack.Data["client_message_id"] != "message-input-queue-delete" ||
-		ack.Data["action"] != "delete" ||
-		ack.Data["item_id"] != "missing-item" {
+		ack.Data["client_request_id"] != "request-input-queue-enqueue" ||
+		ack.Data["client_message_id"] != "message-input-queue-enqueue" ||
+		ack.Data["action"] != "enqueue" ||
+		ack.Data["item_id"] == "" {
 		t.Fatalf("input_queue_ack 未完整回显请求身份: %+v", ack)
 	}
 

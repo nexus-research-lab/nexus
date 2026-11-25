@@ -53,6 +53,7 @@ func TestConversationForkPreparesAndMaterializesIndependentHistory(t *testing.T)
 		runtimectx.NewManagerWithFactory(&fakeDMFactory{}),
 		permissionctx.NewContext(),
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	workspacePath := dmMainWorkspacePath(cfg)
 	sourceSessionID := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	sourceSessionKey := "agent:nexus:ws:dm:fork-source"
@@ -245,6 +246,7 @@ func TestEnsureClientForConversationForkUsesSourceBoundary(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	service.SetProviderResolver(providerService)
 	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
 		AgentRuntimeKind: "nxs",

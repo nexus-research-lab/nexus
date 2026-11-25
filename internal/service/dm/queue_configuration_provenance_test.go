@@ -201,7 +201,7 @@ func newDMQueueProvenanceFixture(
 	}
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	sessionKey := protocol.BuildAgentSessionKey(
-		cfg.DefaultAgentID,
+		newPlainDMAgent(t, agentService).AgentID,
 		protocol.SessionChannelWebSocketSegment,
 		protocol.RoomTypeDM,
 		"queue-provenance",
@@ -213,6 +213,7 @@ func newDMQueueProvenanceFixture(
 		_ = runtimeManager.CloseSession(closeCtx, sessionKey)
 	})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	service.SetQueueAdmissionStore(queueadmissionstore.NewRepository(cfg, db))
 	sources := make(chan string, 4)
 	bindings := make(chan authctx.QueuedHumanPrincipalBinding, 2)

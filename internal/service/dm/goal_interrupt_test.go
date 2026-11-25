@@ -47,6 +47,7 @@ func TestServiceUserStopOnGoalContinuationRecordsUserStop(t *testing.T) {
 			}
 			runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 			service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+			service.SetInboxStore(newDMInboxStore(t, cfg))
 			sessionKey := "agent:nexus:ws:dm:user-stop-" + mode
 			t.Cleanup(func() { _ = runtimeManager.CloseSession(context.Background(), sessionKey) })
 			goal := protocol.Goal{

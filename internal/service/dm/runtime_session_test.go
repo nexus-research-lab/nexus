@@ -72,6 +72,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 
 	sessionKey := protocol.BuildAgentSessionKey(created.AgentID, protocol.SessionChannelWebSocketSegment, "dm", "prompt-ref", "")
 	parsed := protocol.ParseSessionKey(sessionKey)
@@ -150,6 +151,7 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 		runtimectx.NewManagerWithFactory(factory),
 		permissionctx.NewContext(),
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := protocol.BuildAgentSessionKey(
 		agentValue.AgentID,
 		protocol.SessionChannelWebSocketSegment,
@@ -247,6 +249,7 @@ func TestServiceHandleChatDoesNotPersistSDKSessionIDWithoutTranscript(t *testing
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-without-transcript")
 	sessionKey := "agent:nexus:ws:dm:without-transcript"
 	permission.BindSession(sessionKey, sender)
@@ -313,6 +316,7 @@ func TestServiceHandleChatPersistsSDKSessionIDInAuthenticatedOwnerRuntime(t *tes
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-owner-runtime")
 	sessionKey := protocol.BuildAgentSessionKey(
 		agentValue.AgentID,

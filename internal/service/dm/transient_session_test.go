@@ -23,6 +23,7 @@ func TestCreateTransientSessionIsHiddenAndDoesNotForkTranscript(t *testing.T) {
 		runtimectx.NewManagerWithFactory(&fakeDMFactory{}),
 		permissionctx.NewContext(),
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := protocol.BuildAgentSessionKey(
 		cfg.DefaultAgentID,
 		protocol.SessionChannelInternalSegment,
@@ -78,6 +79,7 @@ func TestCreateTransientWorkGraphEditorSessionUsesHiddenWebSocketDMWithoutFork(t
 		runtimectx.NewManagerWithFactory(&fakeDMFactory{}),
 		permissionctx.NewContext(),
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := protocol.BuildAgentSessionKey(
 		cfg.DefaultAgentID,
 		protocol.SessionChannelWebSocketSegment,

@@ -223,14 +223,15 @@ func (s *Service) confirmPendingInputQueueGuidance(
 	}
 	for _, item := range claimed {
 		guidance := prepared[item.ID]
-		updatedSession, persistErr := s.persistConsumedGuidanceUserMessage(
-			ctx,
-			location,
-			sessionItem,
-			guidance.item,
-			guidance.sourceRoundID,
-			guidance.targetRoundID,
-		)
+		updatedSession, persistErr := s.persistGuidanceUserMessage(ctx, location, sessionItem, guidanceUserMessage{
+			userMessageID:   textutil.FirstNonEmpty(guidance.item.SourceMessageID, "msg_user_"+strings.TrimSpace(guidance.sourceRoundID)),
+			sourceRoundID:   guidance.sourceRoundID,
+			targetRoundID:   guidance.targetRoundID,
+			content:         guidance.item.Content,
+			attachments:     guidance.item.Attachments,
+			clientMessageID: guidance.item.ClientMessageID,
+			agentRoundID:    guidance.item.AgentRoundID,
+		})
 		if persistErr != nil {
 			restored, restoreErr := s.RestoreInputQueueItems(location, claimed)
 			if restoreErr == nil {
@@ -306,32 +307,38 @@ func (s *Service) currentGuidanceSession(
 	return *item, nil
 }
 
-func (s *Service) persistConsumedGuidanceUserMessage(
+// guidanceUserMessage 是一条已被 runtime 确认消费、归入 targetRoundID 的用户补充。
+type guidanceUserMessage struct {
+	userMessageID   string
+	sourceRoundID   string
+	targetRoundID   string
+	content         string
+	attachments     []protocol.ChatAttachment
+	clientMessageID string
+	agentRoundID    string
+}
+
+func (s *Service) persistGuidanceUserMessage(
 	ctx context.Context,
 	location workspacestore.InputQueueLocation,
 	sessionItem protocol.Session,
-	item protocol.InputQueueItem,
-	sourceRoundID string,
-	targetRoundID string,
+	guidance guidanceUserMessage,
 ) (protocol.Session, error) {
-	userMessageID := strings.TrimSpace(item.SourceMessageID)
-	if userMessageID == "" {
-		userMessageID = "msg_user_" + strings.TrimSpace(sourceRoundID)
-	}
+	targetRoundID := guidance.targetRoundID
 	messageValue := dmdomain.BuildUserRoundMarker(
 		sessionItem,
 		targetRoundID,
-		sourceRoundID,
-		userMessageID,
+		guidance.sourceRoundID,
+		guidance.userMessageID,
 		protocol.NewInputSeq(),
-		item.Content,
+		guidance.content,
 		protocol.ChatDeliveryPolicyGuide,
-		item.Attachments,
+		guidance.attachments,
 	)
-	if clientMessageID := strings.TrimSpace(item.ClientMessageID); clientMessageID != "" {
+	if clientMessageID := strings.TrimSpace(guidance.clientMessageID); clientMessageID != "" {
 		messageValue["client_message_id"] = clientMessageID
 	}
-	if agentRoundID := strings.TrimSpace(item.AgentRoundID); agentRoundID != "" {
+	if agentRoundID := strings.TrimSpace(guidance.agentRoundID); agentRoundID != "" {
 		messageValue["agent_round_id"] = agentRoundID
 	}
 	if err := s.History.ForOwner(location.OwnerUserID).AppendOverlayMessage(

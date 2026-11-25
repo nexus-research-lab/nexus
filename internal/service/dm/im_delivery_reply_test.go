@@ -24,6 +24,7 @@ func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	manager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	permission := permissionctx.NewContext()
 	service := NewService(cfg, agents, manager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	session := "agent:nexus:ws:dm:im-feedback-origin"
 	sender := newDMTestSender("im-feedback")
 	permission.BindSession(session, sender)

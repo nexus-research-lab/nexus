@@ -44,6 +44,7 @@ func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *tes
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-interrupt-stale")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-stale"
 	permission.BindSession(sessionKey, sender)
@@ -115,6 +116,7 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-interrupt-policy")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-policy"
 	permission.BindSession(sessionKey, sender)
@@ -226,6 +228,7 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-reconnect")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-reconnect"
 	permission.BindSession(sessionKey, sender)
@@ -291,6 +294,7 @@ func TestServiceHandleInterruptExactOldRoundKeepsSuccessorRunning(t *testing.T) 
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
 	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:test-exact-old-round"
 	oldCancelled := false
 	successorCancelled := false
@@ -333,6 +337,7 @@ func TestServiceHandleInterruptStaleRoundNeverFallsBackToSession(t *testing.T) {
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
 	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:test-stale-round-stop"
 	successorCancelled := false
 	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {
@@ -365,6 +370,7 @@ func TestServiceHandleInterruptExactUnsupportedFailsClosed(t *testing.T) {
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
 	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:test-exact-unsupported"
 	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-without-cancel", nil); err != nil {
 		t.Fatalf("注册无 exact cancel 的 round 失败: %v", err)

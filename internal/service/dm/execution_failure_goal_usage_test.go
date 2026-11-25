@@ -52,6 +52,7 @@ func TestFailRoundKeepsProviderUsageReturnedBeforeLocalFailure(t *testing.T) {
 				runtimectx.NewManager(),
 				permissionctx.NewContext(),
 			)
+			service.SetInboxStore(newDMInboxStore(t, cfg))
 			service.goals = goalProvider
 			runner := &roundRunner{
 				service:       service,

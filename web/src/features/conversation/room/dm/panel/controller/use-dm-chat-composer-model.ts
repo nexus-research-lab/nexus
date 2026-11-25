@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { prepareWorkspaceAttachments } from "@/features/conversation/shared/composer/attachments/composer-attachments";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/composer/use-conversation-composer-handlers";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
+import { isMainAgent } from "@/config/runtime-options";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import {
   buildComposerDraftScopeKey,
@@ -10,7 +11,10 @@ import {
 } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
-import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type {
+  AgentConversationSendOptions,
+  UseAgentConversationReturn,
+} from "@/types/agent/agent-conversation";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { DmChatComposerModel } from "../view/dm-chat-panel-view";
@@ -61,6 +65,17 @@ export function useDmChatComposerModel({
   const { t } = useI18n();
   const agentId = agent.agent_id;
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
+  const queueMode = !embeddedPlaceholder && isMainAgent(agentId) ? "inbox" : "queue";
+  const enqueueInput = conversation.enqueue_input_queue_message;
+  const sendDirect = conversation.send_message;
+  // 主窗口的所有输入（Composer、空态建议、初始草稿）都追加到服务端 inbox：
+  // 空闲立即开跑、运行中在安全点注入，前端不在 chat 与队列之间做选择。
+  const sendMessage = useCallback(
+    (content: string, options?: AgentConversationSendOptions) => queueMode === "inbox"
+      ? enqueueInput(content, options?.delivery_policy, options?.attachments, options?.target_agent_ids)
+      : sendDirect(content, options),
+    [enqueueInput, queueMode, sendDirect],
+  );
   const draftScopeKey = buildComposerDraftScopeKey({ agentId, sessionKey });
   const historyScopeKey = buildComposerHistoryScopeKey({ agentId });
   const setGoal = conversation.set_goal;
@@ -80,7 +95,7 @@ export function useDmChatComposerModel({
     onInitialDraftConsumed,
     prepareAttachments,
     scrollToBottom,
-    sendMessage: conversation.send_message,
+    sendMessage,
     sessionKey,
   });
   const createGoal = useCallback(async (objective: string) => {
@@ -117,6 +132,7 @@ export function useDmChatComposerModel({
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
     onStop: conversation.stop_generation,
+    queueMode,
     runtimePhase: conversation.runtime_phase,
     runtimeKind,
     sessionSettings: !embeddedPlaceholder && sessionKey

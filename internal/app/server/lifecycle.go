@@ -696,6 +696,9 @@ func (s *Server) startInputQueueRecovery(ctx context.Context) (func(), error) {
 	if err := s.services.DM.RecoverInputQueues(ctx); err != nil {
 		s.api.BaseLogger().Warn("启动时 DM 待发送队列恢复未完全完成，已跳过失败项", "err", err)
 	}
+	if err := s.services.DM.RecoverMainInboxes(ctx); err != nil {
+		s.api.BaseLogger().Warn("启动时主窗口 inbox 恢复未完全完成，已跳过失败项", "err", err)
+	}
 	if err := s.services.RoomRealtime.RecoverInputQueues(ctx); err != nil {
 		s.api.BaseLogger().Warn("启动时 Room 待发送队列恢复未完全完成，已跳过失败项", "err", err)
 	}

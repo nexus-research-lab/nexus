@@ -90,6 +90,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	prefs := preferencessvc.DefaultPreferences()
 	prefs.EmotionEnabled = true
 	service.SetPreferences(fakeDMPreferencesService{prefs: prefs})
@@ -187,6 +188,7 @@ func TestDMPrepareRuntimeHandlesSlashCommandPayloads(t *testing.T) {
 	client := newFakeDMClient()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:slash-command"
 	t.Cleanup(func() {
 		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
@@ -269,6 +271,7 @@ func TestDMPrepareRuntimeRejectsSlashCommandAttachments(t *testing.T) {
 		client: newFakeDMClient(),
 	})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	execution, err := service.prepareChatExecution(context.Background(), Request{
 		SessionKey: "agent:nexus:ws:dm:slash-attachment",
 		Content:    "/model sonnet",
@@ -297,6 +300,7 @@ func TestAuthorizeDMSessionAccessSeparatesExternalViewingFromWebHostCommands(t *
 		client: newFakeDMClient(),
 	})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:host-command"
 	externalSessionKey := protocol.BuildAgentAccountSessionKey(
 		"nexus",
@@ -443,6 +447,7 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-parallel-tools")
 	sessionKey := "agent:nexus:ws:dm:parallel-tools"
 	permission.BindSession(sessionKey, sender)
@@ -534,6 +539,7 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-premature")
 	sessionKey := "agent:nexus:ws:dm:premature-close"
 	permission.BindSession(sessionKey, sender)

@@ -36,6 +36,13 @@ func (s *Service) HandleInputQueue(
 	ctx context.Context,
 	request InputQueueRequest,
 ) (protocol.InputQueueMutationResult, error) {
+	target, mainWindow, err := s.resolveMainInboxTarget(ctx, request.SessionKey, request.AgentID)
+	if err != nil {
+		return protocol.InputQueueMutationResult{}, err
+	}
+	if mainWindow {
+		return s.handleMainInboxControl(ctx, target, request)
+	}
 	sessionKey, location, err := s.resolveInputQueueLocation(ctx, request.SessionKey, request.AgentID)
 	if err != nil {
 		return protocol.InputQueueMutationResult{}, err
@@ -153,6 +160,20 @@ func (s *Service) SendInputQueueSnapshot(ctx context.Context, sessionKey string,
 	normalizedSessionKey, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
 	if err != nil {
 		return err
+	}
+	target, mainWindow, err := s.resolveMainInboxTarget(ctx, normalizedSessionKey, agentID)
+	if err != nil {
+		return err
+	}
+	if mainWindow {
+		// 主窗口只展示 inbox；JSONL 队列仍可能有宿主恢复输入，inbox 空闲时再派发它们。
+		s.broadcastMainInbox(ctx, target)
+		s.StartSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {
+			if !s.drainMainInbox(taskCtx, target) {
+				s.dispatchNextInputQueueItemAtLocation(taskCtx, normalizedSessionKey, agentID, location)
+			}
+		})
+		return nil
 	}
 	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {

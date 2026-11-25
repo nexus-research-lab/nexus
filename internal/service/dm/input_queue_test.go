@@ -143,10 +143,11 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	activity := &dmConversationActivitySpy{}
 	service.SetRoomConversationActivityStore(activity)
 	sender := newDMTestSender("sender-guide")
-	sessionKey := "agent:nexus:ws:dm:test-guide"
+	sessionKey := "agent:" + newPlainDMAgent(t, agentService).AgentID + ":ws:dm:test-guide"
 	permission.BindSession(sessionKey, sender)
 	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
@@ -337,6 +338,7 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-ack-guidance")
 	sessionKey := "agent:nexus:ws:dm:test-ack-guidance"
 	permission.BindSession(sessionKey, sender)
@@ -468,6 +470,7 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 		runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client}),
 		permission,
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-guide-preflight-failure")
 	sessionKey := "agent:nexus:ws:dm:test-guide-preflight-failure"
 	permission.BindSession(sessionKey, sender)
@@ -591,6 +594,7 @@ func TestServiceGuidanceErrorResultFallsBackToNextTurn(t *testing.T) {
 	}
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-guide-error-fallback")
 	sessionKey := "agent:nexus:ws:dm:test-guide-error-fallback"
 	permission.BindSession(sessionKey, sender)
@@ -669,8 +673,9 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-guide-input-queue")
-	sessionKey := "agent:nexus:ws:dm:test-guide-input-queue"
+	sessionKey := "agent:" + newPlainDMAgent(t, agentService).AgentID + ":ws:dm:test-guide-input-queue"
 	t.Cleanup(func() {
 		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
 	})
@@ -814,6 +819,7 @@ func TestSurvivingQueueClaimWithPersistedRoundIsConsumedWithoutReplay(t *testing
 	client := newFakeDMClient()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:queue-claim-replay"
 	t.Cleanup(func() { _ = runtimeManager.CloseSession(context.Background(), sessionKey) })
 	_, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, "")

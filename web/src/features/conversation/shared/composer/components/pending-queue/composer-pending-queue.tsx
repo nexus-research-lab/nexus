@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * INPUT: 待发送消息与排序/引导/删除命令。
- * OUTPUT: 共享 Disclosure 内的有序队列；支持拖动和键盘排序，命令只按当前条目派发。
+ * INPUT: 待发送消息、队列模式与排序/引导/删除命令。
+ * OUTPUT: 共享 Disclosure 内的有序队列；queue 模式支持拖动、键盘排序与引导，inbox 模式只保留撤回。
  * POS: Composer 输入队列装配层；队列事务由 controller 持有。
  */
 
@@ -10,6 +10,8 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
+
+import type { ComposerQueueMode } from "../../composer-model";
 
 import { getPendingQueuePaddingClassName } from "../../composer-styles";
 import { projectPendingQueueItem } from "./pending-queue-model";
@@ -19,6 +21,7 @@ import { usePendingQueueController } from "./use-pending-queue-controller";
 interface ComposerPendingQueueProps {
   compact: boolean;
   inputQueueItems: InputQueueItem[];
+  mode: ComposerQueueMode;
   onDeleteQueuedMessage: (itemId: string) => void | Promise<void>;
   onGuideQueuedMessage: (itemId: string) => void | Promise<void>;
   onReorderQueueMessages: (orderedIds: string[]) => void | Promise<void>;
@@ -27,6 +30,7 @@ interface ComposerPendingQueueProps {
 export function ComposerPendingQueue({
   compact,
   inputQueueItems,
+  mode,
   onDeleteQueuedMessage,
   onGuideQueuedMessage,
   onReorderQueueMessages,
@@ -72,6 +76,7 @@ export function ComposerPendingQueue({
             key={item.id}
             canMoveUp={index > 0}
             canMoveDown={index < inputQueueItems.length - 1}
+            mode={mode}
             isActionRunning={controller.state.isActionRunning}
             item={item}
             onDelete={controller.actions.deleteMessage}

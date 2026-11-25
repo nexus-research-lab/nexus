@@ -18,7 +18,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
+	inboxstore "github.com/nexus-research-lab/nexus/internal/storage/inbox"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
@@ -52,6 +54,30 @@ func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
 		_ = db.Close()
 	})
 	return agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+}
+
+// newPlainDMAgent 创建普通 Agent；主智能体的 DM 是主窗口，输入走 inbox，测旧待发送队列要用普通 Agent。
+func newPlainDMAgent(t *testing.T, agentService *agentsvc.Service) *protocol.Agent {
+	t.Helper()
+	created, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{Name: "Queue Agent"})
+	if err != nil {
+		t.Fatalf("创建普通测试 Agent 失败: %v", err)
+	}
+	return created
+}
+
+// newDMInboxStore 打开与测试 Agent 相同的数据库；主智能体 DM 的输入都经过 inbox。
+func newDMInboxStore(t *testing.T, cfg config.Config) *inboxstore.Repository {
+	t.Helper()
+	// 与生产一致带 busy_timeout：inbox 与测试 Agent 仓储是两个连接池，会并发写同一个 SQLite 文件。
+	db, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatalf("打开 inbox 测试数据库失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+	return inboxstore.NewRepository(cfg, db)
 }
 
 func newDMProviderService(t *testing.T, cfg config.Config) *providercfg.Service {
@@ -113,7 +139,15 @@ func mustFindDMSession(
 	sessionKey string,
 ) (protocol.Session, string) {
 	t.Helper()
-	item, workspacePath, err := service.Files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
+	workspacePath := dmMainWorkspacePath(cfg)
+	if agentID := protocol.ParseSessionKey(sessionKey).AgentID; agentID != cfg.DefaultAgentID {
+		agentValue, err := service.Agents.GetAgent(context.Background(), agentID)
+		if err != nil {
+			t.Fatalf("读取 session 所属 Agent 失败: %v", err)
+		}
+		workspacePath = agentValue.WorkspacePath
+	}
+	item, workspacePath, err := service.Files.FindSession([]string{workspacePath}, sessionKey)
 	if err != nil {
 		t.Fatalf("读取 session 元数据失败: %v", err)
 	}
