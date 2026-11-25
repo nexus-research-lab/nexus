@@ -648,19 +648,10 @@ CREATE TABLE automation_system_events (
     source_id VARCHAR(64),
     payload JSON NOT NULL,
     status VARCHAR(32) NOT NULL,
-    owner_user_id VARCHAR(64),
-    request_id VARCHAR(128),
-    intent_digest VARCHAR(64),
-    accepted_configuration_version INTEGER,
-    claim_token VARCHAR(128),
-    claim_expires_at DATETIME,
     processed_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
-CREATE UNIQUE INDEX uq_automation_heartbeat_wake_request
-    ON automation_system_events (owner_user_id, request_id)
-    WHERE event_type = 'heartbeat.wake' AND request_id IS NOT NULL;
 CREATE TABLE automation_task_events (
     event_id VARCHAR(64) NOT NULL PRIMARY KEY,
     job_id VARCHAR(64) NOT NULL,
