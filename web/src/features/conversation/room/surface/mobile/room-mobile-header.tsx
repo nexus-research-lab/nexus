@@ -1,5 +1,5 @@
 /**
- * INPUT: 窄窗 Room 身份、会话切换状态、返回动作、尾部操作与共享平台几何。
+ * INPUT: 窄窗 Room 身份、可选的会话切换入口、返回动作、尾部操作与共享平台几何。
  * OUTPUT: 共享平台几何、完整可访问身份与 14px 标题/12px 会话元数据的专注模式 Header。
  * POS: Room 专注模式顶部导航；只承载导航，不改变聊天 viewport 几何。
  */
@@ -21,7 +21,8 @@ interface RoomMobileHeaderProps {
   conversationTitle: string;
   isConversationSwitcherOpen: boolean;
   onBack: () => void;
-  onOpenConversations: () => void;
+  // 缺省表示单会话（主智能体主窗口），标题只展示身份不可切换。
+  onOpenConversations?: () => void;
   roomTitle: string;
   trailing: ReactNode;
 }
@@ -64,38 +65,50 @@ export function RoomMobileHeader({
         <ArrowLeft aria-hidden="true" className="h-4 w-4" />
       </UiIconButton>
 
-      <UiButton
-        aria-expanded={isConversationSwitcherOpen}
-        aria-haspopup="dialog"
-        aria-label={t("room.switch_conversation")}
-        aria-describedby={secondaryTitle ? `${titleId}-room ${titleId}-conversation` : `${titleId}-room`}
-        className="min-w-0 flex-1 justify-start gap-1.5 px-2 py-1 text-left"
-        onClick={onOpenConversations}
-        size="sm"
-        title={secondaryTitle ? `${primaryTitle} · ${secondaryTitle}` : primaryTitle}
-        variant="ghost"
-      >
-        <span className="min-w-0 flex-1">
-          <span id={`${titleId}-room`} className={cn(
-            "block truncate",
-            getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
-          )}>
-            {primaryTitle}
-          </span>
-          {secondaryTitle ? (
-            <span id={`${titleId}-conversation`} className={cn(
+      {onOpenConversations ? (
+        <UiButton
+          aria-expanded={isConversationSwitcherOpen}
+          aria-haspopup="dialog"
+          aria-label={t("room.switch_conversation")}
+          aria-describedby={secondaryTitle ? `${titleId}-room ${titleId}-conversation` : `${titleId}-room`}
+          className="min-w-0 flex-1 justify-start gap-1.5 px-2 py-1 text-left"
+          onClick={onOpenConversations}
+          size="sm"
+          title={secondaryTitle ? `${primaryTitle} · ${secondaryTitle}` : primaryTitle}
+          variant="ghost"
+        >
+          <span className="min-w-0 flex-1">
+            <span id={`${titleId}-room`} className={cn(
               "block truncate",
-              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+              getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
             )}>
-              {secondaryTitle}
+              {primaryTitle}
             </span>
-          ) : null}
-        </span>
-        <ChevronDown aria-hidden="true" className={cn(
-          "h-3.5 w-3.5 shrink-0 text-(--text-muted) transition-transform duration-(--motion-duration-fast)",
-          isConversationSwitcherOpen && "rotate-180",
-        )} />
-      </UiButton>
+            {secondaryTitle ? (
+              <span id={`${titleId}-conversation`} className={cn(
+                "block truncate",
+                getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+              )}>
+                {secondaryTitle}
+              </span>
+            ) : null}
+          </span>
+          <ChevronDown aria-hidden="true" className={cn(
+            "h-3.5 w-3.5 shrink-0 text-(--text-muted) transition-transform duration-(--motion-duration-fast)",
+            isConversationSwitcherOpen && "rotate-180",
+          )} />
+        </UiButton>
+      ) : (
+        <p
+          className={cn(
+            "min-w-0 flex-1 truncate px-2",
+            getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+          )}
+          title={primaryTitle}
+        >
+          {primaryTitle}
+        </p>
+      )}
 
       <div className="flex shrink-0 items-center gap-0.5">
         {trailing}

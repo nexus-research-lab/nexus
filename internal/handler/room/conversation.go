@@ -182,6 +182,10 @@ func (h *Handlers) HandleCreateConversation(writer http.ResponseWriter, request 
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
+	if errors.Is(err, roompkg.ErrMainAgentSingleConversation) {
+		h.api.WriteFailure(writer, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		if handlershared.IsClientMessageError(err) {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
@@ -212,6 +216,10 @@ func (h *Handlers) HandleForkConversation(writer http.ResponseWriter, request *h
 	}
 	if errors.Is(err, roompkg.ErrConversationForkUnsupported) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if errors.Is(err, roompkg.ErrMainAgentSingleConversation) {
+		h.api.WriteFailure(writer, http.StatusConflict, err.Error())
 		return
 	}
 	if err != nil {

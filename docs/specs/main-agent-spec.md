@@ -22,6 +22,8 @@
 ## 3. 入口与 Room 边界
 
 - 默认入口使用标准 Agent DM session，不新增专用会话协议；其运行时、历史和恢复规则与其他 Agent DM 一致。
+- 主智能体 DM 是 owner 唯一的主窗口对话：服务端拒绝为其新建或分支 conversation（HTTP 409），`EnsureDirectRoom` 始终返回同一条；早期遗留的其他 conversation 只保留数据、不再作为入口。
+- 侧栏固定的主智能体直接进入该主窗口；Header 和窄窗不提供会话标签、历史、新建或分支入口。
 - `/nexus/v1/runtime/options` 返回当前 owner 的 `default_agent_id`、头像和默认模型偏好；前端只消费该结果，不维护第二份默认 ID。
 - 主智能体不能作为多人 Room 的普通成员，也不充当其成员模板。
 

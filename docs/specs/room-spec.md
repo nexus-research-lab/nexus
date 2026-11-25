@@ -56,7 +56,7 @@ Member 是 Room 的成员关系，类型只有：
 ### 3.3 Conversation
 
 - Conversation 是 Room 内独立的共享对话。
-- 每个 Room 至少有一个主 conversation，也可以有 `topic` conversation。
+- 每个 Room 至少有一个主 conversation，也可以有 `topic` conversation；主智能体 DM 例外，只保留一个主窗口 conversation（见 `main-agent-spec.md`）。
 - `conversation_id` 是 Room 页面和 Room HTTP API 的共享对话路由键。
 - 删除 topic 会同时关闭其运行时；主 conversation 不能删除。
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
 type fakeConversationSessionForker struct {
@@ -61,7 +62,9 @@ func TestRoomServiceForkFailureCompensatesAfterRequestCancellation(t *testing.T)
 	if err = agentService.EnsureReady(baseCtx); err != nil {
 		t.Fatalf("初始化主智能体失败: %v", err)
 	}
-	source, err := roomService.EnsureDirectRoom(baseCtx, cfg.DefaultAgentID)
+	// 主智能体 DM 不支持分支，这里用普通 Agent 的 DM。
+	forkAgent := createTestAgent(t, agentService, baseCtx, "fork-agent")
+	source, err := roomService.EnsureDirectRoom(baseCtx, forkAgent.AgentID)
 	if err != nil {
 		t.Fatalf("创建 source DM 失败: %v", err)
 	}
@@ -102,7 +105,8 @@ func TestRoomServiceForkConversationCreatesIndependentDMConversation(t *testing.
 	if err = agentService.EnsureReady(ctx); err != nil {
 		t.Fatalf("初始化主智能体失败: %v", err)
 	}
-	source, err := roomService.EnsureDirectRoom(ctx, cfg.DefaultAgentID)
+	forkAgent := createTestAgent(t, agentService, ctx, "fork-agent")
+	source, err := roomService.EnsureDirectRoom(ctx, forkAgent.AgentID)
 	if err != nil {
 		t.Fatalf("创建 source DM 失败: %v", err)
 	}
@@ -155,12 +159,12 @@ WHERE conversation_id = ?`, source.Conversation.ID); err != nil {
 	}
 	wantSourceKey := protocol.BuildRoomAgentSessionKey(
 		source.Conversation.ID,
-		cfg.DefaultAgentID,
+		forkAgent.AgentID,
 		protocol.RoomTypeDM,
 	)
 	wantTargetKey := protocol.BuildRoomAgentSessionKey(
 		target.Conversation.ID,
-		cfg.DefaultAgentID,
+		forkAgent.AgentID,
 		protocol.RoomTypeDM,
 	)
 	if forker.sourceSessionKey != wantSourceKey ||
@@ -191,5 +195,47 @@ WHERE conversation_id = ?`, source.Conversation.ID); err != nil {
 	remaining, err := roomService.GetConversationContext(ctx, target.Conversation.ID)
 	if err != nil || remaining == nil {
 		t.Fatalf("删除 source 后 target fork 不可读: target=%+v err=%v", remaining, err)
+	}
+}
+
+func TestRoomServiceMainAgentDMKeepsSingleConversation(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService.SetConversationSessionForker(&fakeConversationSessionForker{})
+
+	ctx := context.Background()
+	if err = agentService.EnsureReady(ctx); err != nil {
+		t.Fatalf("初始化主智能体失败: %v", err)
+	}
+	mainRoom, err := roomService.EnsureDirectRoom(ctx, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("创建主智能体 DM 失败: %v", err)
+	}
+
+	if _, err = roomService.CreateConversation(
+		ctx,
+		mainRoom.Room.ID,
+		protocol.CreateConversationRequest{},
+	); !errors.Is(err, room.ErrMainAgentSingleConversation) {
+		t.Fatalf("主智能体 DM 新建对话应被拒绝: %v", err)
+	}
+	if _, err = roomService.ForkConversation(
+		ctx,
+		mainRoom.Room.ID,
+		mainRoom.Conversation.ID,
+		protocol.ForkConversationRequest{RoundID: "round-finished"},
+	); !errors.Is(err, room.ErrMainAgentSingleConversation) {
+		t.Fatalf("主智能体 DM 分支应被拒绝: %v", err)
+	}
+	assertSQLCount(t, db, "SELECT COUNT(*) FROM conversations WHERE room_id = ?", 1, mainRoom.Room.ID)
+
+	again, err := roomService.EnsureDirectRoom(ctx, cfg.DefaultAgentID)
+	if err != nil || again.Conversation.ID != mainRoom.Conversation.ID {
+		t.Fatalf("主窗口应始终返回同一个对话: %+v %v", again, err)
 	}
 }

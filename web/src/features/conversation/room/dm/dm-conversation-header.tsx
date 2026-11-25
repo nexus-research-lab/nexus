@@ -1,5 +1,5 @@
-// INPUT: DM 身份、会话目录、当前标签与导航命令。
-// OUTPUT: 使用标准主身份头像与共享会话导航的 DM Header。
+// INPUT: DM 身份、会话目录、当前标签、导航命令与是否为单会话主窗口。
+// OUTPUT: 使用标准主身份头像的 DM Header；主智能体主窗口不显示会话标签与历史菜单。
 // POS: DM 顶栏装配；标签持久化与创建/关闭事务归 navigation owner。
 
 "use client";
@@ -31,6 +31,7 @@ interface DmConversationHeaderProps {
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
+  singleConversation?: boolean;
 }
 
 export const DmConversationHeader = memo(function DmConversationHeader({
@@ -46,6 +47,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   onDeleteConversation,
   onSelectConversation,
   onUpdateConversationTitle,
+  singleConversation = false,
 }: DmConversationHeaderProps) {
   const { t } = useI18n();
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
@@ -66,7 +68,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
       leadingVariant={widePanelCollapsed ? undefined : "identity"}
       onChangeTab={onChangeTab}
       tabs={roomTabs}
-      tabsLeading={(
+      tabsLeading={singleConversation ? undefined : (
         <RoomConversationTabs
           conversationId={conversationId}
           conversations={conversations}

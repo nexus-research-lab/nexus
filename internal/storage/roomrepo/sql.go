@@ -47,7 +47,8 @@ SELECT
     a.name,
     COALESCE(p.display_name, ''),
     COALESCE(rt.id, ''),
-    a.status
+    a.status,
+    a.is_main
 FROM agents a
 LEFT JOIN profiles p ON p.agent_id = a.id
 LEFT JOIN runtimes rt ON rt.agent_id = a.id
@@ -77,6 +78,7 @@ WHERE a.id IN (%s)`, r.dialect.BindList(len(agentIDs)))
 			&item.DisplayName,
 			&item.RuntimeID,
 			&item.Status,
+			&item.IsMain,
 		); err != nil {
 			return nil, err
 		}

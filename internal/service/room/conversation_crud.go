@@ -70,6 +70,9 @@ func (s *Service) createConversation(
 	if err != nil {
 		return nil, err
 	}
+	if roomValue.RoomType == protocol.RoomTypeDM && hasMainAgentRef(agentRefs) {
+		return nil, ErrMainAgentSingleConversation
+	}
 
 	title := roomdomain.NormalizeOptionalText(request.Title)
 

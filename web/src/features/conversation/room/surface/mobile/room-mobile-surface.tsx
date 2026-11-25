@@ -14,6 +14,7 @@ import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
 import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
+import { isMainAgent } from "@/config/runtime-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { RoomMemberManagerDialog } from "@/features/conversation/room/members/room-member-manager-dialog";
@@ -149,6 +150,8 @@ export function RoomMobileSurface({
 }: RoomMobileSurfaceProps) {
   const { t } = useI18n();
   const isDm = currentRoomType === "dm";
+  // 主智能体只有一个主窗口对话：不提供会话切换、历史与新建。
+  const singleConversation = isDm && isMainAgent(currentAgent.agent_id);
   const composerSessionKey = isDm
     ? currentAgentSessionIdentity?.session_key?.trim() || null
     : conversationId
@@ -267,23 +270,26 @@ export function RoomMobileSurface({
         conversationTitle={conversationTitle}
         isConversationSwitcherOpen={isConversationSwitcherOpen}
         onBack={onBackToDirectory}
-        onOpenConversations={() => {
+        onOpenConversations={singleConversation ? undefined : () => {
           memberManager.close();
           setIsConversationSwitcherOpen((isOpen) => !isOpen);
         }}
         roomTitle={currentRoomTitle}
         trailing={(
           <>
-            <RoomHistoryMenu
-              conversationId={conversationId}
-              conversations={currentRoomConversations}
-              onCreateConversation={onCreateConversation}
-              onDeleteConversation={onDeleteConversation}
-              onSelectConversation={onSelectConversation}
-              onUpdateConversationTitle={onUpdateConversationTitle}
-              triggerVariant="history"
-            />
+            {singleConversation ? null : (
+              <RoomHistoryMenu
+                conversationId={conversationId}
+                conversations={currentRoomConversations}
+                onCreateConversation={onCreateConversation}
+                onDeleteConversation={onDeleteConversation}
+                onSelectConversation={onSelectConversation}
+                onUpdateConversationTitle={onUpdateConversationTitle}
+                triggerVariant="history"
+              />
+            )}
             <RoomMobileActionsMenu
+              canCreateConversation={!singleConversation}
               canOpenSubagents={subagentTaskSource !== null}
               isMembersLoading={memberManager.isLoading}
               scopeKey={JSON.stringify([navigationScopeKey, memberManager.isOpen])}

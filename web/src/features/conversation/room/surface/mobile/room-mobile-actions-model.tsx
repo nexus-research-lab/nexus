@@ -16,23 +16,25 @@ import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
 export function buildRoomMobileActionItems({
+  canCreateConversation,
   canOpenSubagents,
   includeMembers,
   isMembersLoading,
   t,
 }: {
+  canCreateConversation: boolean;
   canOpenSubagents: boolean;
   includeMembers: boolean;
   isMembersLoading: boolean;
   t: I18nContextValue["t"];
 }): UiActionMenuItem[] {
   return [
-    {
+    ...(canCreateConversation ? [{
       icon: <Plus className="h-4 w-4 text-(--icon-muted)" />,
       label: t("room.new_conversation"),
-      tone: "primary",
+      tone: "primary" as const,
       value: "new_conversation",
-    },
+    }] : []),
     ...(includeMembers ? [{
       disabled: isMembersLoading,
       icon: <UsersRound className="h-4 w-4 text-(--icon-muted)" />,

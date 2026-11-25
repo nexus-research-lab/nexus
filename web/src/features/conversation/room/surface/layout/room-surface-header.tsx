@@ -3,6 +3,7 @@
  * OUTPUT: 统一会话导航命令装配、保留 DM/群身份和下缘渐隐的桌面 Room Header。
  * POS: 桌面 Room Surface 顶部视觉边界；保持共享桌面 Header 几何，不参与消息滚动。
  */
+import { isMainAgent } from "@/config/runtime-options";
 import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
@@ -93,6 +94,7 @@ export function RoomSurfaceHeader({
       {...conversationNavigation}
       currentAgentName={currentAgent.name}
       currentAgentAvatar={currentAgent.avatar ?? null}
+      singleConversation={isMainAgent(currentAgent.agent_id)}
     />
   ) : (
     <GroupConversationHeader

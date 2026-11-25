@@ -129,6 +129,16 @@ func (s *Service) loadAgentRefs(ctx context.Context, agentIDs []string) ([]roomr
 	return result, nil
 }
 
+// hasMainAgentRef 判断成员里是否有主智能体；主智能体 DM 固定为单一主窗口对话。
+func hasMainAgentRef(refs []roomrepo.AgentRuntimeRef) bool {
+	for _, ref := range refs {
+		if ref.IsMain {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Service) resolveRoomAgent(ctx context.Context, agentID string) (*protocol.Agent, error) {
 	cleaned := strings.TrimSpace(agentID)
 	if cleaned == "" {
