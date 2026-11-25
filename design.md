@@ -26,7 +26,7 @@ Nexus 是让人、Agent 和任务持续协作的工作台：一张安静的工�
 | 内容 | 页面先回答「我在哪里、谁在工作、下一步是什么」；没有操作价值的摘要、标签与说明默认删除。 |
 | 交互 | hover、focus、运行、完成只做局部反馈；动效建立确认感，不抢阅读节奏。 |
 
-适用于 Launcher、`/app` 工作台、DM / Room、工作区、设置页与 `shared/ui`。
+适用于 `/app` 工作台、DM / Room、工作区、设置页与 `shared/ui`。
 
 ## 2. 空间与页面
 
@@ -46,7 +46,6 @@ canvas → rail / directory → work plane → focused surface → popover / dia
 
 | 页面 | 主焦点 | 禁止 |
 | --- | --- | --- |
-| Launcher | 一个入口动作或当前恢复会话 | 营销视觉进入 `/app` 工作面 |
 | App 首页 / 新会话 | 欢迎信息 + Composer | 模板、统计、说明卡片并列竞争 |
 | DM / Room | 时间线、协作状态、Composer | 侧栏式状态面板挤压正文 |
 | Workspace | 文件、编辑器或预览本身 | 给每一块工具区再套卡片 |
@@ -83,7 +82,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | --- | --- |
 | 暖白画布与纸张感中性色 | 所有 light 工作面的基础 |
 | 单一品牌主操作 | `--primary` Nexus 蓝 |
-| Serif 欢迎语 | 只在 Launcher / 新会话短欢迎语；CJK 继续用 Sans |
+| Serif 欢迎语 | 只在新会话短欢迎语；CJK 继续用 Sans |
 | 无底图标、低对比 hover | hover 底色用暖中性，不把图标包进彩色方块 |
 | 白色 Composer、细边界、极轻阴影 | focus / 可发送状态用 Nexus 蓝 |
 | 暖灰 active row | 清晰但克制的中性底 + 深文字；不叠加蓝色、边框、阴影或“当前”徽标 |
@@ -95,7 +94,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | 角色 | 使用 | 禁止 |
 | --- | --- | --- |
 | `--font-sans` | 导航、控件、元信息与对话中的拉丁正文 | 连续中文对话正文 |
-| Launcher 品牌字（Striper / Panchang） | Launcher / 新会话的短欢迎语 | 对话正文、设置页、导航、长 CJK 标题 |
+| 品牌字（Striper / Panchang） | 侧栏字标 / 新会话的短欢迎语 | 对话正文、设置页、导航、长 CJK 标题 |
 | `--font-mono` | code、kbd、源码、纯文本预览 | 连续 prose 或导航 |
 
 字号阶梯：`10 / 11 / 12 / 13 / 14 / 16 / 20 / 24 / 36px`，界面文字最小 10px（`text-2xs`），角标、快捷键与画布徽标不得写 `text-[9px]` 等阶梯外字号（头像字形与插画缩略除外）（Tailwind 主题键 `--text-2xs / xs / compact / sm / base / md / lg / xl / 2xl`）。这是与 `theme-tokens.css` 一致的唯一 App 阶梯；旧的 `15 / 17 / 22 / 28 / 42px` 界面尺度不得回流。对话正文是独立阅读层，遵循 §6.2。
@@ -111,7 +110,7 @@ App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，
 | `metadata / caption` | `12 / 11px` | 元数据、计数与次级短标签 |
 | `code` | `13px` | App chrome 中的短技术标识 |
 
-业务组件只选择 role、tone 和有限的 weight；margin、截断与布局仍由调用方负责。Launcher 品牌字、Markdown/文件阅读正文以及 WorkGraph/图形内必须像素对齐的微标签由所属 Surface 独立管理，并在其所有者文档说明理由。
+业务组件只选择 role、tone 和有限的 weight；margin、截断与布局仍由调用方负责。品牌字、Markdown/文件阅读正文以及 WorkGraph/图形内必须像素对齐的微标签由所属 Surface 独立管理，并在其所有者文档说明理由。
 
 普通分组标签使用 metadata / medium，设置内的配置分组使用 supporting / medium；说明和运行结果使用 supporting，不缩成计数字号。保留英文原始大小写与正常字距，不提供全大写、大字距的 overline 角色。10px 阶梯保留供公共紧凑徽标、头像字母与图形微标签使用，不能套到普通配置标题、错误或截断提示。相邻小标题与主标题表达同一件事时，只保留能说明下一步的主标题。
 
@@ -261,9 +260,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 
 **顶部 tab 与 header 工具**
 
-- 桌面 App 的可见 Header 与系统标题栏共用同一平面，不保留独立的顶部安全区：macOS 使用 48px Header 与 24px 系统按钮中线，在保留原生红黄绿按钮和小圆角的同时提供对称留白；Windows 保留系统 caption controls。Header 中的身份、字标、标签与工具必须和系统按钮共享同一条水平中心轴。整条 Header 都是窗口手势面；macOS 对标签、按钮、链接和菜单执行“短按点击、越过 4pt 后拖窗”的原生事件仲裁，双击执行系统缩放，只有输入框、选择器、文本编辑区和显式排除项保持硬 `no-drag`。Launcher 与桌面首页只开放各自的顶部 Header，正文和 Canvas 不得扩成窗口手势面或叠加透明拖动层；浏览器首页没有原生窗口语义，不保留对应的空白 Header。
-- Launcher Header 使用明确的两层节奏：品牌图标和 NEXUS 字标位于灯组下一行，灯组横向对准文字起点；macOS 灯组位于系统按钮下方，避免进入原生命中区；灯组保持源动画比例，Web 使用 `139×16px`，桌面宿主使用更克制的 `104×12px`；Striper 字款也按环境分离，Web 保持原始紧凑字距，桌面宿主使用 `0.1em` 加宽字距，两者不合成伪粗体；品牌图标的可见左缘与第一枚窗口按钮对齐，装饰不得压缩成方块或与品牌抢占视觉层。
-- Launcher 查询使用标准 lg/surface 输入，与 44px 角色发送热区同行；移除字段外重复玻璃框和装饰性前置图标。标准字段统一字体、占位色与焦点，发送热区在运行时保留名称与 busy/disabled 语义。品牌复合入口、角色热区和云朵保留明确的场景职责，普通最近会话与交接继续使用公共 Button 的间距和交互。
+- 桌面 App 的可见 Header 与系统标题栏共用同一平面，不保留独立的顶部安全区：macOS 使用 48px Header 与 24px 系统按钮中线，在保留原生红黄绿按钮和小圆角的同时提供对称留白；Windows 保留系统 caption controls。Header 中的身份、字标、标签与工具必须和系统按钮共享同一条水平中心轴。整条 Header 都是窗口手势面；macOS 对标签、按钮、链接和菜单执行“短按点击、越过 4pt 后拖窗”的原生事件仲裁，双击执行系统缩放，只有输入框、选择器、文本编辑区和显式排除项保持硬 `no-drag`。桌面首页只开放顶部 Header，正文和 Canvas 不得扩成窗口手势面或叠加透明拖动层；浏览器首页没有原生窗口语义，不保留对应的空白 Header。
 - Session 是无外框导航带，不做托盘或胶囊容器；历史清单固定在左端作为唯一会话切换面板，创建固定在右端。active 只用中性浅底、文字权重和蓝色状态点，inactive 之间仅用短 hairline 分隔。
 - Session 新建入口使用 32px 中性浅底图标面，必须比普通 ghost 工具更容易发现但不成为 primary；Session 与工作区 view 的关闭动作共用 24px 命中区、6px 圆角和同一危险态 hover，出现时不得改变标签宽度。
 - 没有 Session 导航的目录页用低对比中性轻底指示当前 view，不借用品牌蓝，也不恢复描边、阴影或胶囊式外框。
@@ -437,7 +434,6 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - 详情滚动区上下渐隐由 CSS 滚动时间轴（`animation-timeline: scroll(self)`）直接驱动 1.5rem 羽化，不支持时回退到 JS 写入方向属性；有吸顶标题时不做顶部羽化。
 - 连续等待或运行状态只允许固定占位的局部指示器循环，状态正文、图标、按钮和容器不得流光、位移或整体 `pulse` 造成频闪；共享 `LoadingOrb` 只暴露 `active / preparing` 语义 variant，并在减少动效时停留在可读首帧。
 - `:focus-visible` 必须保留隔离线与 `--ring`；`prefers-reduced-motion` 下动画近乎即时。
-- Launcher 的装饰动画不承载业务信息，也不进入可访问树；减少动态效果时 Lottie 停留在静态首帧，标题和入口内容立即显示。Hero 标题允许轻微字符渐显，保持自然行内断词，不做逐字位移或缩放；容器进入后移除 transform，避免长期独立合成层。动效不得依赖字体测量或先隐藏整段可访问文本。
 
 ## 7. 实现入口与检查
 

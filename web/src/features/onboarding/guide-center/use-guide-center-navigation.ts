@@ -7,7 +7,6 @@ import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import {
   DM_CONVERSATION_TOUR_ID,
 } from "@/features/onboarding/tours/conversation-tour";
-import { LAUNCHER_TOUR_ID } from "@/features/onboarding/tours/launcher-tour";
 import { SIDEBAR_NAVIGATION_TOUR_ID } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { SKILLS_TOUR_ID } from "@/features/onboarding/tours/skills-tour";
 import { getLauncherBootstrapApi } from "@/lib/api/launcher-api";
@@ -62,13 +61,6 @@ export function useGuideCenterNavigation({
     setRequestedTourId(request.tourId);
     openDestination(request.route, request.sidebarItemId);
   }, [openDestination]);
-
-  const openLauncherTour = useCallback(() => {
-    requestPageTour({
-      route: AppRouteBuilders.launcher(),
-      tourId: LAUNCHER_TOUR_ID,
-    });
-  }, [requestPageTour]);
 
   const openSidebarTour = useCallback(() => {
     startTourFromCenter(SIDEBAR_NAVIGATION_TOUR_ID);
@@ -191,7 +183,6 @@ export function useGuideCenterNavigation({
     openConnectorsGuide,
     openDmTour,
     openGoalGuide: openConversationFeatureGuide,
-    openLauncherTour,
     openProvidersGuide,
     openRoomTour,
     openSidebarTour,

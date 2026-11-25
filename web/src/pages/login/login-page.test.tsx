@@ -39,7 +39,7 @@ describe("Login page", () => {
     auth.isBootstrapped = true;
     render(<Wrapper><Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/launcher" element={<div>Workspace</div>} />
+      <Route path="/app" element={<div>Workspace</div>} />
     </Routes></Wrapper>);
     const back = screen.getByRole("button", { name: zhNavigationMessages["login.skip"] });
     const submit = screen.getByRole("button", { name: zhNavigationMessages["login.submit"] });

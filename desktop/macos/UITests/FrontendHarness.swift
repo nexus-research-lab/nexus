@@ -93,7 +93,7 @@ private final class FrontendHarnessDelegate: NSObject, NSApplicationDelegate {
         reply(id, result: try await webView.evaluateJavaScript(script) ?? NSNull())
       case "route":
         guard let query = command["query"] as? String,
-              let url = URL(string: "nexus://launcher?\(query)"), manager?.handleApplicationURL(url) == true else {
+              let url = URL(string: "nexus://open?\(query)"), manager?.handleApplicationURL(url) == true else {
           throw HarnessError("Invalid fixture route")
         }
         reply(id, result: true)

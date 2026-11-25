@@ -31,9 +31,6 @@ const SetupPage = lazy(() =>
 const JoinOrganizationPage = lazy(() =>
   import("@/pages/join-organization/join-organization-page").then((m) => ({ default: m.JoinOrganizationPage })),
 );
-const LauncherPage = lazy(() =>
-  import("@/pages/launcher/launcher-page").then((m) => ({ default: m.LauncherPage })),
-);
 const ContactsPage = lazy(() =>
   import("@/pages/contacts/contacts-page").then((m) => ({ default: m.ContactsPage })),
 );
@@ -103,7 +100,7 @@ export function AppRouter() {
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route
-              element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />}
+              element={<Navigate replace to={APP_ROUTE_PATHS.home} />}
               path={APP_ROUTE_PATHS.root}
             />
             <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
@@ -117,14 +114,10 @@ export function AppRouter() {
               />
 
               <Route element={<AuthenticatedAppSessionRoot />}>
-                {/* Launcher — 无侧边栏布局，主窗口只有进入该路由时才加载 */}
-                <Route element={<AppLayout showSidebar={false} />} path={APP_ROUTE_PATHS.launcher}>
-                  <Route index element={<LauncherPage />} />
-                </Route>
-
                 {/* 有侧边栏的页面 — 共享 AppLayout，路由切换时侧边栏不重新挂载 */}
                 <Route element={<AppLayout />}>
                   <Route element={<HomePage />} path={APP_ROUTE_PATHS.home} />
+                  {/* 深链与浏览器交接：打开主智能体私聊并预填草稿 */}
                   <Route element={<TeamPage />} path={APP_ROUTE_PATHS.team} />
 
                   {/* Room 路由 */}
@@ -164,7 +157,7 @@ export function AppRouter() {
             </Route>
 
             {/* 兜底重定向 */}
-            <Route element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />} path="*" />
+            <Route element={<Navigate replace to={APP_ROUTE_PATHS.home} />} path="*" />
           </Routes>
         </Suspense>
       </OnboardingTourProvider>

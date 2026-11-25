@@ -16,4 +16,4 @@
 - role 固定字体族、字号、行高、默认字重与 tracking；tone 只选择现有语义前景色，有限 `weight` 覆盖只用于同一角色的真实强调。图标、SVG 等不需要字阶的节点使用 `getUiToneClassName`，不得重新拼颜色 utility。
 - 普通分组按唯一设计规范选择 metadata / supporting；说明、结果和错误不使用图形微标签，也不预留全大写装饰角色。
 - 外部 `className` 只增加 margin、宽度、换行、截断或布局，不得再次加入 `text-* / leading-* / tracking-* / font-*` 覆盖 recipe。
-- `nexus-chat-markdown`、`nexus-workspace-file-markdown`、Launcher 品牌字和 WorkGraph/图形微标签是明确的独立 Surface，不套 App chrome 角色，也不能成为普通业务文字自由写像素值的先例。
+- `nexus-chat-markdown`、`nexus-workspace-file-markdown`和 WorkGraph/图形微标签是明确的独立 Surface，不套 App chrome 角色，也不能成为普通业务文字自由写像素值的先例。

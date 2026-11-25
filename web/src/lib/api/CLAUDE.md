@@ -1,6 +1,6 @@
 # API 客户端
 
-- 根目录只保留跨入口的 Launcher 客户端和领域目录，不提供聚合出口。
+- 根目录只保留共享目录 bootstrap 客户端（`launcher-api.ts`，路径沿用 `/launcher/bootstrap`）和领域目录，不提供聚合出口。
 - `core/` 按请求准备、响应投影、错误类型、鉴权事件和协议时间转换拆分 HTTP 传输阶段。
 - `agent/` 负责 Agent、workspace、私域和记忆快照接口；大型 workspace 文本复用下载路由的 HTTP Range，浏览器下载不转成内存 Blob。
 - `account/` 负责登录、个人账户和订阅运营接口。

@@ -308,7 +308,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Delete(s.prefixPath("/sessions/{session_key}"), s.handlers.agent.HandleDeleteSession)
 }
 
-// mountRoomRoutes 挂载 Room 与 Launcher 相关路由。
+// mountRoomRoutes 挂载 Room 与首屏目录 bootstrap 路由。
 func (s *Server) mountRoomRoutes() {
 	s.router.Get(s.prefixPath("/rooms/dm/{agent_id}"), s.handlers.room.HandleEnsureDirectRoom)
 	s.router.Get(s.prefixPath("/rooms"), s.handlers.room.HandleListRooms)
@@ -332,9 +332,7 @@ func (s *Server) mountRoomRoutes() {
 	s.router.Patch(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleUpdateConversation)
 	s.router.Delete(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleDeleteConversation)
 
-	s.router.Post(s.prefixPath("/launcher/query"), s.handlers.launcher.HandleLauncherQuery)
 	s.router.Get(s.prefixPath("/launcher/bootstrap"), s.handlers.launcher.HandleLauncherBootstrap)
-	s.router.Get(s.prefixPath("/launcher/suggestions"), s.handlers.launcher.HandleLauncherSuggestions)
 }
 
 // mountCapabilityRoutes 挂载技能、连接器、通道与自动化能力路由。

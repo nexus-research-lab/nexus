@@ -34,7 +34,7 @@ interface LoginPageStateOptions {
 
 export function resolveLoginRedirectPath(rawRedirect: string | null): string {
   if (!rawRedirect?.startsWith("/")) {
-    return APP_ROUTE_PATHS.launcher;
+    return APP_ROUTE_PATHS.home;
   }
   try {
     const redirect = new URL(rawRedirect, INTERNAL_REDIRECT_ORIGIN);
@@ -42,11 +42,11 @@ export function resolveLoginRedirectPath(rawRedirect: string | null): string {
       redirect.origin !== INTERNAL_REDIRECT_ORIGIN
       || REDIRECT_FALLBACK_PATHS.has(redirect.pathname)
     ) {
-      return APP_ROUTE_PATHS.launcher;
+      return APP_ROUTE_PATHS.home;
     }
     return `${redirect.pathname}${redirect.search}${redirect.hash}`;
   } catch {
-    return APP_ROUTE_PATHS.launcher;
+    return APP_ROUTE_PATHS.home;
   }
 }
 

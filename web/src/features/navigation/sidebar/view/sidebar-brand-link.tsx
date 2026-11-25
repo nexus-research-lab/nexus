@@ -1,12 +1,11 @@
 /**
- * INPUT: Launcher 标签与侧栏展开状态。
- * OUTPUT: 使用 Panchang 字体与舒展字距的纯色 Launcher 品牌字标与沿玻璃轮廓流动的圆角矩形彩光。
+ * INPUT: 工作台入口标签与侧栏展开状态。
+ * OUTPUT: 使用 Panchang 字体与舒展字距、链接到工作台的纯色品牌字标与沿玻璃轮廓流动的圆角矩形彩光。
  * POS: 宽侧栏顶部唯一品牌入口，不承载 Agent 会话动作。
  */
 import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
-import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { GlassMagnifier } from "@/shared/ui/liquid-glass/glass-magnifier";
 import { cn } from "@/shared/ui/class-name";
 
@@ -27,9 +26,8 @@ export function SidebarBrandLink({
           ? "min-w-0 flex-1 pointer-events-none opacity-0"
           : "",
       )}
-      data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
       tabIndex={collapsed ? -1 : undefined}
-      to={AppRouteBuilders.launcher()}
+      to={AppRouteBuilders.home()}
     >
       <GlassMagnifier underlay={<NexusGlassUnderlay />}>
         <span

@@ -759,43 +759,6 @@
     transform: translateY(-50%);
   }
 
-  .launcher-console-header {
-    --launcher-wordmark-left: 56px;
-  }
-
-  .launcher-console-brand {
-    left: calc(var(--launcher-wordmark-left) - 44px);
-  }
-
-  .launcher-console-spotlights {
-    top: 20px;
-    left: calc(var(--launcher-wordmark-left) - 44px);
-    width: 139px;
-    height: 16px;
-  }
-
-  :root[data-desktop-runtime="true"] .launcher-console-spotlights {
-    left: var(--launcher-wordmark-left);
-    width: 104px;
-    height: 12px;
-  }
-
-  :root[data-desktop-platform="macos"] .launcher-console-spotlights {
-    top: var(--desktop-window-close-button-center-y, 24px);
-    left: var(--desktop-window-controls-inset, 84px);
-    transform: translateY(-50%);
-  }
-
-  .launcher-console-wordmark {
-    font-weight: 400;
-    letter-spacing: normal;
-  }
-
-  :root[data-desktop-runtime="true"] .launcher-console-wordmark {
-    font-weight: 400;
-    letter-spacing: 0.1em;
-  }
-
   .sidebar-panel-shell[data-sidebar-collapsed="true"]
     + .desktop-app-stage {
     --collapsed-sidebar-surface-leading-slot: 24px;

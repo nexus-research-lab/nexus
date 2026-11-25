@@ -9,4 +9,4 @@
 - Room 在手机布局中使用自己的会话 Header；联系人、能力、设置等页面由 `mobile-app-page-header.tsx` 提供统一返回语义。AppLayout 独占页头动作挂载点生命周期，通过 `shared/lib/react/page-header-actions-context.ts` 的中立 Context 将目标交给页面；页面级动作由原页面 Portal 投影到标题右侧，不得在正文顶部另起悬空工具行。
 - 手机一级目录只显示占满窗口的目录壳，不挂载被挤窄的桌面 Outlet；目录壳内部保留带短标签的左侧 Dock 与右侧列表，进入 Room 后隐藏目录壳并改用返回导航。桌面仍保留侧栏与主内容双栏。
 - 应用布局可以组合 Feature；通用 `shared/ui/layout/` 不得反向依赖 Feature。
-- 无侧栏页面通过显式布局参数表达，不复制第二套 Outlet 骨架。
+- 所有登录后页面共用同一常驻侧栏布局；不再保留无侧栏布局参数，也不复制第二套 Outlet 骨架。

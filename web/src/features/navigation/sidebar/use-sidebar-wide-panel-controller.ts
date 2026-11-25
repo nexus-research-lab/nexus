@@ -157,7 +157,7 @@ export function useSidebarWidePanelController({
   return {
     collapsed: widePanelCollapsed,
     expanded: {
-      launcherLabel: t("sidebar.back_to_launcher"),
+      brandLabel: t("sidebar.back_to_home"),
       onPointerDown: resize.handlePointerDown,
       onPointerLeave: resize.handlePointerLeave,
       onPointerMove: resize.handlePointerMove,

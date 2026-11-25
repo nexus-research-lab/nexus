@@ -4,7 +4,7 @@
  * POS: Room 缺少完整上下文时的降级导航页。
  */
 
-import { ArrowRight, MessageSquare, Sparkles, Users } from "lucide-react";
+import { ArrowRight, MessageSquare, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
@@ -48,14 +48,14 @@ export function GroupRouteEntry({
           {roomAgent ? roomAgent.name : t("room.route_empty_title")}
         </h2>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
           {[
             {
-              id: "launcher",
-              title: t("room.route_back_launcher"),
-              description: t("room.route_back_launcher_description"),
+              id: "home",
+              title: t("room.route_back_home"),
+              description: t("room.route_back_home_description"),
               Icon: MessageSquare,
-              route: AppRouteBuilders.launcher(),
+              route: AppRouteBuilders.home(),
             },
             {
               id: "contacts",
@@ -63,12 +63,6 @@ export function GroupRouteEntry({
               description: t("room.route_browse_agents_description"),
               Icon: Users,
               route: AppRouteBuilders.contacts(),
-            },
-            {
-              id: "handoff",
-              title: t("room.route_handoff"),
-              Icon: Sparkles,
-              route: AppRouteBuilders.launcher(),
             },
           ].map(({ id, title, description, Icon, route }) => (
             <WorkspaceCatalogCard

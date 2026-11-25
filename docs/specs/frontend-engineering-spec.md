@@ -148,7 +148,7 @@ Windows `NexusNativeTheme` 是 Web token 的平台投影，不能独立调色：
 
 Recipe 把 token 组合成视觉语法，如 `surface-popover`、`input-shell`、`radius-control-md`。
 
-- 通用 recipe 属 UI 基础设施；`.nexus-chat-*`、Workspace、Launcher 等领域样式归对应 widget/feature。
+- 通用 recipe 属 UI 基础设施；`.nexus-chat-*`、Workspace 等领域样式归对应 widget/feature。
 - 业务组件不得用 `rounded-[Npx]`、`shadow-[...]` 或 raw `color-mix` 复刻已有 recipe。同值不代表同语义：10px 须说明是 control radius 还是其他几何。
 - App chrome 文字（字体、字号、行高、默认字重、tracking）由 `theme-tokens.css` 字号阶梯、`theme-recipes.css` 的 `.ui-type-*` 与 `shared/ui/typography/typography-styles.ts` 的 typed role 共同拥有。
 - 业务选择 `display / featureTitle / objectTitle / pageTitle / sectionTitle / body / control / supporting / metadata / caption / code`，只负责标签、布局、截断和换行。
@@ -270,8 +270,6 @@ Widget 可认识 Agent、Room、Goal 等产品对象，但只组合下层合同�
 | `src/features/conversation/shared/message/ui/message-avatar.tsx` | 1 | 头像轮廓本身的详情热区；图像与交互尺寸一致。 |
 | `src/features/conversation/shared/scroll-to-latest-button.tsx` | 1 | 浮动滚动入口的 44px 热区包围较小状态芯片；DM/Thread 共用同一所有者。 |
 | `src/features/conversation/shared/session-navigator/conversation-session-navigator.tsx` | 2 | 连续轮次刻度与整张预览卡的导航热区。 |
-| `src/features/launcher/hero/launcher-hero-stage.tsx` | 2 | 随舞台整体缩放的品牌复合入口和发送角色图像热区；普通最近入口使用 UiButton。 |
-| `src/features/launcher/hero/pile/launcher-agent-token.tsx` | 1 | 物理舞台中的可拖动 Agent token，位置和热区由场景共同计算。 |
 | `src/features/navigation/sidebar/view/sidebar-rail-action.tsx` | 1 | 主导航和固定会话共用的 Dock 轨道入口，容纳计数、拖放与当前态几何。 |
 <!-- native-button-owners:end -->
 
@@ -370,7 +368,7 @@ Testing Library，纯逻辑与协议测试可声明 Node 环境。`scripts/*.tes
   - `make app-check-ui`：在已解锁的图形会话编译独立 QA App，复用生产窗口与 WKWebView 源码，验证 Gallery 的原生输入、浮层、焦点及隐藏恢复。
     - 应用标识、偏好、状态根、端口和优化缓存隔离；不启动产品 sidecar，不以旧安装包作当前源码证据。
     - 源码清单、日志、报告与截图按运行保存，详见 `desktop/macos/README.md`。
-  - `make app-check-ui-app`：同一宿主验证真实 Launcher/工作台、响应式导航、Header 双击缩放与恢复。
+  - `make app-check-ui-app`：同一宿主验证真实工作台、响应式导航、Header 双击缩放与恢复。
     - 读取与空闲订阅由隔离夹具提供，Vite HTTP/WS 代理禁用；`native-ui-fixtures.test.mjs` 用真实本地服务验证读写边界与零转发。
     - 锁屏或无图形会话不能用合成 DOM 事件代替原生输入证据。
 

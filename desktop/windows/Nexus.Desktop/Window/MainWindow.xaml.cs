@@ -261,11 +261,6 @@ public partial class MainWindow : System.Windows.Window
         }
     }
 
-    public async Task ShowLauncherAsync()
-    {
-        await ShowRouteAsync(DesktopWebRoute.Launcher);
-    }
-
     public async Task ShowRouteAsync(DesktopWebRoute route)
     {
         if (closed)
