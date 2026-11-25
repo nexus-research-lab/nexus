@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -8,7 +8,8 @@ import { zhSettingsMessages } from "@/shared/i18n/catalog/zh/settings";
 import { ComputerUseSettingsSection } from "./computer-use-settings-section";
 
 const useController = vi.hoisted(() => vi.fn());
-vi.mock("./use-computer-use-settings-controller", () => ({
+vi.mock(import("./use-computer-use-settings-controller"), async (original) => ({
+  ...await original(),
   useComputerUseSettingsController: useController,
 }));
 
@@ -40,7 +41,7 @@ it("offers the required component update for an installed legacy version", async
     status: { installed: true, enabled: true, version: "0.1.0", required_version: "0.2.0", update_required: true },
   });
   renderSettings();
-  expect(screen.getByText("已安装版本 0.1.0")).toBeTruthy();
+  expect(screen.getByText("仅操作你授权的应用 · 组件 0.1.0")).toBeTruthy();
   expect(screen.getByText("当前 Nexus 需要电脑操控组件 0.2.0。")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "重新检查权限" })).toBeNull();
   await userEvent.setup().click(screen.getByRole("button", { name: "更新组件" }));
@@ -49,6 +50,7 @@ it("offers the required component update for an installed legacy version", async
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "macos" };
   useController.mockReturnValue({
     busy: false,
     error: false,
@@ -79,16 +81,16 @@ it("renders CUA in its own settings page and keeps the switch action local", asy
   expect(screen.getByRole("heading", { name: "电脑操控" })).toBeTruthy();
   const toggle = screen.getByRole("switch", { name: "允许 Nexus 操作电脑" });
   expect(toggle.getAttribute("aria-checked")).toBe("true");
-  expect(screen.getByText("仍有权限未开启，请按下面状态处理")).toBeTruthy();
+  expect(screen.getByText("2 项待处理")).toBeTruthy();
   expect(screen.getByText("屏幕录制")).toBeTruthy();
   expect(screen.getByText("已开启")).toBeTruthy();
   expect(screen.getByText("辅助功能")).toBeTruthy();
   expect(screen.getByText("未开启")).toBeTruthy();
   expect(screen.getByText("输入控制")).toBeTruthy();
   expect(screen.getByText("待确认")).toBeTruthy();
-  expect(screen.getAllByRole("button", { name: "开启" })).toHaveLength(2);
-  await user.click(screen.getAllByRole("button", { name: "开启" })[0]);
-  expect(controller.onOpenPermissions).toHaveBeenCalledExactlyOnceWith("accessibility");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "设置权限" }));
+  expect(controller.onOpenPermissions).toHaveBeenCalledOnce();
   await user.click(toggle);
   expect(controller.onChange).toHaveBeenCalledExactlyOnceWith(false);
 });
@@ -113,7 +115,25 @@ it("shows Windows permission status without macOS setup actions", () => {
   });
   renderSettings();
   expect(screen.getByText("Windows 无需这些全局权限开关，操作按应用授权执行")).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "开启" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "设置权限" })).toBeNull();
+  expect(screen.queryByText("不适用")).toBeNull();
+});
+
+it("offers a retry action matching the failed step", async () => {
+  const onCheckPermissions = vi.fn();
+  useController.mockReturnValue({
+    busy: false,
+    error: "check",
+    onChange: vi.fn(),
+    onCheckPermissions,
+    onOpenPermissions: vi.fn(),
+    status: { installed: true, enabled: true, version: "0.2.0", permissions: {} },
+  });
+  renderSettings();
+  const alert = screen.getByRole("alert");
+  expect(alert.textContent).toContain("暂时无法读取电脑操控权限，请重新检查。");
+  await userEvent.setup().click(within(alert).getByRole("button", { name: "重新检查权限" }));
+  expect(onCheckPermissions).toHaveBeenCalledOnce();
 });
 
 it("shows a complete permission result without a next-step action", () => {
@@ -137,7 +157,9 @@ it("shows a complete permission result without a next-step action", () => {
 
   renderSettings();
 
-  expect(screen.getByText("权限已全部开启，可以操作电脑")).toBeTruthy();
-  expect(screen.queryByRole("button", { name: /开启下一项/ })).toBeNull();
+  expect(screen.getByText("已全部开启")).toBeTruthy();
+  // 已开启只保留给读屏，界面上由勾选图标表达。
+  expect(screen.getAllByText("已开启").every((node) => node.classList.contains("sr-only"))).toBe(true);
+  expect(screen.queryByRole("button", { name: "设置权限" })).toBeNull();
   expect(screen.getByRole("button", { name: "重新检查权限" })).toBeTruthy();
 });
