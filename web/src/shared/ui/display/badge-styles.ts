@@ -56,7 +56,7 @@ const BADGE_TONE_CLASS_MAP: Record<UiBadgeTone, string> = {
   idle:
     "border-(--divider-subtle-color) bg-transparent text-(--text-soft)",
   active:
-    SUCCESS_BADGE_CLASS_NAME,
+    "border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)] text-(--brand-action)",
   running:
     "border-[color:var(--status-running-soft-border)] bg-[var(--status-running-soft-bg)] text-[var(--status-running-soft-text)]",
 };

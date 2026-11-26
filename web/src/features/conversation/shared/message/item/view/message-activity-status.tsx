@@ -81,7 +81,7 @@ const ACTIVITY_PRESENTATION: Record<
     indicator: "active",
     labelKey: "message.activity_browsing",
     timed: true,
-    toneClassName: "text-[color:color-mix(in_srgb,var(--primary)_76%,var(--accent)_24%)]",
+    toneClassName: "text-(--primary)",
     voice: "literal",
   },
   executing: {

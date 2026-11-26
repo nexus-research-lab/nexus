@@ -45,18 +45,18 @@ const CONTEXT_USAGE_DETAIL_WIDTH = 288;
 const CONTEXT_USAGE_DETAIL_HEADER_HEIGHT = 84;
 const CONTEXT_USAGE_DETAIL_ROW_HEIGHT = 20;
 
-// 分类色只组合主题语义色，三主题下自动跟随；buffer 用条纹表达“预留但未用”，free 留给轨道底色。
+// 分类色只用单一品牌蓝的明度阶梯加中性灰，三主题下自动跟随；buffer 用条纹表达“预留但未用”，free 留给轨道底色。
 const CATEGORY_COLOR: Readonly<Record<ContextUsageCategoryKind, string>> = {
-  agents: "color-mix(in srgb, var(--destructive) 55%, var(--primary))",
+  agents: "color-mix(in srgb, var(--text-muted) 70%, transparent)",
   autocompact_buffer: "color-mix(in srgb, var(--text-soft) 55%, transparent)",
   free_space: "transparent",
-  mcp_tools: "color-mix(in srgb, var(--primary) 45%, var(--accent))",
-  memory_files: "var(--success)",
+  mcp_tools: "color-mix(in srgb, var(--primary) 45%, transparent)",
+  memory_files: "var(--text-muted)",
   messages: "var(--primary)",
   other: "var(--text-soft)",
-  skills: "color-mix(in srgb, var(--warning) 55%, var(--destructive))",
-  system_prompt: "var(--warning)",
-  system_tools: "var(--accent)",
+  skills: "color-mix(in srgb, var(--primary) 30%, transparent)",
+  system_prompt: "color-mix(in srgb, var(--primary) 78%, transparent)",
+  system_tools: "color-mix(in srgb, var(--primary) 60%, transparent)",
 };
 
 export function ComposerContextUsage({

@@ -205,7 +205,7 @@ export function ConversationRow({
 const ACTIVITY_PRESENTATION = {
   waiting: {
     labelKey: "status.needs_response",
-    tone: "warning",
+    tone: "primary",
   },
   working: {
     labelKey: "status.working",
