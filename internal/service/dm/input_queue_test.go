@@ -340,7 +340,7 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-ack-guidance")
-	sessionKey := "agent:nexus:ws:dm:test-ack-guidance"
+	sessionKey := "agent:" + newPlainDMAgent(t, agentService).AgentID + ":ws:dm:test-ack-guidance"
 	permission.BindSession(sessionKey, sender)
 	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 
@@ -472,7 +472,7 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 	)
 	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-guide-preflight-failure")
-	sessionKey := "agent:nexus:ws:dm:test-guide-preflight-failure"
+	sessionKey := "agent:" + newPlainDMAgent(t, agentService).AgentID + ":ws:dm:test-guide-preflight-failure"
 	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
@@ -596,7 +596,7 @@ func TestServiceGuidanceErrorResultFallsBackToNextTurn(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sender := newDMTestSender("sender-guide-error-fallback")
-	sessionKey := "agent:nexus:ws:dm:test-guide-error-fallback"
+	sessionKey := "agent:" + newPlainDMAgent(t, agentService).AgentID + ":ws:dm:test-guide-error-fallback"
 	permission.BindSession(sessionKey, sender)
 	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
 

@@ -85,13 +85,8 @@ func (s *Service) handleChat(
 	if err := execution.yieldToRuntimeWake(); err != nil {
 		return err
 	}
-	if !request.Internal && request.ExecutionOrigin != "queue" {
-		if err := s.InputQueue.SetDispatchPaused(workspacestore.InputQueueLocation{
-			OwnerUserID: execution.agent.OwnerUserID, Scope: protocol.InputQueueScopeDM,
-			WorkspacePath: execution.agent.WorkspacePath, SessionKey: execution.sessionKey,
-		}, false); err != nil {
-			return err
-		}
+	if err := execution.resumeDispatchGate(); err != nil {
+		return err
 	}
 	if handled, routeErr := execution.routeRunningInput(); handled || routeErr != nil {
 		return routeErr
@@ -129,9 +124,11 @@ type dmChatExecution struct {
 	session             protocol.Session
 	initialMessageCount int
 	deliveryPolicy      protocol.ChatDeliveryPolicy
-	runner              *roundRunner
-	roundCtx            context.Context
-	roundCancel         context.CancelFunc
+	// inbox 非空即主窗口：受理时判定一次，之后的路由、闸门与轮末都据此分流。
+	inbox       *mainInboxTarget
+	runner      *roundRunner
+	roundCtx    context.Context
+	roundCancel context.CancelFunc
 }
 
 type dmRuntimePreparation struct {
@@ -190,6 +187,7 @@ func (s *Service) prepareChatExecution(
 		session:             sessionItem,
 		initialMessageCount: sessionItem.MessageCount,
 		deliveryPolicy:      deliveryPolicy,
+		inbox:               mainInboxTargetOf(agentValue, sessionKey),
 	}, nil
 }
 
@@ -228,8 +226,24 @@ func (s *Service) resolveChatAgentID(ctx context.Context, parsed protocol.Sessio
 	return defaultAgent.AgentID, nil
 }
 
+// resumeDispatchGate 让显式输入恢复暂停闸门；内部轮次与由队列或 inbox 取出的轮次已在受理时处理过。
+func (e *dmChatExecution) resumeDispatchGate() error {
+	origin := e.request.ExecutionOrigin
+	if e.request.Internal || origin == "queue" || origin == mainInboxExecutionOrigin {
+		return nil
+	}
+	if e.inbox != nil {
+		return e.service.resumeMainInbox(e.ctx, *e.inbox)
+	}
+	return e.service.InputQueue.SetDispatchPaused(workspacestore.InputQueueLocation{
+		OwnerUserID: e.agent.OwnerUserID, Scope: protocol.InputQueueScopeDM,
+		WorkspacePath: e.agent.WorkspacePath, SessionKey: e.sessionKey,
+	}, false)
+}
+
+// routeRunningInput 把运行中到来的输入排进 JSONL 队列或引导当前轮；主窗口的输入只经 inbox 交给运行中的轮次，不走这里。
 func (e *dmChatExecution) routeRunningInput() (bool, error) {
-	if e.request.Internal {
+	if e.request.Internal || e.inbox != nil {
 		return false, nil
 	}
 	if protocol.ShouldGuideRunningRound(e.deliveryPolicy) {
@@ -495,6 +509,8 @@ func (e *dmChatExecution) newRoundRunner() *roundRunner {
 		permissionHandler:          e.request.PermissionHandler,
 		automationRun:              e.request.AutomationRun.NormalizedCopy(),
 		runtimeWake:                e.request.runtimeWake,
+		inbox:                      e.inbox,
+		inboxEventIDs:              e.request.inboxEventIDs,
 	}
 }
 

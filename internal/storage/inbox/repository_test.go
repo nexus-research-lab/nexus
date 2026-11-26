@@ -165,3 +165,46 @@ func TestRepositoryCancelKindAndDefer(t *testing.T) {
 		t.Fatalf("没有未来事件时 next 应为空: %v", next)
 	}
 }
+
+func TestRepositoryGateCountsEveryStopAndResume(t *testing.T) {
+	r := newInboxTestRepository(t)
+	ctx := context.Background()
+	if gate, err := r.Gate(ctx, "inbox-a"); err != nil || gate != (Gate{}) {
+		t.Fatalf("从未停止的闸门 = %+v %v", gate, err)
+	}
+	gate, err := r.SetPaused(ctx, "owner-1", "inbox-a", true)
+	if err != nil || !gate.Paused || gate.Revision != 1 {
+		t.Fatalf("停止后 = %+v %v", gate, err)
+	}
+	if gate, err = r.SetPaused(ctx, "owner-1", "inbox-a", false); err != nil || gate.Paused || gate.Revision != 2 {
+		t.Fatalf("恢复后 = %+v %v", gate, err)
+	}
+	if _, err = r.SetPaused(ctx, "owner-2", "inbox-a", true); err == nil {
+		t.Fatal("其他 owner 不能改写闸门")
+	}
+	if gate, _ = r.Gate(ctx, "inbox-a"); gate.Paused || gate.Revision != 2 {
+		t.Fatalf("越权写入不应生效: %+v", gate)
+	}
+}
+
+func TestRepositoryFindByDedupeAndAppendWithStatus(t *testing.T) {
+	r := newInboxTestRepository(t)
+	ctx := context.Background()
+	if _, found, err := r.FindByDedupe(ctx, "inbox-a", "missing"); err != nil || found {
+		t.Fatalf("未知键 found=%v err=%v", found, err)
+	}
+	alias, _, err := r.Append(ctx, Event{
+		EventID: "alias", OwnerUserID: "owner-1", InboxKey: "inbox-a", Kind: KindHostRecovery,
+		DedupeKey: "k1", Status: StatusConsumed, Payload: Payload{Content: "merged"},
+	})
+	if err != nil || alias.Status != StatusConsumed {
+		t.Fatalf("带状态写入 = %+v %v", alias, err)
+	}
+	found, ok, err := r.FindByDedupe(ctx, "inbox-a", "k1")
+	if err != nil || !ok || found.EventID != "alias" || found.Status != StatusConsumed {
+		t.Fatalf("按键查找 = %+v ok=%v err=%v", found, ok, err)
+	}
+	if open, _ := r.ListOpen(ctx, "inbox-a", time.Now().UTC()); len(open) != 0 {
+		t.Fatalf("已收口的记录行不应出现在待处理中: %+v", open)
+	}
+}

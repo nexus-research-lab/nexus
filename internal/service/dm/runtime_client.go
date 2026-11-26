@@ -366,8 +366,8 @@ func (s *Service) ensureClient(
 	options = s.WithAgentRuntimeHooks(options, sessionKey,
 		s.LoggerFor(context.Background()).With("session_key", sessionKey, "agent_id", agentValue.AgentID),
 		func(options agentclient.Options) agentclient.Options {
-			if isMainWindowSession(agentValue, protocol.ParseSessionKey(sessionKey)) {
-				return runtimectx.WithPostToolUseGuidanceHook(options, s.mainInboxGuidanceHook(mainInboxTarget{agent: agentValue, sessionKey: sessionKey}))
+			if target := mainInboxTargetOf(agentValue, sessionKey); target != nil {
+				return runtimectx.WithPostToolUseGuidanceHook(options, s.mainInboxGuidanceHook(*target))
 			}
 			return s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
 				OwnerUserID:   agentValue.OwnerUserID,
@@ -631,7 +631,7 @@ func forkSessionStateCommitted(
 func dmMCPSourceContextType(sessionKey string, agentID string, request Request) string {
 	executionOrigin := request.ExecutionOrigin
 	if request.trustedQueuedConfigurationContext &&
-		executionOrigin == "queue" &&
+		(executionOrigin == "queue" || executionOrigin == mainInboxExecutionOrigin) &&
 		trustedDMWebSocketSession(sessionKey, agentID) {
 		return "agent"
 	}

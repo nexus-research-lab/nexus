@@ -1,5 +1,5 @@
-// INPUT: inbox 事件（可带未来的 available_at）与按 event_id 的状态迁移请求。
-// OUTPUT: 幂等追加、按 seq 有序且已到点的未完成事件、最近到点时间，以及只在源状态匹配时生效的迁移。
+// INPUT: inbox 事件（可带未来的 available_at）、按 event_id 的状态迁移请求与暂停闸门的停止/恢复。
+// OUTPUT: 幂等追加、按 seq 有序且已到点的未完成事件、最近到点时间、只在源状态匹配时生效的迁移与闸门代数。
 // POS: inbox 的唯一 SQL 边界；并发正确性全部来自条件更新，不在内存里推断状态。
 package inbox
 
@@ -40,7 +40,12 @@ const eventColumns = `event_id, owner_user_id, inbox_key, seq, kind, dedupe_key,
 const dueClause = `(available_at IS NULL OR available_at <= %s)`
 
 // Append 按 (inbox_key, dedupe_key) 幂等追加；重复提交返回原事件与 duplicate=true。
+// Status 为空即 pending；只有记录「已并入别的事件」这类入队事实时才直接写终态。
 func (r *Repository) Append(ctx context.Context, event Event) (Event, bool, error) {
+	status := event.Status
+	if status == "" {
+		status = StatusPending
+	}
 	payload, err := json.Marshal(event.Payload)
 	if err != nil {
 		return Event{}, false, err
@@ -50,8 +55,8 @@ func (r *Repository) Append(ctx context.Context, event Event) (Event, bool, erro
 	query := `INSERT INTO agent_inbox_events (
     event_id, owner_user_id, inbox_key, seq, kind, dedupe_key, payload, status, available_at, created_at, updated_at
 ) SELECT ` + d.Bind(1) + `, ` + d.Bind(2) + `, ` + d.Bind(3) + `, COALESCE(MAX(seq), 0) + 1, ` +
-		d.Bind(4) + `, ` + d.Bind(5) + `, ` + d.Bind(6) + `, 'pending', ` + d.Bind(7) + `, ` + d.Bind(8) + `, ` + d.Bind(9) + `
-FROM agent_inbox_events WHERE inbox_key = ` + d.Bind(10) + `
+		d.Bind(4) + `, ` + d.Bind(5) + `, ` + d.Bind(6) + `, ` + d.Bind(7) + `, ` + d.Bind(8) + `, ` + d.Bind(9) + `, ` + d.Bind(10) + `
+FROM agent_inbox_events WHERE inbox_key = ` + d.Bind(11) + `
 ON CONFLICT (inbox_key, dedupe_key) DO NOTHING`
 	timestamp := d.TimestampValue(now)
 	r.appendMu.Lock()
@@ -64,7 +69,7 @@ ON CONFLICT (inbox_key, dedupe_key) DO NOTHING`
 	}
 	defer func() { _ = tx.Rollback() }()
 	result, err := tx.ExecContext(ctx, query,
-		event.EventID, event.OwnerUserID, event.InboxKey, event.Kind, event.DedupeKey, string(payload),
+		event.EventID, event.OwnerUserID, event.InboxKey, event.Kind, event.DedupeKey, string(payload), status,
 		r.nullableTime(event.AvailableAt), timestamp, timestamp, event.InboxKey)
 	if err != nil {
 		return Event{}, false, err
@@ -245,6 +250,43 @@ func (r *Repository) ListPendingInboxes(ctx context.Context, now time.Time) ([]P
 		inboxes = append(inboxes, item)
 	}
 	return inboxes, rows.Err()
+}
+
+// FindByDedupe 按入队键查找事件（任意状态）；found=false 表示从未受理过这个键。
+func (r *Repository) FindByDedupe(ctx context.Context, inboxKey string, dedupeKey string) (Event, bool, error) {
+	event, err := r.loadByDedupe(ctx, r.db, inboxKey, dedupeKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Event{}, false, nil
+	}
+	return event, err == nil, err
+}
+
+// Gate 读取暂停闸门；从未停止过的 inbox 未暂停、代数为 0。
+func (r *Repository) Gate(ctx context.Context, inboxKey string) (Gate, error) {
+	var gate Gate
+	err := r.db.QueryRowContext(ctx, `SELECT paused, revision FROM agent_inbox_gates WHERE inbox_key = `+r.dialect.Bind(1), inboxKey).
+		Scan(&gate.Paused, &gate.Revision)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Gate{}, nil
+	}
+	return gate, err
+}
+
+// SetPaused 记下一次停止（paused=true）或恢复，并让代数加一；返回写入后的闸门。
+func (r *Repository) SetPaused(ctx context.Context, ownerUserID string, inboxKey string, paused bool) (Gate, error) {
+	d := r.dialect
+	result, err := r.db.ExecContext(ctx, `INSERT INTO agent_inbox_gates (inbox_key, owner_user_id, paused, revision, updated_at)
+VALUES (`+d.Bind(1)+`, `+d.Bind(2)+`, `+d.Bind(3)+`, 1, `+d.Bind(4)+`)
+ON CONFLICT (inbox_key) DO UPDATE SET paused = excluded.paused, revision = agent_inbox_gates.revision + 1, updated_at = excluded.updated_at
+WHERE agent_inbox_gates.owner_user_id = excluded.owner_user_id`,
+		inboxKey, ownerUserID, paused, d.TimestampValue(time.Now().UTC()))
+	if err != nil {
+		return Gate{}, err
+	}
+	if affected, _ := result.RowsAffected(); affected != 1 {
+		return Gate{}, errors.New("inbox gate belongs to another owner")
+	}
+	return r.Gate(ctx, inboxKey)
 }
 
 func (r *Repository) loadByDedupe(ctx context.Context, q queryer, inboxKey string, dedupeKey string) (Event, error) {

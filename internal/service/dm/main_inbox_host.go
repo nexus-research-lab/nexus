@@ -1,7 +1,7 @@
 // INPUT: Automation 到点写入的 main 目标定时任务，以及到点的 agent 自设跟进与 Echo。
-// OUTPUT: 主窗口 inbox 的宿主事件、按 kind 查表得到的模型输入与触发分隔条元数据；空闲时独占的宿主 run
+// OUTPUT: 主窗口 inbox 的定时任务事件、模型输入与触发分隔条元数据；空闲时独占的宿主 run
 // 以延迟提交轮执行，只留一条回复或分隔条上的结局（无需提醒 / 未完成）。
-// POS: 宿主事件进入主窗口的唯一入口；起轮、安全点注入与收口复用 main_inbox.go 的同一条路径。
+// POS: 定时任务与跟进这类宿主 run 的起轮与收口；类型规格在 main_inbox_kinds.go，起轮复用 main_inbox.go 的同一出口。
 package dm
 
 import (
@@ -40,20 +40,6 @@ var hostRunOutcomes = map[string]string{
 	deferredStatusQuiet:     "quiet",
 	deferredStatusFailed:    "failed",
 	deferredStatusCancelled: "stopped",
-}
-
-// hostEventSpec 描述一类宿主事件如何进入模型与时间线；新增宿主事件只需在表里加一行。
-type hostEventSpec struct {
-	prompt   func(inboxstore.Event) string
-	metadata func(inboxstore.Event) map[string]string
-	// quietOnly 的事件只在对话空闲时独占一轮，不在安全点插进别的轮次；它的输入由自己的起轮路径给出。
-	quietOnly bool
-}
-
-var hostEventSpecs = map[string]hostEventSpec{
-	inboxstore.KindScheduledTask: {prompt: scheduledTaskPrompt, metadata: scheduledTaskMetadata},
-	inboxstore.KindFollowUp:      {prompt: followUpPrompt, metadata: followUpMetadata},
-	inboxstore.KindEcho:          {quietOnly: true},
 }
 
 // MainWindowTask 是一次交给主窗口执行的定时任务到点。
@@ -114,6 +100,11 @@ func (s *Service) AppendMainWindowTask(ctx context.Context, agentID string, task
 	return target.sessionKey, nil
 }
 
+// startHostInboxRun 把到点的定时任务或跟进起成一轮独占的宿主 run。
+func (s *Service) startHostInboxRun(ctx context.Context, target mainInboxTarget, roundID string, batch []inboxstore.Event) inboxStart {
+	return s.startMainInboxBatch(ctx, target, batch, s.mainInboxHostRequest(target, roundID, batch[0]))
+}
+
 // mainInboxHostRequest 让宿主事件以内部轮次运行：不算用户输入、不排队、沿用主窗口会话的权限。
 // 它是延迟提交轮：照常公告分隔条与运行态、工具可用，但过程不推送；结束时只提交最终回复或记下结局。
 func (s *Service) mainInboxHostRequest(target mainInboxTarget, roundID string, event inboxstore.Event) Request {
@@ -122,7 +113,6 @@ func (s *Service) mainInboxHostRequest(target mainInboxTarget, roundID string, e
 		AgentID:              target.agent.AgentID,
 		Content:              hostEventPrompt(event),
 		RoundID:              roundID,
-		DeliveryPolicy:       protocol.ChatDeliveryPolicyQueue,
 		BroadcastUserMessage: true,
 		Internal:             true,
 		InputOptions: sdkprotocol.OutboundMessageOptions{
@@ -147,11 +137,16 @@ func admitHostRun(_ context.Context, candidate DeferredAssistantCandidate) (prot
 	if isHostNoReply(candidate.Message) {
 		return nil, false, nil
 	}
+	return admittedAssistantMessage(candidate), true, nil
+}
+
+// admittedAssistantMessage 复制准入的回复并补齐 message_id；延迟提交的回复在准入后才落盘。
+func admittedAssistantMessage(candidate DeferredAssistantCandidate) protocol.Message {
 	message := protocol.Clone(candidate.Message)
 	if textutil.AnyString(message["message_id"]) == "" {
 		message["message_id"] = protocol.NewAssistantMessageID()
 	}
-	return message, true, nil
+	return message
 }
 
 // isHostNoReply 只认整条输出恰为沉默标记或为空；正文里偶然出现标记不吞掉正常回复。
@@ -195,27 +190,6 @@ func hostRunOutcomeMessage(target mainInboxTarget, roundID string, outcome strin
 		"timestamp":   time.Now().UnixMilli(),
 		"metadata":    map[string]any{"subtype": messageutil.SystemMessageSubtypeHostRunOutcome, "outcome": outcome},
 	}
-}
-
-// isHostInboxEvent 区分宿主代写的事件。
-func isHostInboxEvent(event inboxstore.Event) bool {
-	_, ok := hostEventSpecs[event.Kind]
-	return ok
-}
-
-// isQuietOnlyInboxEvent 标出只在对话空闲时出现的事件（Echo）。
-func isQuietOnlyInboxEvent(event inboxstore.Event) bool {
-	return hostEventSpecs[event.Kind].quietOnly
-}
-
-// hostEventPrompt 是模型看到的宿主输入：说明来源，避免被当成用户此刻说的话。
-func hostEventPrompt(event inboxstore.Event) string {
-	return hostEventSpecs[event.Kind].prompt(event)
-}
-
-// hostEventMetadata 写入用户行，时间线据此显示触发分隔条。
-func hostEventMetadata(event inboxstore.Event) map[string]string {
-	return hostEventSpecs[event.Kind].metadata(event)
 }
 
 func scheduledTaskPrompt(event inboxstore.Event) string {
