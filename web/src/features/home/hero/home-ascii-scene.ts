@@ -20,6 +20,12 @@ const DESKTOP_CHARSET = ".:+-=*#@&~<>{}[]|/\\";
 const MOBILE_CHARSET = "01";
 const DEFAULT_HERO_INK = "#516dff";
 const DEFAULT_CLOCK_INK = "rgba(32, 45, 62, 0.88)";
+/**
+ * 字标轮廓固定使用系统等宽字体，不跟随 PT Mono。
+ * PT Mono 只在页面其他位置用到后才会加载，字标若引用它，轮廓会随加载时机在两种字形间跳变
+ * （PT Mono 的 n/u 带衬线钩）；粒子字符与时钟仍使用 PT Mono。
+ */
+const WORDMARK_FONT_FAMILY = 'ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace';
 
 interface HomeAsciiPalette {
   clockInk: string;
@@ -254,7 +260,7 @@ export class HomeAsciiScene {
     if (!metricsContext) {
       return null;
     }
-    metricsContext.font = '600 80px "PT Mono", monospace';
+    metricsContext.font = `600 80px ${WORDMARK_FONT_FAMILY}`;
     const measuredWidth = metricsContext.measureText(HOME_HERO_LABEL).width || width;
     const fontSize = Math.min(
       Math.floor((80 * width) / measuredWidth * 0.7),
@@ -268,7 +274,7 @@ export class HomeAsciiScene {
     if (!context) {
       return null;
     }
-    context.font = `600 ${fontSize}px "PT Mono", monospace`;
+    context.font = `600 ${fontSize}px ${WORDMARK_FONT_FAMILY}`;
     const textWidth = context.measureText(HOME_HERO_LABEL).width;
     context.fillStyle = "#fff";
     context.textBaseline = "middle";
