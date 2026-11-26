@@ -108,9 +108,9 @@ coverage.xml
 
 # 部署镜像构建需要访问这些目录
 !docs/
-!docs/specs/
-!docs/specs/room-collaboration-mechanism.en.md
-!docs/specs/room-collaboration-mechanism.md
+!docs/guides/
+!docs/guides/room-skill-authoring.en.md
+!docs/guides/room-skill-authoring.md
 !deploy/
 !deploy/**
 !scripts/

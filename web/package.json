@@ -10,7 +10,7 @@
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port 3000",
-    "lint": "eslint \"src/**/*.{ts,tsx,mjs}\" \"browser-tests/**/*.ts\" \"smoke-tests/**/*.ts\" vite.config.ts vitest.config.ts playwright.config.ts playwright.smoke.config.ts eslint.config.mjs",
+    "lint": "eslint --cache --cache-location node_modules/.cache/eslint \"src/**/*.{ts,tsx,mjs}\" \"browser-tests/**/*.ts\" \"smoke-tests/**/*.ts\" vite.config.ts vitest.config.ts playwright.config.ts playwright.smoke.config.ts eslint.config.mjs",
     "test": "vitest run",
     "test:contracts": "node --test --test-concurrency=1 ./scripts/*.test.mjs",
     "test:browser": "playwright test",

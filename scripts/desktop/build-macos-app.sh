@@ -147,32 +147,28 @@ run_pnpm() {
   fi
 }
 
-echo "==> Building web/dist"
-cd "${ROOT_DIR}/web"
-run_pnpm install --frozen-lockfile --prefer-offline
-NEXUS_DESKTOP_BUILD=1 run_pnpm build
+if is_enabled "${NEXUS_DESKTOP_SKIP_WEB_BUILD:-0}"; then
+  echo "==> Reusing prebuilt web/dist"
+  if [[ ! -f "${ROOT_DIR}/web/dist/index.html" ]]; then
+    echo "missing prebuilt web/dist/index.html" >&2
+    exit 1
+  fi
+else
+  echo "==> Building web/dist"
+  cd "${ROOT_DIR}/web"
+  run_pnpm install --frozen-lockfile --prefer-offline
+  NEXUS_DESKTOP_BUILD=1 run_pnpm build
+fi
 
-echo "==> Building Go sidecar"
+echo "==> Building Go binaries (nexus-server, nexusctl, nexuscfg)"
 mkdir -p "${SIDECAR_BUILD_DIR}"
 cd "${ROOT_DIR}"
 GOWORK="${NEXUS_DESKTOP_GO_WORK:-off}" CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
-  -o "${SIDECAR_BUILD_PATH}" \
-  ./cmd/nexus-server
-
-echo "==> Building nexusctl"
-GOWORK="${NEXUS_DESKTOP_GO_WORK:-off}" CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
-  -trimpath \
-  -ldflags="-s -w" \
-  -o "${NEXUSCTL_BUILD_PATH}" \
-  ./cmd/nexusctl
-
-echo "==> Building nexuscfg"
-GOWORK="${NEXUS_DESKTOP_GO_WORK:-off}" CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
-  -trimpath \
-  -ldflags="-s -w" \
-  -o "${NEXUSCFG_BUILD_PATH}" \
+  -o "${SIDECAR_BUILD_DIR}/" \
+  ./cmd/nexus-server \
+  ./cmd/nexusctl \
   ./cmd/nexuscfg
 
 echo "==> Building Swift shell (${TARGET_ARCH})"

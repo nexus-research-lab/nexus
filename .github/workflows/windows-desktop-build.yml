@@ -1,16 +1,22 @@
 name: Windows Desktop Build
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "desktop/windows/**"
       - "internal/infra/confinedfs/**"
       - "internal/runtime/**"
       - "internal/protocol/runtime_sandbox.go"
+      - "internal/appdelta/**"
+      - "cmd/nexus-delta/**"
       - "go.mod"
       - "go.sum"
       - "scripts/desktop/**"
-      - ".github/workflows/**"
+      - "scripts/dev-windows*"
+      - "scripts/test-dev-windows.ps1"
+      - ".github/workflows/windows-desktop-build.yml"
+      - "!**/*.md"
   push:
     branches:
       - main
@@ -19,28 +25,71 @@ on:
       - "internal/infra/confinedfs/**"
       - "internal/runtime/**"
       - "internal/protocol/runtime_sandbox.go"
+      - "internal/appdelta/**"
+      - "cmd/nexus-delta/**"
       - "go.mod"
       - "go.sum"
       - "scripts/desktop/**"
-      - ".github/workflows/**"
+      - "scripts/dev-windows*"
+      - "scripts/test-dev-windows.ps1"
+      - ".github/workflows/windows-desktop-build.yml"
+      - "!**/*.md"
 
 permissions:
   contents: read
+
+concurrency:
+  group: windows-desktop-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  build:
-    name: Validate Windows desktop build
+  shell:
+    name: Validate Windows desktop shell
     runs-on: windows-latest
-
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # Without the private SDK credential, skip native MXC evidence but still
-      # build the Windows shell.
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('desktop/windows/**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Validate desktop shutdown ownership
+        shell: pwsh
+        run: |
+          node scripts/desktop/verify-windows-installer-contract.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop shutdown contract failed' }
+          dotnet run --project desktop/windows/Nexus.Desktop.LifecycleTests -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Native desktop process ownership failed' }
+          pwsh -NoProfile -File scripts/test-dev-windows.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Development launcher ownership failed' }
+
+      - name: Build Windows desktop shell
+        shell: pwsh
+        run: |
+          dotnet build desktop/windows/Nexus.Desktop/Nexus.Desktop.csproj `
+            -c Release
+
+  sandbox:
+    name: Validate Windows sandbox contracts
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      # Without the private SDK credential, skip native MXC evidence cleanly
+      # without paying for Go/Rust toolchain setup.
       - name: Detect sandbox SDK credential
         id: sdk
         shell: pwsh
@@ -54,6 +103,10 @@ jobs:
             "available=true" >> $env:GITHUB_OUTPUT
           }
 
+      - name: Checkout
+        if: ${{ steps.sdk.outputs.available == 'true' }}
+        uses: actions/checkout@v6
+
       - name: Checkout pinned sandbox SDK
         if: ${{ steps.sdk.outputs.available == 'true' }}
         uses: actions/checkout@v6
@@ -66,36 +119,21 @@ jobs:
           persist-credentials: false
 
       - name: Setup Go
+        if: ${{ steps.sdk.outputs.available == 'true' }}
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
-      - uses: dtolnay/rust-toolchain@1.99.1
+      - name: Setup Rust
+        if: ${{ steps.sdk.outputs.available == 'true' }}
+        uses: dtolnay/rust-toolchain@1.99.1
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+      - name: Cache Rust build
+        if: ${{ steps.sdk.outputs.available == 'true' }}
+        uses: Swatinem/rust-cache@v2
         with:
-          dotnet-version: "8.0.x"
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-
-      - name: Install frontend dependencies for launcher checks
-        shell: pwsh
-        working-directory: web
-        run: corepack pnpm install --frozen-lockfile
-
-      - name: Validate desktop shutdown ownership
-        shell: pwsh
-        run: |
-          node scripts/desktop/verify-windows-installer-contract.mjs
-          if ($LASTEXITCODE -ne 0) { throw 'Desktop shutdown contract failed' }
-          dotnet run --project desktop/windows/Nexus.Desktop.LifecycleTests -c Release
-          if ($LASTEXITCODE -ne 0) { throw 'Native desktop process ownership failed' }
-          pwsh -NoProfile -File scripts/test-dev-windows.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'Development launcher ownership failed' }
+          workspaces: .nexus-sandbox-sdk/native/nxs-mxc
 
       - name: Check Windows sandbox contracts and native components
         id: sandbox
@@ -114,17 +152,38 @@ jobs:
           if-no-files-found: error
           path: ${{ runner.temp }}/windows-sandbox-evidence/nexus-windows-sandbox-*
 
-      - name: Build Windows desktop shell
+  directory_delta:
+    name: Replay Windows directory delta
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Cache historical installer fixtures
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}\windows-delta-fixtures
+          key: ${{ runner.os }}-delta-fixtures-0.2.7-88-0.2.8-89
+
+      - name: Ensure Inno Setup is available
         shell: pwsh
         run: |
-          dotnet build desktop/windows/Nexus.Desktop/Nexus.Desktop.csproj `
-            -c Release
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path -LiteralPath $iscc)) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+          }
 
       - name: Replay directory delta against published Windows installers
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          choco upgrade innosetup --no-progress -y
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
-          ./scripts/desktop/test-windows-directory-delta.ps1
+          NEXUS_WINDOWS_DELTA_FIXTURE_CACHE_DIR: ${{ runner.temp }}\windows-delta-fixtures
+        run: ./scripts/desktop/test-windows-directory-delta.ps1

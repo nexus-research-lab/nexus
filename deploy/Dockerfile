@@ -36,17 +36,21 @@ COPY go.mod go.sum /src/
 ENV GOPROXY=${GOPROXY}
 
 # 模块下载保留在可复用的依赖层；仅依赖 go.mod/go.sum 变化时才重新下载。
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY cmd /src/cmd
 COPY internal /src/internal
 COPY db /src/db
 
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    go build -o /out/nexus-server ./cmd/nexus-server && \
-    go build -o /out/nexusctl ./cmd/nexusctl && \
-    go build -o /out/nexuscfg ./cmd/nexuscfg && \
-    go build -o /out/nexus-runtime-launcher ./cmd/nexus-runtime-launcher
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /out && \
+    go build -o /out/ \
+      ./cmd/nexus-server \
+      ./cmd/nexusctl \
+      ./cmd/nexuscfg \
+      ./cmd/nexus-runtime-launcher
 
 FROM ${NODE_IMAGE} AS runtime-base
 
@@ -232,17 +236,18 @@ ENV VITE_WS_URL=${VITE_WS_URL} \
 
 WORKDIR /src/web
 
-COPY web/package.json web/pnpm-lock.yaml ./
-COPY web/.npmrc ./
-RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
-    pnpm config set store-dir /pnpm/store && \
-    pnpm install --frozen-lockfile
+    pnpm config set store-dir /pnpm/store
 
-COPY web/ ./
+COPY web/package.json web/pnpm-lock.yaml web/.npmrc ./
+RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
+    pnpm install --frozen-lockfile --prefer-offline
+
 COPY docs/guides/room-skill-authoring.en.md /src/docs/guides/room-skill-authoring.en.md
 COPY docs/guides/room-skill-authoring.md /src/docs/guides/room-skill-authoring.md
+COPY web/ ./
 RUN pnpm run build
 
 FROM runtime-base AS runtime

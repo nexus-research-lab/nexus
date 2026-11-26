@@ -7,6 +7,7 @@ on:
       - "desktop/macos/**"
       - "scripts/desktop/**"
       - "web/**"
+      - "docs/guides/room-skill-authoring*.md"
       - "db/migrations/**"
       - "skills/**"
       - "cmd/nexus-server/**"
@@ -15,7 +16,10 @@ on:
       - "internal/**"
       - "go.mod"
       - "go.sum"
-      - ".github/workflows/**"
+      - ".github/workflows/macos-desktop-build.yml"
+      - "!**/README.md"
+      - "!**/CLAUDE.md"
+      - "!**/AGENTS.md"
   push:
     branches:
       - main
@@ -23,6 +27,7 @@ on:
       - "desktop/macos/**"
       - "scripts/desktop/**"
       - "web/**"
+      - "docs/guides/room-skill-authoring*.md"
       - "db/migrations/**"
       - "skills/**"
       - "cmd/nexus-server/**"
@@ -31,15 +36,61 @@ on:
       - "internal/**"
       - "go.mod"
       - "go.sum"
-      - ".github/workflows/**"
+      - ".github/workflows/macos-desktop-build.yml"
+      - "!**/README.md"
+      - "!**/CLAUDE.md"
+      - "!**/AGENTS.md"
 
 permissions:
   contents: read
+
+concurrency:
+  group: macos-desktop-build-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  build_web:
+    name: Build desktop web assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install and build web/dist
+        env:
+          NEXUS_DESKTOP_BUILD: "1"
+        run: |
+          pnpm install --frozen-lockfile --prefer-offline
+          pnpm run build
+
+      - name: Upload desktop web assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-web-dist
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 1
+
   sandbox_baseline:
     name: Validate macOS desktop sandbox with real nxs
     # Fork PRs cannot read the nxs release token.
@@ -55,11 +106,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
 
       - name: Fetch paired nxs runtime
         env:
@@ -80,6 +126,7 @@ jobs:
 
   build:
     name: Validate macOS ${{ matrix.display_name }} build, smoke, and package
+    needs: [build_web]
     strategy:
       fail-fast: false
       matrix:
@@ -91,9 +138,11 @@ jobs:
             runner: macos-15-intel
             target_arch: x86_64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
       NEXUS_DESKTOP_TARGET_ARCH: ${{ matrix.target_arch }}
+      NEXUS_DESKTOP_SKIP_WEB_BUILD: "1"
       NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
       NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
       NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
@@ -103,33 +152,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Download desktop web assets
+        uses: actions/download-artifact@v7
+        with:
+          name: macos-web-dist
+          path: web/dist
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - name: Cache SwiftPM build
+        uses: actions/cache@v5
         with:
-          node-version: "22"
-
-      - name: Setup pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.2 --activate
+          path: desktop/macos/.build
+          key: ${{ runner.os }}-${{ matrix.target_arch }}-swiftpm-${{ hashFiles('desktop/macos/Package.swift', 'desktop/macos/Sources/**/*.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target_arch }}-swiftpm-
 
       - name: Build and smoke test macOS app
+        env:
+          NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
         run: |
           scripts/desktop/smoke-macos-app.sh
 
       - name: Package macOS DMG without release signing
         env:
+          NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
           NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME: "0"
           NEXUS_DESKTOP_PACKAGE_FORMAT: dmg
           NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/macos-package-check
           NEXUS_DESKTOP_PACKAGE_SKIP_BUILD: "1"
           NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE: "1"
+          # CI 仅校验打包链路、校验和与元数据，使用快速 zlib 压缩避免 Intel 机器长时间单核压缩。
+          NEXUS_DESKTOP_DMG_ZLIB_LEVEL: "1"
         run: |
           scripts/desktop/package-macos-app.sh
           (

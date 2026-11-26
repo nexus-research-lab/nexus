@@ -13,17 +13,18 @@ ENV VITE_WS_URL=${VITE_WS_URL} \
 
 WORKDIR /app/web
 
-COPY web/package.json web/pnpm-lock.yaml ./
-COPY web/.npmrc ./
-RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
-    pnpm config set store-dir /pnpm/store && \
-    pnpm install --frozen-lockfile
+    pnpm config set store-dir /pnpm/store
 
-COPY web/ ./
+COPY web/package.json web/pnpm-lock.yaml web/.npmrc ./
+RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
+    pnpm install --frozen-lockfile --prefer-offline
+
 COPY docs/guides/room-skill-authoring.en.md /app/docs/guides/room-skill-authoring.en.md
 COPY docs/guides/room-skill-authoring.md /app/docs/guides/room-skill-authoring.md
+COPY web/ ./
 RUN pnpm run build
 
 FROM nginx:1.28-alpine AS runner
