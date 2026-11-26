@@ -25,16 +25,16 @@ it.each(["repair", "compare", "check"])("routes Preferences %s explicitly and bl
   expect(expected).toHaveBeenCalledOnce();
 });
 
-it.each(["repair", "compare", "check"])("routes Echo %s explicitly and blocks checking", async (mode) => {
-  const recovery = { canCheckLatest: true, canCompare: mode !== "check", canFinishDisabling: mode === "repair", checking: false, repairing: false,
-    checkLatest: vi.fn(), reapplyChange: vi.fn(), finishDisabling: vi.fn() };
+it.each(["compare", "check"])("routes Echo %s explicitly and blocks checking", async (mode) => {
+  const recovery = { canCheckLatest: true, canCompare: mode !== "check", checking: false,
+    checkLatest: vi.fn(), reapplyChange: vi.fn() };
   const renderNotice = () => <I18nProvider><EchoSettingsReliabilityNotice feedback={feedback} recovery={recovery} /></I18nProvider>;
   const view = render(renderNotice());
-  const expected = mode === "repair" ? recovery.finishDisabling : mode === "compare" ? recovery.reapplyChange : recovery.checkLatest;
+  const expected = mode === "compare" ? recovery.reapplyChange : recovery.checkLatest;
   expect(expected).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button"));
   expect(expected).toHaveBeenCalledOnce();
-  expect([recovery.checkLatest, recovery.reapplyChange, recovery.finishDisabling].filter(command => command.mock.calls.length)).toHaveLength(1);
+  expect([recovery.checkLatest, recovery.reapplyChange].filter(command => command.mock.calls.length)).toHaveLength(1);
   recovery.checking = true;
   view.rerender(renderNotice());
   await userEvent.click(screen.getByRole("button"));
@@ -42,8 +42,8 @@ it.each(["repair", "compare", "check"])("routes Echo %s explicitly and blocks ch
 });
 
 it("shows no recovery action on success or when no recovery is authorized", () => {
-  const recovery = { canCheckLatest: false, canCompare: false, canFinishDisabling: false, checking: false, repairing: false,
-    checkLatest: vi.fn(), reapplyChange: vi.fn(), finishDisabling: vi.fn() };
+  const recovery = { canCheckLatest: false, canCompare: false, checking: false,
+    checkLatest: vi.fn(), reapplyChange: vi.fn() };
   const view = render(<I18nProvider><EchoSettingsReliabilityNotice feedback={feedback} recovery={recovery} /><PreferencesReliabilityNotice feedback={feedback} /></I18nProvider>);
   expect(screen.queryByRole("button")).toBeNull();
   view.rerender(<I18nProvider><EchoSettingsReliabilityNotice feedback={{tone: "success", title: "Saved", message: "Done"}} recovery={{...recovery, canCheckLatest: true}} /></I18nProvider>);

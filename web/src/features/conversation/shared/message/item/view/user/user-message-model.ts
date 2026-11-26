@@ -34,6 +34,7 @@ export function projectUserMessagePresentation(
 
 export type RuntimeWakeLabelKey =
   | "message.scheduled_task.triggered"
+  | "message.follow_up.triggered"
   | "message.runtime_wake.task_completed"
   | "message.runtime_wake.task_failed"
   | "message.runtime_wake.task_stopped"
@@ -41,12 +42,24 @@ export type RuntimeWakeLabelKey =
 
 export interface RuntimeWakePresentation {
   /** 触发来源决定图标；文案由 labelKey 单独表达。 */
-  source: "runtime_wake" | "scheduled_task";
+  source: RuntimeWakeSource;
   labelKey: RuntimeWakeLabelKey;
-  /** runtime 原文摘要或定时任务名称；没有证据时为空，视图不得补占位。 */
+  /** runtime 原文摘要、定时任务名称或跟进备注；没有证据时为空，视图不得补占位。 */
   summary: string;
   timestamp: string;
 }
+
+export type RuntimeWakeSource = "runtime_wake" | "scheduled_task" | "follow_up";
+
+// 主窗口宿主事件 input_kind 到分隔条的完整映射：来源图标、文案与摘要所在的 metadata 字段。
+const HOST_EVENT_TRIGGERS: Record<string, {
+  labelKey: RuntimeWakeLabelKey;
+  source: RuntimeWakeSource;
+  summaryKey: string;
+} | undefined> = {
+  follow_up: { labelKey: "message.follow_up.triggered", source: "follow_up", summaryKey: "follow_up_note" },
+  scheduled_task: { labelKey: "message.scheduled_task.triggered", source: "scheduled_task", summaryKey: "task_name" },
+};
 
 // 后台任务状态到触发文案的完整映射；未知状态统一归入“继续执行”。
 const RUNTIME_WAKE_TASK_LABELS: Record<string, RuntimeWakeLabelKey> = {
@@ -58,16 +71,18 @@ const RUNTIME_WAKE_TASK_LABELS: Record<string, RuntimeWakeLabelKey> = {
 
 /**
  * 非用户输入的触发行不是用户气泡：runtime 自唤醒（metadata.input_kind=runtime_wake）
- * 与主窗口定时任务到点（metadata.input_kind=scheduled_task）都返回触发事实供视图渲染为分隔条；
- * 普通用户消息返回 null。定时任务行的正文是给模型的指令包装，只展示任务名称。
+ * 与主窗口宿主事件到点（metadata.input_kind=scheduled_task / follow_up）都返回触发事实供视图渲染为分隔条；
+ * 普通用户消息返回 null。宿主事件行的正文是给模型的指令包装，只展示元数据里的名称或备注摘要。
  */
 export function projectRuntimeWakePresentation(message: UserMessage): RuntimeWakePresentation | null {
   const metadata = message.metadata;
-  if (metadata?.input_kind === "scheduled_task") {
+  const hostEvent = HOST_EVENT_TRIGGERS[String(metadata?.input_kind ?? "")];
+  if (metadata && hostEvent) {
+    const summary = metadata[hostEvent.summaryKey];
     return {
-      source: "scheduled_task",
-      labelKey: "message.scheduled_task.triggered",
-      summary: typeof metadata.task_name === "string" ? metadata.task_name.trim() : "",
+      source: hostEvent.source,
+      labelKey: hostEvent.labelKey,
+      summary: typeof summary === "string" ? summary.trim() : "",
       timestamp: formatMessageTime(message.timestamp),
     };
   }

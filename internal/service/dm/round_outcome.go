@@ -24,7 +24,7 @@ func (r *roundRunner) failRoundAtPhase(
 	failurePhase string,
 ) {
 	if r.deferredAssistant != nil {
-		r.finishDeferredFailure(echoDeferredStatusFailed, err)
+		r.finishDeferredFailure(deferredStatusFailed, err)
 		return
 	}
 	if interruptReason := r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID); interruptReason != "" {
@@ -155,7 +155,7 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 
 func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, resultText string) {
 	if r.deferredAssistant != nil {
-		r.finishDeferredFailure(echoDeferredStatusCancelled, errors.New(strings.TrimSpace(resultText)))
+		r.finishDeferredFailure(deferredStatusCancelled, errors.New(strings.TrimSpace(resultText)))
 		return
 	}
 	if r.explicitlyStoppedRound() {

@@ -1,7 +1,7 @@
-// INPUT: 已投影的触发事实（runtime 自唤醒或主窗口定时任务到点）与紧凑/展开阅读布局。
+// INPUT: 已投影的触发事实（runtime 自唤醒、主窗口定时任务或跟进到点）与紧凑/展开阅读布局。
 // OUTPUT: 位于 Assistant 阅读轴上的单行触发分隔条：24px 图标槽、触发文案、可截断的任务摘要与时间。
 // POS: 非用户输入的 round 起点；替代用户气泡，不提供编辑、重跑或复制动作。
-import { AlarmClock, BellRing } from "lucide-react";
+import { AlarmClock, BellRing, Hourglass } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
@@ -13,7 +13,10 @@ import { resolveAssistantMessageLayout } from "../message-reading-layout";
 import type { RuntimeWakePresentation } from "./user-message-model";
 
 // 触发来源到图标的完整映射。
-const TRIGGER_ICONS = { runtime_wake: BellRing, scheduled_task: AlarmClock } as const;
+const TRIGGER_ICONS = { runtime_wake: BellRing, scheduled_task: AlarmClock, follow_up: Hourglass } as const;
+
+// 触发来源到 DOM 标记的完整映射，供滚动锚点与测试定位。
+const TRIGGER_KINDS = { runtime_wake: "runtime-wake", scheduled_task: "scheduled-task", follow_up: "follow-up" } as const;
 
 interface UserRuntimeWakeTriggerProps {
   compact: boolean;
@@ -29,7 +32,7 @@ export function UserRuntimeWakeTrigger({ compact, presentation }: UserRuntimeWak
     <div
       className={cn("nexus-chat-message-section w-full", layout.section)}
       data-conversation-round-user-anchor="true"
-      data-message-kind={presentation.source === "scheduled_task" ? "scheduled-task" : "runtime-wake"}
+      data-message-kind={TRIGGER_KINDS[presentation.source]}
     >
       <div className={cn("w-full", layout.inner)}>
         <div className="flex min-h-6 min-w-0 items-center gap-2" role="note">

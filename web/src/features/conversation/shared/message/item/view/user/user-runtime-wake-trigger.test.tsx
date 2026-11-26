@@ -1,4 +1,4 @@
-// INPUT: runtime 自唤醒行、主窗口定时任务行与普通用户行。
+// INPUT: runtime 自唤醒行、主窗口定时任务行、跟进行与普通用户行。
 // OUTPUT: 触发行渲染为无动作的分隔条，普通用户行保持气泡与动作。
 // POS: 触发分隔条展示回归。
 import { render, screen } from "@testing-library/react";
@@ -51,6 +51,24 @@ it("projects a main-window scheduled task as a trigger showing only the task nam
   expect(note.textContent).not.toContain("汇总今天的提交");
   expect(note.closest("[data-message-kind='scheduled-task']")).not.toBeNull();
   expect(screen.queryByRole("button")).toBeNull();
+});
+
+it("projects a due follow-up as a trigger showing only the note", () => {
+  const message = {
+    ...wakeMessage({ input_kind: "follow_up", follow_up_id: "inbox_1", follow_up_note: "确认 CI 结果" }),
+    content: "<follow-up id=\"inbox_1\">\n内部包装\n</follow-up>",
+  };
+  expect(projectRuntimeWakePresentation(message))
+    .toMatchObject({ source: "follow_up", labelKey: "message.follow_up.triggered", summary: "确认 CI 结果" });
+  render(
+    <I18nProvider>
+      <MessageUserSection compact={false} message={message} onEditUserMessage={() => undefined} />
+    </I18nProvider>,
+  );
+  const note = screen.getByRole("note");
+  expect(note.textContent).toContain("确认 CI 结果");
+  expect(note.textContent).not.toContain("内部包装");
+  expect(note.closest("[data-message-kind='follow-up']")).not.toBeNull();
 });
 
 it("renders a runtime wake as an action-free trigger row instead of a user bubble", () => {

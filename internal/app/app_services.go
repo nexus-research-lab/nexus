@@ -331,21 +331,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	)
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
-	echoService := echosvc.NewService(
-		cfg,
-		db,
-		core.Agent,
-		core.Session,
-		dmService,
-		runtimeManager,
-		providerService,
-		preferencesService,
-	)
+	echoService := echosvc.NewService(cfg, core.Agent, core.Session, providerService, preferencesService)
 	echoService.SetLogger(logger.With("component", "echo"))
-	dmService.SetEchoLifecycleHooks(dmsvc.EchoLifecycleHooks{
-		OnUserActivity: echoService.OnUserActivity,
-		OnTerminal:     echoService.OnTerminal,
-	})
+	dmService.SetEchoPolicy(echoService)
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	ingressService.SetControlService(channelControl)
@@ -515,6 +503,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		orchestrationService,
 		permission,
 		computerUseService,
+		dmService,
 		builtInTools,
 		workGraphWorkflowService,
 	)

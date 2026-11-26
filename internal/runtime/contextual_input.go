@@ -78,6 +78,7 @@ const (
 	ContextualInputNameExecution          = "execution"
 	ContextualInputNameTransport          = "transport"
 	ContextualInputNameConnectors         = "connectors"
+	ContextualInputNameFollowUps          = "follow_ups"
 	ContextualInputNameAutomation         = "automation"
 	ContextualInputNameAutomationDelivery = "automation_delivery"
 

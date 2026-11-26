@@ -1,14 +1,12 @@
-// INPUT: 普通 DM 用户活动/成功终态与静默后台 round 的最终 assistant。
-// OUTPUT: Echo 取消、调度回调和最终准入后的单条 durable 消息。
-// POS: DM 与 Echo 领域之间的窄生命周期边界。
+// INPUT: 带最终准入器的后台 round（Echo）的终态与最后一条 assistant。
+// OUTPUT: 通过准入的单条 durable assistant 消息；未通过时删除本轮 runtime 历史，不留痕迹。
+// POS: 延迟提交 round 的收口；准入判断由发起方提供，这里只负责落盘、广播与清理。
 package dm
 
 import (
 	"context"
 	"errors"
-	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"strings"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -17,70 +15,15 @@ import (
 )
 
 const (
-	echoDeferredStatusDelivered = "delivered"
-	echoDeferredStatusFailed    = "failed"
-	echoDeferredStatusCancelled = "cancelled"
+	deferredStatusDelivered = "delivered"
+	deferredStatusFailed    = "failed"
+	deferredStatusCancelled = "cancelled"
 )
-
-func (e *dmChatExecution) cancelEchoForUserActivity() {
-	if e == nil || e.request.Internal || e.service.echoHooks.OnUserActivity == nil ||
-		protocol.NormalizeSessionKeyChannelSegment(e.parsed.Channel) != protocol.SessionChannelWebSocketSegment ||
-		strings.TrimSpace(e.parsed.ChatType) != protocol.RoomTypeDM {
-		return
-	}
-	roundIDs, err := e.service.echoHooks.OnUserActivity(
-		e.ctx,
-		strings.TrimSpace(e.agent.OwnerUserID),
-		e.sessionKey,
-	)
-	if err != nil {
-		e.service.LoggerFor(e.ctx).Warn("取消 Echo 尝试失败",
-			"session_key", e.sessionKey,
-			"err", err,
-		)
-		return
-	}
-	for _, roundID := range roundIDs {
-		if err = e.service.interruptExactRound(e.ctx, e.sessionKey, roundID, messagepkg.InterruptHostControlWithoutMessage); err != nil &&
-			!errors.Is(err, ErrTargetDMRoundNotRunning) {
-			e.service.LoggerFor(e.ctx).Warn("中断 Echo round 失败",
-				"session_key", e.sessionKey,
-				"round_id", roundID,
-				"err", err,
-			)
-		}
-	}
-}
-
-func (r *roundRunner) scheduleEchoAfterTerminal(
-	result exec.RoundExecutionResult,
-	assistant protocol.Message,
-) {
-	if r == nil || r.service.echoHooks.OnTerminal == nil || r.internal ||
-		r.executionOrigin != "" || !result.CompletedByAssistant ||
-		result.TerminalStatus != "finished" ||
-		(result.ResultSubtype != "" && result.ResultSubtype != "success") ||
-		protocol.NormalizeSessionKeyChannelSegment(protocol.ParseSessionKey(r.sessionKey).Channel) != protocol.SessionChannelWebSocketSegment ||
-		strings.TrimSpace(protocol.ParseSessionKey(r.sessionKey).ChatType) != protocol.RoomTypeDM {
-		return
-	}
-	terminal := EchoTerminalRound{
-		OwnerUserID: r.ownerUserID,
-		AgentID:     strings.TrimSpace(r.agent.AgentID),
-		SessionKey:  r.sessionKey,
-		RoundID:     r.roundID,
-		AssistantID: textutil.AnyString(assistant["message_id"]),
-		FinishedAt:  time.Now().UTC(),
-	}
-	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
-		r.service.echoHooks.OnTerminal(ctx, terminal)
-	})
-}
 
 func (r *roundRunner) finishDeferredAssistant(result exec.RoundExecutionResult) {
 	hooks := r.deferredAssistant
 	if hooks == nil || hooks.Admit == nil {
-		r.finishDeferredFailure(echoDeferredStatusFailed, errors.New("后台 assistant 准入器未装配"))
+		r.finishDeferredFailure(deferredStatusFailed, errors.New("后台 assistant 准入器未装配"))
 		return
 	}
 	candidate := DeferredAssistantCandidate{
@@ -91,7 +34,7 @@ func (r *roundRunner) finishDeferredAssistant(result exec.RoundExecutionResult) 
 	}
 	message, admitted, err := hooks.Admit(context.Background(), candidate)
 	if err != nil {
-		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: echoDeferredStatusFailed, Error: err})
+		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: deferredStatusFailed, Error: err})
 		r.finishDeferredRuntime(false)
 		return
 	}
@@ -107,9 +50,9 @@ func (r *roundRunner) finishDeferredAssistant(result exec.RoundExecutionResult) 
 	if err == nil {
 		r.RecordTerminalAssistantUsage(message, r.writeUsage)
 		r.broadcastDeferredAssistant(message)
-		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: echoDeferredStatusDelivered})
+		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: deferredStatusDelivered})
 	} else {
-		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: echoDeferredStatusFailed, Error: err})
+		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: deferredStatusFailed, Error: err})
 	}
 	r.finishDeferredRuntime(err == nil)
 }

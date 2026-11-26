@@ -987,6 +987,7 @@ export const enConversationMessages = {
   "message.avatar_details": "View avatar details",
   "message.guidance": "Additional guidance",
   "message.scheduled_task.triggered": "Scheduled task",
+  "message.follow_up.triggered": "Follow-up",
   "message.runtime_wake.task_completed": "Background task finished · resuming",
   "message.runtime_wake.task_failed": "Background task failed · resuming",
   "message.runtime_wake.task_stopped": "Background task stopped · resuming",

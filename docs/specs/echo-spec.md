@@ -1,10 +1,10 @@
 # Nexus 主动跟进（Echo）模块设计规范
 
-- 状态：**Implemented / DM opt-in**
+- 状态：**Implemented / 主窗口 opt-in**
 - 产品名：中文 **主动跟进**，英文 **Echo**；内部模块名 `echo`
 - 产品定义：**Agent 会在合适的时候主动跟进值得继续的对话。**
-- 当前范围：Nexus WebSocket DM；message-only、延迟提交、用户输入抢占和常规设置全局开关已接通。投递结果直接保留在原 Agent Session，不提供运行记录页面。
-- 不支持：Room 群主（仅保留 §15 阶段设计）、外部 IM、事件型 Signal、工具型主动工作。它们分别需要 Room authority、transport 授权或 Automation 权限设计，不能由 DM 开关隐式扩大。
+- 当前范围：只在主智能体主窗口生效（见 [main-agent-spec](main-agent-spec.md) §3）；Echo 是主窗口 inbox 中宿主写入的 `echo` 事件，message-only、延迟提交、用户输入抢占和常规设置全局开关已接通。投递结果直接保留在主窗口，不提供运行记录页面。
+- 不支持：其他 Agent 的 DM、Room 群主（仅保留 §15 阶段设计）、外部 IM、事件型 Signal、工具型主动工作。agent 自己要求“稍后回来看”的场景由主窗口跟进（`follow_up`）承担，不属于 Echo。
 
 ## 1. 产品语义
 
@@ -24,9 +24,9 @@ Echo 不是提醒器，也不是让 Agent 定时找话说：对话暂停后仍�
 
 ### 2.1 目标
 
-- 同一个 Agent 在同一个 DM 中自然延续未完成语境；
+- 主智能体在主窗口中自然延续未完成语境；
 - 把“是否值得说”与“具体说什么”分开，降低误触发和人格漂移；
-- 提供全局显式开关、内部活跃时段与限频、可恢复执行状态；
+- 提供全局显式开关与内部活跃时段；状态全部落在主窗口 inbox 事件上，不另建尝试表与调度器；
 - 用户产生新输入时立即让路；
 - 在服务重启、超时和重复调度下保持最多一次可见投递；
 - Room 群主阶段复用同一领域模型，但不提前引入多人路由。
@@ -45,11 +45,12 @@ Echo 不是提醒器，也不是让 Agent 定时找话说：对话暂停后仍�
 
 | 能力 | 触发来源 | 执行上下文 | 主要产物 |
 | --- | --- | --- | --- |
-| Echo | 对话结束后的安静窗口，由系统判断是否值得继续 | 原 DM 的同一 Agent、同一 Session | 一条可见跟进消息，或保持沉默 |
+| Echo | 对话结束后的安静窗口，由系统判断是否值得继续 | 主窗口的同一 Session | 一条可见跟进消息，或保持沉默 |
+| 跟进（follow_up） | 主智能体在轮内用 `nexus.command` 给自己设定的一次性时刻 | 主窗口的同一 Session，正常工具权限 | 一轮带备注的普通工作 |
 | Automation | 用户明确配置的时间、周期或监控条件 | 任务绑定或隔离 Session，持有任务权限快照 | 任务结果、通知或经批准的工具行为 |
 | Goal continuation | 已存在 Goal 的受控延续条件 | 绑定 Goal authority 的内部 round | Goal/Execution 推进 |
 
-- Echo 不把主动跟进伪装成定时任务；只复用后台调度基础设施和 DM 内部输入能力。
+- Echo 不把主动跟进伪装成定时任务；它与跟进、main 目标定时任务共用主窗口 inbox 的未来事件与到点唤醒。
 - 周期 Heartbeat 已删除；main 目标定时任务写入主智能体主窗口 inbox。
 
 ## 4. 核心不变量
@@ -58,11 +59,11 @@ Echo 不是提醒器，也不是让 Agent 定时找话说：对话暂停后仍�
 2. **同一身份**：最终消息必须由原 Agent 在原 DM Session 中生成，不能由 gate 模型代写。
 3. **同一语境**：不创建合成收件箱、匿名 main session 或新的用户对话。
 4. **默认静默**：任一判断不确定、上下文不完整或基础设施异常都不产生可见消息。
-5. **用户优先**：任何非 Echo 新输入立即取消该 Session 的 pending/running Echo；Echo 不进入普通用户输入队列。
+5. **用户优先**：任何用户输入进入主窗口 inbox 时，立即把该 inbox 中 pending/delivering 的 `echo` 事件置为 `cancelled`；Echo 从不在安全点注入正在运行的轮次。
 6. **没有伪造输入**：隐藏 wake 只作为 synthetic round marker 保存，不作为可见用户消息。
 7. **没有工具**：v1 round 使用 message-only 策略；模型要求工具时本次静默。
 8. **最多一次**：同一 Session、trigger 和 anchor 最多产生一条可见 Echo 消息。
-9. **投递前复核**：生成完成不代表可以发送；最终提交前必须再次验证没有新活动、策略仍开启且 attempt 仍拥有提交权。
+9. **投递前复核**：生成完成不代表可以发送；最终提交前必须再次验证 inbox 中没有待处理的用户输入。
 10. **不存内部思维**：数据库与日志只保存结构化决定，不保存完整 gate 输入、思维链或隐藏 prompt。
 
 ## 5. 首期用户故事
@@ -82,7 +83,7 @@ Echo 不是提醒器，也不是让 Agent 定时找话说：对话暂停后仍�
 - Agent 只能重复上一条回复，或发送“还需要帮助吗”；
 - 需要联网、调用工具或读取新外部状态才能产生价值；
 - 涉及高风险医疗、法律、财务、危机干预或敏感关系建议，且用户没有明确要求后续；
-- 用户已开始新 round、删除 Session、暂停 Echo，或 Agent 正在处理其他工作；
+- 用户已开始新 round、关闭 Echo，或主窗口正在处理其他工作；
 - 只能根据模糊语气猜测用户希望被联系。
 
 ## 6. 领域模型
@@ -91,126 +92,76 @@ Echo 不是提醒器，也不是让 Agent 定时找话说：对话暂停后仍�
 
 | 名词 | 含义 |
 | --- | --- |
-| Settings | 当前用户共享的 Echo 全局开关 |
-| Policy | 系统内部维护的时段与限频策略 |
-| Signal | 可能产生 Echo 的可信系统事件；v1 只有 `conversation_idle` |
-| Anchor | 产生候选的原始成功 round 和最后一条可见 assistant message |
-| Attempt | 一次从等待、判断到投递或静默的持久记录 |
+| Settings | 当前用户的 Echo 全局开关 |
+| Policy | 系统内部维护的时段策略 |
+| Anchor | 产生候选的可见用户 round |
+| Echo 事件 | 主窗口 inbox 中 `kind=echo` 的宿主事件，`available_at` 为到点时间 |
 | Gate | 只决定是否值得跟进及 focus 的后台小模型调用 |
-| Echo round | 原 Agent 在原 Session 中收到的隐藏、无工具、延迟提交 round |
+| Echo round | 主智能体在主窗口收到的隐藏、无工具、延迟提交 round |
 
 ### 6.2 整体链路
 
-![Nexus Echo 主动跟进整体流程](../images/nexus-echo-flow.svg)
-
-[打开独立 HTML 版本](../architecture-html/nexus-echo-flow.html)
-
-图中“静默收口”合并 `suppressed / cancelled / failed` 三类无可见投递的终态。
-
-### 6.3 Attempt 状态
-
 ```text
-scheduled ──claim──> evaluating ──follow_up──> running ──admit──> committing ──persisted──> delivered
-    ▲                    │                                            │
-    └────reschedule──────┘                                            └──persist error / restart──> failed
-
-evaluating / running ──skip / no-reply──────────────> suppressed
-evaluating / running ──ineligible / expired─────────> cancelled
-evaluating / running ──gate / runtime error / restart──> failed
-scheduled / evaluating / running ──new activity / disabled──> cancelled
+可见用户轮成功 ──ScheduleAfter──> echo 事件 pending（available_at = 结束时间 + 安静等待，顺延进活跃时段）
+                                       │ 任何用户输入 → cancelled
+到点且主窗口空闲 ──claim──> delivering ──Decide（锁外：开关、活跃时段、Gate）
+        │ 关闭 / skip / 出错 → consumed（静默）
+        │ 活跃时段外 → 退回 pending 并改写 available_at
+        └ follow_up ──锁内 CAS delivering→consumed──> Echo round（隐藏、无工具、延迟提交）
+                                                         └ Admit：无回复标记或有待处理用户输入 → 丢弃
 ```
 
-- `scheduled`：等待 `due_at`；
-- `evaluating`：worker 已通过数据库原子状态迁移领取，正在执行确定性检查或 gate；不在活跃窗口时回到 `scheduled` 并改写 `due_at`；
-- `running`：稳定 Echo round ID 已写入，原 Agent 正在生成；
-- `committing`：最终提交闸门已通过，`delivered_message_id` 已写入，可见消息正在持久化；该状态不再被新活动或停用取消，持久化失败或进程重启只会收口为 `failed`；
-- `delivered`：可见 assistant message 已提交；
-- `suppressed`：gate 或 Agent 明确选择静默；
-- `cancelled`：新活动、配置变化、资源删除或过期使候选失效；
-- `failed`：基础设施错误或进程重启使本次尝试安全终止，且没有可见投递。
+### 6.3 事件状态
 
-`delivered / suppressed / cancelled / failed` 是终态，终态 attempt 不复活。
+Echo 复用主窗口 inbox 的状态机（pending → delivering → consumed，另有 cancelled）：
+
+- `pending`：等待 `available_at`；
+- `delivering`：到点后被 drain 认领，正在跑 Decide；Decide 是一次模型调用，必须在派发锁外执行；
+- `consumed`：已静默收口，或已通过 CAS 起 Echo round；
+- `cancelled`：用户输入在 pending 或 delivering 期间到达，或同一主窗口写入了新的 echo 事件。
+
+起轮前在派发锁内做条件迁移 delivering → consumed；迁移失败说明期间用户已开口，本次不起轮。若此时已有其他轮在跑，事件直接 cancelled。
 
 ## 7. 持久化设计
 
 ### 7.1 用户 Preferences
 
 - 全局开关复用用户级 `.settings/preferences.json` 的 `echo_enabled` 字段，默认 `false`；与其他用户偏好共享同一份带版本的原子持久化，不另建 Echo 设置表。
-- 时区、活跃时段、安静等待、cooldown 与每日上限是产品内部策略，不从用户 API 读取，也不按用户持久化。
+- 时区、活跃时段与安静等待是产品内部策略，不从用户 API 读取，也不按用户持久化。
 - 时区依次使用服务端 `DefaultTimezone` 与 `Asia/Shanghai`；其余默认值见 §17。
+- 关闭开关不需要收口：已安排的 echo 事件到点时 Decide 读到关闭即静默 consumed。
 
-### 7.2 `echo_attempts`
+### 7.2 Echo 事件
 
-| 字段 | 说明 |
+Echo 事件是 `agent_inbox_events` 的一行（见 main-agent-spec §3），不另建表：
+
+| 字段 | 取值 |
 | --- | --- |
-| `attempt_id` | 不透明稳定 ID |
-| `owner_user_id` / `agent_id` / `session_key` | 完整租户与投递边界 |
-| `trigger_kind` | v1 固定 `conversation_idle` |
-| `anchor_round_id` / `anchor_message_id` | 候选事实来源 |
-| `due_at` / `expires_at` | 下次可判断时间与硬过期时间 |
-| `status` | Attempt 状态 |
-| `decision_reason` / `focus` | 受控 gate reason code 与最多 160 字符的内部关注点 |
-| `runtime_round_id` / `delivered_message_id` | Echo round 与最终提交消息身份 |
-| `error_code` | 受控枚举，不保存 Provider 原始响应 |
-| `started_at` / `created_at` / `finished_at` | UTC |
+| `kind` | `echo` |
+| `dedupe_key` | `echo:` + anchor round ID，同一 anchor 最多一条 |
+| `available_at` | 到点时间；活跃时段外顺延时改写 |
+| `payload` | 空：Echo 的上下文在到点时从主窗口历史读取 |
 
-唯一约束：
-
-```text
-(owner_user_id, session_key, trigger_kind, anchor_round_id)
-```
-
-不保存对话正文、gate prompt、完整模型响应或思维链。
+每个主窗口同时最多一条待定 Echo：写入新事件前先取消旧的。不保存对话正文、gate prompt、focus、完整模型响应或思维链。
 
 ## 8. 产生候选
 
-DM 成功终态是 v1 唯一 Signal。DM service 通过可选生命周期回调通知 Echo service，不能直接写 Echo repository：
+主窗口轮次结束后由 dm service 判断并调用 `EchoPolicy.ScheduleAfter`：
 
-```go
-type EchoLifecycleHooks struct {
-    OnUserActivity func(context.Context, string, string) ([]string, error)
-    OnTerminal     func(context.Context, EchoTerminalRound)
-}
-```
+- round 来自可见用户输入（`Internal=false`），成功结束且由 assistant 完成；
+- 会话是主智能体主窗口；
+- 用户已开启 Echo。
 
-- `EchoTerminalRound` 只含 owner、Agent、Session、round/message ID 和终态时间，不复制正文。
-- DM service 在调用前完成内部输入、execution origin 与成功终态过滤。
-- Observer 在成功 DM 收口后以后台任务调用；创建 candidate 失败只记录受控错误，不得把已成功的用户 round 改成失败。
-- 出现第二个真实消费者前，不抽象成通用 observer interface 或事件总线。
+内部 Goal、Automation、跟进、定时任务、Echo、recovery round 不会产生 Echo。
 
-只有同时满足以下条件才创建 `scheduled` attempt：
+- `available_at` = 轮次结束时间 + 安静等待；落在活跃时段外时顺延到下一个活跃窗口开始。
+- 不设冷却与每日上限：每条 Echo 都锚定一轮新的用户输入，用户开口即取消，节奏天然有界。
 
-- Echo 对该 Agent 与 Session 有效开启；
-- `chat_type=dm` 且 `channel=ws`；
-- round 来自可见用户输入，成功产生可见 assistant 终态；
-- `Internal=false` 且 `ExecutionOrigin` 为空；
-- 当前没有同 anchor attempt；
-- Session 仍可读取。
+## 9. 到点与预检
 
-内部 Goal、Automation、queue、Echo、recovery round 不能递归产生 Echo。
-
-- 初始 `due_at` = anchor 最后活动时间 + `idle_delay_seconds`；落在活跃时段外时顺延至下一个活跃窗口。
-- `expires_at` 默认为 anchor 后 7 天。
-
-## 9. 调度与确定性预检
-
-- Echo service 复用 [`internal/infra/duework`](../../internal/infra/duework/loop.go) 的 coalesced wake、精确 deadline timer 和有界错误退避。
-- 不启用周期 audit、不新增固定 ticker：启动时立即 reconcile，候选写入后主动 `Notify`，之后只按 repository 返回的 `NextDueAt` 唤醒。
-- Echo repository 负责 durable claim、幂等和 fail-closed 恢复。
-
-worker claim 到期 attempt 后，按固定顺序执行不耗模型的检查：
-
-1. 用户级全局 policy 仍有效开启；
-2. Agent、Session 和 anchor 仍存在；
-3. `expires_at` 尚未到达；
-4. 当前位于活跃时段；否则只更新 `due_at`，不调用 gate；
-5. anchor 后没有任何非 Echo 新 round 或可见消息；
-6. Session 和 Agent 没有其他 running round；用户 input 在受理时已主动取消本候选，忙碌时短暂延后；
-7. 同一 Session 未命中 cooldown；
-8. Agent 当日本地时区 delivered 数未达 `daily_limit`；
-9. attempt 仍处于当前 worker 可以推进的状态。
-
-新用户输入和全局关闭 Echo 主动取消对应 attempt；Session 删除或其他 round 改变可见 anchor 时，最终检查保持静默并关闭 attempt。
+- 到点唤醒由 dm service 的主窗口 inbox 定时器承担（[`internal/infra/duework`](../../internal/infra/duework/loop.go)）：启动时退回遗留 delivering 并立即 reconcile，写入未来事件后 `Notify`，之后只按 inbox 最近的 `available_at` 唤醒。
+- 主窗口空闲时，drain 发现队首是 echo 事件即认领并在后台运行 Decide；运行中到点的 echo 等本轮结束后再处理，从不进入安全点注入。
+- Decide 按固定顺序检查：开关仍开启 → 当前在活跃时段内（否则退回 pending 并顺延）→ 读取主窗口历史 → Gate。
 
 ## 10. Gate 合同
 
@@ -222,7 +173,7 @@ Gate 使用当前配置的后台快速模型，不新增 Provider 配置。输�
 - 最多 24,000 个 Unicode 字符；
 - 受控产品规则与敏感场景边界。
 
-上下文按当前 Session 历史读取，不从 attempt 表恢复正文。Gate 不读取附件、其他 Session、Connector 或 workspace。
+上下文按主窗口历史读取。Gate 不读取附件、其他 Session、Connector 或 workspace。
 
 ### 10.2 输出
 
@@ -250,19 +201,18 @@ Gate 只允许严格 JSON：
 ### 10.3 故障语义
 
 - 严格解析失败：以 `invalid_output` 静默结束。
-- 超时、配额不足或模型不可用：以 `gate_unavailable` 失败并保持静默。
+- 超时、配额不足或模型不可用：以 `gate_unavailable` 静默结束并记录日志。
 - 不自动重放失败 Gate。
 
 ## 11. Echo round
 
 ### 11.1 派发
 
-Gate 通过后，service 先持久化稳定 `runtime_round_id`，再调用 DM service；最终消息 ID 在提交闸门中锁定。请求语义：
+Gate 通过且 CAS 成功后，dm service 在主窗口起轮。请求语义：
 
 ```go
 dm.Request{
-    SessionKey:           originalSessionKey,
-    RoundID:              echoRoundID,
+    SessionKey:           mainWindowSessionKey,
     Internal:             true,
     ExecutionOrigin:      "echo",
     InputOptions: sdkprotocol.OutboundMessageOptions{
@@ -272,8 +222,7 @@ dm.Request{
         ToolAccess:      "none",
         MaxOutputTokens: 400,
         Metadata: map[string]string{
-            "echo_attempt_id": attemptID,
-            "echo_anchor_round_id": anchorRoundID,
+            "echo_event_id": eventID,
         },
     },
 }
@@ -288,7 +237,7 @@ dm.Request{
 - Gate 的 `focus` 只是内部方向，不能照抄或当作用户事实。
 - 无法自然增加价值、只能生硬重复问题或已不值得发送时，返回控制标记 `<nexus_echo_no_reply/>`。
 
-最终措辞由原 Agent runtime 生成，保留 persona、模型、上下文和正常 Markdown 能力。
+最终措辞由主智能体 runtime 生成，保留 persona、模型、上下文和正常 Markdown 能力。
 
 ### 11.2 Message-only policy
 
@@ -316,18 +265,14 @@ Echo round：
 
 ### 11.3 延迟发布与最终提交闸门
 
-Echo assistant 输出不能边生成边显示。DM runtime 捕获本 round 的候选 final，直到以下条件在提交闸门中再次成立：
+Echo assistant 输出不能边生成边显示。DM runtime 捕获本 round 的候选 final，直到提交闸门（`DeferredAssistant.Admit`）确认：
 
-- attempt 仍为 `running` 且没有被新输入取消；
-- 用户级全局 policy 仍开启；
-- anchor 后没有新的非 Echo 活动；
-- 当前 Echo round 仍拥有稳定提交身份；
-- 内容非空、不是 no-reply，且通过正常输出安全检查。
+- round 成功结束，内容非空且不是 no-reply；
+- 主窗口 inbox 中没有待处理的用户输入（Echo round 无工具、没有安全点，期间到达的用户输入只会排在它之后）。
 
 - 闸门成功：宿主一次性持久化并广播 assistant message。
-- 闸门失败：丢弃候选输出，attempt 置为 `cancelled` 或 `suppressed`。
-- 该机制是 DM service 的 host-only deferred assistant admission，不能暴露给 HTTP/WS 调用者。
-- 普通用户输入进入 DM 时，先持久取消该 Session 的 active Echo attempt，再按正常 delivery policy 处理；Echo runtime 已启动时以 `echo_superseded_by_user` 中断。用户不会看到半条 Echo stream。
+- 闸门失败：丢弃候选输出与本轮 runtime 消息，静默结束；排队的用户输入随后照常开跑。
+- 该机制是 DM service 的 host-only deferred assistant admission，不能暴露给 HTTP/WS 调用者。用户不会看到半条 Echo stream。
 
 ### 11.4 可见消息
 
@@ -337,14 +282,13 @@ Echo assistant 输出不能边生成边显示。DM runtime 捕获本 round 的�
 {
   "metadata": {
     "source": "echo",
-    "echo_attempt_id": "echo_...",
-    "echo_anchor_round_id": "round_..."
+    "echo_event_id": "inbox_..."
   }
 }
 ```
 
 - 中文界面只显示轻量“主动跟进”标识，英文界面显示 `Echo`。
-- 隐藏 prompt、gate reason、focus 和内部 attempt 状态不进入对话正文。
+- 隐藏 prompt、gate reason、focus 和内部事件状态不进入对话正文。
 
 ### 11.5 Transcript 与后续上下文
 
@@ -353,23 +297,14 @@ Echo assistant 输出不能边生成边显示。DM runtime 捕获本 round 的�
 - DM service 先持久化隐藏 round marker；runtime 再把隐藏 user turn 与生成的 assistant turn 写入原 Session transcript。
 - 成功投递后真实角色顺序为 `... U-A-U_echo-A_echo-U_next-A_next ...`；界面隐藏 `U_echo`，用户看到 `... U-A-A_echo-U_next-A_next ...`。后续 turn 继续携带这组 runtime 历史。
 - DM service 为隐藏输入指定稳定 runtime UUID，并记录该 round 流出的全部消息 UUID。
-- 最终准入成功时保留完整 `U_echo-A_echo`；`suppressed / cancelled / failed` 则在派发下一条输入前通过 runtime control 同时删除隐藏输入及其输出。no-reply、生成后被取消和 assistant 产生前中断都不会进入后续模型上下文。
+- 最终准入成功时保留完整 `U_echo-A_echo`；未准入则在派发下一条输入前通过 runtime control 同时删除隐藏输入及其输出。no-reply、生成后被取消和 assistant 产生前中断都不会进入后续模型上下文。
 - 不能只删除 Nexus overlay marker，也不能依赖相邻角色归一化掩盖语义污染。
 
-## 12. 幂等、恢复与删除
+## 12. 幂等与恢复
 
-### 12.1 进程恢复
-
-- 启动 reconcile 把重启前处于 `evaluating / running / committing` 的尝试标为 `failed`，不自动重放；`scheduled` 的尝试继续由 deadline loop 处理。
-- 可见消息提交前先把 attempt 原子迁移为 `committing`；失败和重启都不会复活该 attempt。
+- 同一 anchor 由 `dedupe_key` 保证最多一条 echo 事件；同一主窗口写入新事件前取消旧事件。
+- 进程启动时 delivering 退回 pending，到点后重新 Decide；Decide 无副作用，重跑安全。已 CAS 为 consumed 的事件不会复活，因此不会重复起 Echo round。
 - 重复可见投递是最高优先级故障，恢复路径保持 fail closed。
-
-### 12.2 资源生命周期
-
-- 关闭全局 Echo：取消当前用户所有非终态 attempt，保留历史；
-- 删除 Session：attempt 保留最小审计字段，到期检查时安全关闭，不复制正文；
-- 删除 Agent：全局 policy 不变，attempt 保留 agent ID 快照并在后续检查时安全关闭；
-- 删除 owner：按 owner 数据生命周期级联删除全部 Echo 数据。
 
 ## 13. HTTP 与协议面
 
@@ -382,18 +317,19 @@ Echo assistant 输出不能边生成边显示。DM runtime 捕获本 round 的�
 - 内部时间策略使用 IANA timezone 和 `HH:mm`，跨午夜窗口有明确测试。
 - v1 不提供“立即运行 Echo”接口（会混淆主动判断与普通消息发送）。
 - 领域与 wire 校验集中在 `internal/echo`；HTTP handler 只做 owner-scoped 适配。
-- Attempt 只服务内部调度、幂等和恢复，不提供用户读取接口。
+- Echo 事件只服务内部调度，不提供用户读取接口，也不进入待发送列表。
 
 ## 14. 前端体验
 
-- 常规设置只提供一个对当前用户所有 Agent 生效的“主动跟进”开关（英文 `Echo`），固定说明：`Agent 会在合适的时候主动跟进值得继续的对话。`
+- 常规设置只提供一个“主动跟进”开关（英文 `Echo`），说明：`Nexus 会在主窗口安静一段时间后，主动跟进值得继续的对话。`
 - 开关即时保存；失败时原位回滚，并在同一行显示 Nexus 风格错误，不改变布局高度。
 - 关闭开关只取消未来跟进资格，不删除已发送的正常消息。
-- 不提供“最近记录”界面；已投递消息就是原 Session 中带“主动跟进”标识的普通 assistant message，用户无需理解 attempt、gate 或调度。
+- 关闭请求无需额外的“停止在途跟进”步骤；结果未知时只需对账开关本身。
+- 不提供“最近记录”界面；已投递消息就是主窗口中带“主动跟进”标识的普通 assistant message，用户无需理解事件、gate 或调度。
 
 ## 15. Room 群主阶段
 
-Room 不进入 v1。后续阶段复用 Signal、Gate、Attempt 和 duework，并增加硬约束：
+Room 不进入 v1。后续阶段复用 Gate、延迟提交与未来事件，并增加硬约束：
 
 1. 只有当前 `RoomRecord.HostAgentID` 可以成为 Echo actor；
 2. Room 必须有独立的 `echo_enabled` 明确开关，不能复用 `HostAutoReplyEnabled`；
@@ -416,7 +352,7 @@ Room 不进入 v1。后续阶段复用 Signal、Gate、Attempt 和 duework，并
 - `focus` 只存数据库，按 owner scope 读取，并受长度限制；
 - Echo metadata 由宿主生成，runtime 同名字段必须清除；
 - 支持外部 IM 前必须重新设计 active pairing、通知权限和 transport 级 opt-in；
-- 审计以 owner-scoped attempt 状态、受控 reason/error code 和服务日志完成；聚合产品指标在出现 dogfood 校准需求后再增加。
+- 审计以 inbox 事件状态与服务日志完成；聚合产品指标在出现 dogfood 校准需求后再增加。
 
 ## 17. 默认值
 
@@ -425,9 +361,6 @@ Room 不进入 v1。后续阶段复用 Signal、Gate、Attempt 和 duework，并
 | 全局 Echo | 关闭 |
 | 安静等待 | 6 小时 |
 | 活跃时段 | 09:00–22:00，policy timezone |
-| 同 Session cooldown | 24 小时 |
-| 全局每日上限 | 2 |
-| anchor 最大年龄 | 7 天 |
 | gate 故障 | fail closed，不自动重放 |
 | runtime 工具 | 全部禁用 |
 | 输出方式 | 最终一次性提交，不流式展示 |
@@ -437,58 +370,48 @@ Room 不进入 v1。后续阶段复用 Signal、Gate、Attempt 和 duework，并
 ## 18. 实现边界
 
 ```text
-internal/echo/                  policy、attempt 与受控枚举
-internal/storage/echo/          policy、attempt、claim 与恢复
-internal/service/echo/          候选、gate、调度、派发与收口
-internal/handler/echo/          owner-scoped HTTP
+internal/echo/                         Settings 与时段策略
+internal/service/echo/                 开关、ScheduleAfter/Decide（实现 dm.EchoPolicy）、Gate 与提示
+internal/service/dm/main_inbox_echo.go 事件写入、取消、到点认领、CAS 起轮与提交闸门
+internal/service/dm/main_inbox_timer.go 主窗口未来事件的到点唤醒
+internal/handler/echo/                 owner-scoped HTTP
 web/src/features/settings/general/sections/settings-general-behavior-section.tsx
 ```
 
 跨 product / bridge / runtime 的窄合同，三层必须同时上线，不能只在 product 中声明“无工具”：
 
-- product：Echo 领域、调度和 DM 提交闸门；
+- product：Echo 判断、主窗口事件与 DM 提交闸门；
 - `nexus-agent-sdk-bridge`：传递明确的消息执行策略；
 - 默认 Go runtime：在工具目录构造前落实无工具和输出预算。
 
-复用而不重写：
+跨模块契约只有两个：
 
-- `internal/infra/duework`：后台 wake 与精确 deadline timer；
-- `internal/service/dm`：同 Session runtime、隐藏内部输入、用户输入路由；
-- `internal/service/session`：Session 解析与历史读取；
-- `internal/service/llm`：后台快速模型调用；
-- 现有认证、owner principal、全局设置布局和协议生成链路。
-
-新增的跨模块契约只有两个：
-
-1. DM terminal observer，把成功终态事实通知 Echo；
-2. host-only deferred assistant admission，在可见提交前执行 Echo 最终闸门。
-
-不新增独立 scheduler 框架、事件总线、第二套 Session、通用主动性 DSL 或可插拔 gate interface。出现第二种真实 Signal 后，再把 `conversation_idle` 的固定分支抽成多 Signal 注册机制。
+1. `dm.EchoPolicy`：`ScheduleAfter` 决定何时安排，`Decide` 决定到点时是否开口；Echo service 不持有状态、不起轮、不写库；
+2. host-only deferred assistant admission，在可见提交前执行最终闸门。
 
 ## 19. 验收标准
 
 ### 19.1 功能
 
-- 开启 Echo 后，符合条件的成功 DM round 只创建一个 candidate；
+- 开启 Echo 后，主窗口每个符合条件的成功用户轮只留一条待定 echo 事件；
 - gate `skip`、no-reply 和异常都不出现空消息或用户气泡；
-- delivered 消息来自原 Agent、原 Session，并显示一个 `Echo` 标识；
+- 投递的消息来自主智能体、主窗口，并显示一个 `Echo` 标识；
 - delivered 消息先自然承接原会话再提供一个具体新价值，不表现为催办、客服回访或突兀追问；
-- 关闭全局 Echo、删除 Session 后不再投递；
-- 活跃时段、cooldown、每日上限和跨午夜窗口行为确定；
+- 关闭全局 Echo 后到点即静默；其他 Agent 的 DM 不产生 Echo；
+- 活跃时段与跨午夜窗口行为确定；
 - Echo 不调用任何工具，也不产生权限请求。
 
 ### 19.2 并发与恢复
 
-- 新用户消息在 gate、runtime 生成和最终提交三个阶段都能取消 Echo；
+- 新用户消息在等待、gate 和最终提交三个阶段都能让 Echo 让路；
 - Echo 生成期间用户输入不会看到半条 stream；
-- 两个 worker 同时 claim 只有一个进入 gate；
-- gate 超时、DM 调用超时、进程重启和消息广播失败均不产生重复可见消息；
-- 重启前在途 attempt 失败关闭且不自动重放。
+- 同一 echo 事件只有一次 CAS 能起轮；
+- gate 超时、进程重启和消息广播失败均不产生重复可见消息。
 
 ### 19.3 安全与隔离
 
-- owner A 无法读取或修改 owner B 的设置和 attempt；
-- runtime 无法覆盖宿主写入的 Echo source 或 attempt metadata；
+- owner A 无法读取或修改 owner B 的设置和事件；
+- runtime 无法覆盖宿主写入的 Echo source 或事件 metadata；
 - gate 输入不包含其他 Session 或 Room 私域内容；
 - 数据库与常规日志没有隐藏 prompt、对话副本和思维链；
 - 外部 IM 和 Room 在 v1 请求中 fail closed。
@@ -505,4 +428,5 @@ web/src/features/settings/general/sections/settings-general-behavior-section.tsx
 | 流式展示 Echo | 用户新输入无法安全抢占，容易出现半条主动消息 |
 | 保存内部 thoughts | 增加隐私负担，且不是 v1 产品价值所必需 |
 | Room 随机选 Agent | 身份不可预测、容易重复发言；只能由当前群主承担 |
-| 用 prompt 约束代替 durable fence | 限频、去重、取消和权限必须由宿主与存储保证 |
+| 用 prompt 约束代替 durable fence | 去重、取消和权限必须由宿主与存储保证 |
+| 独立 attempt 表与调度器 | 与主窗口 inbox 各管一套状态，取消与到点要跨两处对账；改为 inbox 的一种宿主事件 |

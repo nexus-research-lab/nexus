@@ -58,7 +58,7 @@ func (f mainInboxFixture) send(t *testing.T, content string, clientMessageID str
 
 func (f mainInboxFixture) open(t *testing.T) []inboxstore.Event {
 	t.Helper()
-	events, err := f.inbox.ListOpen(context.Background(), f.sessionKey)
+	events, err := f.inbox.ListOpen(context.Background(), f.sessionKey, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("读取 inbox 失败: %v", err)
 	}

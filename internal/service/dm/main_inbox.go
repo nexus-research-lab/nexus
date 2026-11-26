@@ -1,5 +1,5 @@
-// INPUT: 主窗口（主智能体的 WebSocket DM）的用户输入与宿主事件、PostToolUse 安全点与 round 终态。
-// OUTPUT: 先落库再 ACK 的 inbox 事件；空闲时立即起轮（积压合并为一轮），运行中在安全点注入；只有 pending 可撤回。
+// INPUT: 主窗口（主智能体的 WebSocket DM）的用户输入与已到点的宿主事件、PostToolUse 安全点与 round 终态。
+// OUTPUT: 先落库再 ACK 的 inbox 事件；空闲时立即起轮（积压合并为一轮），运行中在安全点注入；只有 pending 可撤回；用户开口即取消 Echo。
 // POS: 主窗口输入的唯一入口；不经过 JSONL 待发送队列、投递策略与 queue admission。
 // 单进程部署：并发正确性全部来自 inbox 行的条件状态迁移，不需要租约或内存登记表。
 package dm
@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
@@ -89,7 +90,7 @@ func (s *Service) acceptMainInbox(ctx context.Context, target mainInboxTarget, i
 	if len(strings.TrimSpace(input.clientMessageID)) > protocol.MaxClientMessageIDBytes {
 		return inboxstore.Event{}, false, errors.New("client_message_id 过长")
 	}
-	eventID := strings.Replace(protocol.NewRoundID(), "round_", "inbox_", 1)
+	eventID := newInboxEventID()
 	event, duplicate, err := s.inbox.Append(ctx, inboxstore.Event{
 		EventID:     eventID,
 		OwnerUserID: target.owner(),
@@ -106,6 +107,7 @@ func (s *Service) acceptMainInbox(ctx context.Context, target mainInboxTarget, i
 	if err != nil {
 		return inboxstore.Event{}, false, err
 	}
+	s.cancelMainWindowEcho(ctx, target)
 	s.broadcastMainInbox(ctx, target)
 	s.wakeMainInbox(target)
 	return event, duplicate, nil
@@ -179,6 +181,13 @@ func (s *Service) drainMainInbox(ctx context.Context, target mainInboxTarget) bo
 	if err != nil || len(batch) == 0 {
 		return false
 	}
+	if batch[0].Kind == inboxstore.KindEcho {
+		// gate 要调模型，交给锁外的后台任务；事件已是 delivering，不会被重复认领。
+		s.StartSessionBackgroundTask(target.sessionKey, target.owner(), func(taskCtx context.Context) {
+			s.runMainWindowEcho(taskCtx, target, roundID, batch[0])
+		})
+		return false
+	}
 	principal := batch[0].Payload.Principal
 	roundCtx := ctx
 	if principal.UserID != "" {
@@ -214,12 +223,18 @@ func roundBatch(pending []inboxstore.Event) []inboxstore.Event {
 }
 
 // guidanceBatch 取第一个斜杠命令之前的全部 pending；命令要等本轮结束后单独执行，不能被插队越过。
+// 只在安静时出现的事件（Echo）留在 inbox，不插进当前轮次。
 func guidanceBatch(pending []inboxstore.Event) []inboxstore.Event {
-	end := 0
-	for end < len(pending) && !isInboxCommand(pending[end]) {
-		end++
+	batch := make([]inboxstore.Event, 0, len(pending))
+	for _, event := range pending {
+		if isInboxCommand(event) {
+			break
+		}
+		if !isQuietOnlyInboxEvent(event) {
+			batch = append(batch, event)
+		}
 	}
-	return pending[:end]
+	return batch
 }
 
 func isInboxCommand(event inboxstore.Event) bool {
@@ -238,7 +253,7 @@ func (s *Service) claimMainInbox(
 	roundID string,
 	pick func([]inboxstore.Event) []inboxstore.Event,
 ) ([]inboxstore.Event, error) {
-	open, err := s.inbox.ListOpen(ctx, target.sessionKey)
+	open, err := s.inbox.ListOpen(ctx, target.sessionKey, time.Now().UTC())
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +424,7 @@ func (s *Service) withdrawMainInbox(ctx context.Context, target mainInboxTarget,
 
 // broadcastMainInbox 复用 input_queue 快照事件投影 pending 消息，前端以只读+撤回方式展示。
 func (s *Service) broadcastMainInbox(ctx context.Context, target mainInboxTarget) {
-	open, err := s.inbox.ListOpen(ctx, target.sessionKey)
+	open, err := s.inbox.ListOpen(ctx, target.sessionKey, time.Now().UTC())
 	if err != nil {
 		s.LoggerFor(ctx).Warn("读取主窗口 inbox 快照失败", "session_key", target.sessionKey, "err", err)
 		return
@@ -437,30 +452,6 @@ func (s *Service) broadcastMainInbox(ctx context.Context, target mainInboxTarget
 		})
 	}
 	s.broadcastInputQueueSnapshot(ctx, target.sessionKey, items)
-}
-
-// RecoverMainInboxes 在启动时把上一进程遗留的 delivering 退回 pending，并唤醒仍有积压的主窗口。
-func (s *Service) RecoverMainInboxes(ctx context.Context) error {
-	if err := s.inbox.ReleaseDelivering(ctx, "", ""); err != nil {
-		return err
-	}
-	inboxes, err := s.inbox.ListPendingInboxes(ctx)
-	if err != nil {
-		return err
-	}
-	var errs []error
-	for _, item := range inboxes {
-		ownerCtx := runtimehost.ContextWithExactOwner(ctx, item.OwnerUserID)
-		target, ok, resolveErr := s.resolveMainInboxTarget(ownerCtx, item.InboxKey, "")
-		if resolveErr != nil {
-			errs = append(errs, resolveErr)
-			continue
-		}
-		if ok {
-			s.wakeMainInbox(target)
-		}
-	}
-	return errors.Join(errs...)
 }
 
 func pendingEvents(events []inboxstore.Event) []inboxstore.Event {

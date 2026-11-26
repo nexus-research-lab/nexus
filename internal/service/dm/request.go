@@ -93,7 +93,6 @@ func (s *Service) handleChat(
 			return err
 		}
 	}
-	execution.cancelEchoForUserActivity()
 	if handled, routeErr := execution.routeRunningInput(); handled || routeErr != nil {
 		return routeErr
 	}

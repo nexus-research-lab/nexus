@@ -1,6 +1,6 @@
 /**
  * INPUT: owner-scoped Echo PUT/对账 GET、Preferences 权威快照与领域 failure effect。
- * OUTPUT: CAS 保存、结果未知对账、关闭后收口修复和单一安全恢复动作。
+ * OUTPUT: CAS 保存、结果未知对账和单一安全恢复动作；关闭只改开关，已安排的 Echo 到点即静默，无需前端收口。
  * POS: 主动跟进设置的唯一前端事务边界；未知写入不自动重放且不被其他资源刷新解锁。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -24,7 +24,7 @@ import type {
 } from "./model/echo-settings-reliability-model";
 import { validEchoSettings } from "./model/echo-settings-reliability-model";
 
-type RecoveryPurpose = "finish-disabling" | "normal" | "reapply";
+type RecoveryPurpose = "normal" | "reapply";
 
 export function useEchoSettings({
   aggregate,
@@ -41,10 +41,8 @@ export function useEchoSettings({
   const [enabled, setEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [repairing, setRepairing] = useState(false);
   const [writable, setWritable] = useState(false);
   const [comparisonReady, setComparisonReady] = useState(false);
-  const [cleanupRepairReady, setCleanupRepairReady] = useState(false);
   const [checkReady, setCheckReady] = useState(false);
   const [feedback, setFeedback] = useState<EchoSettingsFeedback | null>(null);
   const authoritativeRef = useRef<EchoSettings | null>(null);
@@ -74,10 +72,8 @@ export function useEchoSettings({
       setEnabled(false);
       setSaving(false);
       setChecking(false);
-      setRepairing(false);
       setWritable(false);
       setComparisonReady(false);
-      setCleanupRepairReady(false);
       setCheckReady(false);
       setFeedback(null);
       return;
@@ -106,15 +102,12 @@ export function useEchoSettings({
     }
     const ownerGeneration = captureAuthOwnerScopeGeneration();
     const requestId = saveRequestRef.current + 1;
-    const previousPending = pendingRef.current;
     saveRequestRef.current = requestId;
     savingRef.current = true;
     setEnabled(desired);
     setSaving(true);
-    setRepairing(purpose === "finish-disabling");
     setWritable(false);
     setComparisonReady(false);
-    setCleanupRepairReady(false);
     setCheckReady(false);
     setFeedback(null);
     try {
@@ -149,25 +142,16 @@ export function useEchoSettings({
         || failure.code === "echo.version_conflict"
         || purpose !== "normal";
       if (needsReconciliation) {
-        pendingRef.current = {
-          base,
-          desired,
-          latest: null,
-          cleanupRepairRequired:
-            failure.code === "echo.cleanup_incomplete"
-            || previousPending?.cleanupRepairRequired === true,
-        };
+        pendingRef.current = { base, desired, latest: null };
         setEnabled(desired);
         setWritable(false);
-        setFeedback(failure.code === "echo.cleanup_incomplete"
-          ? echoCleanupIncomplete(t)
-          : failure.code === "echo.version_conflict"
-            ? echoConflict(t)
-            : failure.effect === "committed"
-              ? echoCommittedNeedsCheck(t)
-              : failure.effect === "not_applied"
-                ? echoRecoveryNotApplied(t)
-                : echoUnknown(t));
+        setFeedback(failure.code === "echo.version_conflict"
+          ? echoConflict(t)
+          : failure.effect === "committed"
+            ? echoCommittedNeedsCheck(t)
+            : failure.effect === "not_applied"
+              ? echoRecoveryNotApplied(t)
+              : echoUnknown(t));
         setCheckReady(true);
       } else {
         pendingRef.current = null;
@@ -182,7 +166,6 @@ export function useEchoSettings({
         savingRef.current = false;
         if (isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
           setSaving(false);
-          setRepairing(false);
         }
       }
     }
@@ -199,7 +182,6 @@ export function useEchoSettings({
     setChecking(true);
     setWritable(false);
     setComparisonReady(false);
-    setCleanupRepairReady(false);
     setCheckReady(false);
     void getEchoApi()
       .then((settings) => {
@@ -224,31 +206,6 @@ export function useEchoSettings({
           return;
         }
         pending.latest = settings;
-        if (pending.cleanupRepairRequired) {
-          if (!settings.enabled) {
-            setEnabled(false);
-            setCleanupRepairReady(true);
-            setCheckReady(false);
-            setFeedback(echoCleanupRepairRequired(t));
-            return;
-          }
-          publishAuthoritative(settings);
-          pendingRef.current = null;
-          setWritable(true);
-          setCheckReady(false);
-          setFeedback(echoCleanupSuperseded(t));
-          return;
-        }
-        // A lost response cannot prove that the post-save cancellation stage ran.
-        // Repeating only the idempotent disable cleanup is safer than declaring
-        // the whole flow complete or replaying an unrelated user action.
-        if (!pending.desired && !settings.enabled) {
-          setEnabled(false);
-          setCleanupRepairReady(true);
-          setCheckReady(false);
-          setFeedback(echoCleanupRepairRequired(t));
-          return;
-        }
         if (settings.enabled === pending.desired) {
           publishAuthoritative(settings);
           pendingRef.current = null;
@@ -291,14 +248,6 @@ export function useEchoSettings({
     void submitAtVersion(pending.desired, pending.latest, "reapply");
   }, [submitAtVersion]);
 
-  const finishDisabling = useCallback(() => {
-    const pending = pendingRef.current;
-    if (!pending?.latest || pending.latest.enabled) {
-      return;
-    }
-    void submitAtVersion(false, pending.latest, "finish-disabling");
-  }, [submitAtVersion]);
-
   const handleEnabledChange = useCallback((desired: boolean) => {
     const base = authoritativeRef.current;
     if (blocked || !writable || !base || desired === enabled) {
@@ -314,12 +263,9 @@ export function useEchoSettings({
   const recovery: EchoSettingsRecoveryControls = {
     canCheckLatest: checkReady,
     canCompare: comparisonReady,
-    canFinishDisabling: cleanupRepairReady,
     checking,
     checkLatest,
-    finishDisabling,
     reapplyChange,
-    repairing,
   };
 
   return {
@@ -337,10 +283,6 @@ export function useEchoSettings({
 type Translate = ReturnType<typeof useI18n>["t"];
 type EchoFeedbackPrefix =
   | "echo_check_failure_pending"
-  | "echo_cleanup_completed"
-  | "echo_cleanup_incomplete"
-  | "echo_cleanup_repair"
-  | "echo_cleanup_superseded"
   | "echo_committed"
   | "echo_committed_needs_check"
   | "echo_conflict"
@@ -376,12 +318,6 @@ const echoUnknown = (t: Translate) =>
   feedback("echo_unknown", t, "warning");
 const echoNotApplied = (t: Translate) =>
   feedback("echo_not_applied", t, "error");
-const echoCleanupIncomplete = (t: Translate) =>
-  feedback("echo_cleanup_incomplete", t, "warning");
-const echoCleanupRepairRequired = (t: Translate) =>
-  feedback("echo_cleanup_repair", t, "warning");
-const echoCleanupSuperseded = (t: Translate) =>
-  feedback("echo_cleanup_superseded", t, "success");
 const echoCommitted = (t: Translate) =>
   feedback("echo_committed", t, "success");
 const echoCommittedNeedsCheck = (t: Translate) =>
@@ -397,12 +333,5 @@ function successFeedback(
   purpose: RecoveryPurpose,
   t: Translate,
 ): EchoSettingsFeedback | null {
-  switch (purpose) {
-    case "finish-disabling":
-      return feedback("echo_cleanup_completed", t, "success");
-    case "reapply":
-      return feedback("echo_reapplied", t, "success");
-    default:
-      return null;
-  }
+  return purpose === "reapply" ? feedback("echo_reapplied", t, "success") : null;
 }
