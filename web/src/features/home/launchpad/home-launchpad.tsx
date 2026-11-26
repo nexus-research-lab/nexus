@@ -42,7 +42,7 @@ import {
   type HomeLaunchController,
 } from "./use-home-launch-controller";
 
-// 首页只把正文带进主智能体对话；Slash、附件、队列与 Goal 留给进入对话后的完整 Composer。
+// 首页把正文与附件带进主智能体对话；Slash、队列与 Goal 依赖会话实时通道，留给进入对话后的完整 Composer。
 const EMPTY_COMMAND_CATALOG: CommandCatalogData = { commands: [], status: "unavailable" };
 const EMPTY_INPUT_QUEUE: InputQueueItem[] = [];
 
@@ -133,14 +133,14 @@ function HomeLaunchComposer({
           onDeleteQueuedMessage={ignoreQueuedMessage}
           onEnqueueMessage={controller.sendToMainAgent}
           onGuideQueuedMessage={ignoreQueuedMessage}
-          onPrepareAttachments={prepareNoAttachments}
+          onPrepareAttachments={controller.prepareAttachments}
           onReorderQueueMessages={ignoreQueueOrder}
           onSendMessage={controller.sendToMainAgent}
           queueWhenSessionBusy={false}
           roomMembers={[]}
           runtimeKind={getDefaultAgentRuntimeKind()}
           runtimePhase={controller.isSubmitting ? "sending" : null}
-          showActionMenu={false}
+          sessionSettings={controller.sessionSettings}
           tourAnchor=""
         />
       </div>
@@ -342,7 +342,3 @@ function formatUpcomingTime(timestamp: number | null, locale: string): string {
 async function ignoreQueuedMessage(): Promise<void> {}
 
 async function ignoreQueueOrder(_orderedIds: string[]): Promise<void> {}
-
-async function prepareNoAttachments(): Promise<[]> {
-  return [];
-}

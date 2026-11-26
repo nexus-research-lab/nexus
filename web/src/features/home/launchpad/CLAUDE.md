@@ -4,7 +4,7 @@
 
 - `home-launch-model.ts`：纯投影。时段划分、继续区排序（等你回复 > 进行中 > 最近活动，排除主智能体）、接下来的定时任务、新手示例与示例显隐阈值。
 - `use-home-launch-controller.ts`：读取 Home 共享目录、Room 活动快照和定时任务目录；提交时通过 Direct Room 的 `initial` 草稿协议进入主智能体 DM，由该 Composer 投递到 inbox，首页不自行发送消息。
-- `home-launchpad.tsx`：直接复用共享 `ComposerPanel`（关闭附件、Slash 与队列，草稿作用域 `home:main-agent`），以及快捷入口、继续区、接下来与示例卡视图。
+- `home-launchpad.tsx`：直接复用共享 `ComposerPanel`（草稿作用域 `home:main-agent`），以及快捷入口、继续区、接下来与示例卡视图。Footer 的权限、模型与连接器绑定主智能体已有 Session；附件上传到主智能体工作区后经 `composer-initial-attachments.ts` 随 initial 草稿交接；Slash、队列与 Goal 依赖会话实时通道，首页不提供。
 
 ## 约定
 

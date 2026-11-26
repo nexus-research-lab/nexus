@@ -148,6 +148,7 @@ export const enNavigationMessages = {
   "home.launch.greeting_afternoon": "Good afternoon",
   "home.launch.greeting_evening": "Good evening",
   "home.launch.greeting_night": "Working late",
+  "home.launch.attachments_only": "Take a look at these attachments.",
   "home.launch.placeholder": "Ask Nexus: describe what you want done, Enter to send",
   "home.launch.submit_failed": "Could not open the main agent chat. Try again later.",
   "home.launch.action_scheduled": "Scheduled tasks",
