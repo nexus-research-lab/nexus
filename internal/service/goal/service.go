@@ -391,8 +391,7 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 	if err != nil {
 		return nil, err
 	}
-	item, err = s.authorizeGoalMutation(ctx, item, request.OwnerUserID)
-	if err != nil {
+	if _, err = s.authorizeGoalMutation(ctx, item, request.OwnerUserID); err != nil {
 		return nil, err
 	}
 	if err = s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {
@@ -603,8 +602,7 @@ func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, err
 	if err != nil {
 		return nil, err
 	}
-	item, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx))
-	if err != nil {
+	if _, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx)); err != nil {
 		return nil, err
 	}
 	paused, err := s.changeStatus(ctx, goalID, protocol.GoalStatusPaused, protocol.GoalUpdateSourceUser, "paused", "", nil)
@@ -623,8 +621,7 @@ func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, er
 	if err != nil {
 		return nil, err
 	}
-	item, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx))
-	if err != nil {
+	if _, err = s.authorizeGoalMutation(ctx, item, authctx.OwnerUserID(ctx)); err != nil {
 		return nil, err
 	}
 	if err = s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {

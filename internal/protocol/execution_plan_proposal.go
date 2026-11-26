@@ -168,20 +168,6 @@ func MarshalExecutionPlanProposalDocument(
 	return json.Marshal(document)
 }
 
-// DigestExecutionPlanProposalDocument returns the document-only v1 SHA-256 identity.
-// Persistence and materialization receipts must use DigestExecutionPlanProposalImmutable instead:
-// a document digest alone does not bind the proposal to its authority or target fence.
-func DigestExecutionPlanProposalDocument(
-	document ExecutionPlanProposalDocument,
-) (string, error) {
-	encoded, err := MarshalExecutionPlanProposalDocument(document)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256(encoded)
-	return hex.EncodeToString(digest[:]), nil
-}
-
 // ExecutionPlanProposalDigestEnvelope is the canonical immutable authority, round
 // provenance and target fence covered by ContentDigest. Mutable lifecycle, receipt and
 // timestamp fields deliberately do not participate in the digest.

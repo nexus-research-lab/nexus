@@ -180,16 +180,6 @@ func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
 	}
 }
 
-// ResolveWorkspaceAttachmentPath 将 workspace 相对路径约束到指定 workspace 内并返回绝对路径。
-func ResolveWorkspaceAttachmentPath(workspacePath string, relativePath string) (string, error) {
-	resolved, err := openWorkspaceAttachment(workspacePath, relativePath)
-	if err != nil {
-		return "", err
-	}
-	_ = resolved.File.Close()
-	return resolved.AbsolutePath, nil
-}
-
 func openWorkspaceAttachment(workspacePath string, relativePath string) (ResolvedAttachment, error) {
 	root := filepath.Clean(strings.TrimSpace(workspacePath))
 	if root == "" {

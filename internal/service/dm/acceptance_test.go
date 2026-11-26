@@ -31,7 +31,6 @@ func (a *blockingDMAcceptanceActivity) MarkConversationStarted(
 
 func TestDetachedAcceptanceUsesRoundContextAfterDurableMarker(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	client := newFakeDMClient()
 	client.onQuery = func(_ context.Context, _ string) {
@@ -97,7 +96,6 @@ func TestDetachedAcceptanceUsesRoundContextAfterDurableMarker(t *testing.T) {
 
 func TestDetachedAcceptanceProjectsRuntimeStartupFailure(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	startupErr := errors.New("runtime startup failed after acceptance")
 	client := newFakeDMClient()
@@ -139,7 +137,6 @@ func TestDetachedAcceptanceProjectsRuntimeStartupFailure(t *testing.T) {
 
 func TestDetachedAcceptanceRejectsOversizedClientMessageID(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	service := NewService(
 		cfg,
 		newDMAgentService(t, cfg),

@@ -101,29 +101,13 @@ items:
 	if !reflect.DeepEqual(leftDocument, rightDocument) {
 		t.Fatalf("equivalent YAML produced different typed documents:\nleft  = %#v\nright = %#v", leftDocument, rightDocument)
 	}
-	leftDigest, err := protocol.DigestExecutionPlanProposalDocument(leftDocument)
-	if err != nil {
-		t.Fatalf("digest left: %v", err)
-	}
-	rightDigest, err := protocol.DigestExecutionPlanProposalDocument(rightDocument)
-	if err != nil {
-		t.Fatalf("digest right: %v", err)
-	}
-	if leftDigest != rightDigest {
-		t.Fatalf("equivalent YAML digests differ: %q != %q", leftDigest, rightDigest)
-	}
-
 	changed := strings.Replace(right, "subject: Final", "subject: Final report", 1)
 	changedDocument, _, err := ParseExecutionPlanDocument(changed)
 	if err != nil {
 		t.Fatalf("parse changed: %v", err)
 	}
-	changedDigest, err := protocol.DigestExecutionPlanProposalDocument(changedDocument)
-	if err != nil {
-		t.Fatalf("digest changed: %v", err)
-	}
-	if changedDigest == leftDigest {
-		t.Fatal("semantic change did not change the typed document digest")
+	if reflect.DeepEqual(changedDocument, leftDocument) {
+		t.Fatal("semantic change did not change the typed document")
 	}
 }
 

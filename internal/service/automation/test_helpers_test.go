@@ -715,11 +715,6 @@ func intRef(value int) *int {
 	return &result
 }
 
-func stringRef(value string) *string {
-	result := value
-	return &result
-}
-
 func permissionDecisionInputForRequest(
 	request automationdomain.AutomationPermissionRequest,
 	decision string,

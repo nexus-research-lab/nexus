@@ -231,14 +231,6 @@ type workspaceInitializer struct {
 	rootFS  *confinedfs.Root
 }
 
-type mainWorkspaceFileInitializer func(*workspaceInitializer, string) error
-
-var mainWorkspaceFileInitializers = map[string]mainWorkspaceFileInitializer{
-	"agents": (*workspaceInitializer).ensureMainAgentsFile,
-	"soul":   (*workspaceInitializer).removeGeneratedMainFile,
-	"tools":  (*workspaceInitializer).removeGeneratedMainFile,
-}
-
 func (i *workspaceInitializer) run() error {
 	if i.rootFS == nil {
 		if err := i.ensureDirectories(); err != nil {
@@ -304,10 +296,7 @@ func (i *workspaceInitializer) ensureDirectoriesAt() error {
 }
 
 func (i *workspaceInitializer) ensureRuntimeTools() error {
-	if err := ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), i.context); err != nil {
-		return err
-	}
-	return removeWorkspaceBinShim(i.rootFS)
+	return ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), i.context)
 }
 
 func (i *workspaceInitializer) ensureTemplateFiles() error {
@@ -319,30 +308,10 @@ func (i *workspaceInitializer) ensureTemplateFiles() error {
 	return nil
 }
 
+// ensureTemplateFile 只补缺失文件；主智能体模板集合只含 USER.md，其余文件由用户自管。
 func (i *workspaceInitializer) ensureTemplateFile(key string, relativePath string) error {
-	if i.isMain {
-		if initializer := mainWorkspaceFileInitializers[key]; initializer != nil {
-			return initializer(i, relativePath)
-		}
-	}
 	content := renderTemplate(workspaceTemplate(key, i.isMain), i.context)
-	return ensureWorkspaceTemplateFile(i.rootFS, relativePath, key, content)
-}
-
-func (i *workspaceInitializer) ensureMainAgentsFile(relativePath string) error {
-	if err := removeGeneratedMainAgentsPrompt(i.rootFS, relativePath); err != nil {
-		return err
-	}
-	if _, err := i.rootFS.Lstat(relativePath); err == nil {
-		return repairAgentsScheduleGuidance(i.rootFS, relativePath)
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
-}
-
-func (i *workspaceInitializer) removeGeneratedMainFile(relativePath string) error {
-	return removeGeneratedMainWorkspaceFile(i.rootFS, relativePath)
+	return ensureWorkspaceTemplateFile(i.rootFS, relativePath, content)
 }
 
 func (i *workspaceInitializer) ensureSkills() error {

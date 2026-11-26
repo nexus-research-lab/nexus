@@ -256,16 +256,6 @@ func nextActiveTime(candidate time.Time, policy echodomain.Policy) (time.Time, e
 	return next.UTC(), nil
 }
 
-func localDayBounds(now time.Time, timezone string) (time.Time, time.Time, error) {
-	location, err := time.LoadLocation(timezone)
-	if err != nil {
-		return time.Time{}, time.Time{}, err
-	}
-	local := now.In(location)
-	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
-	return start.UTC(), start.AddDate(0, 0, 1).UTC(), nil
-}
-
 func messageString(message map[string]any, key string) string {
 	value, _ := message[key].(string)
 	return strings.TrimSpace(value)

@@ -20,7 +20,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 func TestDMRuntimeDiagnosticsLogsStderrWhenEnabled(t *testing.T) {
@@ -43,7 +42,6 @@ func TestDMRuntimeDiagnosticsLogsStderrWhenEnabled(t *testing.T) {
 
 func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	created, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{
@@ -133,7 +131,6 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	cfg.RuntimeIsolationMode = "audit"
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
@@ -224,26 +221,13 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 
 func TestServiceHandleChatDoesNotPersistSDKSessionIDWithoutTranscript(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()
 	client.sessionID = "11111111-2222-4222-8222-111111111111"
 	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-without-transcript",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
+		client.sendResultAsync(client.sessionID, "result-without-transcript", "success", "ok")
 	}
 
 	factory := &fakeDMFactory{client: client}
@@ -279,7 +263,6 @@ func TestServiceHandleChatDoesNotPersistSDKSessionIDWithoutTranscript(t *testing
 
 func TestServiceHandleChatPersistsSDKSessionIDInAuthenticatedOwnerRuntime(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	ownerUserID := "user_runtime_owner"
 	ownerContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{
@@ -298,19 +281,7 @@ func TestServiceHandleChatPersistsSDKSessionIDInAuthenticatedOwnerRuntime(t *tes
 	client := newFakeDMClient()
 	client.sessionID = "33333333-4444-4555-8666-777777777777"
 	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-owner-runtime",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
+		client.sendResultAsync(client.sessionID, "result-owner-runtime", "success", "ok")
 	}
 
 	factory := &fakeDMFactory{client: client}

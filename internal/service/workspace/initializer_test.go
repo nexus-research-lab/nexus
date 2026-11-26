@@ -238,46 +238,6 @@ func TestListDeployedSkillsRejectsSymlinkedSkillFile(t *testing.T) {
 	}
 }
 
-func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
-	useTemporaryWorkspaceStateRoot(t)
-	cases := []struct {
-		name        string
-		isMainAgent bool
-		heading     string
-	}{
-		{name: "default agent", heading: "## 定时任务"},
-		{name: "main agent", isMainAgent: true, heading: "## 定时任务路由"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			root := t.TempDir()
-			stale := "# AGENTS.md\n\n## Agent Profile\n\n用户自定义内容\n\n" + tc.heading + "\n\n" +
-				"- **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**\n" +
-				"  仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。\n\n" +
-				"## Custom\n\n保留我\n"
-			if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(stale), 0o644); err != nil {
-				t.Fatalf("写入旧 AGENTS.md 失败: %v", err)
-			}
-
-			err := EnsureInitialized("agent-1", "测试助手", root, tc.isMainAgent, time.Now())
-			if err != nil {
-				t.Fatalf("初始化 workspace 失败: %v", err)
-			}
-
-			repaired, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
-			if err != nil {
-				t.Fatalf("读取修复后 AGENTS.md 失败: %v", err)
-			}
-			got := string(repaired)
-			assertNoStaleScheduleWakeupGuidance(t, got)
-			if !strings.Contains(got, "用户自定义内容") || !strings.Contains(got, "## Custom\n\n保留我") {
-				t.Fatalf("修复不应覆盖用户自定义内容: %s", got)
-			}
-		})
-	}
-}
-
 func useTemporaryWorkspaceStateRoot(t *testing.T) {
 	t.Helper()
 	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(t.TempDir(), ".nexus"))
@@ -336,18 +296,6 @@ func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testin
 	}
 	if _, err = os.Stat(claudeSkillDir); !os.IsNotExist(err) {
 		t.Fatalf("卸载后 Claude Skill 镜像应被删除: %v", err)
-	}
-}
-
-func assertNoStaleScheduleWakeupGuidance(t *testing.T, content string) {
-	t.Helper()
-	for _, stale := range []string{
-		"ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒",
-		"仅在**全部**满足时使用",
-	} {
-		if strings.Contains(content, stale) {
-			t.Fatalf("AGENTS.md 仍包含旧 ScheduleWakeup 规则 %q: %s", stale, content)
-		}
 	}
 }
 

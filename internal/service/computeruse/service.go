@@ -111,12 +111,6 @@ func NewService(cfg config.Config) *Service {
 	}
 }
 
-// NewServiceWithSupervisor is used by tests and by hosts that already own a
-// verified sidecar lifecycle.
-func NewServiceWithSupervisor(enabled bool, supervisor Supervisor) *Service {
-	return &Service{enabled: enabled, supervisor: supervisor, rounds: make(map[string]*Round)}
-}
-
 // SetLogger supplies the host logger used for bounded sidecar lifecycle
 // diagnostics. Raw sidecar output is never emitted.
 func (s *Service) SetLogger(logger *slog.Logger) {
@@ -1419,10 +1413,6 @@ func (s *sidecarOutputStats) snapshot() (int64, int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.bytes, s.lines
-}
-
-func NewProcessSupervisor(cfg config.Config) *ProcessSupervisor {
-	return NewProcessSupervisorWithBinaryPath(cfg, cfg.ComputerUseBinaryPath)
 }
 
 // cuaStateRoot anchors every local Computer Use artifact beside the SQLite

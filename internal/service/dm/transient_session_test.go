@@ -12,7 +12,6 @@ import (
 
 func TestCreateTransientSessionIsHiddenAndDoesNotForkTranscript(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agents := newDMAgentService(t, cfg)
 	if err := agents.EnsureReady(context.Background()); err != nil {
 		t.Fatalf("初始化 Agent 失败: %v", err)
@@ -68,7 +67,6 @@ func TestCreateTransientSessionIsHiddenAndDoesNotForkTranscript(t *testing.T) {
 
 func TestCreateTransientWorkGraphEditorSessionUsesHiddenWebSocketDMWithoutFork(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agents := newDMAgentService(t, cfg)
 	if err := agents.EnsureReady(context.Background()); err != nil {
 		t.Fatal(err)

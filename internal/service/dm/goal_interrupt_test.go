@@ -24,7 +24,6 @@ func TestServiceUserStopOnGoalContinuationRecordsUserStop(t *testing.T) {
 	for _, mode := range []string{"exact", "session", "silent-provider", "host-control"} {
 		t.Run(mode, func(t *testing.T) {
 			cfg := newDMTestConfig(t)
-			migrateDMSQLite(t, cfg.DatabaseURL)
 			agentService := newDMAgentService(t, cfg)
 			client := newFakeDMClient()
 			queryStarted := make(chan struct{}, 1)

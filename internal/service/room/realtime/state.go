@@ -73,10 +73,9 @@ func (s *activeRoomSlot) ensureSDKSessionIdentityState() *runtimectx.SDKSessionI
 type roomGoalAuthoritySource string
 
 const (
-	roomGoalAuthorityExplicitRound      roomGoalAuthoritySource = "explicit_round"
-	roomGoalAuthorityExecutionBinding   roomGoalAuthoritySource = "execution_binding"
-	roomGoalAuthorityModelCreate        roomGoalAuthoritySource = "model_create"
-	roomGoalAuthorityExternalActivation roomGoalAuthoritySource = "external_activation"
+	roomGoalAuthorityExplicitRound    roomGoalAuthoritySource = "explicit_round"
+	roomGoalAuthorityExecutionBinding roomGoalAuthoritySource = "execution_binding"
+	roomGoalAuthorityModelCreate      roomGoalAuthoritySource = "model_create"
 )
 
 // roomGoalMutationAuthority is a fixed per-round capability. Goal steering may

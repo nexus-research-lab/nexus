@@ -159,16 +159,6 @@ func EnsureUserRuntimeLayoutAt(stateRoot string, ownerUserID string) error {
 	return nil
 }
 
-// ConfigDir 返回当前进程使用的 runtime config 根。
-//
-// server 进程保留旧的 NEXUS_CONFIG_DIR 语义；宿主自己的配置必须使用 AppDir。
-func ConfigDir() string {
-	if value := strings.TrimSpace(os.Getenv(nexusConfigDirEnvName)); value != "" {
-		return filepath.Clean(expandHome(value))
-	}
-	return StateRoot()
-}
-
 func resolveDefaultConfigDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {

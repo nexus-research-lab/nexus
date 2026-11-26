@@ -129,11 +129,10 @@ func (s *Service) HandleInputQueue(
 		if !protocol.HasChatInput(content, attachments) {
 			return protocol.InputQueueMutationResult{}, errors.New("content is required")
 		}
+		// 跨重试和即时派发后的持久幂等都锚定在客户端提供的 client_message_id 上。
 		clientMessageID := request.ClientMessageID
 		if clientMessageID == "" {
-			// 兼容尚未发送 ACK 关联字段的旧客户端；只有新客户端提供并复用
-			// 稳定 ID 时，才能获得跨重试和即时派发后的持久幂等。
-			clientMessageID = "legacy_" + workspacestore.NewInputQueueID()
+			return protocol.InputQueueMutationResult{}, errors.New("client_message_id is required")
 		}
 		acceptedEntry, accepted, err := s.findAcceptedRoomInputQueueEnqueue(
 			ctx,

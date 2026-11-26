@@ -28,7 +28,6 @@ type mainInboxFixture struct {
 func newMainInboxFixture(t *testing.T, sessionRef string) mainInboxFixture {
 	t.Helper()
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	client := newFakeDMClient()
 	client.hookResponseAck = true
 	factory := &fakeDMFactory{client: client}

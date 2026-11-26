@@ -3,6 +3,7 @@ package workspace
 
 import (
 	"context"
+	"os"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -32,13 +33,18 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	roundMarkers []transcriptRoundMarker,
 	throughMessageID string,
 ) ([]protocol.Message, error) {
-	return s.readTranscriptMessagesContext(
-		context.Background(),
-		workspacePath,
-		sessionKey,
-		agentID,
-		sessionID,
-		roundMarkers,
-		throughMessageID,
+	rows, _, err := s.readTranscriptReplayContext(
+		context.Background(), workspacePath, sessionKey, agentID, sessionID, roundMarkers, throughMessageID, false,
 	)
+	return rows, err
+}
+
+func (s *AgentHistoryStore) readTranscriptCache(path string, source historyPageSourceSnapshot) ([]transcriptEntry, bool) {
+	entries, _, ok := s.readTranscriptCacheLineage(path, source)
+	return cloneTranscriptEntries(entries), ok
+}
+
+func readTranscriptEntriesFileContext(ctx context.Context, file *os.File) ([]transcriptEntry, error) {
+	entries, _, err := readTranscriptEntriesReaderContext(ctx, file, 0)
+	return entries, err
 }

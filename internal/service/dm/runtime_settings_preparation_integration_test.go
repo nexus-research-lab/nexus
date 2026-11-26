@@ -18,7 +18,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 func TestPreparedRoomForkRejectsSupersededConnectorSelection(t *testing.T) {
@@ -104,7 +103,6 @@ func TestPreparedRoomForkRejectsSupersededConnectorSelection(t *testing.T) {
 
 func TestPrepareConnectorRuntimeMaterializesNXSForkBeforeUserQuery(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
 	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
@@ -122,19 +120,7 @@ func TestPrepareConnectorRuntimeMaterializesNXSForkBeforeUserQuery(t *testing.T)
 	client := newFakeDMClient()
 	client.sessionID = newSessionID
 	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: newSessionID,
-				UUID:      "result-eager-connector-tool-surface-fork",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
+		client.sendResultAsync(newSessionID, "result-eager-connector-tool-surface-fork", "success", "ok")
 	}
 	factory := &fakeDMFactory{client: client}
 	permission := permissionctx.NewContext()

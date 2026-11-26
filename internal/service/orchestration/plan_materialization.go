@@ -779,7 +779,7 @@ func (s *Service) blockPlanProposal(
 	} else if cause != nil {
 		message = cause.Error()
 	}
-	updated, err := s.planProposals.MarkPlanProposalBlocked(
+	_, err := s.planProposals.MarkPlanProposalBlocked(
 		ctx,
 		orchestrationstore.MarkPlanProposalBlockedCommand{
 			Access:          proposalAccess(actor, proposal.ID),
@@ -788,7 +788,7 @@ func (s *Service) blockPlanProposal(
 		},
 	)
 	if errors.Is(err, orchestrationstore.ErrVersionConflict) {
-		updated, err = s.reloadPlanProposal(ctx, actor, proposal.ID)
+		updated, err := s.reloadPlanProposal(ctx, actor, proposal.ID)
 		if err != nil {
 			return MutationResult{}, err
 		}

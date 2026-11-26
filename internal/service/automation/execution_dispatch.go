@@ -59,13 +59,6 @@ func automationRunContext(
 	return &binding
 }
 
-func (s *Service) dispatchToSession(ctx context.Context, sessionKey string, roundID string, agentID string, instruction string) error {
-	return s.dispatchJobToSession(ctx, automationdomain.ScheduledTask{
-		AgentID:     agentID,
-		Instruction: instruction,
-	}, "", sessionKey, roundID, nil, nil)
-}
-
 func (s *Service) dispatchJobToSession(
 	ctx context.Context,
 	job automationdomain.ScheduledTask,

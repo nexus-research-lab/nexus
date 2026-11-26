@@ -42,7 +42,6 @@ func (s forkRoomSessionStore) UpdateRoomSessionRuntimeIdentity(context.Context, 
 
 func TestConversationForkPreparesAndMaterializesIndependentHistory(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agentService := newDMAgentService(t, cfg)
 	if err := agentService.EnsureReady(context.Background()); err != nil {
 		t.Fatalf("初始化 Agent 失败: %v", err)
@@ -230,7 +229,6 @@ func forkHistoryHasRound(rows []protocol.Message, roundID string) bool {
 
 func TestEnsureClientForConversationForkUsesSourceBoundary(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
 	createDMProviderWithModel(t, providerService, providercfg.CreateInput{

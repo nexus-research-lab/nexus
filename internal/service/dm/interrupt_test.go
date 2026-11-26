@@ -33,7 +33,6 @@ func assertNoInternalInterruptSentinel(t *testing.T, value any) {
 
 func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
@@ -75,26 +74,13 @@ func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *tes
 
 func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()
 	client.onQuery = func(_ context.Context, prompt string) {
 		if strings.Contains(prompt, "第二轮") {
-			go func() {
-				client.messages <- sdkprotocol.ReceivedMessage{
-					Type:      sdkprotocol.MessageTypeResult,
-					SessionID: client.sessionID,
-					UUID:      "result-interrupt-policy",
-					Result: &sdkprotocol.ResultMessage{
-						Subtype:    "success",
-						DurationMS: 1,
-						NumTurns:   1,
-						Result:     "ok",
-					},
-				}
-			}()
+			client.sendResultAsync(client.sessionID, "result-interrupt-policy", "success", "ok")
 		}
 	}
 	client.onInterrupt = func(_ context.Context) {
@@ -176,7 +162,6 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 
 func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
@@ -289,7 +274,6 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 
 func TestServiceHandleInterruptExactOldRoundKeepsSuccessorRunning(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
@@ -332,7 +316,6 @@ func TestServiceHandleInterruptExactOldRoundKeepsSuccessorRunning(t *testing.T) 
 
 func TestServiceHandleInterruptStaleRoundNeverFallsBackToSession(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
@@ -365,7 +348,6 @@ func TestServiceHandleInterruptStaleRoundNeverFallsBackToSession(t *testing.T) {
 
 func TestServiceHandleInterruptExactUnsupportedFailsClosed(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})

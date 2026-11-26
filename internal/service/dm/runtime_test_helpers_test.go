@@ -243,6 +243,18 @@ func (c *fakeDMClient) SendRunningInput(_ context.Context, inputID string, conte
 
 func (c *fakeDMClient) SessionID() string { return c.sessionID }
 
+// sendResultAsync 异步推送一条 runtime 终态 result，模拟模型一轮结束。
+func (c *fakeDMClient) sendResultAsync(sessionID, uuid, subtype, text string) {
+	go func() {
+		c.messages <- sdkprotocol.ReceivedMessage{
+			Type:      sdkprotocol.MessageTypeResult,
+			SessionID: sessionID,
+			UUID:      uuid,
+			Result:    &sdkprotocol.ResultMessage{Subtype: subtype, DurationMS: 1, NumTurns: 1, Result: text},
+		}
+	}()
+}
+
 func normalizeTestString(value any) string {
 	switch typed := value.(type) {
 	case string:

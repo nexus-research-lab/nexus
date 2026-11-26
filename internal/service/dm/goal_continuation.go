@@ -62,12 +62,9 @@ func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey 
 	if parsed.Kind != protocol.SessionKeyKindAgent {
 		return false, nil
 	}
-	agentValue, err := s.resolveInputQueueAgent(ctx, parsed, agentID)
+	_, err = s.resolveInputQueueAgent(ctx, parsed, agentID)
 	if errors.Is(err, agentsvc.ErrAgentNotFound) {
 		return true, nil
-	}
-	if err == nil && agentValue != nil {
-		ctx = runtimehost.ContextWithExactOwner(ctx, agentValue.OwnerUserID)
 	}
 	return false, err
 }

@@ -33,8 +33,9 @@ func TestServiceDispatchRoomTaskUsesNonInteractivePermissionHandler(t *testing.T
 		nil,
 	)
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")
-	if err := service.dispatchToSession(context.Background(), sessionKey, "round-room-1", "agent-1", "整理 Room 今日进展"); err != nil {
-		t.Fatalf("dispatchToSession 失败: %v", err)
+	job := automationdomain.ScheduledTask{AgentID: "agent-1", Instruction: "整理 Room 今日进展"}
+	if err := service.dispatchJobToSession(context.Background(), job, "", sessionKey, "round-room-1", nil, nil); err != nil {
+		t.Fatalf("dispatchJobToSession 失败: %v", err)
 	}
 
 	requests := roomRunner.Requests()

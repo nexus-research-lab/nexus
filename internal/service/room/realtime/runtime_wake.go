@@ -161,14 +161,6 @@ func (e *slotExecution) executeRuntimeWakeRound(client runtimectx.Client, round 
 	return e.service.ExecuteAgentRound(e.ctx, round)
 }
 
-// runtimeWakeHiddenFromUser 区分“内部 round”与“自唤醒触发行”：后者只在私域 slot 唤醒时隐藏。
-func runtimeWakeHiddenFromUser(request ChatRequest) bool {
-	if request.runtimeWake != nil {
-		return !request.runtimeWake.publishesPublicOutput()
-	}
-	return request.Internal || request.InputOptions.HiddenFromUser
-}
-
 // yieldToRoomRuntimeWake 返回同会话正在交接的自唤醒完成信号；自唤醒请求自身不等待。
 func (s *Service) yieldToRoomRuntimeWake(request ChatRequest, conversationID string) <-chan struct{} {
 	if request.runtimeWake != nil {
