@@ -5,8 +5,6 @@ package dm
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -172,8 +170,7 @@ func followUpDedupeKey(requestKey string, eventID string) string {
 	if requestKey == "" {
 		return "follow_up:" + eventID
 	}
-	sum := sha256.Sum256([]byte(requestKey))
-	return "follow_up:" + hex.EncodeToString(sum[:16])
+	return hashedInboxDedupeKey("follow_up", requestKey)
 }
 
 func followUpFromEvent(event inboxstore.Event) FollowUp {
@@ -224,8 +221,7 @@ func followUpMetadata(event inboxstore.Event) map[string]string {
 
 // followUpContextualInputs 把待触发的跟进作为宿主事实告知模型：只在变化时追加，compact 或新 SDK 会话后重新告知。
 func (r *roundRunner) followUpContextualInputs() []runtimectx.ContextualInputBlock {
-	if r == nil || r.service == nil || r.service.inbox == nil ||
-		!isMainWindowSession(r.agent, protocol.ParseSessionKey(r.sessionKey)) {
+	if r == nil || r.inbox == nil || r.service == nil || r.service.inbox == nil {
 		return nil
 	}
 	pending, err := r.service.inbox.ListPendingKind(context.Background(), r.sessionKey, inboxstore.KindFollowUp)

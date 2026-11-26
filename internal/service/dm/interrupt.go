@@ -55,6 +55,17 @@ func (s *Service) pauseInputQueueForUserStop(ctx context.Context, sessionKey str
 	if !targetActive {
 		return nil
 	}
+	inbox, mainWindow, err := s.mainInboxForExecution(ctx, sessionKey, "")
+	if err != nil {
+		return err
+	}
+	if mainWindow {
+		if err = s.pauseMainInbox(ctx, inbox); err != nil {
+			return err
+		}
+		s.broadcastMainInbox(ctx, inbox)
+		return nil
+	}
 	_, location, err := s.resolveInputQueueLocation(ctx, sessionKey, "")
 	if err == nil {
 		err = s.InputQueue.SetDispatchPaused(location, true)

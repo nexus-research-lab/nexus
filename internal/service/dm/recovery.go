@@ -1,6 +1,6 @@
 // INPUT: Authoritative Execution recovery receipts or exact DM terminal outcomes.
-// OUTPUT: Durable hidden recovery input and root Attempt settlement; a deleted coordinator Agent reports an unavailable target.
-// POS: DM lifecycle adapter; pause gates and dispatch admission remain authoritative.
+// OUTPUT: Durable hidden recovery input (main window inbox or JSONL queue) and root Attempt settlement; a deleted coordinator Agent reports an unavailable target.
+// POS: DM lifecycle adapter; pause gates and dispatch admission remain authoritative. 主窗口的恢复输入只进 inbox，启动扫描跳过主窗口的 JSONL 队列。
 package dm
 
 import (
@@ -12,6 +12,7 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
+	inboxstore "github.com/nexus-research-lab/nexus/internal/storage/inbox"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -25,6 +26,13 @@ func (s *Service) QueueWorkRecovery(ctx context.Context, e protocol.Execution, t
 
 func (s *Service) FindWorkRecovery(ctx context.Context, e protocol.Execution, key string) (*protocol.ExecutionRecoveryTarget, error) {
 	ctx = runtimehost.ContextWithExactOwner(ctx, e.OwnerUserID)
+	inbox, mainWindow, err := s.mainInboxForExecution(ctx, e.SessionKey, e.CoordinatorAgentID)
+	if err != nil {
+		return nil, err
+	}
+	if mainWindow {
+		return s.findMainInboxRecovery(ctx, inbox, key)
+	}
 	_, location, err := s.resolveInputQueueLocation(ctx, e.SessionKey, e.CoordinatorAgentID)
 	if err != nil {
 		return nil, err
@@ -38,7 +46,12 @@ func (s *Service) FindWorkRecovery(ctx context.Context, e protocol.Execution, ke
 
 func (s *Service) queueExecutionRecovery(ctx context.Context, e protocol.Execution, key string, target *protocol.ExecutionRecoveryTarget) error {
 	ctx = runtimehost.ContextWithExactOwner(ctx, e.OwnerUserID)
-	sessionKey, location, err := s.resolveInputQueueLocation(ctx, e.SessionKey, e.CoordinatorAgentID)
+	inbox, mainWindow, err := s.mainInboxForExecution(ctx, e.SessionKey, e.CoordinatorAgentID)
+	var sessionKey string
+	var location workspacestore.InputQueueLocation
+	if err == nil && !mainWindow {
+		sessionKey, location, err = s.resolveInputQueueLocation(ctx, e.SessionKey, e.CoordinatorAgentID)
+	}
 	if errors.Is(err, agentsvc.ErrAgentNotFound) {
 		return fmt.Errorf("%w: coordinator Agent %s no longer exists", orchestrationsvc.ErrExecutionRecoveryTargetUnavailable, e.CoordinatorAgentID)
 	}
@@ -48,6 +61,10 @@ func (s *Service) queueExecutionRecovery(ctx context.Context, e protocol.Executi
 	content := runtimehost.ExecutionRecoveryInstruction(e)
 	if target != nil {
 		content = runtimehost.WorkRecoveryInstruction(e, *target)
+	}
+	if mainWindow {
+		_, err = s.enqueueMainInboxRecovery(ctx, inbox, key, content, inboxstore.RecoverySource{ExecutionID: e.ID, Target: target})
+		return err
 	}
 	_, err = s.InputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{
 		Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: e.ID,
@@ -88,8 +105,14 @@ func (r *roundRunner) finishWorkAttempts(status protocol.WorkAttemptStatus, reas
 	}
 }
 
+// RecoverInputQueues 在启动结算之后接续积压：主窗口交给 inbox 定时器重扫（结算期间入队的恢复被推迟唤醒），
+// 其余 DM 派发各自的 JSONL 队列。
 func (s *Service) RecoverInputQueues(ctx context.Context) error {
+	s.notifyMainInboxTimer()
 	return s.VisitInputQueues(ctx, protocol.InputQueueScopeDM, func(ctx context.Context, location workspacestore.InputQueueLocation) {
+		if _, mainWindow, err := s.mainInboxForExecution(ctx, location.SessionKey, ""); err == nil && mainWindow {
+			return
+		}
 		s.StartSessionBackgroundTask(location.SessionKey, location.OwnerUserID, func(ctx context.Context) {
 			s.dispatchNextInputQueueItemAtLocation(ctx, location.SessionKey, inputQueueLocationAgentID(location), location)
 		})

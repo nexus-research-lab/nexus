@@ -1,5 +1,6 @@
-// INPUT: 主窗口（主智能体的 WebSocket DM）的用户输入与已到点的宿主事件、PostToolUse 安全点与 round 终态。
-// OUTPUT: 先落库再 ACK 的 inbox 事件；空闲时立即起轮（积压合并为一轮），运行中交给当前轮（running_input_v1 或 PostToolUse 安全点，宿主 run 除外）；只有 pending 可撤回；用户开口即取消 Echo。
+// INPUT: 主窗口（主智能体的 WebSocket DM）的用户输入与已到点的宿主事件、PostToolUse 安全点、用户停止与 round 终态。
+// OUTPUT: 先落库再 ACK 的 inbox 事件；空闲时按类型规格起轮（积压用户消息合并为一轮），运行中交给当前轮（running_input_v1 或 PostToolUse 安全点，宿主 run 除外）；
+// 只有 pending 可撤回；用户开口即取消 Echo 并恢复暂停闸门，用户停止即暂停宿主恢复输入。
 // POS: 主窗口输入的唯一入口；不经过 JSONL 待发送队列、投递策略与 queue admission。
 // 单进程部署：并发正确性全部来自 inbox 行的条件状态迁移，不需要租约或内存登记表。
 package dm
@@ -41,6 +42,15 @@ type mainInboxInput struct {
 
 func isMainWindowSession(agent *protocol.Agent, parsed protocol.SessionKey) bool {
 	return agent != nil && agent.IsMain && dmRoomConversationID(parsed) != ""
+}
+
+// mainInboxTargetOf 在已解析出 Agent 的路径上判定主窗口；不是主窗口返回 nil。
+// 每轮只在受理时算一次，之后由 dmChatExecution 与 roundRunner 持有。
+func mainInboxTargetOf(agent *protocol.Agent, sessionKey string) *mainInboxTarget {
+	if !isMainWindowSession(agent, protocol.ParseSessionKey(sessionKey)) {
+		return nil
+	}
+	return &mainInboxTarget{agent: agent, sessionKey: sessionKey}
 }
 
 func (t mainInboxTarget) owner() string { return t.agent.OwnerUserID }
@@ -106,6 +116,11 @@ func (s *Service) acceptMainInbox(ctx context.Context, target mainInboxTarget, i
 	})
 	if err != nil {
 		return inboxstore.Event{}, false, err
+	}
+	if !duplicate {
+		if err = s.resumeMainInbox(ctx, target); err != nil {
+			return inboxstore.Event{}, false, err
+		}
 	}
 	s.cancelMainWindowEcho(ctx, target)
 	s.broadcastMainInbox(ctx, target)
@@ -176,46 +191,89 @@ func (s *Service) drainMainInbox(ctx context.Context, target mainInboxTarget) bo
 	return s.dispatchMainInboxLocked(ctx, target)
 }
 
-// dispatchMainInboxLocked 要求持有 inputQueueDispatchMu：空闲时起轮，运行中则投给当前 turn。
+// dispatchMainInboxLocked 要求持有 inputQueueDispatchMu：空闲时按类型规格起轮，运行中则投给当前 turn。
+// 事件已收口却不必起轮时（目标陈旧、回执已处理）继续取下一批，直到起轮或无事可做。
 func (s *Service) dispatchMainInboxLocked(ctx context.Context, target mainInboxTarget) bool {
-	if running := s.Runtime.GetRunningRoundIDs(target.sessionKey); len(running) > 0 {
-		s.deliverMainInboxRunningInput(ctx, target, running[0])
-		return false
-	}
-	roundID := protocol.NewRoundID()
-	batch, err := s.claimMainInbox(ctx, target, roundID, roundBatch)
-	if err != nil || len(batch) == 0 {
-		return false
-	}
-	if batch[0].Kind == inboxstore.KindEcho {
-		// gate 要调模型，交给锁外的后台任务；事件已是 delivering，不会被重复认领。
-		s.StartSessionBackgroundTask(target.sessionKey, target.owner(), func(taskCtx context.Context) {
-			s.runMainWindowEcho(taskCtx, target, roundID, batch[0])
+	for {
+		if running := s.Runtime.GetRunningRoundIDs(target.sessionKey); len(running) > 0 {
+			s.deliverMainInboxRunningInput(ctx, target, running[0])
+			return false
+		}
+		gate, err := s.inbox.Gate(ctx, target.sessionKey)
+		if err != nil {
+			s.LoggerFor(ctx).Error("读取主窗口暂停闸门失败", "session_key", target.sessionKey, "err", err)
+			return false
+		}
+		batch, err := s.claimMainInbox(ctx, target, "", func(pending []inboxstore.Event) []inboxstore.Event {
+			return roundBatch(dispatchableEvents(pending, gate))
 		})
-		return false
+		if err != nil || len(batch) == 0 {
+			return false
+		}
+		switch inboxKindOf(batch[0]).start(s, ctx, target, batch[0].RoundID, batch) {
+		case inboxStartRound:
+			s.broadcastMainInbox(ctx, target)
+			return true
+		case inboxStartNone:
+			return false
+		}
 	}
-	principal := batch[0].Payload.Principal
+}
+
+// startUserInboxRound 把合并后的用户消息起成一轮；真人身份随事件持久化，取走时还原配置能力。
+func (s *Service) startUserInboxRound(ctx context.Context, target mainInboxTarget, roundID string, batch []inboxstore.Event) inboxStart {
 	roundCtx := ctx
-	if principal.UserID != "" {
+	if principal := batch[0].Payload.Principal; principal.UserID != "" {
 		roundCtx = authctx.WithQueuedHumanPrincipalBinding(ctx, authctx.QueuedHumanPrincipalBinding(principal))
 	}
-	hostRun := isHostInboxEvent(batch[0])
-	if hostRun {
-		// 宿主 run 不接受安全点注入：期间到来的输入等它收口后另起一轮。
-		s.hostRuns.Store(roundID, struct{}{})
-	}
-	err = s.handleChat(roundCtx, s.mainInboxRequest(target, roundID, batch), chatExecutionInline)
-	if err != nil {
-		s.hostRuns.Delete(roundID)
-		s.releaseMainInbox(ctx, target, roundID)
+	return s.startMainInboxBatch(roundCtx, target, batch, s.mainInboxRequest(target, roundID, batch))
+}
+
+// startMainInboxBatch 起一轮并把起轮批次标为 consumed；起轮失败时整批退回 pending 并提示用户。
+// 标记 consumed 失败也无妨：轮末会再补记一次，不会让已执行的批次重跑。
+func (s *Service) startMainInboxBatch(ctx context.Context, target mainInboxTarget, batch []inboxstore.Event, request Request) inboxStart {
+	request.inboxEventIDs = eventIDs(batch)
+	if err := s.startMainInboxRound(ctx, request); err != nil {
+		s.releaseMainInbox(ctx, target, request.RoundID)
 		s.reportMainInboxFailure(ctx, target, err)
-		return false
+		return inboxStartNone
 	}
-	if _, err = s.inbox.Transition(ctx, target.sessionKey, eventIDs(batch), inboxstore.StatusDelivering, inboxstore.StatusConsumed, roundID); err != nil {
-		s.LoggerFor(ctx).Error("主窗口 inbox 已起轮但标记 consumed 失败", "round_id", roundID, "err", err)
+	if _, err := s.inbox.Transition(ctx, target.sessionKey, request.inboxEventIDs, inboxstore.StatusDelivering, inboxstore.StatusConsumed, request.RoundID); err != nil {
+		s.LoggerFor(ctx).Error("主窗口 inbox 已起轮但标记 consumed 失败", "round_id", request.RoundID, "err", err)
 	}
-	s.broadcastMainInbox(ctx, target)
-	return true
+	return inboxStartRound
+}
+
+// startMainInboxRound 是主窗口起轮的唯一出口。延迟提交的轮次（宿主 run、Echo）在这里登记为不接受运行中输入，
+// 起轮失败即撤销登记，轮末由 finishMainInboxRound 移除。
+func (s *Service) startMainInboxRound(ctx context.Context, request Request) error {
+	if request.DeferredAssistant != nil {
+		s.hostRuns.Store(request.RoundID, struct{}{})
+	}
+	err := s.handleChat(ctx, request, chatExecutionInline)
+	if err != nil {
+		s.hostRuns.Delete(request.RoundID)
+	}
+	return err
+}
+
+// dispatchableEvents 去掉被暂停闸门挡住的事件；闸门之后入队、未获准越过的宿主恢复要等用户再开口。
+func dispatchableEvents(pending []inboxstore.Event, gate inboxstore.Gate) []inboxstore.Event {
+	if !gate.Paused {
+		return pending
+	}
+	kept := make([]inboxstore.Event, 0, len(pending))
+	for _, event := range pending {
+		if !inboxKindOf(event).gated || admittedPastGate(event, gate) {
+			kept = append(kept, event)
+		}
+	}
+	return kept
+}
+
+func admittedPastGate(event inboxstore.Event, gate inboxstore.Gate) bool {
+	recovery := event.Payload.Recovery
+	return recovery != nil && recovery.AdmittedRevision != nil && *recovery.AdmittedRevision == gate.Revision
 }
 
 // roundBatch 取 pending 的最长可合并前缀：斜杠命令与宿主事件独占一轮，不同真人身份不合并。
@@ -235,30 +293,22 @@ func roundBatch(pending []inboxstore.Event) []inboxstore.Event {
 }
 
 // guidanceBatch 取第一个斜杠命令之前的全部 pending；命令要等本轮结束后单独执行，不能被插队越过。
-// 只在安静时出现的事件（Echo）留在 inbox，不插进当前轮次。
+// 不能插进别的轮次的事件（Echo、宿主恢复、IM 回执）留在 inbox，等对话空闲后独占一轮。
 func guidanceBatch(pending []inboxstore.Event) []inboxstore.Event {
 	batch := make([]inboxstore.Event, 0, len(pending))
 	for _, event := range pending {
 		if isInboxCommand(event) {
 			break
 		}
-		if !isQuietOnlyInboxEvent(event) {
+		if joinsRunningRound(event) {
 			batch = append(batch, event)
 		}
 	}
 	return batch
 }
 
-func isInboxCommand(event inboxstore.Event) bool {
-	return !isHostInboxEvent(event) && conversationsvc.IsSlashCommandInput(event.Payload.Content)
-}
-
-// isSoloInboxEvent 标出空闲时必须单独起轮的事件：命令要独占执行，宿主事件不与用户原话混在一轮。
-func isSoloInboxEvent(event inboxstore.Event) bool {
-	return isInboxCommand(event) || isHostInboxEvent(event)
-}
-
 // claimMainInbox 把选中的 pending 条件迁移为 delivering；与撤回竞争时只保留真正迁移成功的事件。
+// roundID 为空时按首个事件的类型规格分配，认领结果的 RoundID 即这一轮的 ID。
 func (s *Service) claimMainInbox(
 	ctx context.Context,
 	target mainInboxTarget,
@@ -273,17 +323,22 @@ func (s *Service) claimMainInbox(
 	if len(picked) == 0 {
 		return nil, nil
 	}
+	if roundID == "" {
+		roundID = inboxRoundID(picked[0])
+	}
 	moved, err := s.inbox.Transition(ctx, target.sessionKey, eventIDs(picked), inboxstore.StatusPending, inboxstore.StatusDelivering, roundID)
 	if err != nil {
 		return nil, err
 	}
-	return selectEvents(picked, moved), nil
+	claimed := selectEvents(picked, moved)
+	for index := range claimed {
+		claimed[index].Status, claimed[index].RoundID = inboxstore.StatusDelivering, roundID
+	}
+	return claimed, nil
 }
 
+// mainInboxRequest 把合并后的用户消息还原成一轮可见输入；inbox 来源不经过运行中路由与 JSONL 队列。
 func (s *Service) mainInboxRequest(target mainInboxTarget, roundID string, batch []inboxstore.Event) Request {
-	if isHostInboxEvent(batch[0]) {
-		return s.mainInboxHostRequest(target, roundID, batch[0])
-	}
 	contents := make([]string, 0, len(batch))
 	var attachments []protocol.ChatAttachment
 	for _, event := range batch {
@@ -297,9 +352,8 @@ func (s *Service) mainInboxRequest(target mainInboxTarget, roundID string, batch
 		Attachments:                       attachments,
 		ClientMessageID:                   batch[0].Payload.ClientMessageID,
 		RoundID:                           roundID,
-		DeliveryPolicy:                    protocol.ChatDeliveryPolicyQueue,
 		BroadcastUserMessage:              true,
-		ExecutionOrigin:                   "queue",
+		ExecutionOrigin:                   mainInboxExecutionOrigin,
 		trustedQueuedConfigurationContext: batch[0].Payload.Principal.UserID != "",
 	}
 }
@@ -333,7 +387,7 @@ func (s *Service) sendMainInboxRunningInput(ctx context.Context, sender runtimec
 	return sender.SendRunningInput(ctx, event.EventID, content.Payload())
 }
 
-// mainInboxEventContent 是事件交给模型的内容：用户原话带附件，宿主事件用带来源包装的提示词。
+// mainInboxEventContent 是插进运行中轮次的内容：用户原话带附件，宿主事件用带来源包装的提示词。
 func (s *Service) mainInboxEventContent(ctx context.Context, event inboxstore.Event) (conversationsvc.RuntimeContent, error) {
 	if isHostInboxEvent(event) {
 		return s.renderRuntimeContentWithAttachments(ctx, hostEventPrompt(event), nil)
@@ -341,7 +395,7 @@ func (s *Service) mainInboxEventContent(ctx context.Context, event inboxstore.Ev
 	return s.renderRuntimeContentWithAttachments(ctx, event.Payload.Content, event.Payload.Attachments)
 }
 
-// acceptsMidRunInput 区分可插话的用户轮与宿主 run（定时任务、跟进、Echo）：后者期间的输入等它收口后另起一轮。
+// acceptsMidRunInput 区分可插话的轮次与宿主 run（定时任务、跟进、Echo）：后者期间的输入等它收口后另起一轮。
 func (s *Service) acceptsMidRunInput(roundID string) bool {
 	_, hostRun := s.hostRuns.Load(roundID)
 	return !hostRun
@@ -451,13 +505,17 @@ func (s *Service) persistMainInboxGuidance(ctx context.Context, target mainInbox
 }
 
 // finishMainInboxRound 在 round 终态后退回未确认的注入；用户主动停止时不自动接续。
+// 起轮批次先补记 consumed：起轮时那次标记若失败，退回会让已执行的输入再跑一遍。
 // 与运行中投递共用派发锁：投递要么先于退回完成，要么已看到本轮不再运行，不会遗留 delivering。
-func (s *Service) finishMainInboxRound(ctx context.Context, target mainInboxTarget, roundID string, resume bool) bool {
+func (s *Service) finishMainInboxRound(ctx context.Context, target mainInboxTarget, roundID string, startEventIDs []string, resume bool) bool {
 	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
 		return false
 	}
 	defer s.inputQueueDispatchMu.Unlock()
 	s.hostRuns.Delete(roundID)
+	if _, err := s.inbox.Transition(ctx, target.sessionKey, startEventIDs, inboxstore.StatusDelivering, inboxstore.StatusConsumed, roundID); err != nil {
+		s.LoggerFor(ctx).Error("轮末补记主窗口起轮批次 consumed 失败", "round_id", roundID, "err", err)
+	}
 	s.releaseMainInbox(ctx, target, roundID)
 	return resume && s.dispatchMainInboxLocked(ctx, target)
 }

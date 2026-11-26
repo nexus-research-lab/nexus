@@ -24,7 +24,8 @@ func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	permission := permissionctx.NewContext()
 	service := NewService(cfg, agents, manager, permission)
 	service.SetInboxStore(newDMInboxStore(t, cfg))
-	session := "agent:nexus:ws:dm:im-feedback-origin"
+	agentID := newPlainDMAgent(t, agents).AgentID
+	session := "agent:" + agentID + ":ws:dm:im-feedback-origin"
 	sender := newDMTestSender("im-feedback")
 	permission.BindSession(session, sender)
 	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: authctx.SystemUserID, Role: authctx.RoleOwner})
@@ -45,7 +46,7 @@ func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	})
 	store := imdelivery.NewRepository(cfg, db)
 	service.SetIMDeliveryStore(store, func(context.Context, string, string) error { return nil })
-	d := imdelivery.Delivery{ID: "delivery", OwnerUserID: authctx.SystemUserID, Source: imdelivery.Source{Kind: "tool", AgentID: "nexus", SessionKey: session}, TargetSessionKey: "im", Content: "待确认草案"}
+	d := imdelivery.Delivery{ID: "delivery", OwnerUserID: authctx.SystemUserID, Source: imdelivery.Source{Kind: "tool", AgentID: agentID, SessionKey: session}, TargetSessionKey: "im", Content: "待确认草案"}
 	if _, err = store.SaveDelivery(ctx, d); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +61,7 @@ func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	if err = service.AcceptIMDeliveryReply(ctx, d, reply); err != nil {
 		t.Fatal(err)
 	}
-	_, location, err := service.resolveInputQueueLocation(ctx, session, "nexus")
+	_, location, err := service.resolveInputQueueLocation(ctx, session, agentID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +71,11 @@ func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	}
 	altered := queued[0]
 	altered.Content = "批准执行"
-	if err = service.dispatchIMDeliveryReply(ctx, session, altered); err == nil {
+	tampered, err := imReplyDispatchFromQueueItem(session, altered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.dispatchIMDeliveryReply(ctx, tampered); err == nil {
 		t.Fatal("tampered feedback accepted")
 	}
 	if err = service.guideInputQueueItem(ctx, session, location, reply.ID); err == nil {
@@ -106,4 +111,45 @@ func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	collectEventsUntil(t, sender.events, func(e protocol.EventMessage) bool {
 		return e.EventType == protocol.EventTypeRoundStatus && e.Data["round_id"] == reply.ID && e.Data["status"] == "finished"
 	})
+}
+
+func TestMainWindowIMFeedbackRunsFromInboxOnlyOnce(t *testing.T) {
+	f := newMainInboxFixture(t, "im-feedback-main")
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: authctx.SystemUserID, Role: authctx.RoleOwner})
+	cfg := f.service.Config
+	store := imdelivery.NewRepository(cfg, dmTestDB(t, cfg))
+	f.service.SetIMDeliveryStore(store, func(context.Context, string, string) error { return nil })
+	d := imdelivery.Delivery{ID: "delivery", OwnerUserID: authctx.SystemUserID, Source: imdelivery.Source{Kind: "tool", AgentID: "nexus", SessionKey: f.sessionKey}, TargetSessionKey: "im", Content: "待确认草案"}
+	if _, err := store.SaveDelivery(ctx, d); err != nil {
+		t.Fatal(err)
+	}
+	reply, err := store.SaveReply(ctx, imdelivery.Reply{ID: "feedback-main", DeliveryID: d.ID, OwnerUserID: d.OwnerUserID, Input: imdelivery.Input{ID: "human"}, Content: "确认收到", ForwardedContent: "来自微信联系人的反馈：确认收到"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = f.service.AcceptIMDeliveryReply(ctx, d, reply); err != nil {
+		t.Fatal(err)
+	}
+	if prompts := f.waitPrompts(t, 1); !strings.Contains(prompts[0], "确认收到") {
+		t.Fatalf("IM 回执轮缺少反馈内容: %q", prompts[0])
+	}
+	if _, location, locErr := f.service.resolveInputQueueLocation(ctx, f.sessionKey, ""); locErr == nil {
+		if queued, _ := f.service.InputQueue.Snapshot(location); len(queued) != 0 {
+			t.Fatalf("主窗口回执不应写入 JSONL 队列: %+v", queued)
+		}
+	}
+	if err = f.service.AcceptIMDeliveryReply(ctx, d, reply); err != nil {
+		t.Fatal(err)
+	}
+	f.finishRound("feedback-main")
+	collectEventsUntil(t, f.sender.events, func(e protocol.EventMessage) bool {
+		return e.EventType == protocol.EventTypeRoundStatus && e.Data["round_id"] == reply.ID && e.Data["status"] == "finished"
+	})
+	if prompts := f.prompts(); len(prompts) != 1 {
+		t.Fatalf("重复受理的回执不应再执行: %v", prompts)
+	}
+	saved, err := store.GetReply(ctx, reply.OwnerUserID, reply.ID)
+	if err != nil || saved.State != "started" {
+		t.Fatalf("回执状态 = %+v %v", saved, err)
+	}
 }

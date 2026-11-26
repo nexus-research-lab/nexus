@@ -7,7 +7,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
@@ -23,13 +22,12 @@ const (
 
 // scheduleMainWindowEcho 只在主窗口一轮可见用户输入成功结束后安排 Echo；宿主事件与 Echo 自身的轮次不递归产生。
 func (r *roundRunner) scheduleMainWindowEcho(result exec.RoundExecutionResult) {
-	if r == nil || r.service.echo == nil || r.service.inbox == nil || r.internal ||
+	if r == nil || r.inbox == nil || r.service.echo == nil || r.service.inbox == nil || r.internal ||
 		!result.CompletedByAssistant || result.TerminalStatus != "finished" ||
-		(result.ResultSubtype != "" && result.ResultSubtype != "success") ||
-		!isMainWindowSession(r.agent, protocol.ParseSessionKey(r.sessionKey)) {
+		(result.ResultSubtype != "" && result.ResultSubtype != "success") {
 		return
 	}
-	target := mainInboxTarget{agent: r.agent, sessionKey: r.sessionKey}
+	target := *r.inbox
 	anchorRoundID, finishedAt := r.roundID, time.Now().UTC()
 	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
 		r.service.scheduleEcho(ctx, target, anchorRoundID, finishedAt)
@@ -69,6 +67,14 @@ func (s *Service) cancelMainWindowEcho(ctx context.Context, target mainInboxTarg
 	if _, err := s.inbox.CancelKind(ctx, target.sessionKey, inboxstore.KindEcho); err != nil {
 		s.LoggerFor(ctx).Warn("取消 Echo 失败", "session_key", target.sessionKey, "err", err)
 	}
+}
+
+// startEchoGate 把已认领的 echo 交给锁外的后台任务：gate 要调模型，事件已是 delivering，不会被重复认领。
+func (s *Service) startEchoGate(_ context.Context, target mainInboxTarget, roundID string, batch []inboxstore.Event) inboxStart {
+	s.StartSessionBackgroundTask(target.sessionKey, target.owner(), func(taskCtx context.Context) {
+		s.runMainWindowEcho(taskCtx, target, roundID, batch[0])
+	})
+	return inboxStartNone
 }
 
 // runMainWindowEcho 处理已认领（delivering）的 echo：gate 是一次模型调用，必须在派发锁外进行；
@@ -121,10 +127,8 @@ func (s *Service) startEchoRound(ctx context.Context, target mainInboxTarget, ro
 	if err != nil || len(moved) == 0 {
 		return false
 	}
-	// Echo 也是宿主 run：生成期间用户开口要留在 inbox，好让提交前复核丢弃这次 Echo。
-	s.hostRuns.Store(roundID, struct{}{})
-	if err = s.handleChat(ctx, s.echoRequest(target, roundID, event, prompt), chatExecutionInline); err != nil {
-		s.hostRuns.Delete(roundID)
+	// Echo 也是延迟提交的宿主 run：生成期间用户开口要留在 inbox，好让提交前复核丢弃这次 Echo。
+	if err = s.startMainInboxRound(ctx, s.echoRequest(target, roundID, event, prompt)); err != nil {
 		s.LoggerFor(ctx).Warn("Echo 起轮失败", "session_key", target.sessionKey, "err", err)
 		return false
 	}
@@ -170,10 +174,7 @@ func (s *Service) admitEcho(ctx context.Context, target mainInboxTarget, event i
 			return nil, false, nil
 		}
 	}
-	message := protocol.Clone(candidate.Message)
-	if textutil.AnyString(message["message_id"]) == "" {
-		message["message_id"] = protocol.NewAssistantMessageID()
-	}
+	message := admittedAssistantMessage(candidate)
 	metadata := map[string]any{}
 	if current, ok := message["metadata"].(map[string]any); ok {
 		for key, value := range current {

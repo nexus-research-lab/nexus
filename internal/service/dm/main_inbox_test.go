@@ -298,7 +298,7 @@ func TestMainInboxDuplicateClientMessageIsAcceptedOnce(t *testing.T) {
 
 func TestRoundBatchKeepsSlashCommandsAlone(t *testing.T) {
 	event := func(id string, content string) inboxstore.Event {
-		return inboxstore.Event{EventID: id, Payload: inboxstore.Payload{Content: content}}
+		return inboxstore.Event{EventID: id, Kind: inboxstore.KindUserMessage, Payload: inboxstore.Payload{Content: content}}
 	}
 	cases := []struct {
 		name    string

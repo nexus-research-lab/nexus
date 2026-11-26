@@ -81,6 +81,9 @@ type roundRunner struct {
 	deferredRuntimeMessageUUIDs []string
 	// runtimeWake 非空表示本轮承接 runtime 自行开启的 turn，不发送 query。
 	runtimeWake *runtimeWakeStart
+	// inbox 非空即主窗口轮次；inboxEventIDs 是起轮批次，轮末补记 consumed。
+	inbox         *mainInboxTarget
+	inboxEventIDs []string
 	// idleWakeTrigger 由本轮结束后的 idle drain 写入，受 Mu 保护。
 	idleWakeTrigger messagepkg.RuntimeWakeTrigger
 
@@ -325,8 +328,8 @@ func (r *roundRunner) runtimeInputOptions() sdkprotocol.OutboundMessageOptions {
 
 // observeRuntimeMessage 在映射前收取 input_consumed：运行中输入只由主窗口 inbox 发送，回执即确认对应事件。
 func (r *roundRunner) observeRuntimeMessage(incoming sdkprotocol.ReceivedMessage) {
-	if incoming.System != nil && incoming.System.InputConsumed != nil {
-		r.service.confirmMainInboxInputs(mainInboxTarget{agent: r.agent, sessionKey: r.sessionKey}, r.roundID, incoming.System.InputConsumed.InputIDs)
+	if r.inbox != nil && incoming.System != nil && incoming.System.InputConsumed != nil {
+		r.service.confirmMainInboxInputs(*r.inbox, r.roundID, incoming.System.InputConsumed.InputIDs)
 	}
 	r.observeDeferredRuntimeMessage(incoming)
 }
@@ -405,8 +408,8 @@ func (r *roundRunner) dispatchNextInputQueueItem() {
 	}
 	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
 		// 失败、中断与延迟提交的轮次同样要退回主窗口未确认的注入并接续积压。
-		if isMainWindowSession(r.agent, protocol.ParseSessionKey(r.sessionKey)) {
-			r.service.finishMainInboxRound(ctx, mainInboxTarget{agent: r.agent, sessionKey: r.sessionKey}, r.roundID, !r.userStoppedRound())
+		if r.inbox != nil {
+			r.finishMainInboxRound(ctx)
 			return
 		}
 		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
@@ -426,19 +429,26 @@ func (r *roundRunner) dispatchPostRoundWork() {
 		SessionKey:    r.sessionKey,
 	}
 	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
-		// 主窗口用户输入优先于宿主恢复输入与 Goal 续跑。
-		if isMainWindowSession(r.agent, protocol.ParseSessionKey(r.sessionKey)) &&
-			r.service.finishMainInboxRound(ctx, mainInboxTarget{agent: r.agent, sessionKey: r.sessionKey}, r.roundID, !r.userStoppedRound()) {
-			return
-		}
-		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
-		if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
-			return
+		// 待处理输入（主窗口 inbox，或其他 DM 的 JSONL 队列）优先于 Goal 续跑。
+		if r.inbox != nil {
+			if r.finishMainInboxRound(ctx) {
+				return
+			}
+		} else {
+			r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
+			if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
+				return
+			}
 		}
 		if r.hasGoalRoundBinding() {
 			r.dispatchGoalContinuation(ctx)
 		}
 	})
+}
+
+// finishMainInboxRound 收口主窗口轮次：用户主动停止时不自动接续积压。
+func (r *roundRunner) finishMainInboxRound(ctx context.Context) bool {
+	return r.service.finishMainInboxRound(ctx, *r.inbox, r.roundID, r.inboxEventIDs, !r.userStoppedRound())
 }
 
 func (r *roundRunner) persistMessage(message protocol.Message) error {

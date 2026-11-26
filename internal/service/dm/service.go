@@ -148,6 +148,8 @@ type Request struct {
 	runtimeWake *runtimeWakeStart
 	// hostTrigger 只由主窗口 inbox 为宿主事件设置：内部轮次的用户行仍作为触发分隔条可见。
 	hostTrigger bool
+	// inboxEventIDs 只由主窗口 inbox 设置：起轮批次的事件，轮末据此补记 consumed。
+	inboxEventIDs []string
 }
 
 // DeferredAssistantCandidate 是后台 round 提交前的最终 assistant 快照。

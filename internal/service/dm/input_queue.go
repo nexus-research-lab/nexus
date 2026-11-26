@@ -166,13 +166,9 @@ func (s *Service) SendInputQueueSnapshot(ctx context.Context, sessionKey string,
 		return err
 	}
 	if mainWindow {
-		// 主窗口只展示 inbox；JSONL 队列仍可能有宿主恢复输入，inbox 空闲时再派发它们。
+		// 主窗口的全部输入都在 inbox：展示待处理消息，并接续积压。
 		s.broadcastMainInbox(ctx, target)
-		s.StartSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {
-			if !s.drainMainInbox(taskCtx, target) {
-				s.dispatchNextInputQueueItemAtLocation(taskCtx, normalizedSessionKey, agentID, location)
-			}
-		})
+		s.wakeMainInbox(target)
 		return nil
 	}
 	items, err := s.InputQueue.Snapshot(location)
@@ -301,7 +297,10 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		if _, err := s.InputQueue.Dispatch(location, item.ID); err != nil {
 			return false
 		}
-		err := s.dispatchIMDeliveryReply(dispatchCtx, normalizedSessionKey, *item)
+		reply, err := imReplyDispatchFromQueueItem(normalizedSessionKey, *item)
+		if err == nil {
+			_, err = s.dispatchIMDeliveryReply(dispatchCtx, reply)
+		}
 		if err != nil {
 			s.LoggerFor(ctx).Error("IM feedback dispatch requires attention", "reply_id", item.ID, "err", err)
 			if s.imReplies != nil {
