@@ -140,7 +140,8 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	}
 	ctx = runtimehost.ContextWithExactOwner(ctx, agentValue.OwnerUserID)
 
-	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+	unlock, err := s.dispatchLocks.lock(ctx, sessionKey)
+	if err != nil {
 		return err
 	}
 	validated, err := goalsvc.ValidateContinuationForDispatch(
@@ -188,7 +189,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 			},
 		}, chatExecutionInline)
 	}
-	s.inputQueueDispatchMu.Unlock()
+	unlock()
 	if err == nil && validated == nil {
 		// 若最后校验看到新的排队输入，释放启动锁后再触发派发，避免递归获取同一把锁。
 		s.ShouldDeferGoalContinuation(ctx, sessionKey, agentID)

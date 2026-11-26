@@ -41,7 +41,8 @@ func (s *Service) AcceptIMDeliveryReply(ctx context.Context, d imdelivery.Delive
 	if err != nil {
 		return err
 	}
-	if err = s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+	unlock, err := s.dispatchLocks.lock(ctx, session)
+	if err != nil {
 		return err
 	}
 	result, err := s.InputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{
@@ -49,7 +50,7 @@ func (s *Service) AcceptIMDeliveryReply(ctx context.Context, d imdelivery.Delive
 		ClientMessageID: reply.ID, SourceMessageID: "im_feedback_" + reply.ID, Source: protocol.InputQueueSourceIMDeliveryReply,
 		Content: reply.ForwardedContent, DeliveryPolicy: protocol.ChatDeliveryPolicyQueue, OwnerUserID: reply.OwnerUserID,
 	}, reply.ID)
-	s.inputQueueDispatchMu.Unlock()
+	unlock()
 	if err != nil {
 		return err
 	}

@@ -114,10 +114,11 @@ func (s *Service) settleEcho(ctx context.Context, target mainInboxTarget, roundI
 }
 
 func (s *Service) startEchoRound(ctx context.Context, target mainInboxTarget, roundID string, event inboxstore.Event, prompt string) bool {
-	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+	unlock, lockErr := s.dispatchLocks.lock(ctx, target.sessionKey)
+	if lockErr != nil {
 		return false
 	}
-	defer s.inputQueueDispatchMu.Unlock()
+	defer unlock()
 	// gate 期间若有别的轮次起跑，对话已不安静，本次作废。
 	if len(s.Runtime.GetRunningRoundIDs(target.sessionKey)) > 0 {
 		_, _ = s.inbox.Transition(ctx, target.sessionKey, []string{event.EventID}, inboxstore.StatusDelivering, inboxstore.StatusCancelled, "")

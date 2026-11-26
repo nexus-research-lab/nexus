@@ -30,46 +30,6 @@ var (
 	ErrRoomSessionNotImplemented = errors.New("room session must be handled by room service")
 )
 
-// contextMutex 让等待串行边界的后台任务能在 session 关闭时响应取消。
-// Lock/Unlock 仅保留给不带 context 的短临界区与并发测试。
-type contextMutex struct {
-	once  sync.Once
-	token chan struct{}
-}
-
-func (m *contextMutex) initialize() {
-	m.once.Do(func() {
-		m.token = make(chan struct{}, 1)
-		m.token <- struct{}{}
-	})
-}
-
-func (m *contextMutex) Lock() {
-	_ = m.LockContext(context.Background())
-}
-
-func (m *contextMutex) LockContext(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	m.initialize()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-m.token:
-		return nil
-	}
-}
-
-func (m *contextMutex) Unlock() {
-	m.initialize()
-	select {
-	case m.token <- struct{}{}:
-	default:
-		panic("unlock of unlocked context mutex")
-	}
-}
-
 // Request 表示一次 DM 会话写入请求。
 // RoundID / UserMessageID / AgentRoundID 由后端 mint：
 // WS 入口不填，由聊天入口生成；后端内部调用方（automation / queue / goal）可预置 RoundID。
@@ -242,8 +202,8 @@ type Service struct {
 	// hostRuns 记下正在执行的主窗口宿主 run（round_id，含 Echo），它们不接受运行中输入；轮末统一移除。
 	hostRuns        sync.Map
 	mainWindowRooms mainWindowRooms
-	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
-	inputQueueDispatchMu contextMutex
+	// dispatchLocks 按会话串行化显式输入、队列与 inbox 派发、引导注入和 Goal 续跑的「检查是否在跑 → 起轮」边界。
+	dispatchLocks dispatchLocks
 	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.
 	inputQueueGuidanceMu      sync.Mutex
 	inputQueueGuidancePending map[string][]preparedDMGuidance

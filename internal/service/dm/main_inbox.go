@@ -184,14 +184,15 @@ func (s *Service) wakeMainInbox(target mainInboxTarget) {
 
 // drainMainInbox 在会话空闲时把积压的 pending 合并成一轮启动；运行中交给安全点与轮末接续。
 func (s *Service) drainMainInbox(ctx context.Context, target mainInboxTarget) bool {
-	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+	unlock, lockErr := s.dispatchLocks.lock(ctx, target.sessionKey)
+	if lockErr != nil {
 		return false
 	}
-	defer s.inputQueueDispatchMu.Unlock()
+	defer unlock()
 	return s.dispatchMainInboxLocked(ctx, target)
 }
 
-// dispatchMainInboxLocked 要求持有 inputQueueDispatchMu：空闲时按类型规格起轮，运行中则投给当前 turn。
+// dispatchMainInboxLocked 要求持有该会话的派发锁：空闲时按类型规格起轮，运行中则投给当前 turn。
 // 事件已收口却不必起轮时（目标陈旧、回执已处理）继续取下一批，直到起轮或无事可做。
 func (s *Service) dispatchMainInboxLocked(ctx context.Context, target mainInboxTarget) bool {
 	for {
@@ -508,10 +509,11 @@ func (s *Service) persistMainInboxGuidance(ctx context.Context, target mainInbox
 // 起轮批次先补记 consumed：起轮时那次标记若失败，退回会让已执行的输入再跑一遍。
 // 与运行中投递共用派发锁：投递要么先于退回完成，要么已看到本轮不再运行，不会遗留 delivering。
 func (s *Service) finishMainInboxRound(ctx context.Context, target mainInboxTarget, roundID string, startEventIDs []string, resume bool) bool {
-	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+	unlock, lockErr := s.dispatchLocks.lock(ctx, target.sessionKey)
+	if lockErr != nil {
 		return false
 	}
-	defer s.inputQueueDispatchMu.Unlock()
+	defer unlock()
 	s.hostRuns.Delete(roundID)
 	if _, err := s.inbox.Transition(ctx, target.sessionKey, startEventIDs, inboxstore.StatusDelivering, inboxstore.StatusConsumed, roundID); err != nil {
 		s.LoggerFor(ctx).Error("轮末补记主窗口起轮批次 consumed 失败", "round_id", roundID, "err", err)

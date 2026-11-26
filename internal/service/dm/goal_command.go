@@ -19,10 +19,11 @@ func (s *Service) SetGoalFromCommand(
 	ctx context.Context,
 	request protocol.GoalCommandRequest,
 ) (protocol.GoalCommandResult, error) {
-	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
-		return protocol.GoalCommandResult{}, err
+	unlock, lockErr := s.dispatchLocks.lock(ctx, request.SessionKey)
+	if lockErr != nil {
+		return protocol.GoalCommandResult{}, lockErr
 	}
-	defer s.inputQueueDispatchMu.Unlock()
+	defer unlock()
 
 	execution, err := s.prepareChatExecution(ctx, Request{
 		SessionKey:      request.SessionKey,
