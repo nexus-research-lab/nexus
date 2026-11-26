@@ -47,6 +47,7 @@ func TestDetachedAcceptanceUsesRoundContextAfterDurableMarker(t *testing.T) {
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	permission := permissionctx.NewContext()
 	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	activity := &blockingDMAcceptanceActivity{
 		started: make(chan context.Context, 1),
 		release: make(chan struct{}),
@@ -103,8 +104,10 @@ func TestDetachedAcceptanceProjectsRuntimeStartupFailure(t *testing.T) {
 	client.connectErrors = []error{startupErr}
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	permission := permissionctx.NewContext()
-	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
-	sessionKey := "agent:nexus:ws:dm:detached-startup-failure"
+	agentService := newDMAgentService(t, cfg)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	sessionKey := "agent:" + newPlainDMAgent(t, agentService).AgentID + ":ws:dm:detached-startup-failure"
 	sender := newDMTestSender("sender-detached-startup-failure")
 	permission.BindSession(sessionKey, sender)
 
@@ -143,6 +146,7 @@ func TestDetachedAcceptanceRejectsOversizedClientMessageID(t *testing.T) {
 		runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()}),
 		permissionctx.NewContext(),
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	err := service.HandleRealtimeChat(context.Background(), Request{
 		SessionKey:      "agent:nexus:ws:dm:oversized-client-message-id",
 		Content:         "限制客户端消息 ID 长度",

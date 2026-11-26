@@ -23,6 +23,7 @@ func (s *Service) RequireWiring() error {
 		{"room session store", s.roomStore != nil},
 		{"room activity store", s.roomActivity != nil},
 		{"queue admission store", s.QueueTrust != nil},
+		{"main window inbox store", s.inbox != nil},
 		{"usage recorder", s.Usage != nil},
 		{"quota checker", s.Quota != nil},
 		{"goal context provider", s.goals != nil},

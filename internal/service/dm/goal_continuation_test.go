@@ -73,6 +73,7 @@ func TestServiceGoalContinuationFinalDispatchDefersToConcurrentExplicitInput(t *
 	}
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	quota := &blockingDMQuotaChecker{
 		entered: make(chan struct{}),
 		release: make(chan struct{}),
@@ -183,6 +184,7 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 	}
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:claim-before-launch"
 	t.Cleanup(func() {
 		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
@@ -314,6 +316,7 @@ func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *
 	}
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:retarget-after-claim"
 	t.Cleanup(func() {
 		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
@@ -408,6 +411,7 @@ func TestServiceGoalContinuationPauseAfterRuntimeRegistrationFailsAdmissionBefor
 	client.onQuery = func(context.Context, string) { queryCalls.Add(1) }
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:pause-at-start-admission"
 	plan := protocol.GoalContinuation{
 		Goal: protocol.Goal{
@@ -518,6 +522,7 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:test-goal-defer-queue"
 	t.Cleanup(func() {
 		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
@@ -572,6 +577,7 @@ func TestServiceGoalContinuationDefersForSessionPlanOverride(t *testing.T) {
 		runtimectx.NewManager(),
 		permissionctx.NewContext(),
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	sessionKey := "agent:nexus:ws:dm:test-goal-session-plan"
 	now := time.Now().UTC()
 	if _, err := service.Files.UpsertSession(

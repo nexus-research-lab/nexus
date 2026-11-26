@@ -258,6 +258,7 @@ func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T)
 	}
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	titleScheduler := &fakeDMTitleScheduler{}
 	service.SetTitleGenerator(titleScheduler)
 

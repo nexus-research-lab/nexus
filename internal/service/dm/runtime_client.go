@@ -366,6 +366,9 @@ func (s *Service) ensureClient(
 	options = s.WithAgentRuntimeHooks(options, sessionKey,
 		s.LoggerFor(context.Background()).With("session_key", sessionKey, "agent_id", agentValue.AgentID),
 		func(options agentclient.Options) agentclient.Options {
+			if isMainWindowSession(agentValue, protocol.ParseSessionKey(sessionKey)) {
+				return runtimectx.WithPostToolUseGuidanceHook(options, s.mainInboxGuidanceHook(mainInboxTarget{agent: agentValue, sessionKey: sessionKey}))
+			}
 			return s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
 				OwnerUserID:   agentValue.OwnerUserID,
 				Scope:         protocol.InputQueueScopeDM,

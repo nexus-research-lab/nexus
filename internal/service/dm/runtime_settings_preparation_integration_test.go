@@ -30,6 +30,7 @@ func TestPreparedRoomForkRejectsSupersededConnectorSelection(t *testing.T) {
 		runtimectx.NewManagerWithFactory(&fakeDMFactory{}),
 		permissionctx.NewContext(),
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	workspacePath := dmMainWorkspacePath(cfg)
 	oldSessionID := "39393939-3939-4939-8939-393939393939"
 	newSessionID := "49494949-4949-4949-8949-494949494949"
@@ -143,6 +144,7 @@ func TestPrepareConnectorRuntimeMaterializesNXSForkBeforeUserQuery(t *testing.T)
 		runtimectx.NewManagerWithFactory(factory),
 		permission,
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	service.SetProviderResolver(providerService)
 	roomStore := &fakeDMRoomSessionStore{}
 	service.SetRoomSessionStore(roomStore)

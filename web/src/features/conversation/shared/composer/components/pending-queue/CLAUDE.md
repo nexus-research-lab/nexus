@@ -4,7 +4,7 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 
 ## 职责
 
-- `composer-pending-queue.tsx`: 使用共享 Disclosure 装配原生折叠头和有序消息列表
+- `composer-pending-queue.tsx`: 使用共享 Disclosure 装配原生折叠头和有序消息列表；`mode="inbox"`（主窗口）只保留撤回，排序手柄与引导动作不渲染
 - `pending-queue-item.tsx`: 展示单条待发送消息、内容描述与独立引导/删除动作；排序手柄组合公共 IconButton/Action Menu
 - `pending-queue-model.ts`: 处理重排、拖动身份、正文/附件和引导状态的纯投影；密度 padding 由上层 `composer-styles.ts` 唯一持有
 - `use-pending-queue-controller.ts`: 管理拖拽/相邻移动、有限边缘滚动和串行派发；折叠由 Disclosure 持有

@@ -1,6 +1,6 @@
 /**
- * INPUT: 单条排队消息、拖动投影与引导/删除动作。
- * OUTPUT: 有序队列行、完整内容提示与共享拖动/排序入口；引导和删除保持独立原生命中。
+ * INPUT: 单条排队消息、队列模式、拖动投影与引导/删除动作。
+ * OUTPUT: 有序队列行、完整内容提示与共享拖动/排序入口；引导和删除保持独立原生命中。inbox 行只有撤回：顺序与注入时机归服务端。
  * POS: Composer Pending Queue 行视图；不拥有队列顺序或命令状态。
  */
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
@@ -15,6 +15,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
 
+import type { ComposerQueueMode } from "../../composer-model";
+
 import type {
   PendingQueueItemContent,
   PendingQueueItemProjection,
@@ -25,6 +27,7 @@ interface PendingQueueItemProps {
   canMoveDown: boolean;
   isActionRunning: boolean;
   item: InputQueueItem;
+  mode: ComposerQueueMode;
   onDelete: (messageId: string) => void;
   onDragEnd: () => void;
   onDragOver: (messageId: string, clientY: number) => void;
@@ -40,6 +43,7 @@ export function PendingQueueItem({
   canMoveDown,
   isActionRunning,
   item,
+  mode,
   onDelete,
   onDragEnd,
   onDragOver,
@@ -52,7 +56,8 @@ export function PendingQueueItem({
   const { t } = useI18n();
   const contentId = useId();
   const moveAnchorRef = useRef<HTMLButtonElement>(null);
-  const canReorder = !isActionRunning && (canMoveUp || canMoveDown);
+  const isQueue = mode === "queue";
+  const canReorder = isQueue && !isActionRunning && (canMoveUp || canMoveDown);
   const [isMoveMenuOpen, setMoveMenuOpen] = useResettableState(false, canReorder);
   const guideAriaLabel = item.dispatch_paused ? t("composer.resume_queued") : projection.isGuidanceWaiting
     ? t("composer.cancel_guidance")
@@ -78,54 +83,60 @@ export function PendingQueueItem({
         onDrop(item.id);
       }}
     >
-      <UiIconButton
-        ref={moveAnchorRef}
-        aria-describedby={contentId}
-        aria-expanded={canReorder && isMoveMenuOpen}
-        aria-haspopup="menu"
-        aria-label={t("composer.reorder_pending")}
-        className="shrink-0 cursor-grab active:cursor-grabbing"
-        disabled={!canReorder}
-        draggable={canReorder}
-        onClick={() => setMoveMenuOpen((open) => !open)}
-        onDragEnd={onDragEnd}
-        onDragStart={(event) => {
-          setMoveMenuOpen(false);
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("application/x-nexus-input-queue", item.id);
-          onDragStart(item.id);
-        }}
-        size="2xs"
-        tooltip={t("composer.drag_to_reorder")}
-        variant="ghost"
-      >
-        <GripVertical className="h-3.5 w-3.5" />
-      </UiIconButton>
-      <UiActionMenu
-        anchorRef={moveAnchorRef}
-        ariaLabel={t("composer.reorder_pending")}
-        density="compact"
-        isOpen={canReorder && isMoveMenuOpen}
-        items={[
-          { value: "up", label: t("composer.move_pending_up"), icon: <ArrowUp className="h-4 w-4" />, disabled: !canMoveUp },
-          { value: "down", label: t("composer.move_pending_down"), icon: <ArrowDown className="h-4 w-4" />, disabled: !canMoveDown },
-        ]}
-        onClose={() => setMoveMenuOpen(false)}
-        onSelect={(value) => onMove(item.id, value === "up" ? -1 : 1)}
-      />
+      {isQueue ? (
+        <>
+          <UiIconButton
+            ref={moveAnchorRef}
+            aria-describedby={contentId}
+            aria-expanded={canReorder && isMoveMenuOpen}
+            aria-haspopup="menu"
+            aria-label={t("composer.reorder_pending")}
+            className="shrink-0 cursor-grab active:cursor-grabbing"
+            disabled={!canReorder}
+            draggable={canReorder}
+            onClick={() => setMoveMenuOpen((open) => !open)}
+            onDragEnd={onDragEnd}
+            onDragStart={(event) => {
+              setMoveMenuOpen(false);
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("application/x-nexus-input-queue", item.id);
+              onDragStart(item.id);
+            }}
+            size="2xs"
+            tooltip={t("composer.drag_to_reorder")}
+            variant="ghost"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </UiIconButton>
+          <UiActionMenu
+            anchorRef={moveAnchorRef}
+            ariaLabel={t("composer.reorder_pending")}
+            density="compact"
+            isOpen={canReorder && isMoveMenuOpen}
+            items={[
+              { value: "up", label: t("composer.move_pending_up"), icon: <ArrowUp className="h-4 w-4" />, disabled: !canMoveUp },
+              { value: "down", label: t("composer.move_pending_down"), icon: <ArrowDown className="h-4 w-4" />, disabled: !canMoveDown },
+            ]}
+            onClose={() => setMoveMenuOpen(false)}
+            onSelect={(value) => onMove(item.id, value === "up" ? -1 : 1)}
+          />
+        </>
+      ) : null}
       <PendingQueueItemContentView content={projection.content} id={contentId} />
-      <UiButton
-        aria-describedby={contentId}
-        aria-label={guideAriaLabel}
-        className="shrink-0"
-        disabled={isActionRunning}
-        onClick={() => onGuide(item.id)}
-        size="2xs"
-        variant="text"
-      >
-        <CornerDownRight className="h-3 w-3" />
-        {guideActionLabel}
-      </UiButton>
+      {isQueue ? (
+        <UiButton
+          aria-describedby={contentId}
+          aria-label={guideAriaLabel}
+          className="shrink-0"
+          disabled={isActionRunning}
+          onClick={() => onGuide(item.id)}
+          size="2xs"
+          variant="text"
+        >
+          <CornerDownRight className="h-3 w-3" />
+          {guideActionLabel}
+        </UiButton>
+      ) : null}
       <UiIconButton
         aria-describedby={contentId}
         aria-label={t("composer.delete_pending")}

@@ -1,5 +1,5 @@
 // INPUT: 有序队列快照、拖动/键盘/折叠事件与 Conversation 命令。
-// OUTPUT: 证明公共 Disclosure/Menu/Button 保持精确行命令和当前顺序，无私有乐观重排。
+// OUTPUT: 证明公共 Disclosure/Menu/Button 保持精确行命令和当前顺序，无私有乐观重排；inbox 只保留撤回。
 // POS: Queue 真实组件集成回归；浏览器拖动手感和视觉验收仍单独记录。
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -14,8 +14,8 @@ const queue: InputQueueItem[] = ["Alpha", "Bravo", "Charlie"].map((content, inde
   delivery_policy: "queue", created_at: 1, updated_at: 1,
 }));
 const commands = () => ({ onDeleteQueuedMessage: vi.fn(), onGuideQueuedMessage: vi.fn(), onReorderQueueMessages: vi.fn() });
-const wrap = (items: InputQueueItem[], actions = commands()) => <I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => key }}>
-  <ComposerPendingQueue compact={false} inputQueueItems={items} {...actions} />
+const wrap = (items: InputQueueItem[], actions = commands(), mode: "queue" | "inbox" = "queue") => <I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => key }}>
+  <ComposerPendingQueue compact={false} inputQueueItems={items} mode={mode} {...actions} />
 </I18N_CONTEXT.Provider>;
 
 describe("ComposerPendingQueue", () => {
@@ -127,5 +127,16 @@ describe("ComposerPendingQueue", () => {
     await act(async () => { finish(); });
     expect((screen.getAllByRole("button", { name: "composer.delete_pending" })[1] as HTMLButtonElement).disabled).toBe(false);
     expect(actions.onDeleteQueuedMessage).not.toHaveBeenCalled();
+  });
+  it("offers only withdraw in inbox mode", async () => {
+    const user = userEvent.setup();
+    const actions = commands();
+    render(wrap(queue, actions, "inbox"));
+    const first = screen.getAllByRole("listitem")[0];
+    expect(within(first).queryByRole("button", { name: "composer.reorder_pending" })).toBeNull();
+    expect(within(first).queryByRole("button", { name: "composer.mark_guidance" })).toBeNull();
+    await user.click(within(first).getByRole("button", { name: "composer.delete_pending" }));
+    expect(actions.onDeleteQueuedMessage).toHaveBeenCalledExactlyOnceWith("0");
+    expect(actions.onGuideQueuedMessage).not.toHaveBeenCalled();
   });
 });

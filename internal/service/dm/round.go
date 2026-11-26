@@ -413,6 +413,11 @@ func (r *roundRunner) dispatchPostRoundWork() {
 		SessionKey:    r.sessionKey,
 	}
 	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
+		// 主窗口用户输入优先于宿主恢复输入与 Goal 续跑。
+		if isMainWindowSession(r.agent, protocol.ParseSessionKey(r.sessionKey)) &&
+			r.service.finishMainInboxRound(ctx, mainInboxTarget{agent: r.agent, sessionKey: r.sessionKey}, r.roundID, !r.userStoppedRound()) {
+			return
+		}
 		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
 		if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
 			return

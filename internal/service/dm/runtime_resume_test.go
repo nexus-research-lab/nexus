@@ -73,6 +73,7 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	service.SetProviderResolver(providerService)
 	roomStore := &fakeDMRoomSessionStore{}
 	service.SetRoomSessionStore(roomStore)
@@ -190,6 +191,7 @@ func TestServiceEnsureClientRetriesFreshWhenAutomaticToolSurfaceForkCannotResume
 		runtimeManager,
 		permissionctx.NewContext(),
 	)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	service.SetProviderResolver(providerService)
 	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
 		AgentRuntimeKind: "claude",
@@ -325,6 +327,7 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 		t.Fatalf("连接旧 runtime 失败: %v", err)
 	}
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	service.SetProviderResolver(providerService)
 	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
 		AgentRuntimeKind: "claude",
@@ -511,6 +514,7 @@ func TestServiceResolveReusableSDKSessionIDReusesSharedTranscriptRuntimeSwitch(t
 	cfg := newDMTestConfig(t)
 	agentService := newDMAgentService(t, cfg)
 	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(&fakeDMFactory{}), permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 
 	workspacePath := dmMainWorkspacePath(cfg)
 	resumeID := "66666666-6666-4666-8666-666666666666"
@@ -559,6 +563,7 @@ func TestSyncSDKSessionDoesNotCommitToolSurfaceBeforeForkTranscriptIsPersistable
 	cfg := newDMTestConfig(t)
 	agentService := newDMAgentService(t, cfg)
 	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(&fakeDMFactory{}), permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 
 	workspacePath := dmMainWorkspacePath(cfg)
 	oldSessionID := "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"

@@ -33,6 +33,13 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 
 // HandleRealtimeChat 持久化并 ACK 后，把 round 生命周期与实时连接分离。
 func (s *Service) HandleRealtimeChat(ctx context.Context, request Request) error {
+	target, mainWindow, err := s.resolveMainInboxTarget(ctx, request.SessionKey, request.AgentID)
+	if err != nil {
+		return err
+	}
+	if mainWindow {
+		return s.acceptMainInboxChat(ctx, target, request)
+	}
 	return s.handleChatLocked(ctx, request, chatExecutionDetached)
 }
 

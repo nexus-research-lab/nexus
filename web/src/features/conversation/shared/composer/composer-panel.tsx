@@ -106,6 +106,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 key={props.draftScopeKey}
                 compact={props.compact}
                 inputQueueItems={props.inputQueueItems}
+                mode={props.queueMode ?? "queue"}
                 onDeleteQueuedMessage={props.onDeleteQueuedMessage}
                 onGuideQueuedMessage={props.onGuideQueuedMessage}
                 onReorderQueueMessages={props.onReorderQueueMessages}

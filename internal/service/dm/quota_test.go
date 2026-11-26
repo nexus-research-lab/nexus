@@ -24,6 +24,7 @@ func TestServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded(t *test
 	client := newFakeDMClient()
 	factory := &fakeDMFactory{client: client}
 	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(factory), permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
 	goalProvider := &fakeGoalContextProvider{}
 	service.SetGoalContextProvider(goalProvider)
 	quotaErr := subscriptionsvc.QuotaExceededError{UsedTokens: 10, LimitTokens: 10}

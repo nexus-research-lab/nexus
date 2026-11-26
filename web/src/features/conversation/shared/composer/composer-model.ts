@@ -72,6 +72,8 @@ export interface ComposerPanelProps {
   stopLabel?: string;
   defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   queueWhenSessionBusy?: boolean;
+  /** inbox：主窗口输入一律交给服务端 inbox（空闲立即开跑、运行中在安全点注入），待发送只能撤回。 */
+  queueMode?: ComposerQueueMode;
   roomMembers?: Pick<Agent, "agent_id" | "name" | "avatar">[];
   onPrepareAttachments: (
     files: File[],
@@ -140,6 +142,8 @@ export function isWithinCompositionEndEnterGuard(
     eventTime - compositionEndTime <= COMPOSITION_END_ENTER_GUARD_MS,
   ].every(Boolean);
 }
+
+export type ComposerQueueMode = "queue" | "inbox";
 
 export function resolveComposerDelivery(
   busy: boolean,

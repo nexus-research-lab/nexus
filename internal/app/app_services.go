@@ -56,6 +56,7 @@ import (
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
+	inboxstore "github.com/nexus-research-lab/nexus/internal/storage/inbox"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workgraphworkflowstore "github.com/nexus-research-lab/nexus/internal/storage/workgraphworkflow"
@@ -320,6 +321,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetSubagentAdmissionProvider(orchestrationService)
 	dmService.SetRuntimeAdmissionResolver(authService)
 	dmService.SetQueueAdmissionStore(queueAdmissionRepository)
+	dmService.SetInboxStore(inboxstore.NewRepository(cfg, db))
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
 	core.Room.SetConversationSessionForker(dmService)

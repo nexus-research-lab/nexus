@@ -20,6 +20,7 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
+	inboxstore "github.com/nexus-research-lab/nexus/internal/storage/inbox"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
@@ -220,6 +221,8 @@ type Service struct {
 
 	roomStore    roomSessionStore
 	roomActivity roomConversationActivityStore
+	// inbox 只承载主窗口的用户输入，见 main_inbox.go。
+	inbox *inboxstore.Repository
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
 	inputQueueDispatchMu contextMutex
 	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.
@@ -366,6 +369,11 @@ func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string)
 	if errs := s.Permission.BroadcastSessionStatus(ctx, sessionKey, s.Runtime.GetRunningRoundIDs(sessionKey)); len(errs) > 0 {
 		s.LoggerFor(ctx).Warn("广播 session 状态失败", "session_key", sessionKey, "error_count", len(errs))
 	}
+}
+
+// SetInboxStore 注入主窗口 inbox 仓储。
+func (s *Service) SetInboxStore(store *inboxstore.Repository) {
+	s.inbox = store
 }
 
 // SetReplyPreviewRepository 注入消息落盘后的独立摘要投影。

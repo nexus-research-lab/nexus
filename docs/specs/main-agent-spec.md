@@ -24,6 +24,12 @@
 - 默认入口使用标准 Agent DM session，不新增专用会话协议；其运行时、历史和恢复规则与其他 Agent DM 一致。
 - 主智能体 DM 是 owner 唯一的主窗口对话：服务端拒绝为其新建或分支 conversation（HTTP 409），`EnsureDirectRoom` 始终返回同一条；早期遗留的其他 conversation 只保留数据、不再作为入口。
 - 侧栏固定的主智能体直接进入该主窗口；Header 和窄窗不提供会话标签、历史、新建或分支入口。
+- 主窗口的用户输入统一追加到该 Session 的 inbox（`agent_inbox_events`，按 `seq` 有序，按 `client_message_id` 幂等），WebSocket `chat` 与 `input_queue` enqueue 等价：
+  - 空闲时立即起一轮；积压的 pending 输入合并成一轮（正文以空行拼接、附件按序合并），斜杠命令独占一轮，不同真人身份的输入不合并。
+  - 运行中在 PostToolUse 安全点把斜杠命令之前的全部 pending 输入注入当前轮；runtime 确认 applied 后才标记 consumed，并作为 durable 用户消息写入当前轮。最后一个安全点之后到达的输入在本轮结束后立即开下一轮；用户主动停止的轮次结束后不自动开跑。
+  - 只有 pending 输入可以撤回；已取走注入或已开跑的输入拒绝撤回。主窗口不提供排队/引导选择与重排。
+  - 状态只经条件更新迁移（pending → delivering → consumed，pending → withdrawn），不依赖内存登记；进程启动时 delivering 退回 pending，并唤醒仍有 pending 的 inbox。
+  - 宿主内部的恢复与自动化输入继续走原输入队列，在 inbox 之后处理；其他 Agent 的 DM 与 Room 不受影响。
 - `/nexus/v1/runtime/options` 返回当前 owner 的 `default_agent_id`、头像和默认模型偏好；前端只消费该结果，不维护第二份默认 ID。
 - 主智能体不能作为多人 Room 的普通成员，也不充当其成员模板。
 
