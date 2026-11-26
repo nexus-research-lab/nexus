@@ -20,13 +20,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
-type skillLibrarySyncState struct {
-	sync.Mutex
-	root        string
-	fingerprint string
-}
-
-var platformSkillLibraryState skillLibrarySyncState
+// 平台 Skill 只在启动时发布一次；互斥只防止测试等并发调用交错替换同一根。
+var platformSkillLibraryMu sync.Mutex
 
 const skillLibraryManifestName = ".nexus-skill-library-manifest"
 
@@ -35,18 +30,16 @@ func EnsurePlatformSkillLibrary() error {
 	return ensureCompatibleSkillLibrary(
 		filepath.Join(appfs.Root(), "skills"),
 		appfs.PlatformSkillRoot(),
-		&platformSkillLibraryState,
 	)
 }
 
 // ensureCompatibleSkillLibrary 把单一 Skill 源原子发布成 nxs/Claude 共用根。
-func ensureCompatibleSkillLibrary(
-	sourceRoot string,
-	targetRoot string,
-	state *skillLibrarySyncState,
-) error {
+// 已发布内容与源指纹一致时跳过重发：投影仅宿主可写，内容校验足以替代每次启动整库复制。
+func ensureCompatibleSkillLibrary(sourceRoot string, targetRoot string) error {
+	platformSkillLibraryMu.Lock()
+	defer platformSkillLibraryMu.Unlock()
 	if _, err := os.Stat(sourceRoot); os.IsNotExist(err) {
-		return clearCompatibleSkillLibrary(targetRoot, state)
+		return clearCompatibleSkillLibrary(targetRoot)
 	} else if err != nil {
 		return err
 	}
@@ -54,33 +47,35 @@ func ensureCompatibleSkillLibrary(
 	if err != nil {
 		return err
 	}
-
-	state.Lock()
-	defer state.Unlock()
-	if state.root == targetRoot &&
-		state.fingerprint == fingerprint &&
-		skillLibraryReady(targetRoot, fingerprint) {
+	if skillLibraryReady(targetRoot, fingerprint) && publishedSkillTreesMatch(targetRoot, fingerprint) {
 		return nil
 	}
-	if err = replaceCompatibleSkillLibrary(sourceRoot, targetRoot, fingerprint); err != nil {
-		return err
-	}
-	state.root = targetRoot
-	state.fingerprint = fingerprint
-	return nil
+	return replaceCompatibleSkillLibrary(sourceRoot, targetRoot, fingerprint)
 }
 
-func clearCompatibleSkillLibrary(
-	targetRoot string,
-	state *skillLibrarySyncState,
-) error {
-	state.Lock()
-	defer state.Unlock()
+// publishedSkillTreesMatch 校验已发布的真实目录内容；Claude 入口为符号链接时由 skillLibraryReady 校验指向。
+func publishedSkillTreesMatch(targetRoot string, fingerprint string) bool {
+	for _, relative := range []string{".agents/skills", ".claude/skills"} {
+		published := filepath.Join(targetRoot, filepath.FromSlash(relative))
+		info, err := os.Lstat(published)
+		if err != nil {
+			return false
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		digest, err := skillLibraryFingerprint(published)
+		if err != nil || digest != fingerprint {
+			return false
+		}
+	}
+	return true
+}
+
+func clearCompatibleSkillLibrary(targetRoot string) error {
 	parentPath := filepath.Clean(filepath.Dir(targetRoot))
 	parentRoot, err := confinedfs.Open(parentPath)
 	if os.IsNotExist(err) {
-		state.root = ""
-		state.fingerprint = ""
 		return nil
 	}
 	if err != nil {
@@ -91,8 +86,6 @@ func clearCompatibleSkillLibrary(
 		!os.IsNotExist(err) {
 		return err
 	}
-	state.root = ""
-	state.fingerprint = ""
 	return nil
 }
 
@@ -159,7 +152,7 @@ func fingerprintSkillTree(root *confinedfs.Root, prefix string, digest hash.Hash
 		}
 		_, _ = digest.Write([]byte(filepath.ToSlash(relative)))
 		_, _ = digest.Write([]byte{0})
-		_, _ = digest.Write([]byte(fmt.Sprintf("%o", openedInfo.Mode().Perm())))
+		_, _ = fmt.Fprintf(digest, "%o", runtimeReadableFileMode(openedInfo.Mode()))
 		_, _ = digest.Write([]byte{0})
 		_, err = io.Copy(digest, file)
 		closeErr := file.Close()
@@ -450,16 +443,21 @@ func copyRuntimeReadableSkillEntry(
 		sourceFile.Close()
 		return err
 	}
-	mode := os.FileMode(0o644)
-	if openedInfo.Mode().Perm()&0o111 != 0 {
-		mode = 0o755
-	}
-	copyErr := target.WriteFileAtomicFrom(name, sourceFile, mode)
+	copyErr := target.WriteFileAtomicFrom(name, sourceFile, runtimeReadableFileMode(openedInfo.Mode()))
 	closeErr := sourceFile.Close()
 	if copyErr != nil {
 		return copyErr
 	}
 	return closeErr
+}
+
+// runtimeReadableFileMode 是发布投影的唯一权限规则：只保留可执行位，其余统一只读可读。
+// 指纹也按投影权限计算，使源目录与已发布目录可以直接比较。
+func runtimeReadableFileMode(mode os.FileMode) os.FileMode {
+	if mode.Perm()&0o111 != 0 {
+		return 0o755
+	}
+	return 0o644
 }
 
 func normalizeRuntimeReadableTree(root *confinedfs.Root) error {
@@ -494,11 +492,7 @@ func normalizeRuntimeReadableTree(root *confinedfs.Root) error {
 		if err != nil {
 			return err
 		}
-		mode := os.FileMode(0o644)
-		if info.Mode().Perm()&0o111 != 0 {
-			mode = 0o755
-		}
-		err = file.Chmod(mode)
+		err = file.Chmod(runtimeReadableFileMode(info.Mode()))
 		closeErr := file.Close()
 		if err != nil {
 			return err
