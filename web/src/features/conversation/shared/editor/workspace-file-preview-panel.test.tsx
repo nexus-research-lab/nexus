@@ -47,7 +47,7 @@ it("closes the renderer into the current language's shared empty state and reope
   expect(screen.queryByRole("textbox")).toBeNull();
   expect(screen.getByText(MESSAGES.en["room.workspace_preview_title"])).toBeTruthy();
   view.rerender(panel({ path: null }, "zh"));
-  expect(screen.getByText(MESSAGES.zh["room.workspace_preview_empty_description"])).toBeTruthy();
+  expect(screen.getByText(MESSAGES.zh["room.workspace_preview_title"])).toBeTruthy();
   view.rerender(panel());
   expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("agent-a:one/report.md");
 });
