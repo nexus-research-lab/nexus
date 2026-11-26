@@ -144,7 +144,7 @@ export function SidebarPanel({
           className={cn(
             "sidebar-panel-header shell-region-header -mr-1.5 flex shrink-0 items-center",
             WORKSPACE_HEADER_HEIGHT_CLASS,
-            collapsed ? "px-2" : "pl-3 pr-4",
+            collapsed ? "px-2" : "pl-3 pr-2",
             "max-lg:px-4",
           )}
           data-desktop-window-controls-leading={

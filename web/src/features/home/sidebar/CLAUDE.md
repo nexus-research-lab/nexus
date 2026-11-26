@@ -34,3 +34,4 @@
 - 联系人侧栏通过共享分段控件切换“Agent｜组织成员”；真人列表复用侧栏行，点击进入 `/contacts?view=members&member=...` 详情，发消息才创建 DM；真人行复用 Agent 的悬浮聊天图标，图标点击阻止冒泡并直接打开 DM。聊天侧栏不放独立私聊入口。
 
 - 在线 Room 的未读数直接投影 Relay unread_count；阅读水位按 Control 真人持久化，排除本人消息，但包含本人 Agent 的公开回复。在线目录更新继续消费本人 directory WS。
+- `sidebar-teammate-card.tsx` 只渲染「你的 AI 队友」引导卡；是否展示由聊天面板按目录中是否存在非主智能体的 Agent 判断，搜索时不展示。

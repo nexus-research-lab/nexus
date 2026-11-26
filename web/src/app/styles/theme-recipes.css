@@ -843,6 +843,16 @@
     .home-workspace-frame { padding: 24px; }
   }
 
+  /* 侧栏「AI 队友」引导卡：比目录行高一层的浅卡片，头像叠放时用卡片底色描边分隔。 */
+  .sidebar-teammate-card {
+    background: var(--surface-card-background);
+    border: 1px solid var(--divider-subtle-color);
+  }
+
+  .sidebar-teammate-avatar {
+    box-shadow: 0 0 0 2px var(--surface-card-background);
+  }
+
   /* 侧栏目录行之间的淡分隔线：从正文列起笔、不贯穿头像；悬停、选中及其上一行收起，避免线压在高亮底色边上。 */
   .sidebar-row-divider::after {
     content: "";

@@ -428,6 +428,7 @@ export function useChatSidebarController({
       isCreating,
       isOpen: isCreateOpen,
       open: () => setIsCreateOpen(true),
+      openAgent: () => navigate(AppRouteBuilders.contactsCreate()),
       onlineAvailable: onlineRooms.isAvailable,
       submit: submitCreate,
       users: teamMembers,
@@ -443,6 +444,8 @@ export function useChatSidebarController({
     },
     directory: {
       agents,
+      // 主智能体是内置的，只有它时视为还没有自建 Agent，侧栏展示「AI 队友」引导卡。
+      hasCustomAgents: hasLoaded && agents.some((agent) => !isMainAgent(agent.id)),
     },
     list: {
       hasError,

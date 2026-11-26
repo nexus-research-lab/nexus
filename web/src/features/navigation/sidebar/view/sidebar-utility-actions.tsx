@@ -118,7 +118,7 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
   }] : [])];
 
   return (
-    <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 flex h-12 shrink-0 items-center justify-end gap-2 pl-2 pr-4">
+    <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 flex h-12 shrink-0 items-center justify-end gap-2 pl-2 pr-2">
       <UiButton
         ref={anchorRef}
         data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
