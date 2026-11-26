@@ -1,10 +1,7 @@
 package workspace
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -57,11 +54,6 @@ func ensureRuntimeCLIShims(binDir string, context map[string]string) error {
 		return err
 	}
 	defer root.Close()
-	for _, retired := range []string{"nexus", "nexus.cmd"} {
-		if err = root.Remove(retired); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
 	for _, definition := range runtimeCLIShimDefinitions {
 		target, resolveErr := resolveRuntimeCLIShimTarget(
 			binDir,
@@ -214,76 +206,6 @@ func renderRuntimeCLIArguments(arguments []string, quote func(string) string) st
 		encoded = append(encoded, quote(argument))
 	}
 	return " " + strings.Join(encoded, " ")
-}
-
-func removeWorkspaceBinShim(root *confinedfs.Root) error {
-	binRoot, err := root.OpenRootNoSymlink(".agents/bin")
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	closed := false
-	defer func() {
-		if !closed {
-			_ = binRoot.Close()
-		}
-	}()
-	for _, fileName := range []string{"nexusctl", "nexusctl.cmd", "nexuscfg", "nexuscfg.cmd", "nexus", "nexus.cmd"} {
-		info, statErr := binRoot.Lstat(fileName)
-		if os.IsNotExist(statErr) {
-			continue
-		}
-		if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			continue
-		}
-		file, openErr := binRoot.OpenFileNoSymlink(fileName, os.O_RDONLY, 0)
-		if os.IsNotExist(openErr) {
-			continue
-		}
-		if openErr != nil {
-			if errors.Is(openErr, confinedfs.ErrSymlink) || errors.Is(openErr, confinedfs.ErrHardlink) {
-				continue
-			}
-			return openErr
-		}
-		content, readErr := io.ReadAll(file)
-		closeErr := file.Close()
-		if readErr != nil {
-			return readErr
-		}
-		if closeErr != nil {
-			return closeErr
-		}
-		if !looksLikeGeneratedRuntimeCLIShim(string(content)) {
-			continue
-		}
-		if err = binRoot.Remove(fileName); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
-	entries, err := fs.ReadDir(binRoot.FS(), ".")
-	if err != nil {
-		return err
-	}
-	if len(entries) != 0 {
-		return nil
-	}
-	if err = binRoot.Close(); err != nil {
-		return err
-	}
-	closed = true
-	return root.Remove(".agents/bin")
-}
-
-func looksLikeGeneratedRuntimeCLIShim(content string) bool {
-	return strings.Contains(content, "NEXUSCTL_WORKSPACE_PATH") &&
-		(strings.Contains(content, "go run ./cmd/nexusctl") ||
-			strings.Contains(content, "go run ./cmd/nexuscfg") ||
-			strings.Contains(content, "--nexus-runtime-command") ||
-			strings.Contains(content, "nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl") ||
-			strings.Contains(content, "exit /b %ERRORLEVEL%"))
 }
 
 func shellSingleQuote(value string) string {

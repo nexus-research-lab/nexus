@@ -296,10 +296,7 @@ func (i *workspaceInitializer) ensureDirectoriesAt() error {
 }
 
 func (i *workspaceInitializer) ensureRuntimeTools() error {
-	if err := ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), i.context); err != nil {
-		return err
-	}
-	return removeWorkspaceBinShim(i.rootFS)
+	return ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), i.context)
 }
 
 func (i *workspaceInitializer) ensureTemplateFiles() error {
