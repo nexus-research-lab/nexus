@@ -142,7 +142,6 @@ jobs:
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
       NEXUS_DESKTOP_TARGET_ARCH: ${{ matrix.target_arch }}
-      NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
       NEXUS_DESKTOP_SKIP_WEB_BUILD: "1"
       NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
       NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
@@ -174,11 +173,14 @@ jobs:
             ${{ runner.os }}-${{ matrix.target_arch }}-swiftpm-
 
       - name: Build and smoke test macOS app
+        env:
+          NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
         run: |
           scripts/desktop/smoke-macos-app.sh
 
       - name: Package macOS DMG without release signing
         env:
+          NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
           NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME: "0"
           NEXUS_DESKTOP_PACKAGE_FORMAT: dmg
           NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/macos-package-check
