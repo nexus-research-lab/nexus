@@ -29,13 +29,14 @@ describe("home launch model", () => {
     expect(resolveHomeDayPeriod(new Date(2026, 0, 1, 2))).toBe("night");
   });
 
-  it("进行中只取等你回复和执行中的会话，排除主智能体与空闲会话，最多三条", () => {
+  it("进行中只取等你回复和执行中的会话，排除主智能体与空闲会话，最多四条", () => {
     const items = [
       item("main", { isPinned: true, activityStatus: "working" }),
       item("a"), item("b", { activityStatus: "working" }), item("c", { activityStatus: "working" }),
       item("d", { activityStatus: "working" }), item("e", { activityStatus: "waiting" }),
+      item("f", { activityStatus: "working" }),
     ];
-    expect(selectActiveItems(items).map((entry) => entry.id)).toEqual(["e", "b", "c"]);
+    expect(selectActiveItems(items).map((entry) => entry.id)).toEqual(["e", "b", "c", "d"]);
     expect(selectActiveItems([item("a"), item("b")])).toEqual([]);
   });
 

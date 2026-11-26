@@ -16,8 +16,8 @@ export interface HomeLaunchSample {
   promptKey: TranslationKey;
 }
 
-/** 进行中区最多展示的会话数；完整列表留给侧栏。 */
-const ACTIVE_LIMIT = 3;
+/** 进行中区最多展示的会话数：两列两行，完整列表留给侧栏。 */
+const ACTIVE_LIMIT = 4;
 const UPCOMING_LIMIT = 3;
 /** 非主智能体会话少于该数量时视为新用户，示例卡占据首屏。 */
 const SAMPLE_VISIBLE_BELOW = 3;
