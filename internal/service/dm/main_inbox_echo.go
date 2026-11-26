@@ -121,7 +121,10 @@ func (s *Service) startEchoRound(ctx context.Context, target mainInboxTarget, ro
 	if err != nil || len(moved) == 0 {
 		return false
 	}
+	// Echo 也是宿主 run：生成期间用户开口要留在 inbox，好让提交前复核丢弃这次 Echo。
+	s.hostRuns.Store(roundID, struct{}{})
 	if err = s.handleChat(ctx, s.echoRequest(target, roundID, event, prompt), chatExecutionInline); err != nil {
+		s.hostRuns.Delete(roundID)
 		s.LoggerFor(ctx).Warn("Echo 起轮失败", "session_key", target.sessionKey, "err", err)
 		return false
 	}

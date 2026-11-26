@@ -1,5 +1,5 @@
 // INPUT: 主窗口（主智能体的 WebSocket DM）的用户输入与已到点的宿主事件、PostToolUse 安全点与 round 终态。
-// OUTPUT: 先落库再 ACK 的 inbox 事件；空闲时立即起轮（积压合并为一轮），运行中在安全点注入；只有 pending 可撤回；用户开口即取消 Echo。
+// OUTPUT: 先落库再 ACK 的 inbox 事件；空闲时立即起轮（积压合并为一轮），运行中交给当前轮（running_input_v1 或 PostToolUse 安全点，宿主 run 除外）；只有 pending 可撤回；用户开口即取消 Echo。
 // POS: 主窗口输入的唯一入口；不经过 JSONL 待发送队列、投递策略与 queue admission。
 // 单进程部署：并发正确性全部来自 inbox 行的条件状态迁移，不需要租约或内存登记表。
 package dm
@@ -173,7 +173,13 @@ func (s *Service) drainMainInbox(ctx context.Context, target mainInboxTarget) bo
 		return false
 	}
 	defer s.inputQueueDispatchMu.Unlock()
-	if len(s.Runtime.GetRunningRoundIDs(target.sessionKey)) > 0 {
+	return s.dispatchMainInboxLocked(ctx, target)
+}
+
+// dispatchMainInboxLocked 要求持有 inputQueueDispatchMu：空闲时起轮，运行中则投给当前 turn。
+func (s *Service) dispatchMainInboxLocked(ctx context.Context, target mainInboxTarget) bool {
+	if running := s.Runtime.GetRunningRoundIDs(target.sessionKey); len(running) > 0 {
+		s.deliverMainInboxRunningInput(ctx, target, running[0])
 		return false
 	}
 	roundID := protocol.NewRoundID()
@@ -298,11 +304,67 @@ func (s *Service) mainInboxRequest(target mainInboxTarget, roundID string, batch
 	}
 }
 
+// deliverMainInboxRunningInput 把 pending 逐条作为运行中输入交给当前 turn（running_input_v1）。
+// input_consumed 回执才算 consumed；没有回执的（turn 已收尾、被中断）随轮末退回 pending。
+// 未协商的 runtime 什么都不做，由 PostToolUse hook 在安全点取走。
+func (s *Service) deliverMainInboxRunningInput(ctx context.Context, target mainInboxTarget, roundID string) {
+	sender := runtimectx.RunningInputSenderOf(s.Runtime.SessionClient(target.sessionKey))
+	if sender == nil || !s.acceptsMidRunInput(roundID) {
+		return
+	}
+	events, err := s.claimMainInbox(ctx, target, roundID, guidanceBatch)
+	for index := 0; err == nil && index < len(events); index++ {
+		if err = s.sendMainInboxRunningInput(ctx, sender, events[index]); err != nil {
+			// 未送出的立即退回，已送出的仍等回执或轮末退回。
+			_, _ = s.inbox.Transition(ctx, target.sessionKey, eventIDs(events[index:]), inboxstore.StatusDelivering, inboxstore.StatusPending, "")
+		}
+	}
+	if err != nil {
+		s.LoggerFor(ctx).Warn("主窗口 inbox 运行中投递失败，消息保留为待处理", "round_id", roundID, "err", err)
+	}
+	s.broadcastMainInbox(ctx, target)
+}
+
+func (s *Service) sendMainInboxRunningInput(ctx context.Context, sender runtimectx.RunningInputSender, event inboxstore.Event) error {
+	content, err := s.mainInboxEventContent(ctx, event)
+	if err != nil {
+		return err
+	}
+	return sender.SendRunningInput(ctx, event.EventID, content.Payload())
+}
+
+// mainInboxEventContent 是事件交给模型的内容：用户原话带附件，宿主事件用带来源包装的提示词。
+func (s *Service) mainInboxEventContent(ctx context.Context, event inboxstore.Event) (conversationsvc.RuntimeContent, error) {
+	if isHostInboxEvent(event) {
+		return s.renderRuntimeContentWithAttachments(ctx, hostEventPrompt(event), nil)
+	}
+	return s.renderRuntimeContentWithAttachments(ctx, event.Payload.Content, event.Payload.Attachments)
+}
+
+// acceptsMidRunInput 区分可插话的用户轮与宿主 run（定时任务、跟进、Echo）：后者期间的输入等它收口后另起一轮。
+func (s *Service) acceptsMidRunInput(roundID string) bool {
+	_, hostRun := s.hostRuns.Load(roundID)
+	return !hostRun
+}
+
+// confirmMainInboxInputs 处理 input_consumed：input_id 即 inbox event ID，按回执顺序确认并落盘为用户消息。
+func (s *Service) confirmMainInboxInputs(target mainInboxTarget, roundID string, inputIDs []string) {
+	ctx := runtimehost.ContextWithExactOwner(context.Background(), target.owner())
+	open, err := s.inbox.ListOpen(ctx, target.sessionKey, time.Now().UTC())
+	if err != nil {
+		s.LoggerFor(ctx).Error("读取主窗口 inbox 回执事件失败", "round_id", roundID, "err", err)
+		return
+	}
+	s.confirmMainInboxGuidance(target, roundID, selectEvents(open, inputIDs))
+}
+
 // mainInboxGuidanceHook 在 PostToolUse 安全点取走 pending，作为用户补充注入当前 round；
 // runtime 确认 applied 后才算 consumed，未确认的在轮末退回 pending 并接续下一轮。
+// 协商了运行中输入的 runtime 不走这条路径。
 func (s *Service) mainInboxGuidanceHook(target mainInboxTarget) sdkhook.Callback {
 	return func(ctx context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
-		if !runtimehost.IsGuidanceHookEvent(input) {
+		if !runtimehost.IsGuidanceHookEvent(input) ||
+			runtimectx.RunningInputSenderOf(s.Runtime.SessionClient(target.sessionKey)) != nil {
 			return sdkhook.Output{}, nil
 		}
 		ctx = runtimehost.ContextWithExactOwner(ctx, target.owner())
@@ -311,7 +373,7 @@ func (s *Service) mainInboxGuidanceHook(target mainInboxTarget) sdkhook.Callback
 			return sdkhook.Output{}, nil
 		}
 		roundID := running[0]
-		if _, hostRun := s.hostRuns.Load(roundID); hostRun {
+		if !s.acceptsMidRunInput(roundID) {
 			return sdkhook.Output{}, nil
 		}
 		events, err := s.claimMainInbox(ctx, target, roundID, guidanceBatch)
@@ -337,11 +399,7 @@ func (s *Service) mainInboxGuidanceHook(target mainInboxTarget) sdkhook.Callback
 func (s *Service) mainInboxGuidedInputs(ctx context.Context, events []inboxstore.Event) ([]runtimectx.GuidedInput, error) {
 	inputs := make([]runtimectx.GuidedInput, 0, len(events))
 	for _, event := range events {
-		if isHostInboxEvent(event) {
-			inputs = append(inputs, runtimectx.GuidedInput{Content: hostEventPrompt(event)})
-			continue
-		}
-		content, err := s.renderRuntimeContentWithAttachments(ctx, event.Payload.Content, event.Payload.Attachments)
+		content, err := s.mainInboxEventContent(ctx, event)
 		if err != nil {
 			return nil, err
 		}
@@ -393,9 +451,15 @@ func (s *Service) persistMainInboxGuidance(ctx context.Context, target mainInbox
 }
 
 // finishMainInboxRound 在 round 终态后退回未确认的注入；用户主动停止时不自动接续。
+// 与运行中投递共用派发锁：投递要么先于退回完成，要么已看到本轮不再运行，不会遗留 delivering。
 func (s *Service) finishMainInboxRound(ctx context.Context, target mainInboxTarget, roundID string, resume bool) bool {
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return false
+	}
+	defer s.inputQueueDispatchMu.Unlock()
+	s.hostRuns.Delete(roundID)
 	s.releaseMainInbox(ctx, target, roundID)
-	return resume && s.drainMainInbox(ctx, target)
+	return resume && s.dispatchMainInboxLocked(ctx, target)
 }
 
 func (s *Service) releaseMainInbox(ctx context.Context, target mainInboxTarget, roundID string) {

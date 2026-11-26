@@ -1,5 +1,5 @@
 // INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
-// OUTPUT: Nexus runtime 所需的最小 Client 能力、换代语义、断流后的进程收尾及清理失败后的重连栅栏。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力、可选的运行中输入通道、换代语义、断流后的进程收尾及清理失败后的重连栅栏。
 // POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
@@ -42,6 +42,24 @@ func SupportsMessageExecutionPolicy(client Client) bool {
 		Supports(bridge.Capability) bool
 	})
 	return ok && capable.Supports(bridge.CapabilityMessageExecutionPolicy)
+}
+
+// RunningInputSender 是协商了 running_input_v1 的 runtime：输入直接加入运行中的 turn，
+// 在下一次模型请求前以 system/input_consumed 回执；turn 出结果前未回执即未消费。
+type RunningInputSender interface {
+	SendRunningInput(ctx context.Context, inputID string, content any) error
+}
+
+// RunningInputSenderOf 返回 client 的运行中输入通道；未协商（如 Claude Code）时为 nil，宿主回退 PostToolUse 引导。
+func RunningInputSenderOf(client Client) RunningInputSender {
+	sender, ok := client.(interface {
+		RunningInputSender
+		Supports(bridge.Capability) bool
+	})
+	if !ok || !sender.Supports(bridge.CapabilityRunningInput) {
+		return nil
+	}
+	return sender
 }
 
 // Factory 负责创建 Agent client。
@@ -943,6 +961,17 @@ func (c *agentClient) SendContentWithOptions(ctx context.Context, content any, p
 	}
 	_, err = session.SendMessageWithOptions(ctx, sdkprotocol.NewRawMessage(payload), options)
 	return err
+}
+
+func (c *agentClient) SendRunningInput(ctx context.Context, inputID string, content any) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.SendRunningInput(ctx, inputID, sdkprotocol.NewRawMessage(map[string]any{
+		"type":    "user",
+		"message": map[string]any{"role": "user", "content": content},
+	}))
 }
 
 func (c *agentClient) StreamError() error {

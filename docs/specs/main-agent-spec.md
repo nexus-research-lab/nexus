@@ -26,24 +26,24 @@
 - 侧栏固定的主智能体直接进入该主窗口；Header 和窄窗不提供会话标签、历史、新建或分支入口。
 - 主窗口的用户输入统一追加到该 Session 的 inbox（`agent_inbox_events`，按 `seq` 有序，按 `client_message_id` 幂等），WebSocket `chat` 与 `input_queue` enqueue 等价：
   - 空闲时立即起一轮；积压的 pending 输入合并成一轮（正文以空行拼接、附件按序合并），斜杠命令独占一轮，不同真人身份的输入不合并。
-  - 运行中在 PostToolUse 安全点把斜杠命令之前的全部 pending 输入注入当前轮；runtime 确认 applied 后才标记 consumed，并作为 durable 用户消息写入当前轮。最后一个安全点之后到达的输入在本轮结束后立即开下一轮；用户主动停止的轮次结束后不自动开跑。
+  - 运行中把斜杠命令之前的全部 pending 输入交给当前轮。runtime 协商了 `running_input_v1`（默认 nxs）时逐条作为运行中输入发送（`input_id` 即 event ID），runtime 在下一次模型请求前回执 `system/input_consumed` 才标记 consumed，模型收尾时到达的输入也会让同一轮多请求一次；未协商时（Claude Code）在 PostToolUse 安全点注入，runtime 确认 applied 后才标记 consumed。consumed 的输入作为 durable 用户消息写入当前轮。轮次结束前未确认的输入退回 pending，本轮结束后立即开下一轮；用户主动停止的轮次结束后不自动开跑。运行中投递与轮末退回共用派发锁，不会遗留 delivering。
   - 只有 pending 输入可以撤回；已取走注入或已开跑的输入拒绝撤回。主窗口不提供排队/引导选择与重排。
   - 状态只经条件更新迁移（pending → delivering → consumed，pending → withdrawn，宿主事件另有 → cancelled），不依赖内存登记；进程启动时 delivering 退回 pending。
   - 事件可带 `available_at`：未到点的事件对取走、合并与注入都不可见。dm service 的 inbox 定时器（duework）在启动时立即 reconcile，之后按全部 inbox 最近的 `available_at` 唤醒到点且有 pending 的主窗口；写入或取消未来事件后主动通知。
-  - 宿主也可代写事件进入同一 inbox：目标为 main 的定时任务到点时写入 `scheduled_task` 事件（payload 带 job/run/任务名，按「任务 + 计划时刻」或 run 去重）。宿主事件空闲时独占一轮、不与用户原话合并，运行中与用户输入一样在安全点注入；它沿用主窗口会话的权限，不进入待发送列表、不可撤回。
+  - 宿主也可代写事件进入同一 inbox：目标为 main 的定时任务到点时写入 `scheduled_task` 事件（payload 带 job/run/任务名，按「任务 + 计划时刻」或 run 去重）。宿主事件空闲时独占一轮、不与用户原话合并，运行中与用户输入一样交给当前轮；它沿用主窗口会话的权限，不进入待发送列表、不可撤回。
   - 模型看到带来源包装的指令（`<scheduled-task name=…>`，注明不是用户此刻输入）；时间线把该行（`metadata.input_kind=scheduled_task`，`is_synthetic`）渲染为「定时任务 · 名称」分隔条，而非用户气泡，也不计为用户输入。
   - **跟进（follow_up）**：主智能体在主窗口轮次里经 `nexus.command` 的 `follow_up` domain 给未来的自己留一次性跟进——`list_follow_ups`（inspect）、`schedule_follow_up`（`after_minutes` 或 RFC3339 `at` 二选一，加必填 `note`）、`cancel_follow_up`（`follow_up_id`）。
     - 只对可信主智能体主窗口 round 开放，目标会话由宿主 Actor 固定；到点时间 5 分钟到 7 天，每个主窗口至多 10 条待触发；同一 `request_id` 的重试只留一条。用户要的提醒与周期工作仍是定时任务。
-    - 跟进是 `follow_up` 宿主事件，到点后与定时任务同路：空闲独占一轮，运行中在安全点注入；模型看到 `<follow-up id=… set_at=…>` 包装的备注，时间线以「跟进 · 备注摘要」分隔条呈现（`metadata.input_kind=follow_up`）。
+    - 跟进是 `follow_up` 宿主事件，到点后与定时任务同路：空闲独占一轮，运行中交给当前轮；模型看到 `<follow-up id=… set_at=…>` 包装的备注，时间线以「跟进 · 备注摘要」分隔条呈现（`metadata.input_kind=follow_up`）。
     - 存在待触发跟进时，宿主把 `<pending_follow_ups>` 作为上下文告知注入（变化时追加，compact 后重新告知），模型据此避免重复设定。
   - **宿主 run（空闲独占的定时任务 / 跟进轮）**：以延迟提交轮执行，工具与权限照常可用，但过程不推送也不进入可见历史；时间线只显示触发分隔条与运行态，停止按钮照常生效。
     - 模型可以沉默：整条输出 trim 后为空或恰为 `<nexus_no_reply/>`（`dm.HostNoReplyMarker`，与 Echo 共用）即不提醒。
     - 收口只留一条记录：有回复 → 作为 overlay assistant 提交（照常触发未读与系统通知）；沉默 / 失败 / 中断 → 同轮写入 `role=system`、`metadata.subtype=host_run_outcome`、`metadata.outcome=quiet|failed|stopped` 的 overlay 记录，前端并进分隔条显示「无需提醒 / 未完成 / 已停止」，不产生通知。
     - transcript 保留（`KeepTranscript`），模型下一轮仍记得这次 run 做过什么；历史投影按 round purpose `host_run` 隐藏其过程。
     - `host_run_outcome` 本身即该轮终态：历史不再为其补 interrupted，恢复上下文只把 `failed` 视为失败。
-    - 宿主 run 期间用户输入不在安全点注入，等它收口后起新一轮；Echo 仍会被用户输入取消。注入进用户轮次或与用户消息同批的宿主事件照常可见。
+    - 宿主 run（含 Echo 轮）期间用户输入既不作为运行中输入发送、也不在安全点注入，等它收口后起新一轮；Echo 仍会被用户输入取消。注入进用户轮次或与用户消息同批的宿主事件照常可见。
     - 不加节奏限制（冷却、日上限、连续轮次上限）。
-  - **Echo**：主动跟进只在主窗口生效，是宿主写入的 `echo` 事件，规则见 [echo-spec](echo-spec.md)。它只在主窗口空闲时起隐藏的无工具轮，从不在安全点注入；任何用户输入都会取消待定的 echo 事件。
+  - **Echo**：主动跟进只在主窗口生效，是宿主写入的 `echo` 事件，规则见 [echo-spec](echo-spec.md)。它只在主窗口空闲时起隐藏的无工具轮，从不交给运行中的轮次；任何用户输入都会取消待定的 echo 事件。
   - 宿主内部的恢复输入继续走原输入队列，在 inbox 之后处理；其他 Agent 的 DM 与 Room 不受影响。
 - 主窗口是长期单会话，上下文压缩与其他 Agent DM 共用 runtime 机制，宿主不另设压缩流程：
   - runtime 在每次模型请求前按自身窗口与阈值自动压缩（Nexus 通过 `NEXUS_AUTOCOMPACT_PCT_OVERRIDE` 设为 70%），不更换会话 key、不打断当前轮；手动 `/compact` 作为斜杠命令独占一轮，走同一路径。

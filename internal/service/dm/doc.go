@@ -11,9 +11,9 @@
 //   - im_delivery_reply.go：IM 反馈持久幂等入队、派发前复核与一次领取；反馈新轮次不继承旧轮次权限。
 //   - service.go / request.go / guidance_input.go / round*.go：写请求阶段状态、直接或 queue/guide 物化的首条 Room DM 用户消息消费 conversation draft，与运行时轮次编排；同步准备响应请求与准入取消，持久受理由 round 持有；round 登记覆盖 runtime 准备，失败完成收尾，避免交接期间被空闲回收；完整回复落盘后写入独立摘要，编辑重发先失效旧摘要；/plan 在 runtime 准备阶段覆盖本轮权限。
 //   - input_queue.go / running_input.go / guidance_input.go / interrupt.go：durable 幂等受理、admission 暂时失败时保留并允许原请求重试恢复、先 ACK 后异步启动与下一轮队列、hook applied ACK 后消费引导、错过 hook 的接力与中断。
-//   - main_inbox.go：主智能体主窗口的 inbox 路径——受理/撤回（用户开口即取消待定 Echo）、空闲合并开跑、PostToolUse 安全点注入（applied 后 consumed）、轮末释放与续跑；不经过 input_queue.go 的队列与 admission。
-//   - main_inbox_host.go：宿主事件（定时任务、跟进、Echo）的规格表、带来源包装的模型输入与时间线触发分隔条元数据；宿主事件独占一轮、不进入待发送列表，quietOnly 事件（Echo）不进安全点注入。
-//     空闲独占的宿主 run 是 Announce + KeepTranscript 的延迟提交轮：只提交最终回复，沉默（HostNoReplyMarker）/失败/中断记为 host_run_outcome，期间拒绝安全点注入。
+//   - main_inbox.go：主智能体主窗口的 inbox 路径——受理/撤回（用户开口即取消待定 Echo）、空闲合并开跑、运行中投递（running_input_v1：input_consumed 回执后 consumed；未协商时 PostToolUse 安全点注入、applied 后 consumed）、轮末释放与续跑、启动恢复；不经过 input_queue.go 的队列与 admission。
+//   - main_inbox_host.go：宿主事件（定时任务、跟进、Echo）的规格表、带来源包装的模型输入与时间线触发分隔条元数据；宿主事件独占一轮、不进入待发送列表，quietOnly 事件（Echo）不交给运行中的轮次。
+//     空闲独占的宿主 run 是 Announce + KeepTranscript 的延迟提交轮：只提交最终回复，沉默（HostNoReplyMarker）/失败/中断记为 host_run_outcome；宿主 run（含 Echo 轮）期间不接收运行中输入。
 //   - main_inbox_timer.go：启动退回遗留 delivering，按 inbox 最近 available_at 唤醒到点的未来事件（duework）。
 //   - main_inbox_follow_up.go：agent 自设跟进的设定/列出/取消（5 分钟–7 天、至多 10 条）、到点输入与分隔条元数据，以及待触发跟进的上下文告知。
 //   - main_inbox_echo.go：主窗口 Echo——可见用户轮成功后写入 echo 事件，到点认领后锁外跑 EchoPolicy 判断，CAS 确认后起隐藏无工具延迟提交轮，提交前遇无回复标记或待处理用户输入即丢弃。
