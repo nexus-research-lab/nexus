@@ -132,6 +132,7 @@ jobs:
           cache: true
 
       - name: Cache SwiftPM build
+        id: swiftpm-cache
         uses: actions/cache@v5
         with:
           path: desktop/macos/.build
@@ -162,6 +163,7 @@ jobs:
       - name: Build and smoke test macOS app
         env:
           NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
+          NEXUS_DESKTOP_REUSE_CACHED_SWIFT: ${{ steps.swiftpm-cache.outputs.cache-hit == 'true' && '1' || '0' }}
         run: |
           scripts/desktop/smoke-macos-app.sh
 
