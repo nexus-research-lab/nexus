@@ -53,18 +53,16 @@ export function GroupRouteEntry({
             {
               id: "home",
               title: t("room.route_back_home"),
-              description: t("room.route_back_home_description"),
               Icon: MessageSquare,
               route: AppRouteBuilders.home(),
             },
             {
               id: "contacts",
               title: t("room.route_browse_agents"),
-              description: t("room.route_browse_agents_description"),
               Icon: Users,
               route: AppRouteBuilders.contacts(),
             },
-          ].map(({ id, title, description, Icon, route }) => (
+          ].map(({ id, title, Icon, route }) => (
             <WorkspaceCatalogCard
               key={id}
               primaryAction={{ label: title, onClick: () => navigate(route) }}
@@ -74,11 +72,6 @@ export function GroupRouteEntry({
               <p className={`mt-3 ${getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" })}`}>
                 {title}
               </p>
-              {description ? (
-                <p className={`mt-1 ${getUiTypographyClassName({ role: "caption", tone: "soft" })}`}>
-                  {description}
-                </p>
-              ) : null}
             </WorkspaceCatalogCard>
           ))}
         </div>

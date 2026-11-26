@@ -48,7 +48,7 @@ function setupFixture(width = 1024) {
       connectors: [], connectorsFailure: null, connectorsLoading: false, enabledConnectorIds: [],
       ensureTargetsLoaded: commands.ensureTargetsLoaded,
       effort: "", effortLevels: [],
-      hasModelOverride: true, hasPermissionOverride: false,
+      hasModelOverride: true,
       inheritedModel: "base", inheritedPermissionMode: "default", inheritedProvider: "provider",
       isDangerousPermission: false,
       modelBusy: busy, modelLabel: "Advanced", permissionLabel: "Default",
@@ -73,7 +73,7 @@ function setupFixture(width = 1024) {
       resetModel: async () => { commands.resetModel(selectedId); },
       updateModel: async (provider, model) => { commands.updateModel(selectedId, provider, model); },
       updateEffort: vi.fn(async () => undefined),
-      resetPermission: vi.fn(async () => undefined), updatePermission: vi.fn(async () => undefined),
+      updatePermission: vi.fn(async () => undefined),
       toggleConnector: vi.fn(async () => undefined),
     };
     return <I18nProvider>

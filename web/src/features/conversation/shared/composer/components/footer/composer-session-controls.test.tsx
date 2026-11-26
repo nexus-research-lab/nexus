@@ -96,17 +96,21 @@ describe("ComposerSessionControls", () => {
     await user.click(screen.getByRole("menuitem", { name: /agent_options\.advanced\.permission\.bypass\.label/ }));
     expect(controller.updatePermission).toHaveBeenCalledWith("bypassPermissions");
     await open();
-    await user.click(screen.getByRole("menuitem", { name: "composer.session_reset_defaults" }));
-    expect(controller.resetPermission).toHaveBeenCalledOnce();
+    // 权限菜单只列模式名称：没有说明文字，也没有重置项。
+    expect(screen.queryByRole("menuitem", { name: "composer.session_reset_defaults" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: /agent_options\.advanced\.permission\.default\.label/ }).textContent)
+      .toBe("agent_options.advanced.permission.default.label");
   });
 
-  it.each(["model", "permission"])("closes the %s menu while busy and keeps reset unavailable without an override", async (kind) => {
+  it.each(["model", "permission"])("closes the %s menu while busy and keeps model reset unavailable without an override", async (kind) => {
     const user = userEvent.setup();
-    const controller = makeController({ hasModelOverride: false, hasPermissionOverride: false });
+    const controller = makeController({ hasModelOverride: false });
     const { rerender } = render(<Controls controller={controller} />);
     const trigger = screen.getByRole("button", { name: `composer.session_${kind}` }) as HTMLButtonElement;
     await user.click(trigger);
-    expect((screen.getByRole("menuitem", { name: "composer.session_reset_defaults" }) as HTMLButtonElement).disabled).toBe(true);
+    if (kind === "model") {
+      expect((screen.getByRole("menuitem", { name: "composer.session_reset_defaults" }) as HTMLButtonElement).disabled).toBe(true);
+    }
     rerender(<Controls controller={{ ...controller, busy: kind === "permission", modelBusy: kind === "model" }} />);
     expect(screen.queryByRole("menu")).toBeNull();
     expect(trigger.disabled).toBe(true);

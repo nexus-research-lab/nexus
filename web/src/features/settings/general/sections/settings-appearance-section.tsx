@@ -23,7 +23,6 @@ import { LOCALE_OPTIONS, THEME_OPTIONS } from "../model/settings-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
-  SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
@@ -51,9 +50,6 @@ export function SettingsAppearanceSection() {
               <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                 {t("theme.switch_title")}
               </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.theme_description")}
-              </p>
             </div>
           </div>
           <div className="min-w-0">
@@ -82,9 +78,6 @@ export function SettingsAppearanceSection() {
               <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                 {t("language.switch_title")}
               </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.language_description")}
-              </p>
             </div>
           </div>
           <div className="min-w-0">

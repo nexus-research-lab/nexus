@@ -45,7 +45,7 @@ export const SETTINGS_CONTROL_LABEL_CLASS_NAME = getUiTypographyClassName({
 
 interface SettingsToggleRowProps {
   checked: boolean;
-  description: string;
+  description?: string;
   disabled?: boolean;
   icon: ReactNode;
   onChange: (checked: boolean) => void;
@@ -62,11 +62,13 @@ export function SettingsToggleRow({
         <div aria-hidden="true" className={SETTINGS_ICON_CLASS_NAME}>{icon}</div>
         <div className="min-w-0 break-words">
           <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>{title}</h3>
-          <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} id={descriptionId}>{description}</p>
+          {description ? (
+            <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} id={descriptionId}>{description}</p>
+          ) : null}
         </div>
       </div>
       <GlassSwitch
-        aria-describedby={descriptionId}
+        aria-describedby={description ? descriptionId : undefined}
         aria-label={title}
         checked={checked}
         disabled={disabled}

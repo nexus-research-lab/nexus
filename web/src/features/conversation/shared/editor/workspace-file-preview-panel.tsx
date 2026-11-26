@@ -26,7 +26,7 @@ function WorkspaceFilePreviewEmptyState() {
   const { t } = useI18n();
   return (
     <UiResourceState className="h-full min-h-0 flex-1" size="sm" state="empty" variant="plain"
-      description={t("room.workspace_preview_empty_description")} title={t("room.workspace_preview_title")} />
+      title={t("room.workspace_preview_title")} />
   );
 }
 

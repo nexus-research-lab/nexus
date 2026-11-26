@@ -3,7 +3,7 @@
 /**
  * INPUT: 当前 Composer 可配置的 Session 目标、Agent 默认值与 runtime 类型。
  * OUTPUT: DM 直接配置当前 Session 模型/思考强度与权限；Room 统一权限并按 Agent 配置模型与强度。
- * POS: Composer Footer 会话设置入口；临时菜单按精确 Session 重置，模型宽度/选择与 Room 共用 owner，不写回 Agent 默认配置。
+ * POS: Composer Footer 会话设置入口；权限菜单只列模式名称，不带说明与重置项；临时菜单按精确 Session 重置，模型宽度/选择与 Room 共用 owner，不写回 Agent 默认配置。
  */
 
 import {
@@ -24,11 +24,7 @@ import type {
 } from "../../controller/use-composer-session-settings";
 import { ComposerModelPicker } from "./composer-model-picker";
 import { ComposerRoomModelControl } from "./composer-room-model-control";
-import {
-  buildResetSessionSettingItem,
-  buildSessionPermissionItems,
-  RESET_SESSION_SETTING_VALUE,
-} from "./composer-session-control-options";
+import { buildSessionPermissionItems } from "./composer-session-control-options";
 
 interface ComposerSessionControlsProps {
   controller: ComposerSessionSettingsController;
@@ -81,10 +77,6 @@ function ComposerPermissionControl({
     }
   }, [controller.busy, disabled, setIsOpen]);
   const permissionItems = buildSessionPermissionItems(controller, t);
-  const resetItem = buildResetSessionSettingItem(
-    !controller.hasPermissionOverride,
-    t,
-  );
   return (
     <div className="min-w-0">
       <UiButton
@@ -108,16 +100,11 @@ function ComposerPermissionControl({
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("composer.session_permission")}
-        footerItems={[resetItem]}
         isOpen={isOpen && !disabled && !controller.busy}
         items={permissionItems}
         minWidth={SESSION_PERMISSION_MENU_WIDTH}
         onClose={() => setIsOpen(false)}
         onSelect={(value) => {
-          if (value === RESET_SESSION_SETTING_VALUE) {
-            void controller.resetPermission();
-            return;
-          }
           void controller.updatePermission(
             !roomWide && value === controller.inheritedPermissionMode
               ? ""

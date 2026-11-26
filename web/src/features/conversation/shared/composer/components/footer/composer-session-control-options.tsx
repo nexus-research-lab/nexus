@@ -20,7 +20,6 @@ import {
 import { getAgentPermissionChoices, resolveRuntimePermissionMode } from "@/lib/agent-options";
 import { UiBadge } from "@/shared/ui/display/badge";
 import type { SessionEffortLevel } from "@/types/capability/provider";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
@@ -39,15 +38,6 @@ const SESSION_EFFORT_LABEL_KEYS = {
   xhigh: "composer.session_effort_xhigh",
   max: "composer.session_effort_max",
 } as const satisfies Record<SessionEffortLevel, string>;
-
-const SESSION_PERMISSION_DESCRIPTION_KEYS = {
-  auto: "agent_options.advanced.permission.auto.description",
-  default: "composer.session_permission_default_hint",
-  plan: "composer.session_permission_plan_hint",
-  acceptEdits: "composer.session_permission_accept_edits_hint",
-  bypassPermissions: "composer.session_permission_bypass_hint",
-  dontAsk: "composer.session_permission_dont_ask_hint",
-} as const;
 
 const SESSION_PERMISSION_ICONS = {
   auto: (
@@ -71,7 +61,6 @@ export function buildSessionPermissionItems(
     || controller.inheritedPermissionMode, controller.scope?.runtimeKind ?? "");
   return getAgentPermissionChoices(controller.scope?.runtimeKind ?? "").map((mode) => ({
     active: currentMode === mode.value,
-    description: t(SESSION_PERMISSION_DESCRIPTION_KEYS[mode.value]),
     icon: SESSION_PERMISSION_ICONS[mode.value],
     label: t(mode.labelKey),
     tone: mode.value === "bypassPermissions"
@@ -144,11 +133,7 @@ export function buildSessionEffortItems(
   return levels.map((level) => ({
     checked: controller.effort === level,
     label: sessionEffortLabel(level, t),
-    trailing: level === "" ? (
-      <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" })}>
-        {t("composer.session_effort_auto_hint")}
-      </span>
-    ) : level === "max" ? (
+    trailing: level === "max" ? (
       <UiBadge size="xs" tone="warning">{t("composer.session_effort_max_hint")}</UiBadge>
     ) : undefined,
     value: level || SESSION_EFFORT_AUTO_VALUE,

@@ -11,7 +11,7 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 interface SidebarEmptyGuideProps {
   icon: LucideIcon;
   title: string;
-  description: string;
+  description?: string;
   impact?: string;
   nextStep?: string;
   actionLabel?: string;
@@ -49,7 +49,7 @@ export function SidebarEmptyGuide({
           {title}
         </span>
       </div>
-      {!impact ? (
+      {!impact && description ? (
         <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
           {description}
         </p>
