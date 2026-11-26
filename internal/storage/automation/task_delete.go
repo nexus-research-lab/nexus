@@ -152,10 +152,10 @@ func (r *Repository) listTaskDeletionCleanupRuns(
 	query := `SELECT` + scheduledTaskRunSelectColumns + `
 FROM automation_task_runs
 WHERE owner_user_id = ` + r.bind(1) + ` AND job_id = ` + r.bind(2) + `
-	  AND status IN (` + r.bind(3) + `, ` + r.bind(4) + `, ` + r.bind(5) + `)
+	  AND status IN (` + r.bind(3) + `, ` + r.bind(4) + `)
 ORDER BY created_at ASC, run_id ASC`
 	rows, err := queryContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(jobID),
-		automationdomain.RunStatusPending, automationdomain.RunStatusRunning, automationdomain.RunStatusQueuedToMain)
+		automationdomain.RunStatusPending, automationdomain.RunStatusRunning)
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +179,13 @@ func (r *Repository) ListReviewRequiredTaskDeletionCleanupRuns(
 ) ([]automationdomain.ScheduledTaskRun, error) {
 	query := `SELECT` + scheduledTaskRunSelectColumns + `
 FROM automation_task_runs AS run
-WHERE run.status IN (` + r.bind(1) + `, ` + r.bind(2) + `, ` + r.bind(3) + `)
+WHERE run.status IN (` + r.bind(1) + `, ` + r.bind(2) + `)
   AND EXISTS (
       SELECT 1
       FROM automation_scheduled_tasks AS task
       WHERE task.owner_user_id = run.owner_user_id
         AND task.job_id = run.job_id
-        AND task.deletion_state = ` + r.bind(4) + `
+        AND task.deletion_state = ` + r.bind(3) + `
   )
 ORDER BY run.owner_user_id ASC, run.job_id ASC, run.created_at ASC, run.run_id ASC`
 	rows, err := r.db.QueryContext(
@@ -193,7 +193,6 @@ ORDER BY run.owner_user_id ASC, run.job_id ASC, run.created_at ASC, run.run_id A
 		query,
 		automationdomain.RunStatusPending,
 		automationdomain.RunStatusRunning,
-		automationdomain.RunStatusQueuedToMain,
 		automationdomain.TaskDeletionStateReviewRequired,
 	)
 	if err != nil {
@@ -378,7 +377,7 @@ func (r *Repository) listDeletionDeliveryRunIDsTx(ctx context.Context, tx *sql.T
 WHERE owner_user_id = `+r.bind(1)+` AND job_id = `+r.bind(2)+`
   AND delivery_dead_letter_at IS NULL
   AND (delivery_status IN ('failed', 'retrying')
-       OR (delivery_status = 'pending' AND status NOT IN ('pending', 'running', 'queued_to_main_session')))`, ownerUserID, jobID)
+       OR (delivery_status = 'pending' AND status NOT IN ('pending', 'running')))`, ownerUserID, jobID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -405,18 +404,18 @@ WHERE owner_user_id = `+r.bind(1)+` AND job_id = `+r.bind(2)+`
 
 func (r *Repository) cancelDeletionRunsTx(ctx context.Context, tx *sql.Tx, input TaskDeleteFinalizationInput) error {
 	_, err := tx.ExecContext(ctx, `UPDATE automation_task_runs
-SET status = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') THEN `+r.bind(1)+` ELSE status END,
-    finished_at = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') THEN `+r.bind(2)+` ELSE finished_at END,
-    error_message = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') THEN `+r.bind(3)+` ELSE error_message END,
-    delivery_status = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') AND delivery_status = 'pending' THEN `+r.bind(4)+` ELSE delivery_status END,
-    delivery_error = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') AND delivery_status = 'pending' THEN `+r.bind(5)+` ELSE delivery_error END,
-    delivery_next_attempt_at = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') AND delivery_status = 'pending' THEN NULL ELSE delivery_next_attempt_at END,
-    delivery_dead_letter_at = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') AND delivery_status = 'pending' THEN `+r.bind(6)+` ELSE delivery_dead_letter_at END,
-    delivery_attempt_id = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') AND delivery_status = 'pending' THEN NULL ELSE delivery_attempt_id END,
-    delivery_attempt_started_at = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session') AND delivery_status = 'pending' THEN NULL ELSE delivery_attempt_started_at END,
+SET status = CASE WHEN status IN ('pending', 'running') THEN `+r.bind(1)+` ELSE status END,
+    finished_at = CASE WHEN status IN ('pending', 'running') THEN `+r.bind(2)+` ELSE finished_at END,
+    error_message = CASE WHEN status IN ('pending', 'running') THEN `+r.bind(3)+` ELSE error_message END,
+    delivery_status = CASE WHEN status IN ('pending', 'running') AND delivery_status = 'pending' THEN `+r.bind(4)+` ELSE delivery_status END,
+    delivery_error = CASE WHEN status IN ('pending', 'running') AND delivery_status = 'pending' THEN `+r.bind(5)+` ELSE delivery_error END,
+    delivery_next_attempt_at = CASE WHEN status IN ('pending', 'running') AND delivery_status = 'pending' THEN NULL ELSE delivery_next_attempt_at END,
+    delivery_dead_letter_at = CASE WHEN status IN ('pending', 'running') AND delivery_status = 'pending' THEN `+r.bind(6)+` ELSE delivery_dead_letter_at END,
+    delivery_attempt_id = CASE WHEN status IN ('pending', 'running') AND delivery_status = 'pending' THEN NULL ELSE delivery_attempt_id END,
+    delivery_attempt_started_at = CASE WHEN status IN ('pending', 'running') AND delivery_status = 'pending' THEN NULL ELSE delivery_attempt_started_at END,
     block_state = '', blocked_request_id = NULL, updated_at = CURRENT_TIMESTAMP
 WHERE owner_user_id = `+r.bind(7)+` AND job_id = `+r.bind(8)+`
-  AND (status IN ('pending', 'running', 'queued_to_main_session') OR block_state <> '')`,
+  AND (status IN ('pending', 'running') OR block_state <> '')`,
 		automationdomain.RunStatusCancelled, input.FinishedAt.UTC(), nullString(input.ActiveRunMessage),
 		automationdomain.DeliveryStatusNotAttempted, nullString(input.PendingDeliveryError), input.DeliveryDeadLetter.UTC(),
 		strings.TrimSpace(input.OwnerUserID), strings.TrimSpace(input.JobID))
@@ -458,7 +457,7 @@ SET delivery_status = `+r.bind(1)+`, delivery_error = `+r.bind(2)+`, delivered_a
     delivery_next_attempt_at = NULL, delivery_dead_letter_at = `+r.bind(3)+`, updated_at = CURRENT_TIMESTAMP
 WHERE owner_user_id = `+r.bind(4)+` AND job_id = `+r.bind(5)+`
   AND delivery_dead_letter_at IS NULL AND delivery_status = 'pending'
-  AND status NOT IN ('pending', 'running', 'queued_to_main_session')`,
+  AND status NOT IN ('pending', 'running')`,
 		automationdomain.DeliveryStatusNotAttempted, nullString(input.PendingDeliveryError),
 		input.DeliveryDeadLetter.UTC(), strings.TrimSpace(input.OwnerUserID), strings.TrimSpace(input.JobID))
 	return err

@@ -294,7 +294,6 @@ function getRunStatusLabel(status: string | null | undefined, t: Translate): str
     cancelled: t("capability.scheduled_board_run_cancelled"),
     failed: t("capability.scheduled_board_run_failed"),
     pending: t("capability.scheduled_board_run_pending"),
-    queued_to_main_session: t("capability.scheduled_board_run_queued"),
     running: t("capability.scheduled_history_task_running"),
     skipped: t("capability.scheduled_board_run_skipped"),
     succeeded: t("capability.scheduled_history_run_succeeded"),

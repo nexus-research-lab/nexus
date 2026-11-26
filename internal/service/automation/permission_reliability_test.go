@@ -22,6 +22,7 @@ import (
 )
 
 type permissionProjectionRaceDMRunner struct {
+	noMainWindow
 	permission   *permissionctx.Context
 	tools        []sdkpermission.Request
 	beforeSecond func() error
@@ -31,6 +32,7 @@ type permissionProjectionRaceDMRunner struct {
 }
 
 type permissionDispatchFailureDMRunner struct {
+	noMainWindow
 	err error
 }
 

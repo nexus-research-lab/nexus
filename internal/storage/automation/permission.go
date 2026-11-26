@@ -746,9 +746,9 @@ SET status = %s,
 WHERE run_id = %s
   AND owner_user_id = %s
   AND permission_policy_revision = %s
-  AND status IN (%s, %s, %s)`,
+  AND status IN (%s, %s)`,
 			r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
-			r.bind(7), r.bind(8), r.bind(9), r.bind(10),
+			r.bind(7), r.bind(8), r.bind(9),
 		)
 		runResult, runErr := tx.ExecContext(
 			ctx,
@@ -762,7 +762,6 @@ WHERE run_id = %s
 			request.PolicyRevision,
 			automationdomain.RunStatusPending,
 			automationdomain.RunStatusRunning,
-			automationdomain.RunStatusQueuedToMain,
 		)
 		if runErr != nil {
 			return nil, false, runErr
@@ -1375,14 +1374,14 @@ SET effect_started = %s,
 WHERE run_id = %s
   AND owner_user_id = %s
   AND block_state = ''
-  AND status IN (%s, %s, %s)
+  AND status IN (%s, %s)
   AND EXISTS (
     SELECT 1 FROM automation_scheduled_tasks AS task
     WHERE task.job_id = automation_task_runs.job_id
       AND task.owner_user_id = automation_task_runs.owner_user_id
       AND task.deletion_state = ''
   )`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5),
 	)
 	result, err := r.execWithRetry(
 		ctx,
@@ -1392,7 +1391,6 @@ WHERE run_id = %s
 		strings.TrimSpace(ownerUserID),
 		automationdomain.RunStatusPending,
 		automationdomain.RunStatusRunning,
-		automationdomain.RunStatusQueuedToMain,
 	)
 	if err != nil {
 		return err

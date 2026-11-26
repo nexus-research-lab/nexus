@@ -25,7 +25,6 @@ const RUN_STATUS_META: Record<ScheduledTaskRunLedgerStatus, RunStatusDefinition>
   cancelled: { label: "capability.scheduled_history_run_cancelled", tone: "idle" },
   failed: { label: "capability.scheduled_history_run_failed", tone: "default" },
   pending: { label: "capability.scheduled_history_run_pending", tone: "default" },
-  queued_to_main_session: { label: "capability.scheduled_history_run_queued", tone: "running" },
   running: { label: "capability.scheduled_history_run_running", tone: "running" },
   skipped: { label: "capability.scheduled_history_run_skipped", tone: "idle" },
   succeeded: { label: "capability.scheduled_history_run_succeeded", tone: "success" },
@@ -231,7 +230,7 @@ function buildRecoverAction({
   run,
   task,
 }: ScheduledTaskRunActionContext, t: Translate): ScheduledTaskRunActionPresentation | null {
-  if (!["queued_to_main_session", "running"].includes(run.status) || !task.running) {
+  if (run.status !== "running" || !task.running) {
     return null;
   }
   return {

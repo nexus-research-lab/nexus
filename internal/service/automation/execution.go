@@ -1,10 +1,11 @@
 // INPUT: 已验证的 task/configuration/permission 快照、触发类型与可选人工 request identity。
-// OUTPUT: commit 后才派发的 main/runtime/script execution，或 exact run 的幂等重放结果。
+// OUTPUT: commit 后才派发的 main window/runtime/script execution，或 exact run 的幂等重放结果。
 // POS: Automation 执行启动编排；storage 原子 claim+run 是所有副作用前的唯一 durable acceptance。
 package automation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -171,53 +173,62 @@ func (s *jobExecutionStarter) start() (*automationdomain.ExecutionResult, error)
 		return nil, err
 	}
 	if strings.TrimSpace(s.job.SessionTarget.Kind) == automationdomain.SessionTargetMain {
-		return s.startMainSession()
+		return s.startMainWindow()
 	}
 	return s.startRuntimeSession()
 }
 
-func (s *jobExecutionStarter) startMainSession() (*automationdomain.ExecutionResult, error) {
-	if err := s.prepareMainIdentity(); err != nil {
-		return nil, err
-	}
-	result, handled, err := s.claimRuntime(automationdomain.RunStatusQueuedToMain)
+// startMainWindow 把指令写进主窗口 inbox：run 的职责到此为止，执行与结果都留在主窗口对话里，
+// 权限也沿用主窗口会话，不再有任务级主会话与权限恢复。
+func (s *jobExecutionStarter) startMainWindow() (*automationdomain.ExecutionResult, error) {
+	s.runID = s.service.idFactory("run")
+	result, handled, err := s.claimRuntime(automationdomain.RunStatusRunning)
 	if handled || err != nil {
 		return result, err
 	}
-	eventID, err := s.service.enqueueMainSessionEvent(s.ctx, s.job, s.runID, s.triggerKind, "", 0)
-	if err != nil {
+	if s.service.dm == nil {
+		err = errors.New("dm runner is not configured")
 		s.failPendingRun(err)
 		return nil, err
 	}
-	s.service.wakeMainSession(s.job.AgentID)
-	s.logger.Info("自动化任务已排入主会话",
-		"run_id", s.runID,
-		"event_id", eventID,
-		"session_key", s.sessionKey,
-	)
-	return s.queuedMainResult(), nil
-}
-
-func (s *jobExecutionStarter) prepareMainIdentity() error {
-	s.runID = s.service.idFactory("run")
-	sessionKey, err := automationexec.ResolveSessionKey(s.job, nil)
+	// 主窗口按任务所有者解析：调度上下文本身不带登录身份。
+	sessionKey, err := s.service.dm.AppendMainWindowTask(contextForJobOwner(s.ctx, s.job), s.job.AgentID, dmsvc.MainWindowTask{
+		JobID:       s.job.JobID,
+		RunID:       s.runID,
+		Name:        s.job.Name,
+		Instruction: s.job.Instruction,
+		DedupeKey:   s.mainWindowDedupeKey(),
+	})
 	if err != nil {
-		s.failRuntime(err, s.service.nowFn())
-		s.logger.Error("自动化任务解析主会话键失败", "err", err)
-		return err
+		s.failPendingRun(err)
+		s.logger.Error("自动化任务写入主窗口失败", "run_id", s.runID, "err", err)
+		return nil, err
 	}
-	s.sessionKey = sessionKey
-	return nil
+	run, _, err := s.service.commitObservedRunTerminal(backgroundContextForJobOwner(s.job), s.job, automationstore.RunFinishInput{
+		RunID:          s.runID,
+		Status:         automationdomain.RunStatusSucceeded,
+		FinishedAt:     s.service.nowFn(),
+		ResultSummary:  stringPointer("已交给主窗口执行"),
+		DeliveryStatus: automationdomain.DeliveryStatusNotAttempted,
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.logger.Info("自动化任务已写入主窗口", "run_id", s.runID, "session_key", sessionKey)
+	if run == nil {
+		return &automationdomain.ExecutionResult{JobID: s.job.JobID, RunID: &s.runID, Status: automationdomain.RunStatusSucceeded, SessionKey: sessionKey}, nil
+	}
+	result = executionResultFromRun(*run, false)
+	result.SessionKey = sessionKey
+	return result, nil
 }
 
-func (s *jobExecutionStarter) queuedMainResult() *automationdomain.ExecutionResult {
-	return &automationdomain.ExecutionResult{
-		JobID:        s.job.JobID,
-		RunID:        &s.runID,
-		Status:       automationdomain.RunStatusQueuedToMain,
-		SessionKey:   s.sessionKey,
-		ScheduledFor: cloneTimePointer(&s.scheduledFor),
+// mainWindowDedupeKey 让同一次到点只写一条事件；手动运行每次都是新的 run。
+func (s *jobExecutionStarter) mainWindowDedupeKey() string {
+	if isScheduledTrigger(s.triggerKind) {
+		return "scheduled_task:" + s.job.JobID + ":" + s.scheduledFor.UTC().Format(time.RFC3339)
 	}
+	return "scheduled_task_run:" + s.runID
 }
 
 func (s *jobExecutionStarter) startRuntimeSession() (*automationdomain.ExecutionResult, error) {

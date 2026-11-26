@@ -316,6 +316,8 @@ type guidanceUserMessage struct {
 	attachments     []protocol.ChatAttachment
 	clientMessageID string
 	agentRoundID    string
+	// metadata 只由宿主事件设置，使注入行渲染为触发分隔条。
+	metadata map[string]string
 }
 
 func (s *Service) persistGuidanceUserMessage(
@@ -341,6 +343,7 @@ func (s *Service) persistGuidanceUserMessage(
 	if agentRoundID := strings.TrimSpace(guidance.agentRoundID); agentRoundID != "" {
 		messageValue["agent_round_id"] = agentRoundID
 	}
+	messageValue = decorateHostTriggerMessage(messageValue, guidance.metadata)
 	if err := s.History.ForOwner(location.OwnerUserID).AppendOverlayMessage(
 		location.WorkspacePath,
 		sessionItem.SessionKey,

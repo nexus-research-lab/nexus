@@ -20,7 +20,7 @@
   - Chromium 扩展的合同见 [Browser 能力规范](./browser-spec.md)。
 - `protocol/`：跨 HTTP/WS/前端/运行时的协议真相源与 TS codegen 输入。包括会话、房间、Goal/Execution Graph 与命名工作图模型，NodeRun 历史、可恢复结构化产物、显式 partial/total、控制回连事实，Room creator/lead 身份，以及事件和枚举。
 - `service/objectivealignment/`：Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约。
-- `automation/`：定时任务调度域——任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复。
+- `automation/`：定时任务调度域——任务级 capability grant、持久审批、main 目标交给主窗口 inbox、run 阻塞与安全恢复。
 - `service/memorymaintenance/`：Nexus 唤醒 nxs 后台记忆维护的宿主协调器；通过共享 runtime Manager 启动一次性 AutoDream，并统一监督、取消与回收。
 - `app/`：HTTP 与 CLI 共用的显式服务装配和资源所有权。
   - 退出时先停止 runtime 准入并等待终态落盘，再关闭数据库。

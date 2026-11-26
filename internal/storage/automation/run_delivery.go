@@ -481,7 +481,7 @@ func finishedRunDeliveryStatus(input RunFinishInput) string {
 		return deliveryStatus
 	}
 	switch strings.TrimSpace(input.Status) {
-	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning, automationdomain.RunStatusQueuedToMain:
+	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning:
 		return automationdomain.DeliveryStatusPending
 	case automationdomain.RunStatusSucceeded:
 		return automationdomain.DeliveryStatusNotRequired

@@ -983,6 +983,7 @@ export const zhConversationMessages = {
   "message.generated_image": "生成的图片",
   "message.avatar_details": "查看头像详情",
   "message.guidance": "补充要求",
+  "message.scheduled_task.triggered": "定时任务",
   "message.runtime_wake.task_completed": "后台任务完成，继续执行",
   "message.runtime_wake.task_failed": "后台任务失败，继续处理",
   "message.runtime_wake.task_stopped": "后台任务已停止，继续处理",

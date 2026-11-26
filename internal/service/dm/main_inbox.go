@@ -1,4 +1,4 @@
-// INPUT: 主窗口（主智能体的 WebSocket DM）的用户输入、PostToolUse 安全点与 round 终态。
+// INPUT: 主窗口（主智能体的 WebSocket DM）的用户输入与宿主事件、PostToolUse 安全点与 round 终态。
 // OUTPUT: 先落库再 ACK 的 inbox 事件；空闲时立即起轮（积压合并为一轮），运行中在安全点注入；只有 pending 可撤回。
 // POS: 主窗口输入的唯一入口；不经过 JSONL 待发送队列、投递策略与 queue admission。
 // 单进程部署：并发正确性全部来自 inbox 行的条件状态迁移，不需要租约或内存登记表。
@@ -197,17 +197,17 @@ func (s *Service) drainMainInbox(ctx context.Context, target mainInboxTarget) bo
 	return true
 }
 
-// roundBatch 取 pending 的最长可合并前缀：斜杠命令独占一轮，不同真人身份不合并。
+// roundBatch 取 pending 的最长可合并前缀：斜杠命令与宿主事件独占一轮，不同真人身份不合并。
 func roundBatch(pending []inboxstore.Event) []inboxstore.Event {
 	if len(pending) == 0 {
 		return nil
 	}
 	first := pending[0]
-	if isInboxCommand(first) {
+	if isSoloInboxEvent(first) {
 		return pending[:1]
 	}
 	end := 1
-	for end < len(pending) && !isInboxCommand(pending[end]) && pending[end].Payload.Principal == first.Payload.Principal {
+	for end < len(pending) && !isSoloInboxEvent(pending[end]) && pending[end].Payload.Principal == first.Payload.Principal {
 		end++
 	}
 	return pending[:end]
@@ -223,7 +223,12 @@ func guidanceBatch(pending []inboxstore.Event) []inboxstore.Event {
 }
 
 func isInboxCommand(event inboxstore.Event) bool {
-	return conversationsvc.IsSlashCommandInput(event.Payload.Content)
+	return !isHostInboxEvent(event) && conversationsvc.IsSlashCommandInput(event.Payload.Content)
+}
+
+// isSoloInboxEvent 标出空闲时必须单独起轮的事件：命令要独占执行，宿主事件不与用户原话混在一轮。
+func isSoloInboxEvent(event inboxstore.Event) bool {
+	return isInboxCommand(event) || isHostInboxEvent(event)
 }
 
 // claimMainInbox 把选中的 pending 条件迁移为 delivering；与撤回竞争时只保留真正迁移成功的事件。
@@ -249,6 +254,9 @@ func (s *Service) claimMainInbox(
 }
 
 func mainInboxRequest(target mainInboxTarget, roundID string, batch []inboxstore.Event) Request {
+	if isHostInboxEvent(batch[0]) {
+		return mainInboxHostRequest(target, roundID, batch[0])
+	}
 	contents := make([]string, 0, len(batch))
 	var attachments []protocol.ChatAttachment
 	for _, event := range batch {
@@ -305,6 +313,10 @@ func (s *Service) mainInboxGuidanceHook(target mainInboxTarget) sdkhook.Callback
 func (s *Service) mainInboxGuidedInputs(ctx context.Context, events []inboxstore.Event) ([]runtimectx.GuidedInput, error) {
 	inputs := make([]runtimectx.GuidedInput, 0, len(events))
 	for _, event := range events {
+		if isHostInboxEvent(event) {
+			inputs = append(inputs, runtimectx.GuidedInput{Content: hostEventPrompt(event)})
+			continue
+		}
 		content, err := s.renderRuntimeContentWithAttachments(ctx, event.Payload.Content, event.Payload.Attachments)
 		if err != nil {
 			return nil, err
@@ -336,14 +348,19 @@ func (s *Service) persistMainInboxGuidance(ctx context.Context, target mainInbox
 		return err
 	}
 	for _, event := range events {
-		sessionItem, err = s.persistGuidanceUserMessage(ctx, location, sessionItem, guidanceUserMessage{
+		message := guidanceUserMessage{
 			userMessageID:   "msg_user_" + event.EventID,
 			sourceRoundID:   event.EventID,
 			targetRoundID:   roundID,
 			content:         event.Payload.Content,
 			attachments:     event.Payload.Attachments,
 			clientMessageID: event.Payload.ClientMessageID,
-		})
+		}
+		if isHostInboxEvent(event) {
+			message.content = hostEventPrompt(event)
+			message.metadata = hostEventMetadata(event)
+		}
+		sessionItem, err = s.persistGuidanceUserMessage(ctx, location, sessionItem, message)
 		if err != nil {
 			return err
 		}
@@ -400,6 +417,10 @@ func (s *Service) broadcastMainInbox(ctx context.Context, target mainInboxTarget
 	pending := pendingEvents(open)
 	items := make([]protocol.InputQueueItem, 0, len(pending))
 	for _, event := range pending {
+		// 宿主事件不是用户写的，不进入可撤回的待发送列表。
+		if isHostInboxEvent(event) {
+			continue
+		}
 		items = append(items, protocol.InputQueueItem{
 			ID:              event.EventID,
 			Scope:           protocol.InputQueueScopeDM,

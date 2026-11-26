@@ -373,7 +373,7 @@ func TestRuntimeCommandReplayRecoversAcceptedRunAfterReceiptLoss(t *testing.T) {
 		context.Background(),
 		automationstore.RunPendingInput{
 			RunID: "run-receipt-loss", JobID: created.JobID, OwnerUserID: created.OwnerUserID,
-			Status:          automationdomain.RunStatusQueuedToMain,
+			Status:          automationdomain.RunStatusRunning,
 			ClientRequestID: request.RequestID, IntentDigest: intentDigest,
 			PermissionPolicyRevision: created.PermissionPolicy.Revision,
 		},

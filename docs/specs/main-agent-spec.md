@@ -29,7 +29,9 @@
   - 运行中在 PostToolUse 安全点把斜杠命令之前的全部 pending 输入注入当前轮；runtime 确认 applied 后才标记 consumed，并作为 durable 用户消息写入当前轮。最后一个安全点之后到达的输入在本轮结束后立即开下一轮；用户主动停止的轮次结束后不自动开跑。
   - 只有 pending 输入可以撤回；已取走注入或已开跑的输入拒绝撤回。主窗口不提供排队/引导选择与重排。
   - 状态只经条件更新迁移（pending → delivering → consumed，pending → withdrawn），不依赖内存登记；进程启动时 delivering 退回 pending，并唤醒仍有 pending 的 inbox。
-  - 宿主内部的恢复与自动化输入继续走原输入队列，在 inbox 之后处理；其他 Agent 的 DM 与 Room 不受影响。
+  - 宿主也可代写事件进入同一 inbox：目标为 main 的定时任务到点时写入 `scheduled_task` 事件（payload 带 job/run/任务名，按「任务 + 计划时刻」或 run 去重）。宿主事件空闲时独占一轮、不与用户原话合并，运行中与用户输入一样在安全点注入；它沿用主窗口会话的权限，不进入待发送列表、不可撤回。
+  - 模型看到带来源包装的指令（`<scheduled-task name=…>`，注明不是用户此刻输入）；时间线把该行（`metadata.input_kind=scheduled_task`，`is_synthetic`）渲染为「定时任务 · 名称」分隔条，而非用户气泡，也不计为用户输入。
+  - 宿主内部的恢复输入继续走原输入队列，在 inbox 之后处理；其他 Agent 的 DM 与 Room 不受影响。
 - 主窗口是长期单会话，上下文压缩与其他 Agent DM 共用 runtime 机制，宿主不另设压缩流程：
   - runtime 在每次模型请求前按自身窗口与阈值自动压缩（Nexus 通过 `NEXUS_AUTOCOMPACT_PCT_OVERRIDE` 设为 70%），不更换会话 key、不打断当前轮；手动 `/compact` 作为斜杠命令独占一轮，走同一路径。
   - 长期记忆由 runtime 在每轮结束后提取，受用户「自动记忆」偏好约束；宿主不在压缩前另起落盘轮，避免绕过该偏好。

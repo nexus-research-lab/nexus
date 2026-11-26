@@ -19,6 +19,7 @@ import (
 )
 
 type reentrantTaskUpdateDMRunner struct {
+	noMainWindow
 	service *Service
 	jobID   string
 	version int64
@@ -402,7 +403,7 @@ func TestExecutionPathsRollBackRuntimeWhenInitialRunInsertFails(t *testing.T) {
 		targetKind    string
 	}{
 		{name: "runtime", executionKind: automationdomain.ExecutionKindAgent, targetKind: automationdomain.SessionTargetIsolated},
-		{name: "main queued", executionKind: automationdomain.ExecutionKindAgent, targetKind: automationdomain.SessionTargetMain},
+		{name: "main window", executionKind: automationdomain.ExecutionKindAgent, targetKind: automationdomain.SessionTargetMain},
 		{name: "script", executionKind: automationdomain.ExecutionKindScript, targetKind: automationdomain.SessionTargetIsolated},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -461,13 +462,6 @@ func TestExecutionPathsRollBackRuntimeWhenInitialRunInsertFails(t *testing.T) {
 			if err = db.QueryRow(`SELECT COUNT(*) FROM automation_task_runs WHERE job_id = ?`, task.JobID).Scan(&runCount); err != nil || runCount != 1 {
 				t.Fatalf("run count=%d err=%v", runCount, err)
 			}
-			var eventCount int
-			if err = db.QueryRow(`SELECT COUNT(*) FROM automation_system_events`).Scan(&eventCount); err != nil {
-				t.Fatal(err)
-			}
-			if eventCount != 0 {
-				t.Fatalf("dispatch occurred before commit: system events=%d", eventCount)
-			}
 			service.mu.Lock()
 			state := service.jobStates[task.JobID]
 			running := state != nil && state.Running
@@ -483,17 +477,17 @@ func TestManualRunRequestUsesDatabaseOverlapInsteadOfStaleProcessProjection(t *t
 	t.Run("database active while local cache is idle", func(t *testing.T) {
 		db := newAutomationTestDB(t)
 		serviceA := NewService(
-			config.Config{DatabaseDriver: "sqlite"}, db, nil, nil, nil,
+			config.Config{DatabaseDriver: "sqlite"}, db, nil, &fakeDMRunner{permission: permissionctx.NewContext(), delay: 500 * time.Millisecond}, nil,
 			permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
 		)
 		serviceB := NewService(
-			config.Config{DatabaseDriver: "sqlite"}, db, nil, nil, nil,
+			config.Config{DatabaseDriver: "sqlite"}, db, nil, &fakeDMRunner{permission: permissionctx.NewContext(), delay: 500 * time.Millisecond}, nil,
 			permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
 		)
 		task, err := serviceA.CreateTask(context.Background(), automationdomain.CreateJobInput{
 			Name: "cross instance active", AgentID: "agent-1", Instruction: "run once",
 			Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(3600), Timezone: "UTC"},
-			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetMain},
+			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
 			Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 			OverlapPolicy: automationdomain.OverlapPolicySkip, Enabled: true,
 		})
@@ -522,13 +516,13 @@ func TestManualRunRequestUsesDatabaseOverlapInsteadOfStaleProcessProjection(t *t
 	t.Run("local cache active while database is idle", func(t *testing.T) {
 		db := newAutomationTestDB(t)
 		service := NewService(
-			config.Config{DatabaseDriver: "sqlite"}, db, nil, nil, nil,
+			config.Config{DatabaseDriver: "sqlite"}, db, nil, &fakeDMRunner{permission: permissionctx.NewContext(), delay: 500 * time.Millisecond}, nil,
 			permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
 		)
 		task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 			Name: "stale local active", AgentID: "agent-1", Instruction: "must execute",
 			Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(3600), Timezone: "UTC"},
-			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetMain},
+			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
 			Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 			OverlapPolicy: automationdomain.OverlapPolicySkip, Enabled: true,
 		})
@@ -544,11 +538,11 @@ func TestManualRunRequestUsesDatabaseOverlapInsteadOfStaleProcessProjection(t *t
 		result, err := service.RunTaskNowAtVersionWithRequest(
 			context.Background(), task.JobID, task.ConfigurationVersion, "web-run:stale-local-active",
 		)
-		if err != nil || result.Status != automationdomain.RunStatusQueuedToMain || result.RunID == nil {
+		if err != nil || result.Status != automationdomain.RunStatusRunning || result.RunID == nil {
 			t.Fatalf("manual stale-cache result=%+v err=%v", result, err)
 		}
 		run, err := service.repository.GetRun(context.Background(), task.OwnerUserID, task.JobID, *result.RunID)
-		if err != nil || run.Status != automationdomain.RunStatusQueuedToMain || run.ClientRequestID != "web-run:stale-local-active" {
+		if err != nil || run.Status != automationdomain.RunStatusRunning || run.ClientRequestID != "web-run:stale-local-active" {
 			t.Fatalf("manual stale-cache ledger=%+v err=%v", run, err)
 		}
 		service.mu.Lock()

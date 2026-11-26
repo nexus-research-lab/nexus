@@ -13,15 +13,13 @@ import (
 
 // Repository 封装自动化任务与主会话事件的 SQL 读写。
 type Repository struct {
-	db                         *sql.DB
-	isPostgres                 bool
-	dialect                    storage.SQLDialect
-	upsertScheduledTaskQuery   string
-	insertRunPendingQuery      string
-	markRunRunningQuery        string
-	markRunFinishedQuery       string
-	insertSystemEventQuery     string
-	markSystemEventStatusQuery string
+	db                       *sql.DB
+	isPostgres               bool
+	dialect                  storage.SQLDialect
+	upsertScheduledTaskQuery string
+	insertRunPendingQuery    string
+	markRunRunningQuery      string
+	markRunFinishedQuery     string
 }
 
 const upsertScheduledTaskQueryTemplate = `
@@ -193,27 +191,6 @@ SET status = %s,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s`,
 		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4), repository.bind(5), repository.bind(6), repository.bind(7), repository.bind(8), repository.bind(9), repository.bind(10), repository.bind(11), repository.bind(12), repository.bind(13), repository.bind(14), repository.bind(15), repository.bind(16), repository.bind(17),
-	)
-	repository.insertSystemEventQuery = fmt.Sprintf(
-		`INSERT INTO automation_system_events (
-    event_id,
-    event_type,
-    source_type,
-    source_id,
-    payload,
-    status,
-    created_at,
-    updated_at
-) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		repository.bindList(6),
-	)
-	repository.markSystemEventStatusQuery = fmt.Sprintf(
-		`UPDATE automation_system_events
-SET status = %s,
-    processed_at = CASE WHEN %s IN ('processed', 'failed') THEN CURRENT_TIMESTAMP ELSE processed_at END,
-    updated_at = CURRENT_TIMESTAMP
-WHERE event_id = %s`,
-		repository.bind(1), repository.bind(2), repository.bind(3),
 	)
 	return repository
 }

@@ -84,7 +84,7 @@ src/
 - Home 侧栏只通过 `home/sidebar/` 组合聊天和联系人入口；Room/DM 基础投影与未读叠加必须独立缓存，视图不得直接调用 Room API 或拼通知键
 - Group Room 完成事件须同时记录精确消息锚点与未读计数；Room 导航不得预先清除它们，只有对应 Feed 证明消息已进入视口后才逐条消费。DM 仍在进入会话时清理自身未读，未读计数和最后更新时间不能推断第一条未读 Agent 回复
 - Home ASCII Hero 的 Canvas 资源只归 `home/hero/home-ascii-scene.ts`；异步字体与尺寸重建必须绑定代次，过期任务不得启动动画循环
-- 主智能体 DM 是 owner 唯一的主窗口对话：`/app` 首页保留 ASCII Hero，从侧栏固定的 Nexus 进入；DM Header 不显示会话标签与历史，消息不提供分支，窄窗不显示会话切换、历史与新建；侧栏固定项直接进入该对话而不恢复其他历史标签。后端同样拒绝为主智能体 DM 新建或分支对话。主窗口的全部输入（Composer、空态建议、初始草稿）都经 `input_queue` enqueue 追加到服务端 inbox，由服务端决定立即开跑或在安全点注入；待发送列表以 inbox 模式只提供撤回，不显示排序与引导
+- 主智能体 DM 是 owner 唯一的主窗口对话：`/app` 首页保留 ASCII Hero，从侧栏固定的 Nexus 进入；DM Header 不显示会话标签与历史，消息不提供分支，窄窗不显示会话切换、历史与新建；侧栏固定项直接进入该对话而不恢复其他历史标签。后端同样拒绝为主智能体 DM 新建或分支对话。主窗口的全部输入（Composer、空态建议、初始草稿）都经 `input_queue` enqueue 追加到服务端 inbox，由服务端决定立即开跑或在安全点注入；待发送列表以 inbox 模式只提供撤回，不显示排序与引导；main 目标定时任务由宿主写入同一 inbox，时间线以「定时任务 · 名称」触发分隔条呈现，不进入待发送列表
 - Agent Options 以 `agents/options/editor/agent-options-draft.ts` 的单一草稿为编辑真相；名称校验与保存完成必须同时匹配 Agent 作用域和草稿版本
 - Agent Options 的可编辑字段和创建/更新参数只由 `agents/options/` 投影；Contacts 与 Room 不得复制 Options 字段表或 Agent 更新载荷
 - Agent Options 业务弹窗归 `agents/options/dialog/`；`shared/ui/dialog/` 只提供无业务编辑器依赖的弹窗原语

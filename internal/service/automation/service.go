@@ -31,6 +31,8 @@ import (
 
 type dmRunner interface {
 	HandleChat(context.Context, dmsvc.Request) error
+	// AppendMainWindowTask 把 main 目标任务写进主智能体主窗口的 inbox，返回主窗口 session key。
+	AppendMainWindowTask(context.Context, string, dmsvc.MainWindowTask) (string, error)
 }
 
 type dmInterruptRunner interface {
@@ -146,12 +148,10 @@ type Service struct {
 	// taskControlMu serializes short human-control-plane configuration changes.
 	// taskExecutionFences serialize start/delete/recovery/delivery side effects for
 	// one task without making runtime or external dispatch block unrelated tasks.
-	taskControlMu       sync.Mutex
-	taskExecutionFences sync.Map
-	mu                  sync.Mutex
-	jobStates           map[string]*automationexec.JobRuntimeState
-	// mainSessionBusy 按 Agent 串行 Main Session 定时任务事件；由 mu 保护。
-	mainSessionBusy         map[string]bool
+	taskControlMu           sync.Mutex
+	taskExecutionFences     sync.Map
+	mu                      sync.Mutex
+	jobStates               map[string]*automationexec.JobRuntimeState
 	attemptMu               sync.Mutex
 	physicalAttempts        map[physicalAttemptKey]*physicalAttempt
 	scriptAttemptMu         sync.Mutex
@@ -212,7 +212,6 @@ func NewService(
 		idFactory:             automationexec.NewID,
 		schedulerOwnerID:      automationexec.NewID("scheduler"),
 		jobStates:             make(map[string]*automationexec.JobRuntimeState),
-		mainSessionBusy:       make(map[string]bool),
 		physicalAttempts:      make(map[physicalAttemptKey]*physicalAttempt),
 		scriptAttempts:        make(map[string]*scriptAttempt),
 		deletionRecoveries:    make(map[string]string),

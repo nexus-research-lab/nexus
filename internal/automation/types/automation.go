@@ -62,8 +62,6 @@ const (
 	RunStatusFailed = "failed"
 	// RunStatusCancelled 表示执行取消。
 	RunStatusCancelled = "cancelled"
-	// RunStatusQueuedToMain 表示已排入主会话队列。
-	RunStatusQueuedToMain = "queued_to_main_session"
 	// RunStatusSkipped 表示因重叠策略跳过本次触发。
 	RunStatusSkipped = "skipped"
 
