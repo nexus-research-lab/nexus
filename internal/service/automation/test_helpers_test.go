@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -26,6 +27,13 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
+// noMainWindow 给只走隔离会话的测试 runner 补齐 dmRunner：这些测试不应触达主窗口。
+type noMainWindow struct{}
+
+func (noMainWindow) AppendMainWindowTask(context.Context, string, dmsvc.MainWindowTask) (string, error) {
+	return "", errors.New("main window is not used by this test runner")
+}
+
 type fakeDMRunner struct {
 	permission               *permissionctx.Context
 	resultText               string
@@ -38,6 +46,25 @@ type fakeDMRunner struct {
 	mu         sync.Mutex
 	requests   []dmsvc.Request
 	interrupts []dmsvc.InterruptRequest
+	mainTasks  []dmsvc.MainWindowTask
+	mainErr    error
+}
+
+// AppendMainWindowTask 记录写入主窗口的任务；mainErr 模拟主窗口不可用。
+func (f *fakeDMRunner) AppendMainWindowTask(_ context.Context, agentID string, task dmsvc.MainWindowTask) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.mainErr != nil {
+		return "", f.mainErr
+	}
+	f.mainTasks = append(f.mainTasks, task)
+	return "agent:" + agentID + ":ws:dm:conv_main", nil
+}
+
+func (f *fakeDMRunner) mainTaskSnapshot() []dmsvc.MainWindowTask {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]dmsvc.MainWindowTask(nil), f.mainTasks...)
 }
 
 func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) error {

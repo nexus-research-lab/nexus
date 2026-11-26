@@ -10,7 +10,6 @@ export type ScheduledTaskRunLedgerStatus =
   | "succeeded"
   | "failed"
   | "cancelled"
-  | "queued_to_main_session"
   | "skipped";
 
 export type ScheduledTaskDeliveryStatus =

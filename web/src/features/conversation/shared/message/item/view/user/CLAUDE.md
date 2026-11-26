@@ -10,7 +10,7 @@
 - `user-message-content.tsx`: 组合正文和附件，为消息开头的通用 Slash 指令开启共享命令标签；超高正文按真实排版高度折叠，并复用时间线滚动锚点完成展开与收起。
 - `use-user-message-editor.ts`: 管理编辑草稿、聚焦、高度和提交状态。
 - `user-message-editor.tsx`: 原位编辑纯视图，复用公共输入壳与按钮；原生 textarea 和独立 Footer 共同表达消息正文编辑几何，不重建普通表单 Field。IME 识别复用 `shared/lib/browser/ime-keyboard-event.ts`，合成输入期间不执行快捷键；普通 Enter 换行，Ctrl/Meta+Enter 提交，Escape 取消。无变化或空内容不发命令，实际提交继续由上层绑定原 round。
-- `user-runtime-wake-trigger.tsx`: runtime 自唤醒行（`metadata.input_kind=runtime_wake`，后台任务完成后智能体自行继续）不渲染用户气泡，而是位于 Assistant 阅读轴上的单行触发分隔条：24px 图标槽与 Agent 头像/正文左缘同列，触发文案、可截断的 runtime 原文摘要与时间同一行；无编辑、重跑或复制动作。触发事实由 `user-message-model.ts` 的 `projectRuntimeWakePresentation` 投影。
+- `user-runtime-wake-trigger.tsx`: 非用户输入的触发行——runtime 自唤醒（`metadata.input_kind=runtime_wake`，后台任务完成后智能体自行继续）与主窗口定时任务到点（`metadata.input_kind=scheduled_task`，摘要只显示 `task_name`，不展示给模型的指令包装）——不渲染用户气泡，而是位于 Assistant 阅读轴上的单行触发分隔条：24px 图标槽与 Agent 头像/正文左缘同列，触发文案、可截断的 runtime 原文摘要与时间同一行；无编辑、重跑或复制动作。触发事实由 `user-message-model.ts` 的 `projectRuntimeWakePresentation` 投影。
 - `message-user-attachments.tsx`: 先投影附件名称与作用域动作，再使用公共 UiButton 或静态 UiBadge 渲染工作区附件。
 
 附件是否可打开只由工作区 Agent 作用域决定；编辑视图不持有消息标识或调用上层会话命令。

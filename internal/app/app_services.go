@@ -322,6 +322,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetRuntimeAdmissionResolver(authService)
 	dmService.SetQueueAdmissionStore(queueAdmissionRepository)
 	dmService.SetInboxStore(inboxstore.NewRepository(cfg, db))
+	dmService.SetMainWindowRooms(core.Room)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
 	core.Room.SetConversationSessionForker(dmService)

@@ -97,12 +97,11 @@
 - 中断当前 physical attempt 后，这三项必须在保留 owner principal 的有界 `context.WithoutCancel` 上完成；物理 round 的 cancellation 不能撤销已持久化请求的通知。
 - DeliveryGrant 在 detached context 中仍实时复验；真实失效与 context cancellation 必须使用不同诊断。
 
-## Main Session 对齐
+## 主窗口目标
 
-- Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`、owner 和策略修订；权限恢复还携带已处理的 request ID。
-- 事件落库后立即唤醒 Main Session 派发器；同一 Agent 一次只领取一个绑定任务的事件，并用该任务自己的权限处理器派发原任务。当前轮结束后立即领取下一条，低频审计为仍处于 new 的事件补唤醒。
-- 不存在周期 Heartbeat、HEARTBEAT.md 或匿名主会话指令；系统事件只承载 `scheduled_task.trigger`。
-- 批准恢复 Main Session run 时，重新入队同一个 logical run 并立即唤醒。
+- 目标为 main 的任务不进入本流水线：到点时 run 以 running 受理，随即把指令写入主智能体主窗口 inbox（见 `main-agent-spec.md`），写入成功即把 run 收口为 succeeded（`delivery_status=not_attempted`），写入失败收口为 failed。
+- 主窗口轮次沿用主窗口会话自己的权限与审批；不产生任务级权限请求、run 阻塞或权限续跑，也不占用任务的 running 指针，连续到点互不阻塞，串行由 inbox 负责。
+- 不存在周期 Heartbeat、HEARTBEAT.md、独立的 `automation:dm:main` 会话或宿主 system event 表。
 
 ## 脚本边界
 

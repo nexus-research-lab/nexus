@@ -154,7 +154,7 @@ SET status = %s,
 WHERE owner_user_id = %s
   AND job_id = %s
   AND run_id = %s
-  AND status IN (%s, %s, %s)
+  AND status IN (%s, %s)
   AND EXISTS (
       SELECT 1 FROM automation_scheduled_tasks task
       WHERE task.owner_user_id = %s
@@ -165,7 +165,7 @@ WHERE owner_user_id = %s
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
 		r.bind(7), r.bind(8), r.bind(9), r.bind(10), r.bind(11), r.bind(12),
 		r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18),
-		r.bind(19), r.bind(20), r.bind(21),
+		r.bind(19), r.bind(20),
 	)
 	result, err := r.execWithRetry(
 		ctx,
@@ -187,7 +187,6 @@ WHERE owner_user_id = %s
 		runID,
 		automationdomain.RunStatusPending,
 		automationdomain.RunStatusRunning,
-		automationdomain.RunStatusQueuedToMain,
 		ownerUserID,
 		jobID,
 		token,
@@ -258,15 +257,14 @@ func (r *Repository) latestActiveRunIdentity(
 FROM automation_task_runs
 WHERE owner_user_id = %s
   AND job_id = %s
-  AND status IN (%s, %s, %s)
+  AND status IN (%s, %s)
   AND finished_at IS NULL
 ORDER BY started_at DESC, run_id DESC
-LIMIT 1`, r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5)),
+LIMIT 1`, r.bind(1), r.bind(2), r.bind(3), r.bind(4)),
 		ownerUserID,
 		jobID,
 		automationdomain.RunStatusPending,
 		automationdomain.RunStatusRunning,
-		automationdomain.RunStatusQueuedToMain,
 	).Scan(&runID, &startedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -309,7 +307,7 @@ SET status = %s,
 WHERE owner_user_id = %s
   AND job_id = %s
   AND run_id = %s
-  AND status IN (%s, %s, %s)
+  AND status IN (%s, %s)
   AND EXISTS (
       SELECT 1 FROM automation_scheduled_tasks task
       WHERE task.owner_user_id = %s
@@ -319,7 +317,7 @@ WHERE owner_user_id = %s
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
 		r.bind(7), r.bind(8), r.bind(9), r.bind(10), r.bind(11), r.bind(12),
 		r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18),
-		r.bind(19), r.bind(20),
+		r.bind(19),
 	)
 	result, err := tx.ExecContext(
 		ctx,
@@ -341,7 +339,6 @@ WHERE owner_user_id = %s
 		strings.TrimSpace(input.RunID),
 		automationdomain.RunStatusPending,
 		automationdomain.RunStatusRunning,
-		automationdomain.RunStatusQueuedToMain,
 		ownerUserID,
 		jobID,
 	)

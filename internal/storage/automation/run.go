@@ -284,163 +284,6 @@ func (r *Repository) MarkRunRunning(ctx context.Context, runID string, startedAt
 	return nil
 }
 
-// StartQueuedMainRun 把已进入主会话队列的 run 原子切换为实际执行 attempt。
-func (r *Repository) StartQueuedMainRun(
-	ctx context.Context,
-	ownerUserID string,
-	runID string,
-	requestID string,
-	roundID string,
-	startedAt time.Time,
-) (bool, error) {
-	requestID = strings.TrimSpace(requestID)
-	query := fmt.Sprintf(
-		`UPDATE automation_task_runs
-SET status = %s,
-    round_id = %s,
-    started_at = %s,
-    attempts = attempts + 1,
-    finished_at = NULL,
-    error_message = NULL,
-    block_state = '',
-    blocked_request_id = NULL,
-    updated_at = CURRENT_TIMESTAMP
-WHERE run_id = %s
-  AND owner_user_id = %s
-  AND status = %s`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
-	)
-	args := []any{
-		automationdomain.RunStatusRunning,
-		nullString(strings.TrimSpace(roundID)),
-		startedAt.UTC(),
-		strings.TrimSpace(runID),
-		strings.TrimSpace(ownerUserID),
-		automationdomain.RunStatusQueuedToMain,
-	}
-	if requestID == "" {
-		query += " AND block_state = '' AND (blocked_request_id IS NULL OR blocked_request_id = '')"
-	} else {
-		args = append(args, automationdomain.RunBlockStateReadyToRetry, requestID)
-		query += fmt.Sprintf(
-			" AND block_state = %s AND blocked_request_id = %s",
-			r.bind(len(args)-1),
-			r.bind(len(args)),
-		)
-	}
-	query += ` AND EXISTS (
-    SELECT 1 FROM automation_scheduled_tasks AS task
-    WHERE task.job_id = automation_task_runs.job_id
-      AND task.owner_user_id = automation_task_runs.owner_user_id
-      AND task.deletion_state = ''
-  )`
-	result, err := r.execWithRetry(
-		ctx,
-		query,
-		args...,
-	)
-	if err != nil {
-		return false, err
-	}
-	count, err := result.RowsAffected()
-	return count > 0, err
-}
-
-// QueuePermissionRunForMain 把已授权的阻塞 run 放回主会话队列，实际 attempt 在消费事件时开始。
-func (r *Repository) QueuePermissionRunForMain(ctx context.Context, input RunResumeInput) (bool, error) {
-	query := fmt.Sprintf(
-		`UPDATE automation_task_runs
-SET status = %s,
-    session_key = %s,
-    round_id = NULL,
-    started_at = NULL,
-    finished_at = NULL,
-    error_message = NULL,
-    block_state = %s,
-    blocked_request_id = %s,
-    permission_policy_revision = %s,
-    updated_at = CURRENT_TIMESTAMP
-WHERE run_id = %s
-  AND owner_user_id = %s
-  AND status = %s
-  AND block_state = %s
-  AND blocked_request_id = %s
-  AND EXISTS (
-    SELECT 1 FROM automation_scheduled_tasks AS task
-    WHERE task.job_id = automation_task_runs.job_id
-      AND task.owner_user_id = automation_task_runs.owner_user_id
-      AND task.deletion_state = ''
-  )`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8), r.bind(9), r.bind(10),
-	)
-	result, err := r.execWithRetry(
-		ctx,
-		query,
-		automationdomain.RunStatusQueuedToMain,
-		nullString(strings.TrimSpace(input.SessionKey)),
-		automationdomain.RunBlockStateReadyToRetry,
-		nullString(strings.TrimSpace(input.RequestID)),
-		input.PermissionPolicyRevision,
-		strings.TrimSpace(input.RunID),
-		strings.TrimSpace(input.OwnerUserID),
-		automationdomain.RunStatusPending,
-		automationdomain.RunBlockStateReadyToRetry,
-		strings.TrimSpace(input.RequestID),
-	)
-	if err != nil {
-		return false, err
-	}
-	count, err := result.RowsAffected()
-	return count > 0, err
-}
-
-// RestoreRunReadyToRetry 在主会话重新入队失败时恢复显式重试边界。
-func (r *Repository) RestoreRunReadyToRetry(
-	ctx context.Context,
-	ownerUserID string,
-	runID string,
-	requestID string,
-	errorMessage *string,
-) error {
-	query := fmt.Sprintf(
-		`UPDATE automation_task_runs
-SET status = %s,
-    block_state = %s,
-    blocked_request_id = %s,
-    error_message = %s,
-    finished_at = NULL,
-    updated_at = CURRENT_TIMESTAMP
-WHERE run_id = %s
-  AND owner_user_id = %s
-  AND status = %s
-  AND blocked_request_id = %s`,
-		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8),
-	)
-	result, err := r.execWithRetry(
-		ctx,
-		query,
-		automationdomain.RunStatusPending,
-		automationdomain.RunBlockStateReadyToRetry,
-		nullString(strings.TrimSpace(requestID)),
-		nullableString(errorMessage),
-		strings.TrimSpace(runID),
-		strings.TrimSpace(ownerUserID),
-		automationdomain.RunStatusQueuedToMain,
-		strings.TrimSpace(requestID),
-	)
-	if err != nil {
-		return err
-	}
-	count, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if count != 1 {
-		return automationdomain.ErrPermissionRequestStale
-	}
-	return nil
-}
-
 // MarkRunFinished 标记 run 结束状态。
 func (r *Repository) MarkRunFinished(ctx context.Context, input RunFinishInput) error {
 	_, err := r.execWithRetry(
@@ -491,7 +334,7 @@ SET status = %s,
     blocked_request_id = NULL,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s
-  AND status IN (%s, %s, %s)`,
+  AND status IN (%s, %s)`,
 		r.bind(1),
 		r.bind(2),
 		r.bind(3),
@@ -511,7 +354,6 @@ WHERE run_id = %s
 		r.bind(17),
 		r.bind(18),
 		r.bind(19),
-		r.bind(20),
 	)
 	result, err := r.execWithRetry(
 		ctx,
@@ -535,7 +377,6 @@ WHERE run_id = %s
 		strings.TrimSpace(input.RunID),
 		automationdomain.RunStatusPending,
 		automationdomain.RunStatusRunning,
-		automationdomain.RunStatusQueuedToMain,
 	)
 	if err != nil {
 		return false, err

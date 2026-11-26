@@ -20,7 +20,7 @@
 //   - scheduler.go：基于内存最近 deadline、持久失败投递 deadline、变更唤醒与
 //     低频审计的阶段分发、数据库 leader 租约、过期/单次完成任务的窄字段停用 CAS、
 //     多实例目录收敛、已结束运行残留占用对账与超时恢复；不做每秒扫描。
-//   - execution*.go / main_session_execution.go / run_terminal_delivery.go：脚本、主会话、独立会话的分阶段执行、非交互来源标记、物理 attempt 收尾屏障、权限续跑证据、观测、重叠与 misfire 处理；Main Session 事件落库即唤醒、按 Agent 串行领取，收尾后接力下一条，scheduler 审计为残留 new 事件补唤醒；task runtime claim 与首条 run ledger 按 exact owner/job/run/configuration/permission snapshot 原子受理，commit 后才 dispatch，人工 request 可重放 exact ExecutionResult；启动、删除、恢复和投递仅占用同任务分片 fence，不让 runtime dispatch 阻塞其他任务配置；execution terminal 与 exact task runtime 先原子提交，成功结果以 pending ledger 进入可恢复首次投递，删除态只保存 suppressed terminal 且不外投。
+//   - execution*.go / run_terminal_delivery.go：脚本、主窗口、独立会话的分阶段执行、非交互来源标记、物理 attempt 收尾屏障、权限续跑证据、观测、重叠与 misfire 处理；main 目标把指令写入主窗口 inbox 后即收口 run（执行与权限归主窗口，不占用任务 running 指针）；task runtime claim 与首条 run ledger 按 exact owner/job/run/configuration/permission snapshot 原子受理，commit 后才 dispatch，人工 request 可重放 exact ExecutionResult；启动、删除、恢复和投递仅占用同任务分片 fence，不让 runtime dispatch 阻塞其他任务配置；execution terminal 与 exact task runtime 先原子提交，成功结果以 pending ledger 进入可恢复首次投递，删除态只保存 suppressed terminal 且不外投。
 //   - observability_health.go / observability_util.go / daily_report.go：状态查询、健康计算与日报；retrying 投递单独表达“结果未知、先核对”，不混成可普通重投的 failed。
 //   - delivery_retry.go：由最早 next-attempt deadline 驱动的投递重试；重试同样通过最新任务与动态权限复核，并在外投前 durable claim；人工重投可以配置版本+已见 attempts 防止过期页面二次外投，未确认的 retrying 不自动重放，只允许用户核对后的 exact 显式重投。
 //   - runtime_*.go：执行工件 / 投递 / 脚本 / 进程运行态；desktop 脚本只继承

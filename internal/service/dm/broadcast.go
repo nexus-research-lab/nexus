@@ -49,6 +49,7 @@ func (s *Service) broadcastUserRoundMarker(
 	content string,
 	deliveryPolicy protocol.ChatDeliveryPolicy,
 	attachments []protocol.ChatAttachment,
+	triggerMetadata map[string]string,
 ) {
 	message := dmdomain.BuildUserRoundMarker(
 		sessionValue,
@@ -60,6 +61,7 @@ func (s *Service) broadcastUserRoundMarker(
 		deliveryPolicy,
 		attachments,
 	)
+	message = decorateHostTriggerMessage(message, triggerMetadata)
 	event := dmdomain.WrapSessionMessageEvent(sessionValue, message, "durable", roundID)
 	s.broadcastEventWithTimeout(ctx, sessionValue.SessionKey, event)
 }

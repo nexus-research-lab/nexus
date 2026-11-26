@@ -1,4 +1,4 @@
-// Package automation 是定时任务与主会话事件的 SQL 仓储。
+// Package automation 是定时任务的 SQL 仓储。
 //
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
@@ -8,10 +8,8 @@
 //
 //   - task*.go：任务创建幂等、完整配置版本 CAS、durable deletion claim/finalize、scheduler 单列停用 CAS、创建 provenance/独立 delivery grant、Room 结果回复 Agent、会话绑定失效状态；wake_mode 只写遗留列值，不再读取。
 //
-//   - event.go：scheduled_task.trigger 主会话事件的写入、按 Agent 有序列出、status CAS 领取与待恢复 Agent 集合。
-//
 //   - run*.go / retry.go / runtime.go / lease.go：
-//     运行、事件、最早投递重试 deadline、运行时与调度租约/expiry 读写；执行领取以 exact owner/job/run/configuration/permission snapshot 与首条 run ledger 同事务提交，人工 request 在 owner 内唯一并可按 intent 重放 exact run；run 在开始时固化首次投递目标，重投递必须先以 owner/job/run、配置版本、attempts 和内部 token 原子领取，再按 exact token 完成。
+//     运行、最早投递重试 deadline、运行时与调度租约/expiry 读写；执行领取以 exact owner/job/run/configuration/permission snapshot 与首条 run ledger 同事务提交，人工 request 在 owner 内唯一并可按 intent 重放 exact run；run 在开始时固化首次投递目标，重投递必须先以 owner/job/run、配置版本、attempts 和内部 token 原子领取，再按 exact token 完成。
 //     活跃运行必须尚无 finished_at；目录审计只在有结束证据且无其他活跃运行时清理残留占用，旧 runtime 快照不得复活已结束身份。
 //     execution terminal 与 exact task runtime 在同一事务提交；首次投递先保存 pending，
 //     再以内部 attempt token 唯一领取。删除态 terminal 只允许 exact 私有 deletion token

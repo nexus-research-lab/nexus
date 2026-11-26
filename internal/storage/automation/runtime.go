@@ -550,7 +550,7 @@ SET status = %s,
 WHERE run_id = %s
   AND job_id = %s
   AND owner_user_id = %s
-  AND status IN (%s, %s, %s)`,
+  AND status IN (%s, %s)`,
 		r.bind(1),
 		r.bind(2),
 		r.bind(3),
@@ -560,7 +560,6 @@ WHERE run_id = %s
 		r.bind(7),
 		r.bind(8),
 		r.bind(9),
-		r.bind(10),
 	)
 	result, err := tx.ExecContext(
 		ctx,
@@ -574,7 +573,6 @@ WHERE run_id = %s
 		strings.TrimSpace(input.OwnerUserID),
 		automationdomain.RunStatusPending,
 		automationdomain.RunStatusRunning,
-		automationdomain.RunStatusQueuedToMain,
 	)
 	if err != nil {
 		return err
@@ -681,7 +679,7 @@ WHERE deletion_state = ''
  AND NOT EXISTS (SELECT 1 FROM automation_task_runs AS active
   WHERE active.owner_user_id = automation_scheduled_tasks.owner_user_id
    AND active.job_id = automation_scheduled_tasks.job_id
-   AND active.status IN ('pending', 'running', 'queued_to_main_session')
+   AND active.status IN ('pending', 'running')
    AND active.finished_at IS NULL)
 RETURNING job_id`)
 	if err != nil {

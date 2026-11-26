@@ -226,11 +226,11 @@ func assertAtomicRuntimeState(t *testing.T, db *sql.DB, jobID string, runID stri
 	}
 }
 
-func TestFinishedLegacyQueuedRunCannotOccupyTask(t *testing.T) {
+func TestFinishedRunCannotOccupyTask(t *testing.T) {
 	db, repository, task := newAtomicRuntimeRepository(t, automationdomain.OverlapPolicyAllow)
 	ctx := context.Background()
 	for _, id := range []string{"legacy", "active"} {
-		if err := repository.InsertRunPending(ctx, RunPendingInput{RunID: id, JobID: task.JobID, OwnerUserID: task.OwnerUserID, Status: automationdomain.RunStatusQueuedToMain}); err != nil {
+		if err := repository.InsertRunPending(ctx, RunPendingInput{RunID: id, JobID: task.JobID, OwnerUserID: task.OwnerUserID, Status: automationdomain.RunStatusRunning}); err != nil {
 			t.Fatal(err)
 		}
 	}

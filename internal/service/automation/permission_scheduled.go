@@ -125,7 +125,7 @@ func (s *Service) decideScheduledTaskPermission(
 		return sdkpermission.Deny("定时任务运行已经结束，忽略迟到的权限请求", true), nil
 	}
 	switch strings.TrimSpace(activeRun.Status) {
-	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning, automationdomain.RunStatusQueuedToMain:
+	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning:
 	default:
 		return sdkpermission.Deny("定时任务运行已经结束，忽略迟到的权限请求", true), nil
 	}

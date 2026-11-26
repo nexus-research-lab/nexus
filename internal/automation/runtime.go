@@ -67,7 +67,8 @@ func RetryBackoffFor(streak int) (time.Duration, bool) {
 func ResolveSessionKey(job types.ScheduledTask, runID *string) (string, error) {
 	switch strings.TrimSpace(job.SessionTarget.Kind) {
 	case types.SessionTargetMain:
-		return BuildMainSessionKey(job.AgentID), nil
+		// main 目标写入主窗口 inbox，执行会话由主窗口决定，不经过这里。
+		return "", errors.New("main target runs in the main window inbox")
 	case types.SessionTargetBound:
 		return strings.TrimSpace(job.SessionTarget.BoundSessionKey), nil
 	case types.SessionTargetNamed:
@@ -79,11 +80,6 @@ func ResolveSessionKey(job types.ScheduledTask, runID *string) (string, error) {
 		ref := fmt.Sprintf("scheduled-task:%s:%s", job.JobID, strings.TrimSpace(*runID))
 		return protocol.BuildAgentSessionKey(job.AgentID, "automation", "dm", ref, ""), nil
 	}
-}
-
-// BuildMainSessionKey 构建 agent 的自动化主会话 key。
-func BuildMainSessionKey(agentID string) string {
-	return protocol.BuildAgentSessionKey(strings.TrimSpace(agentID), "automation", "dm", "main", "")
 }
 
 // NewID 创建自动化内部 id。

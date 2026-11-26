@@ -48,6 +48,7 @@ func (r *mutableConnectorResolver) setConnected(connected bool) {
 }
 
 type permissionDrainDMRunner struct {
+	noMainWindow
 	permission       *permissionctx.Context
 	requiredTool     string
 	interruptStarted chan struct{}
@@ -706,142 +707,82 @@ func TestScriptPermissionGrantIsBoundToExactScriptContent(t *testing.T) {
 	}
 }
 
-func TestMainSessionPermissionRequestKeepsOriginalTaskRunContext(t *testing.T) {
-	db := newAutomationTestDB(t)
-	permission := permissionctx.NewContext()
-	dm := &fakeDMRunner{permission: permission, requiredTool: "WebSearch"}
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db,
-		nil,
-		dm,
-		nil,
-		permission,
-		&fakeWorkspaceReader{},
-		nil,
-	)
+func newMainWindowTestTask(t *testing.T, service *Service, name string) *automationdomain.ScheduledTask {
+	t.Helper()
 	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
-		Name:        "主会话搜索",
-		AgentID:     "agent-1",
-		Instruction: "在主会话搜索资料",
-		Schedule: automationdomain.Schedule{
-			Kind:            automationdomain.ScheduleKindEvery,
-			IntervalSeconds: intRef(3600),
-			Timezone:        "Asia/Shanghai",
-		},
-		SessionTarget: automationdomain.SessionTarget{
-			Kind: automationdomain.SessionTargetMain,
-		},
-		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
-		Enabled:  true,
+		Name:          name,
+		AgentID:       "agent-1",
+		Instruction:   "处理" + name,
+		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(3600), Timezone: "Asia/Shanghai"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetMain},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
 	}
+	return task
+}
+
+func TestMainTargetRunAppendsToMainWindowAndFinishes(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	dm := &fakeDMRunner{permission: permission, requiredTool: "WebSearch"}
+	service := NewService(config.Config{DatabaseDriver: "sqlite"}, db, nil, dm, nil, permission, &fakeWorkspaceReader{}, nil)
+	task := newMainWindowTestTask(t, service, "主窗口搜索")
+
 	result, err := service.RunTaskNow(context.Background(), task.JobID)
-	if err != nil || result.RunID == nil || result.Status != automationdomain.RunStatusQueuedToMain {
-		t.Fatalf("Main Session run 入队失败: result=%+v err=%v", result, err)
+	if err != nil || result.RunID == nil || result.Status != automationdomain.RunStatusSucceeded {
+		t.Fatalf("main 目标应写入主窗口后立即收口: result=%+v err=%v", result, err)
+	}
+	if result.SessionKey != "agent:agent-1:ws:dm:conv_main" {
+		t.Fatalf("执行结果应指向主窗口: %q", result.SessionKey)
+	}
+	tasks := dm.mainTaskSnapshot()
+	if len(tasks) != 1 || tasks[0].JobID != task.JobID || tasks[0].RunID != *result.RunID ||
+		tasks[0].Name != task.Name || tasks[0].Instruction != task.Instruction || tasks[0].DedupeKey == "" {
+		t.Fatalf("主窗口任务事件不完整: %+v", tasks)
+	}
+	// 主窗口沿用自身会话权限：不另起任务轮次，也不产生任务级权限请求。
+	if got := len(dm.Requests()); got != 0 {
+		t.Fatalf("main 目标不应直接派发 HandleChat，got %d", got)
 	}
 	ownerCtx := contextForOwner(context.Background(), task.OwnerUserID)
-	waitFor(t, 2*time.Second, func() bool {
-		requests, listErr := service.ListPermissionRequests(ownerCtx, automationdomain.PermissionRequestStatusPending, task.JobID)
-		return listErr == nil && len(requests) == 1
-	})
 	requests, err := service.ListPermissionRequests(ownerCtx, automationdomain.PermissionRequestStatusPending, task.JobID)
-	if err != nil || len(requests) != 1 {
-		t.Fatalf("读取 Main Session 权限请求失败: requests=%+v err=%v", requests, err)
+	if err != nil || len(requests) != 0 {
+		t.Fatalf("main 目标不应产生任务级权限请求: %+v err=%v", requests, err)
 	}
-	request := requests[0]
-	if request.RunID != *result.RunID || request.JobID != task.JobID ||
-		request.PolicyRevision != task.PermissionPolicy.Revision ||
-		request.SessionKey != result.SessionKey || request.RoundID == "" {
-		t.Fatalf("Main Session 权限请求丢失 task/run/session/revision 上下文: %+v", request)
+	var runningRunID sql.NullString
+	if err = db.QueryRow(`SELECT running_run_id FROM automation_scheduled_tasks WHERE job_id = ?`, task.JobID).Scan(&runningRunID); err != nil {
+		t.Fatal(err)
 	}
-	resolved, err := service.ResolvePermissionRequest(
-		ownerCtx,
-		request.RequestID,
-		permissionDecisionInputForRequest(request, automationdomain.PermissionDecisionAllowTask),
-	)
-	if err != nil || !resolved.ResumeStarted {
-		t.Fatalf("Main Session 权限批准后重新入队失败: result=%+v err=%v", resolved, err)
+	if runningRunID.Valid && runningRunID.String != "" {
+		t.Fatalf("写入主窗口后不应继续占用任务: %q", runningRunID.String)
 	}
-	waitFor(t, 2*time.Second, func() bool {
-		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusSucceeded
-	})
-	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
-	if err != nil || len(runs) != 1 || runs[0].RunID != *result.RunID || runs[0].Attempts != 2 {
-		t.Fatalf("Main Session 审批后未继续同一 logical run: runs=%+v err=%v", runs, err)
+
+	// 连续到点互不阻塞：串行由主窗口 inbox 负责。
+	second, err := service.RunTaskNow(context.Background(), task.JobID)
+	if err != nil || second.Status != automationdomain.RunStatusSucceeded || *second.RunID == *result.RunID {
+		t.Fatalf("第二次运行应成为新的 run: result=%+v err=%v", second, err)
 	}
-	dmRequests := dm.Requests()
-	if len(dmRequests) != 2 || dmRequests[0].PermissionHandler == nil || dmRequests[1].PermissionHandler == nil ||
-		dmRequests[0].RoundID == dmRequests[1].RoundID {
-		t.Fatalf("Main Session 每个 attempt 必须绑定独立 round 和 task permission handler: %+v", dmRequests)
-	}
-	if dmRequests[1].AutomationRun == nil || dmRequests[1].AutomationRun.ResumeToolName != "WebSearch" {
-		t.Fatalf("Main Session 权限续跑未携带原审批工具: %+v", dmRequests[1].AutomationRun)
+	if got := len(dm.mainTaskSnapshot()); got != 2 {
+		t.Fatalf("主窗口应收到两条任务事件，got %d", got)
 	}
 }
 
-func TestMainSessionTaskArrivingDuringRunDispatchesAfterCurrentRound(t *testing.T) {
+func TestMainTargetRunFailsWhenMainWindowRejects(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
-	dm := &fakeDMRunner{permission: permission, delay: 200 * time.Millisecond}
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db,
-		nil,
-		dm,
-		nil,
-		permission,
-		&fakeWorkspaceReader{},
-		nil,
-	)
-	createMainTask := func(name string) *automationdomain.ScheduledTask {
-		task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
-			Name:        name,
-			AgentID:     "agent-1",
-			Instruction: "处理" + name,
-			Schedule: automationdomain.Schedule{
-				Kind:            automationdomain.ScheduleKindEvery,
-				IntervalSeconds: intRef(3600),
-				Timezone:        "Asia/Shanghai",
-			},
-			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetMain},
-			Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
-			Enabled:       true,
-		})
-		if err != nil {
-			t.Fatalf("CreateTask 失败: %v", err)
-		}
-		return task
+	dm := &fakeDMRunner{permission: permission, mainErr: errors.New("agent agent-1 has no main window")}
+	service := NewService(config.Config{DatabaseDriver: "sqlite"}, db, nil, dm, nil, permission, &fakeWorkspaceReader{}, nil)
+	task := newMainWindowTestTask(t, service, "无主窗口")
+
+	if _, err := service.RunTaskNow(context.Background(), task.JobID); err == nil {
+		t.Fatal("主窗口拒收时运行应失败")
 	}
-	first := createMainTask("先到的主会话任务")
-	second := createMainTask("运行中到达的主会话任务")
-	if _, err := service.RunTaskNow(context.Background(), first.JobID); err != nil {
-		t.Fatalf("首个 Main Session task 入队失败: %v", err)
-	}
-	waitFor(t, time.Second, func() bool {
-		return len(dm.Requests()) == 1
-	})
-	result, err := service.RunTaskNow(context.Background(), second.JobID)
-	if err != nil || result.RunID == nil || result.Status != automationdomain.RunStatusQueuedToMain {
-		t.Fatalf("运行中到达的 Main Session task 入队失败: result=%+v err=%v", result, err)
-	}
-	if got := len(dm.Requests()); got != 1 {
-		t.Fatalf("同一 Agent 的 Main Session 必须串行，当前轮未结束时已派发 %d 轮", got)
-	}
-	waitFor(t, 2*time.Second, func() bool {
-		runs, listErr := service.ListTaskRuns(context.Background(), second.JobID)
-		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusSucceeded
-	})
-	requests := dm.Requests()
-	if len(requests) != 2 || requests[0].PermissionHandler == nil || requests[1].PermissionHandler == nil {
-		t.Fatalf("当前轮完成后应立即以 task 权限上下文执行下一轮: %+v", requests)
-	}
-	runs, err := service.ListTaskRuns(context.Background(), second.JobID)
-	if err != nil || len(runs) != 1 || runs[0].RunID != *result.RunID || runs[0].Attempts != 1 {
-		t.Fatalf("并发到达任务应完成原 logical run: runs=%+v err=%v", runs, err)
+	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
+	if err != nil || len(runs) != 1 || runs[0].Status != automationdomain.RunStatusFailed || runs[0].FinishedAt == nil {
+		t.Fatalf("拒收应把 run 收口为 failed: runs=%+v err=%v", runs, err)
 	}
 }
 

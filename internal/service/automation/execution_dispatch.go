@@ -122,36 +122,3 @@ func (s *Service) dispatchJobToSession(
 		AutomationRun:     runContext,
 	})
 }
-
-func (s *Service) enqueueMainSessionEvent(
-	ctx context.Context,
-	job automationdomain.ScheduledTask,
-	runID string,
-	triggerKind string,
-	permissionRequestID string,
-	permissionRequestPolicyRevision int,
-) (string, error) {
-	eventID := s.idFactory("evt")
-	if err := s.repository.InsertSystemEvent(
-		ctx,
-		eventID,
-		"scheduled_task.trigger",
-		"scheduled_task",
-		job.AgentID,
-		map[string]any{
-			"agent_id":                           job.AgentID,
-			"job_id":                             job.JobID,
-			"run_id":                             strings.TrimSpace(runID),
-			"owner_user_id":                      strings.TrimSpace(job.OwnerUserID),
-			"policy_revision":                    job.PermissionPolicy.Revision,
-			"permission_request_id":              strings.TrimSpace(permissionRequestID),
-			"permission_request_policy_revision": permissionRequestPolicyRevision,
-			"text":                               strings.TrimSpace(job.Instruction),
-			"trigger_kind":                       triggerKind,
-			"session_target_kind":                job.SessionTarget.Kind,
-		},
-	); err != nil {
-		return "", err
-	}
-	return eventID, nil
-}

@@ -145,6 +145,8 @@ type Request struct {
 	// runtimeWake is host-only. Only the DM idle drain sets it when the runtime
 	// starts a turn by itself; the round then consumes that turn without a query.
 	runtimeWake *runtimeWakeStart
+	// hostTrigger 只由主窗口 inbox 为宿主事件设置：内部轮次的用户行仍作为触发分隔条可见。
+	hostTrigger bool
 }
 
 // DeferredAssistantCandidate 是后台 round 提交前的最终 assistant 快照。
@@ -221,8 +223,9 @@ type Service struct {
 
 	roomStore    roomSessionStore
 	roomActivity roomConversationActivityStore
-	// inbox 只承载主窗口的用户输入，见 main_inbox.go。
-	inbox *inboxstore.Repository
+	// inbox 只承载主窗口的输入（用户消息与宿主事件），见 main_inbox.go。
+	inbox           *inboxstore.Repository
+	mainWindowRooms mainWindowRooms
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
 	inputQueueDispatchMu contextMutex
 	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.

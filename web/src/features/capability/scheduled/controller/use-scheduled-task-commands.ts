@@ -585,7 +585,7 @@ export function useScheduledTaskCommands(
                 runExpectation.jobId,
                 runExpectation.baseConfigurationVersion,
                 runExpectation.requestId,
-              ).then(async (result) => {
+              ).then(async () => {
                 if (
                   accessBlockedRef.current
                   || isAccessInvalidated()
@@ -622,8 +622,8 @@ export function useScheduledTaskCommands(
                 }
                 setFeedback({
                   impact: t("capability.scheduled_mutation_confirmed_impact"),
-                  message: result.status === "queued_to_main_session"
-                    ? `${task.name} 已排入主会话执行`
+                  message: task.session_target.kind === "main"
+                    ? `${task.name} 已交给主窗口执行`
                     : `${task.name} 的这次启动已确认`,
                   nextStep: t("capability.scheduled_run_next_step"),
                   title: "启动结果已确认",
@@ -1003,8 +1003,8 @@ export function useScheduledTaskCommands(
           requestId,
         );
         await synchronizeMutation(task.agent_id, {
-          message: result.status === "queued_to_main_session"
-            ? `${task.name} 已排入主会话执行`
+          message: task.session_target.kind === "main"
+            ? `${task.name} 已交给主窗口执行`
             : `${task.name} 已开始执行`,
           nextStep: t("capability.scheduled_run_next_step"),
           title: "任务已触发",

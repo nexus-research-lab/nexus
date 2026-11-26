@@ -760,10 +760,18 @@ func (e *dmChatExecution) persistRound() error {
 // markerHiddenFromUser 决定 round marker 是否进入用户可见历史。
 // runtime 自唤醒虽是内部输入，但需要作为“触发分隔条”展示，并据此与 transcript 对齐。
 func (e *dmChatExecution) markerHiddenFromUser() bool {
-	if e.request.runtimeWake != nil {
+	if e.request.runtimeWake != nil || e.request.hostTrigger {
 		return false
 	}
 	return e.request.Internal || e.request.InputOptions.HiddenFromUser
+}
+
+// hostTriggerMetadata 只对宿主事件轮次返回分隔条元数据；普通用户行保持原样。
+func (e *dmChatExecution) hostTriggerMetadata() map[string]string {
+	if !e.request.hostTrigger {
+		return nil
+	}
+	return e.request.InputOptions.Metadata
 }
 
 func dmRequestHasCanonicalUserInput(request Request) bool {
@@ -868,6 +876,7 @@ func (e *dmChatExecution) broadcastRoundStarted(ctx context.Context) {
 			strings.TrimSpace(e.request.Content),
 			e.deliveryPolicy,
 			e.request.Attachments,
+			e.hostTriggerMetadata(),
 		)
 	}
 	if e.request.RewriteTargetRoundID != "" {

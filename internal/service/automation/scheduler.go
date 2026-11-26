@@ -291,15 +291,6 @@ func (s *Service) bootstrapRuntime(ctx context.Context) error {
 		s.ensureJobState(item)
 	}
 
-	// 写入后即时唤醒可能因重启或派发失败丢失；审计时为仍有 new 事件的 Agent 补一次唤醒。
-	pendingMainAgentIDs, err := s.repository.ListAgentIDsWithNewSystemEvents(ctx)
-	if err != nil {
-		return err
-	}
-	for _, agentID := range pendingMainAgentIDs {
-		s.wakeMainSession(agentID)
-	}
-
 	// PostgreSQL deployments may accept a mutation on a non-leader process. The
 	// leader therefore reconciles its in-memory catalog during the bounded audit.
 	// Running work is allowed to settle, but disappeared/disabled definitions may

@@ -549,9 +549,6 @@ func (s *Service) resumePermissionBlockedRun(
 			return err
 		}
 	}
-	if strings.TrimSpace(job.SessionTarget.Kind) == automationdomain.SessionTargetMain {
-		return s.queueResumedMainSessionRun(jobCtx, job, run, sessionKey, request)
-	}
 	roundID := ""
 	if automationdomain.NormalizeExecutionKind(job.ExecutionKind) != automationdomain.ExecutionKindScript {
 		roundID = s.idFactory("round")
@@ -633,63 +630,6 @@ func (s *Service) restorePreparedPermissionRun(
 		errorPointer(runErr),
 	)
 	return runErr
-}
-
-func (s *Service) queueResumedMainSessionRun(
-	ctx context.Context,
-	job automationdomain.ScheduledTask,
-	run automationdomain.ScheduledTaskRun,
-	sessionKey string,
-	request *automationdomain.AutomationPermissionRequest,
-) error {
-	requestID := ""
-	if request != nil {
-		requestID = strings.TrimSpace(request.RequestID)
-	}
-	queued, err := s.repository.QueuePermissionRunForMain(ctx, automationstore.RunResumeInput{
-		RunID:                    run.RunID,
-		OwnerUserID:              job.OwnerUserID,
-		RequestID:                requestID,
-		SessionKey:               sessionKey,
-		PermissionPolicyRevision: job.PermissionPolicy.Revision,
-	})
-	if err != nil || !queued {
-		if err == nil {
-			err = errors.New("run is no longer resumable")
-		}
-		s.pauseJobRuntimeForPermission(job, run.RunID, automationdomain.TaskPermissionStateReadyToRetry, errorPointer(err))
-		return err
-	}
-	requestPolicyRevision := 0
-	if request != nil {
-		requestPolicyRevision = request.PolicyRevision
-	}
-	eventID, err := s.enqueueMainSessionEvent(
-		ctx,
-		job,
-		run.RunID,
-		"permission_resume",
-		requestID,
-		requestPolicyRevision,
-	)
-	if err == nil {
-		s.wakeMainSession(job.AgentID)
-		return nil
-	}
-	if eventID != "" {
-		_ = s.repository.MarkSystemEventStatus(context.Background(), eventID, "failed")
-	}
-	if restoreErr := s.repository.RestoreRunReadyToRetry(
-		context.Background(),
-		job.OwnerUserID,
-		run.RunID,
-		requestID,
-		errorPointer(err),
-	); restoreErr != nil {
-		return errors.Join(err, fmt.Errorf("restore exact permission retry request: %w", restoreErr))
-	}
-	s.pauseJobRuntimeForPermission(job, run.RunID, automationdomain.TaskPermissionStateReadyToRetry, errorPointer(err))
-	return err
 }
 
 func (s *Service) finishDeniedPermissionRun(job automationdomain.ScheduledTask) {

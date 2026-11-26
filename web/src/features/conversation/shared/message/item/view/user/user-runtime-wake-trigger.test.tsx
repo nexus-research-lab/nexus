@@ -1,6 +1,6 @@
-// INPUT: runtime 自唤醒用户行与普通用户行。
-// OUTPUT: 自唤醒渲染为无动作的触发分隔条，普通用户行保持气泡与动作。
-// POS: runtime 自唤醒展示回归。
+// INPUT: runtime 自唤醒行、主窗口定时任务行与普通用户行。
+// OUTPUT: 触发行渲染为无动作的分隔条，普通用户行保持气泡与动作。
+// POS: 触发分隔条展示回归。
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 
@@ -32,6 +32,25 @@ it("projects task status into trigger copy and drops summary for non-task wakes"
   expect(projectRuntimeWakePresentation(wakeMessage({ input_kind: "runtime_wake", trigger_kind: "runtime" })))
     .toMatchObject({ labelKey: "message.runtime_wake.resumed", summary: "" });
   expect(projectRuntimeWakePresentation({ ...wakeMessage({}), metadata: undefined })).toBeNull();
+});
+
+it("projects a main-window scheduled task as a trigger showing only the task name", () => {
+  const message = {
+    ...wakeMessage({ input_kind: "scheduled_task", task_name: " 日报 ", job_id: "job-1", run_id: "run-1" }),
+    content: "<scheduled-task name=\"日报\">\n汇总今天的提交\n</scheduled-task>",
+  };
+  expect(projectRuntimeWakePresentation(message))
+    .toMatchObject({ source: "scheduled_task", labelKey: "message.scheduled_task.triggered", summary: "日报" });
+  render(
+    <I18nProvider>
+      <MessageUserSection compact={false} message={message} onEditUserMessage={() => undefined} />
+    </I18nProvider>,
+  );
+  const note = screen.getByRole("note");
+  expect(note.textContent).toContain("日报");
+  expect(note.textContent).not.toContain("汇总今天的提交");
+  expect(note.closest("[data-message-kind='scheduled-task']")).not.toBeNull();
+  expect(screen.queryByRole("button")).toBeNull();
 });
 
 it("renders a runtime wake as an action-free trigger row instead of a user bubble", () => {
