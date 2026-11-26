@@ -136,7 +136,6 @@ function WorkspaceFileList({
   }
   return (
     <SidebarEmptyGuide
-      description={t("room.workspace_empty_description")}
       icon={FolderTree}
       title={t("room.no_files")}
     />

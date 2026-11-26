@@ -71,12 +71,17 @@ describe("General setting switches", () => {
     expect(screen.getAllByRole("switch")).toHaveLength(5);
     for (const [name, callback, checked] of toggles) {
       const control = screen.getByRole("switch", { name: messages[`settings.general.${name}_title`] });
-      const description = document.getElementById(control.getAttribute("aria-describedby")!);
-      expect(description?.textContent).toBe(messages[`settings.general.${name}_description`]);
+      if (name === "agent_sdk_diagnostics") {
+        // 显而易见的开关不带说明，也就没有 aria-describedby。
+        expect(control.getAttribute("aria-describedby")).toBeNull();
+      } else {
+        const description = document.getElementById(control.getAttribute("aria-describedby")!);
+        expect(description?.textContent).toBe(messages[`settings.general.${name}_description`]);
+        // Visible explanations remain static; only the switch changes the value.
+        await user.click(description!);
+        expect(props[callback]).not.toHaveBeenCalled();
+      }
       expect(control.getAttribute("aria-checked")).toBe(String(checked));
-      // Visible explanations remain static; only the switch changes the value.
-      await user.click(description!);
-      expect(props[callback]).not.toHaveBeenCalled();
       await user.click(control);
       expect(props[callback]).toHaveBeenCalledExactlyOnceWith(!checked);
     }
@@ -91,8 +96,9 @@ describe("General setting switches", () => {
       <div data-testid="first"><SettingsGeneralBehaviorSection {...first} /></div>
       <div data-testid="second"><SettingsGeneralBehaviorSection {...second} /></div>
     </>));
-    const ids = screen.getAllByRole("switch").map((control) => control.getAttribute("aria-describedby"));
-    expect(new Set(ids).size).toBe(10);
+    // 诊断开关不带说明，其余 4 个开关在两个实例中各有独立的说明 id。
+    const ids = screen.getAllByRole("switch").map((control) => control.getAttribute("aria-describedby")).filter(Boolean);
+    expect(new Set(ids).size).toBe(8);
     for (const id of ids) expect(document.getElementById(id!)).not.toBeNull();
     await user.click(within(screen.getByTestId("second")).getByRole("switch", { name: "主动跟进" }));
     expect(second.onEchoEnabledChange).toHaveBeenCalledExactlyOnceWith(false);

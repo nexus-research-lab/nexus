@@ -96,7 +96,6 @@ export function ScheduledTaskRunHistoryContent({
         />
       ) : runs.length === 0 ? (
         <UiResourceState
-          description={t("capability.scheduled_history_empty_description")}
           nextStep={t("capability.scheduled_history_empty_next_step")}
           state="empty"
           title={t("capability.scheduled_history_empty_title")}

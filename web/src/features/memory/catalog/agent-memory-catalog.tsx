@@ -107,7 +107,6 @@ export function AgentMemoryCatalog({
         ))}
         {emptyMemoryVisible ? (
           <UiResourceState
-            description={t("capability.memory_empty_description")}
             size="sm" state="empty" variant="plain"
             title={t("capability.memory_empty_title")}
           />

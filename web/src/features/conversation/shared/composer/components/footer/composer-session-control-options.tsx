@@ -20,7 +20,6 @@ import {
 import { getAgentPermissionChoices, resolveRuntimePermissionMode } from "@/lib/agent-options";
 import { UiBadge } from "@/shared/ui/display/badge";
 import type { SessionEffortLevel } from "@/types/capability/provider";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
@@ -134,11 +133,7 @@ export function buildSessionEffortItems(
   return levels.map((level) => ({
     checked: controller.effort === level,
     label: sessionEffortLabel(level, t),
-    trailing: level === "" ? (
-      <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" })}>
-        {t("composer.session_effort_auto_hint")}
-      </span>
-    ) : level === "max" ? (
+    trailing: level === "max" ? (
       <UiBadge size="xs" tone="warning">{t("composer.session_effort_max_hint")}</UiBadge>
     ) : undefined,
     value: level || SESSION_EFFORT_AUTO_VALUE,

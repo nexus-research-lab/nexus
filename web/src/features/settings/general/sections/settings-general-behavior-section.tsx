@@ -104,7 +104,6 @@ export function SettingsGeneralBehaviorSection({
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <SettingsToggleRow
           checked={agentSdkDiagnosticsEnabled}
-          description={t("settings.general.agent_sdk_diagnostics_description")}
           disabled={preferencesLoading || preferencesSaving}
           icon={<Bug className="h-3.5 w-3.5" />}
           onChange={onAgentSdkDiagnosticsChange}

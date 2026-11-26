@@ -13,7 +13,7 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
     ["settings.general.auto_dream_title", "settings.general.auto_dream_description"],
     ["settings.general.emotion_title", "settings.general.emotion_description"],
     ["settings.general.echo_title", "settings.general.echo_description"],
-    ["settings.general.agent_sdk_diagnostics_title", "settings.general.agent_sdk_diagnostics_description"],
+    ["settings.general.agent_sdk_diagnostics_title"],
   ],
   "default-models": [
     ["settings.general.default_model_title", "settings.general.default_model_description"],
@@ -22,8 +22,8 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
     ["settings.general.default_vision_model_title", "settings.general.default_vision_model_description"],
   ],
   appearance: [
-    ["theme.switch_title", "settings.general.theme_description"],
-    ["language.switch_title", "settings.general.language_description"],
+    ["theme.switch_title"],
+    ["language.switch_title"],
     ["settings.reading.font"],
     ["settings.reading.size"],
     ["settings.reading.spacing"],
