@@ -449,7 +449,6 @@ export function useComposerSessionSettings(
     effort: (settings.effort || "") as SessionEffortLevel | "",
     effortLevels,
     hasModelOverride: Boolean((settings.provider && settings.model) || settings.effort),
-    hasPermissionOverride: Boolean(settings.permission_mode),
     inheritedModel: inheritedModel.model,
     isDangerousPermission: effectivePermissionMode === "bypassPermissions",
     inheritedPermissionMode: inheritedPermission,
@@ -493,10 +492,6 @@ export function useComposerSessionSettings(
     updateEffort: (effort: SessionEffortLevel | "") => updateSettings("model", {
       ...settings,
       effort,
-    }),
-    resetPermission: () => updateSettings("permission", {
-      ...settings,
-      permission_mode: "",
     }),
     // 选回继承模型时清空模型覆盖；强度只保留新模型仍支持的档位，避免把无效值带进下一次启动。
     updateModel: (provider: string, model: string) => {

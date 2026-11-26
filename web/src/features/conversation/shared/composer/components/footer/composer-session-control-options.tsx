@@ -40,15 +40,6 @@ const SESSION_EFFORT_LABEL_KEYS = {
   max: "composer.session_effort_max",
 } as const satisfies Record<SessionEffortLevel, string>;
 
-const SESSION_PERMISSION_DESCRIPTION_KEYS = {
-  auto: "agent_options.advanced.permission.auto.description",
-  default: "composer.session_permission_default_hint",
-  plan: "composer.session_permission_plan_hint",
-  acceptEdits: "composer.session_permission_accept_edits_hint",
-  bypassPermissions: "composer.session_permission_bypass_hint",
-  dontAsk: "composer.session_permission_dont_ask_hint",
-} as const;
-
 const SESSION_PERMISSION_ICONS = {
   auto: (
     <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -71,7 +62,6 @@ export function buildSessionPermissionItems(
     || controller.inheritedPermissionMode, controller.scope?.runtimeKind ?? "");
   return getAgentPermissionChoices(controller.scope?.runtimeKind ?? "").map((mode) => ({
     active: currentMode === mode.value,
-    description: t(SESSION_PERMISSION_DESCRIPTION_KEYS[mode.value]),
     icon: SESSION_PERMISSION_ICONS[mode.value],
     label: t(mode.labelKey),
     tone: mode.value === "bypassPermissions"

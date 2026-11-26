@@ -11,7 +11,7 @@ export function makeController(overrides: Partial<ComposerSessionSettingsControl
     busy: false, connectors: [], connectorsFailure: null, connectorsLoading: false, enabledConnectorIds: [],
     ensureTargetsLoaded: vi.fn(async () => undefined),
     effort: "", effortLevels: [],
-    hasModelOverride: true, hasPermissionOverride: true,
+    hasModelOverride: true,
     inheritedModel: "base", inheritedPermissionMode: "default", inheritedProvider: "provider",
     isDangerousPermission: false, modelBusy: false, modelLabel: "Advanced", permissionLabel: "Default",
     providerOptions: {
@@ -38,7 +38,7 @@ export function makeController(overrides: Partial<ComposerSessionSettingsControl
     retryConnectors: vi.fn(), retryProviderOptions: vi.fn(), retrySessionSettings: vi.fn(async () => undefined),
     resetModel: vi.fn(async () => undefined), updateModel: vi.fn(async () => undefined),
     updateEffort: vi.fn(async () => undefined),
-    resetPermission: vi.fn(async () => undefined), updatePermission: vi.fn(async () => undefined),
+    updatePermission: vi.fn(async () => undefined),
     toggleConnector: vi.fn(async () => undefined),
     ...overrides,
   };
