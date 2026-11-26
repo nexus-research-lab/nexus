@@ -305,21 +305,6 @@ func materializeRoundMarkerMessage(sessionKey string, agentID string, marker tra
 	return row, true
 }
 
-func (s *AgentHistoryStore) readTranscriptMessagesContext(
-	ctx context.Context,
-	workspacePath string,
-	sessionKey string,
-	agentID string,
-	sessionID string,
-	roundMarkers []transcriptRoundMarker,
-	throughMessageID string,
-) ([]protocol.Message, error) {
-	rows, _, err := s.readTranscriptReplayContext(
-		ctx, workspacePath, sessionKey, agentID, sessionID, roundMarkers, throughMessageID, false,
-	)
-	return rows, err
-}
-
 // readTranscriptReplayContext 返回完整投影；withReplay 时额外返回读模型检查点候选
 // （fork 截断读取、没有用户轮次或主链乱序时为 nil）。
 func (s *AgentHistoryStore) readTranscriptReplayContext(

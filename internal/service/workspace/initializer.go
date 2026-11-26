@@ -326,19 +326,11 @@ func (i *workspaceInitializer) ensureTemplateFile(key string, relativePath strin
 		}
 	}
 	content := renderTemplate(workspaceTemplate(key, i.isMain), i.context)
-	return ensureWorkspaceTemplateFile(i.rootFS, relativePath, key, content)
+	return ensureWorkspaceTemplateFile(i.rootFS, relativePath, content)
 }
 
 func (i *workspaceInitializer) ensureMainAgentsFile(relativePath string) error {
-	if err := removeGeneratedMainAgentsPrompt(i.rootFS, relativePath); err != nil {
-		return err
-	}
-	if _, err := i.rootFS.Lstat(relativePath); err == nil {
-		return repairAgentsScheduleGuidance(i.rootFS, relativePath)
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
+	return removeGeneratedMainAgentsPrompt(i.rootFS, relativePath)
 }
 
 func (i *workspaceInitializer) removeGeneratedMainFile(relativePath string) error {

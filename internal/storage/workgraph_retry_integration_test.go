@@ -310,14 +310,14 @@ func TestWorkGraphQueuedRetryConcurrentReceipt(t *testing.T) {
 	batch := prepareIntegrationBatchScope(t, repository, "retry-queued", protocol.ExecutionScopeRoom, true)
 	root := batch.Assignments[0].Assignment
 	child := batch.Assignments[1].Assignment
-	snapshot, err := repository.ConfigureDispatch(t.Context(), repo.ConfigureDispatchCommand{ExecutionID: root.ExecutionID, PlanID: root.PlanID, ExpectedExecutionVersion: 2, RequestDigest: "queued", Meta: integrationCommandMeta("configure-queued"), Policies: []protocol.ExecutionDispatchPolicy{{ID: "queued-policy", ExecutionID: root.ExecutionID, PlanID: root.PlanID, WorkItemID: root.WorkItemID, SpecID: root.SpecID, TargetAgentID: root.OwnerAgentID, ReturnToAgentID: root.ReturnToAgentID}, {ID: "paused-child-policy", ExecutionID: child.ExecutionID, PlanID: child.PlanID, WorkItemID: child.WorkItemID, SpecID: child.SpecID, TargetAgentID: child.OwnerAgentID, ReturnToAgentID: child.ReturnToAgentID}}})
+	_, err := repository.ConfigureDispatch(t.Context(), repo.ConfigureDispatchCommand{ExecutionID: root.ExecutionID, PlanID: root.PlanID, ExpectedExecutionVersion: 2, RequestDigest: "queued", Meta: integrationCommandMeta("configure-queued"), Policies: []protocol.ExecutionDispatchPolicy{{ID: "queued-policy", ExecutionID: root.ExecutionID, PlanID: root.PlanID, WorkItemID: root.WorkItemID, SpecID: root.SpecID, TargetAgentID: root.OwnerAgentID, ReturnToAgentID: root.ReturnToAgentID}, {ID: "paused-child-policy", ExecutionID: child.ExecutionID, PlanID: child.PlanID, WorkItemID: child.WorkItemID, SpecID: child.SpecID, TargetAgentID: child.OwnerAgentID, ReturnToAgentID: child.ReturnToAgentID}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = database.Exec(`UPDATE executions SET status='paused' WHERE execution_id='` + root.ExecutionID + `'`); err != nil {
 		t.Fatal(err)
 	}
-	snapshot = retrySnapshot(t, repository, root.ExecutionID)
+	snapshot := retrySnapshot(t, repository, root.ExecutionID)
 	service := svc.NewService(repository)
 	service.SetScheduledWorkConsumer(&continuationDelivery{policyAdmission: policyAdmission{receipts: map[string]bool{}}})
 	service.SetAssignmentTargetAuthorizer(policyTargetAuthorizer{})

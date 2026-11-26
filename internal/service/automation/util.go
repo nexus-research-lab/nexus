@@ -33,15 +33,6 @@ func errorPointer(err error) *string {
 	return &message
 }
 
-func anyString(value any) string {
-	switch typed := value.(type) {
-	case string:
-		return typed
-	default:
-		return ""
-	}
-}
-
 func contextForJobOwner(ctx context.Context, job automationdomain.ScheduledTask) context.Context {
 	return contextForOwner(ctx, job.OwnerUserID)
 }

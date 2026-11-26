@@ -11,7 +11,17 @@ import (
 	"time"
 
 	nexuscua "github.com/nexus-research-lab/nexus-cua/sdk/go"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
 )
+
+func NewServiceWithSupervisor(enabled bool, supervisor Supervisor) *Service {
+	return &Service{enabled: enabled, supervisor: supervisor, rounds: make(map[string]*Round)}
+}
+
+func NewProcessSupervisor(cfg config.Config) *ProcessSupervisor {
+	return NewProcessSupervisorWithBinaryPath(cfg, cfg.ComputerUseBinaryPath)
+}
 
 type fakeSupervisor struct {
 	client          *fakeClient

@@ -24,11 +24,7 @@ func (s *Store) workspacePathBelongsToOwner(ownerUserID string, workspacePath st
 	if directChildPath(configuredOwnerRoot, workspacePath) {
 		return true
 	}
-	canonicalOwnerRoot := appfs.UserWorkspaceRootAt(s.StateRoot, ownerUserID)
-	if directChildPath(canonicalOwnerRoot, workspacePath) {
-		return true
-	}
-	return false
+	return directChildPath(appfs.UserWorkspaceRootAt(s.StateRoot, ownerUserID), workspacePath)
 }
 
 func directChildPath(root string, path string) bool {

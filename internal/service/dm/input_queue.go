@@ -64,11 +64,10 @@ func (s *Service) HandleInputQueue(
 		if !protocol.HasChatInput(content, attachments) {
 			return protocol.InputQueueMutationResult{}, errors.New("content is required")
 		}
+		// 同一条草稿在传输重试时靠 client_message_id 保持单一队列项。
 		clientMessageID := request.ClientMessageID
 		if clientMessageID == "" {
-			// 兼容尚未发送 ACK 关联字段的旧客户端；新客户端必须自行保持该 ID，
-			// 才能让同一条队列草稿在传输重试时保持单一队列项。
-			clientMessageID = "legacy_" + workspacestore.NewInputQueueID()
+			return protocol.InputQueueMutationResult{}, errors.New("client_message_id is required")
 		}
 		ownerUserID := authctx.OwnerUserID(ctx)
 		enqueueResult, err := s.InputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{

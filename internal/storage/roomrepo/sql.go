@@ -793,9 +793,8 @@ func (r *SQLRepository) CreateConversation(ctx context.Context, bundle CreateCon
 	}
 	ownerUserID := roomValue.OwnerUserID
 
-	conversationID := bundle.Conversation.ID
 	if bundle.Conversation.IsDraft {
-		conversationID, err = r.loadDraftConversationID(ctx, tx, bundle.RoomID)
+		conversationID, err := r.loadDraftConversationID(ctx, tx, bundle.RoomID)
 		if err != nil {
 			return nil, err
 		}
@@ -830,7 +829,7 @@ VALUES (%s, %s)%s`, insertPrefix, r.dialect.BindList(5), r.dialect.CurrentTimest
 		return nil, err
 	}
 	if bundle.Conversation.IsDraft && inserted == 0 {
-		conversationID, err = r.loadDraftConversationID(ctx, tx, bundle.RoomID)
+		conversationID, err := r.loadDraftConversationID(ctx, tx, bundle.RoomID)
 		if err != nil {
 			return nil, err
 		}

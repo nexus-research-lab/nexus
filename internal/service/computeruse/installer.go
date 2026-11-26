@@ -593,12 +593,6 @@ type cuaManifest struct {
 }
 
 func extractCUAArchive(archivePath, destination, tag string, allowUnaccepted bool) (cuaManifest, string, error) {
-	if strings.HasSuffix(strings.ToLower(archivePath), ".zip") {
-		// Downloaded files are intentionally extensionless; tar/gzip is the
-		// release default. ZIP is selected from the release asset name by the
-		// caller in future revisions, while content sniffing keeps this helper
-		// deterministic for tests.
-	}
 	if fileLooksLikeGzip(archivePath) {
 		return extractTarGzip(archivePath, destination, tag, allowUnaccepted)
 	}

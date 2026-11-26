@@ -106,14 +106,14 @@ func resolveRuntimeCLIShimTarget(
 	for _, candidate := range packagedRuntimeCLICandidates(root, definition.Name) {
 		if err := validateRuntimeCLIExecutable(candidate, definition.Name); err == nil {
 			return runtimeCLIShimTarget{Kind: "executable", CommandPath: filepath.Clean(candidate)}, nil
-		} else if err != nil && !os.IsNotExist(err) {
+		} else if !os.IsNotExist(err) {
 			return runtimeCLIShimTarget{}, err
 		}
 	}
 	sourceEntry := filepath.Join(root, "cmd", definition.Name, "main.go")
 	if _, err := os.Stat(sourceEntry); err == nil {
 		return runtimeCLIShimTarget{Kind: "source", ProjectRoot: root}, nil
-	} else if err != nil && !os.IsNotExist(err) {
+	} else if !os.IsNotExist(err) {
 		return runtimeCLIShimTarget{}, err
 	}
 	return runtimeCLIShimTarget{}, fmt.Errorf(

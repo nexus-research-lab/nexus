@@ -91,11 +91,6 @@ func (s *AgentHistoryStore) openTranscriptReadFile(root *confinedfs.Root, relati
 	})
 }
 
-func readTranscriptEntriesFileContext(ctx context.Context, file *os.File) ([]transcriptEntry, error) {
-	entries, _, err := readTranscriptEntriesReaderContext(ctx, file, 0)
-	return entries, err
-}
-
 // readTranscriptEntriesReaderContext 从 startIndex 开始按行编号解析 JSONL，
 // 返回条目和下一个行号；空行与无法解析的行也占用行号，保证追加解析与完整解析编号一致。
 func readTranscriptEntriesReaderContext(ctx context.Context, input io.Reader, startIndex int) ([]transcriptEntry, int, error) {

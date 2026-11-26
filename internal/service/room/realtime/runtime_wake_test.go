@@ -20,8 +20,8 @@ func TestRoomRuntimeWakePublicSlotShowsTriggerRow(t *testing.T) {
 	if _, hidden := row["hidden_from_user"]; hidden || row["content"] != "build done" {
 		t.Fatalf("row = %+v", row)
 	}
-	if runtimeWakeHiddenFromUser(request) || !shouldBroadcastRoomChatAck(request) {
-		t.Fatal("public wake must be visible and broadcast ack")
+	if !shouldBroadcastRoomChatAck(request) {
+		t.Fatal("public wake must broadcast ack")
 	}
 	slot := &activeRoomSlot{HiddenFromUser: true}
 	applyRuntimeWakeSlot(request, slot)
@@ -39,8 +39,8 @@ func TestRoomRuntimeWakePrivateSlotStaysPrivate(t *testing.T) {
 	if row["hidden_from_user"] != true {
 		t.Fatalf("private wake row must stay hidden: %+v", row)
 	}
-	if !runtimeWakeHiddenFromUser(request) || shouldBroadcastRoomChatAck(request) {
-		t.Fatal("private wake must stay hidden without ack")
+	if shouldBroadcastRoomChatAck(request) {
+		t.Fatal("private wake must not broadcast ack")
 	}
 	slot := &activeRoomSlot{}
 	applyRuntimeWakeSlot(request, slot)
