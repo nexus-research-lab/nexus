@@ -119,7 +119,7 @@ func newDMTestConfig(t *testing.T) config.Config {
 	stateRoot := filepath.Join(root, ".nexus")
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
-	return config.Config{
+	cfg := config.Config{
 		Host:           "127.0.0.1",
 		Port:           18032,
 		ProjectName:    "nexus-dm-test",
@@ -130,6 +130,9 @@ func newDMTestConfig(t *testing.T) config.Config {
 		DatabaseDriver: "sqlite",
 		DatabaseURL:    filepath.Join(root, "nexus.db"),
 	}
+	// 每个测试都拿到已迁移的独立 SQLite（迁移结果按模板复制，代价很小）。
+	handlertest.MigrateSQLiteFromDir(t, cfg.DatabaseURL, dmMigrationDir(t))
+	return cfg
 }
 
 func mustFindDMSession(
@@ -251,11 +254,6 @@ func stringPointer(t *testing.T, value *string) string {
 		t.Fatal("session_id 未持久化")
 	}
 	return strings.TrimSpace(*value)
-}
-
-func migrateDMSQLite(t *testing.T, databaseURL string) {
-	t.Helper()
-	handlertest.MigrateSQLiteFromDir(t, databaseURL, dmMigrationDir(t))
 }
 
 func dmMigrationDir(t *testing.T) string {

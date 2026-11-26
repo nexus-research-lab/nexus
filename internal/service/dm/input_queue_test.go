@@ -119,25 +119,13 @@ func TestDMGuidanceAppliedAckDoesNotConsumeNewerBatch(t *testing.T) {
 
 func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()
 	client.onQuery = func(_ context.Context, _ string) {}
 	client.onInterrupt = func(_ context.Context) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-guide-cleanup",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "interrupted",
-					DurationMS: 1,
-					NumTurns:   1,
-				},
-			}
-		}()
+		client.sendResultAsync(client.sessionID, "result-guide-cleanup", "interrupted", "")
 	}
 
 	factory := &fakeDMFactory{client: client}
@@ -310,7 +298,6 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 
 func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
@@ -322,18 +309,7 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 			return
 		}
 		fallbackStarted <- prompt
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-ack-guidance-fallback",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-				},
-			}
-		}()
+		client.sendResultAsync(client.sessionID, "result-ack-guidance-fallback", "success", "")
 	}
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
@@ -441,25 +417,13 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 
 func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()
 	client.onQuery = func(_ context.Context, _ string) {}
 	client.onInterrupt = func(_ context.Context) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-guide-preflight-cleanup",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "interrupted",
-					DurationMS: 1,
-					NumTurns:   1,
-				},
-			}
-		}()
+		client.sendResultAsync(client.sessionID, "result-guide-preflight-cleanup", "interrupted", "")
 	}
 	service := NewService(
 		cfg,
@@ -558,7 +522,6 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 
 func TestServiceGuidanceErrorResultFallsBackToNextTurn(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
@@ -663,7 +626,6 @@ func TestServiceGuidanceErrorResultFallsBackToNextTurn(t *testing.T) {
 
 func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
@@ -813,7 +775,6 @@ func TestQueueItemVisibleToUserHidesHostRecovery(t *testing.T) {
 // consumed, not dispatched as a second identical round.
 func TestSurvivingQueueClaimWithPersistedRoundIsConsumedWithoutReplay(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agentService := newDMAgentService(t, cfg)
 	client := newFakeDMClient()
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})

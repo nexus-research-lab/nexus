@@ -232,7 +232,6 @@ func TestRoundRunnerSkipsExternalTypingForQuickReply(t *testing.T) {
 
 func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	agentValue, err := agentService.GetDefaultAgent(context.Background())
@@ -242,19 +241,7 @@ func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T)
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()
 	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-title-external-im",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
+		client.sendResultAsync(client.sessionID, "result-title-external-im", "success", "ok")
 	}
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
 	service := NewService(cfg, agentService, runtimeManager, permission)

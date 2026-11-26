@@ -15,7 +15,6 @@ import (
 
 func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agents := newDMAgentService(t, cfg)
 	client := newFakeDMClient()
 	prompts := make(chan string, 8)

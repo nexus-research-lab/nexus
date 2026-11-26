@@ -186,7 +186,6 @@ func newDMQueueProvenanceFixture(
 ) (*Service, *fakeDMClient, <-chan string, <-chan authctx.QueuedHumanPrincipalBinding, <-chan string, *sql.DB, string) {
 	t.Helper()
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	db := dmTestDB(t, cfg)
 
 	agentService := newDMAgentService(t, cfg)

@@ -110,7 +110,6 @@ func (h *dmInputCursorHarness) historyInputSeqs(t *testing.T, cfg config.Config)
 
 func TestDMUserRowSharesInputSeqAcrossAckLiveRowAndHistory(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	sessionKey := "agent:nexus:ws:dm:input-cursor"
 	live := map[string]int64{}
 	assertHistory := func(stage string, harness *dmInputCursorHarness) {

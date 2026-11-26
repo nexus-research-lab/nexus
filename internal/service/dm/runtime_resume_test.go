@@ -17,7 +17,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type connectorToolSurfaceTestServer struct{}
@@ -39,7 +38,6 @@ func (connectorToolSurfaceTestServer) HandleMessage(_ context.Context, request m
 
 func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
@@ -56,19 +54,7 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 	client.sessionID = "sdk-fresh-after-stale"
 	client.connectErrors = []error{agentclient.ErrNotConnected}
 	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-stale-resume-retry",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
+		client.sendResultAsync(client.sessionID, "result-stale-resume-retry", "success", "ok")
 	}
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
@@ -168,7 +154,6 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 
 func TestServiceEnsureClientRetriesFreshWhenAutomaticToolSurfaceForkCannotResume(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
@@ -278,7 +263,6 @@ func TestServiceEnsureClientRetriesFreshWhenAutomaticToolSurfaceForkCannotResume
 
 func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
@@ -301,19 +285,7 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 	client.sessionID = ""
 	client.onQuery = func(_ context.Context, _ string) {
 		client.sessionID = newSessionID
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: newSessionID,
-				UUID:      "result-connector-tool-surface-fork",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
+		client.sendResultAsync(newSessionID, "result-connector-tool-surface-fork", "success", "ok")
 	}
 	factory := &fakeDMFactory{clients: []*fakeDMClient{staleClient, client}}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)

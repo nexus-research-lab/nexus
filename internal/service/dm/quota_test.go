@@ -18,7 +18,6 @@ type fakeDMQuotaChecker struct {
 
 func TestServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	client := newFakeDMClient()

@@ -48,7 +48,6 @@ func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 
 func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
@@ -182,7 +181,6 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 
 func TestDMPrepareRuntimeHandlesSlashCommandPayloads(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	client := newFakeDMClient()
@@ -264,7 +262,6 @@ func TestDMPrepareRuntimeHandlesSlashCommandPayloads(t *testing.T) {
 
 func TestDMPrepareRuntimeRejectsSlashCommandAttachments(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{
@@ -293,7 +290,6 @@ func TestDMPrepareRuntimeRejectsSlashCommandAttachments(t *testing.T) {
 
 func TestAuthorizeDMSessionAccessSeparatesExternalViewingFromWebHostCommands(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{
@@ -348,7 +344,6 @@ func TestAuthorizeDMSessionAccessSeparatesExternalViewingFromWebHostCommands(t *
 
 func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
@@ -484,7 +479,6 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 
 func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()

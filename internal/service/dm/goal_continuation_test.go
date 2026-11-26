@@ -59,7 +59,6 @@ func (p *observedDMGoalProvider) GoalContinuationStillCurrent(
 
 func TestServiceGoalContinuationFinalDispatchDefersToConcurrentExplicitInput(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
@@ -175,7 +174,6 @@ func TestServiceGoalContinuationFinalDispatchDefersToConcurrentExplicitInput(t *
 
 func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agentService := newDMAgentService(t, cfg)
 	client := newFakeDMClient()
 	queryStarted := make(chan struct{}, 1)
@@ -307,7 +305,6 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 
 func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	agentService := newDMAgentService(t, cfg)
 	client := newFakeDMClient()
 	queryStarted := make(chan struct{}, 1)
@@ -405,7 +402,6 @@ func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *
 
 func TestServiceGoalContinuationPauseAfterRuntimeRegistrationFailsAdmissionBeforeQuery(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 	client := newFakeDMClient()
 	var queryCalls atomic.Int64
 	client.onQuery = func(context.Context, string) { queryCalls.Add(1) }
@@ -496,7 +492,6 @@ func TestServiceGoalContinuationPauseAfterRuntimeRegistrationFailsAdmissionBefor
 
 func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
@@ -504,19 +499,7 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	sentPrompt := make(chan string, 1)
 	client.onQuery = func(_ context.Context, prompt string) {
 		sentPrompt <- prompt
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-goal-defer-queue",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "queued done",
-				},
-			}
-		}()
+		client.sendResultAsync(client.sessionID, "result-goal-defer-queue", "success", "queued done")
 	}
 
 	factory := &fakeDMFactory{client: client}
@@ -568,7 +551,6 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 
 func TestServiceGoalContinuationDefersForSessionPlanOverride(t *testing.T) {
 	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	service := NewService(
