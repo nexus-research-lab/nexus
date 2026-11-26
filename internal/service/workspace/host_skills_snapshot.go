@@ -307,10 +307,7 @@ func copyBoundedHostSkillTree(
 			sourceFile.Close()
 			return fmt.Errorf("宿主 Skill 总大小超过 %d MiB", hostSkillMaxTotalBytes>>20)
 		}
-		mode := os.FileMode(0o644)
-		if openedInfo.Mode().Perm()&0o111 != 0 {
-			mode = 0o755
-		}
+		mode := runtimeReadableFileMode(openedInfo.Mode())
 		copyLimit := min(hostSkillMaxFileBytes, remainingTotalBytes)
 		boundedSource := &hostSkillBoundedReader{
 			source:    sourceFile,

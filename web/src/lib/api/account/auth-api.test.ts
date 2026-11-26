@@ -56,4 +56,23 @@ describe("getAuthStatus", () => {
       multiplayer_enabled: true,
     });
   });
+
+  it("issues local, capability and Control reads together", async () => {
+    let resolveLocal: (value: unknown) => void = () => {};
+    requestApi
+      .mockReturnValueOnce(new Promise((next) => {
+        resolveLocal = next;
+      }))
+      .mockResolvedValueOnce({ enabled: true })
+      .mockRejectedValueOnce(new Error("offline"));
+
+    const status = getAuthStatus();
+    expect(requestApi).toHaveBeenCalledTimes(3);
+    resolveLocal({ authenticated: true, user_id: "local", password_login_enabled: false });
+    await expect(status).resolves.toMatchObject({
+      user_id: "local",
+      multiplayer_enabled: true,
+      password_login_enabled: true,
+    });
+  });
 });

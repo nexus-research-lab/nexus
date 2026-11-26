@@ -79,23 +79,23 @@ func (s *SessionFileStore) ListSessions(workspacePath string) ([]protocol.Sessio
 		return nil, err
 	}
 
+	previous := loadSessionMetaSnapshots(root.Name())
+	current := make(map[string]sessionMetaSnapshot, len(entries))
 	result := make([]protocol.Session, 0, len(entries))
 	for _, entry := range entries {
-		info, statErr := sessionsRoot.Lstat(entry.Name())
-		if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		// 目录项类型来自 readdir，不跟随符号链接；非真实目录直接跳过。
+		if !entry.IsDir() {
 			continue
 		}
-		sessionRoot, openErr := sessionsRoot.OpenRootNoSymlink(entry.Name())
-		if openErr != nil {
-			continue
-		}
-		item, loadErr := readSessionMeta(sessionRoot, "meta.json")
-		sessionRoot.Close()
-		if errors.Is(loadErr, os.ErrNotExist) {
-			continue
-		}
+		item, snapshot, ok, loadErr := readListedSessionMeta(sessionsRoot, entry.Name(), previous[entry.Name()])
 		if loadErr != nil {
 			return nil, loadErr
+		}
+		if !ok {
+			continue
+		}
+		if snapshot.payload != nil {
+			current[entry.Name()] = snapshot
 		}
 		if strings.TrimSpace(item.SessionKey) == "" {
 			return nil, fmt.Errorf(
@@ -115,6 +115,7 @@ func (s *SessionFileStore) ListSessions(workspacePath string) ([]protocol.Sessio
 		}
 		result = append(result, item)
 	}
+	storeSessionMetaSnapshots(root.Name(), current)
 	sort.Slice(result, func(i int, j int) bool {
 		return result[i].LastActivity.After(result[j].LastActivity)
 	})
@@ -556,8 +557,12 @@ func readSessionMeta(root *confinedfs.Root, metaPath string) (protocol.Session, 
 	if err != nil {
 		return protocol.Session{}, err
 	}
+	return decodeSessionMeta(payload)
+}
+
+func decodeSessionMeta(payload []byte) (protocol.Session, error) {
 	var item protocol.Session
-	if err = json.Unmarshal(payload, &item); err != nil {
+	if err := json.Unmarshal(payload, &item); err != nil {
 		return protocol.Session{}, err
 	}
 	if item.Options == nil {

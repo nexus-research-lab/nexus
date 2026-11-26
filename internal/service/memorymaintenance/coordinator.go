@@ -234,8 +234,9 @@ func (c *Coordinator) runAgent(parent context.Context, agentValue protocol.Agent
 		nextCheck = now.Add(c.config.SweepInterval)
 	}
 	c.scheduleNext(key, nextCheck)
+	// 巡检每轮覆盖全部 Agent，跳过是常态；只有真正执行的结果进入 INFO。
 	level := slog.LevelInfo
-	if providerUnavailable {
+	if result.Status == agentclient.AutoDreamStatusSkipped {
 		level = slog.LevelDebug
 	}
 	c.logger.Log(ctx, level, "Agent AutoDream 检查完成",

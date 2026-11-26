@@ -1,11 +1,12 @@
 /**
  * INPUT: Provider 配置、可选 configuration_version 与模型/测试命令。
- * OUTPUT: 旧响应体兼容的 Provider 结果；条件写通过强 If-Match 发送精确聚合版本。
+ * OUTPUT: 旧响应体兼容的 Provider 结果；条件写通过强 If-Match 发送精确聚合版本；options 读取按 owner 代次合并在途请求。
  * POS: Provider/订阅 Provider HTTP transport 边界；版本不替代 owner、Provider key 或请求身份。
  */
 
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
+import { captureAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import type {
   CCSwitchPreview,
   CCSwitchSyncPayload,
@@ -53,7 +54,11 @@ export async function listSubscriptionProviderConfigsApi(): Promise<
   );
 }
 
-export async function listProviderOptionsApi(
+// 同一 owner 代次的相同 options 读取只保留一个在途请求；结算后立即移除，不做时间缓存，
+// 各调用方原有的刷新与过期判断保持不变。
+const inFlightProviderOptions = new Map<string, Promise<ProviderOptionsResponse>>();
+
+export function listProviderOptionsApi(
   runtimeKind?: AgentRuntimeKind | string,
 ): Promise<ProviderOptionsResponse> {
   const params = new URLSearchParams();
@@ -62,12 +67,18 @@ export async function listProviderOptionsApi(
     params.set("agent_runtime_kind", normalizedRuntimeKind);
   }
   const query = params.toString();
-  return requestApi<ProviderOptionsResponse>(
-    `${PROVIDER_CONFIG_BASE_URL}/options${query ? `?${query}` : ""}`,
-    {
-      method: "GET",
-    },
-  );
+  const url = `${PROVIDER_CONFIG_BASE_URL}/options${query ? `?${query}` : ""}`;
+  const key = `${captureAuthOwnerScopeGeneration()}:${url}`;
+  const pending = inFlightProviderOptions.get(key);
+  if (pending) {
+    return pending;
+  }
+  const request = requestApi<ProviderOptionsResponse>(url, { method: "GET" })
+    .finally(() => {
+      inFlightProviderOptions.delete(key);
+    });
+  inFlightProviderOptions.set(key, request);
+  return request;
 }
 
 export async function listProviderPresetsApi(): Promise<ProviderPreset[]> {

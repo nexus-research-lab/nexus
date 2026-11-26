@@ -80,7 +80,7 @@ func (s *Service) listSessionDirectory(ctx context.Context) ([]protocol.Session,
 
 // ListMutableSessions 只列出 owner workspace 中由 Session 域管理的 Agent 会话。
 func (s *Service) ListMutableSessions(ctx context.Context) ([]protocol.Session, error) {
-	items, err := s.listMutableWorkspaceSessions(ctx)
+	items, err := s.listWorkspaceSessions(ctx)
 	if err != nil {
 		return nil, err
 	}
