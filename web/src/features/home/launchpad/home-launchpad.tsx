@@ -1,10 +1,9 @@
 // INPUT: Home 启动台控制器。
-// OUTPUT: 主智能体输入框、快捷入口、按时段变化的继续区、接下来的定时任务和新手示例。
+// OUTPUT: 复用共享 Composer 的主智能体输入框、快捷入口、按时段变化的继续区、接下来的定时任务和新手示例。
 // POS: Home 启动台视图；数据与导航全部来自 useHomeLaunchController。
 "use client";
 
 import {
-  ArrowUp,
   CalendarClock,
   FileText,
   FolderGit2,
@@ -14,17 +13,22 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useRef, type KeyboardEvent } from "react";
+import { useRef } from "react";
+
+import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
+import { focusComposerInputAtEnd } from "@/features/conversation/shared/composer/controller/composer-textarea";
+import { getDefaultAgentRuntimeKind } from "@/config/runtime-options";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
-import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import type { InputQueueItem } from "@/types/agent/agent-conversation";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
+import type { CommandCatalogData } from "@/types/generated/protocol";
 
 import type { SidebarConversationItem } from "../sidebar/sidebar-conversation-model";
 import {
@@ -33,9 +37,14 @@ import {
   type HomeLaunchSample,
 } from "./home-launch-model";
 import {
+  HOME_LAUNCH_DRAFT_SCOPE,
   useHomeLaunchController,
   type HomeLaunchController,
 } from "./use-home-launch-controller";
+
+// 首页只把正文带进主智能体对话；Slash、附件、队列与 Goal 留给进入对话后的完整 Composer。
+const EMPTY_COMMAND_CATALOG: CommandCatalogData = { commands: [], status: "unavailable" };
+const EMPTY_INPUT_QUEUE: InputQueueItem[] = [];
 
 const GREETING_KEYS: Record<HomeDayPeriod, TranslationKey> = {
   morning: "home.launch.greeting_morning",
@@ -66,111 +75,94 @@ const QUICK_ACTIONS: ReadonlyArray<{ icon: LucideIcon; labelKey: TranslationKey;
 
 export function HomeLaunchpad() {
   const controller = useHomeLaunchController();
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const composerRef = useRef<HTMLDivElement | null>(null);
 
   const fillSample = (prompt: string) => {
-    controller.setDraft(prompt);
+    controller.fillDraft(prompt);
     // 示例只填入草稿，让用户改完再发；光标放到末尾方便继续输入。
     window.requestAnimationFrame(() => {
-      const input = inputRef.current;
-      if (input) {
-        input.focus();
-        input.setSelectionRange(prompt.length, prompt.length);
+      const textarea = composerRef.current?.querySelector("textarea");
+      if (textarea) {
+        focusComposerInputAtEnd(textarea);
       }
     });
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[760px] flex-col gap-8 px-4 pb-10 sm:px-6">
-      <HomeLaunchComposer controller={controller} inputRef={inputRef} />
-      {controller.showSamples ? (
-        <HomeSampleSection onPick={fillSample} />
-      ) : null}
-      {controller.continueItems.length > 0 || controller.upcomingTasks.length > 0 ? (
-        <HomeContinueSection controller={controller} />
-      ) : null}
+    <div className="mx-auto flex w-full max-w-[880px] flex-col gap-8 pb-10">
+      <HomeLaunchComposer composerRef={composerRef} controller={controller} />
+      <div className="flex flex-col gap-8 px-3 sm:px-5 xl:px-6">
+        {controller.showSamples ? (
+          <HomeSampleSection onPick={fillSample} />
+        ) : null}
+        {controller.continueItems.length > 0 || controller.upcomingTasks.length > 0 ? (
+          <HomeContinueSection controller={controller} />
+        ) : null}
+      </div>
     </div>
   );
 }
 
 function HomeLaunchComposer({
+  composerRef,
   controller,
-  inputRef,
 }: {
+  composerRef: React.RefObject<HTMLDivElement | null>;
   controller: HomeLaunchController;
-  inputRef: React.RefObject<HTMLTextAreaElement | null>;
 }) {
   const { t } = useI18n();
-  const canSubmit = controller.draft.trim().length > 0 && !controller.isSubmitting;
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
-      return;
-    }
-    event.preventDefault();
-    controller.submit();
-  };
 
   return (
-    <section className="flex flex-col gap-3">
-      <p className={getUiTypographyClassName({ role: "sectionTitle", tone: "muted", weight: "regular" })}>
+    <section className="flex flex-col gap-1">
+      {/* 问候、错误提示与快捷入口和 Composer 输入壳共用同一左右基线。 */}
+      <p className={cn("px-3 sm:px-5 xl:px-6", getUiTypographyClassName({ role: "sectionTitle", tone: "muted", weight: "regular" }))}>
         {t(GREETING_KEYS[controller.period])}
       </p>
-      <form
-        className="input-shell home-launch-input surface-radius-md flex flex-col gap-2 px-4 pb-3 pt-3.5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          controller.submit();
-        }}
-      >
-        <textarea
-          ref={inputRef}
-          aria-label={t("home.launch.input_label")}
-          className="ui-type-body min-h-[52px] w-full resize-none bg-transparent text-(--text-strong) outline-none placeholder:text-(--text-soft)"
-          onChange={(event) => controller.setDraft(event.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={t("home.launch.placeholder")}
-          rows={2}
-          value={controller.draft}
+      <div className="home-launch-composer" ref={composerRef}>
+        <ComposerPanel
+          commandCatalog={EMPTY_COMMAND_CATALOG}
+          compact={false}
+          contextUsage={null}
+          defaultDeliveryPolicy="queue"
+          defaultPlaceholder={t("home.launch.placeholder")}
+          draftScopeKey={HOME_LAUNCH_DRAFT_SCOPE}
+          goalScopeLabel="Nexus"
+          historyScopeKey={HOME_LAUNCH_DRAFT_SCOPE}
+          inputQueueItems={EMPTY_INPUT_QUEUE}
+          isLoading={controller.isSubmitting}
+          onDeleteQueuedMessage={ignoreQueuedMessage}
+          onEnqueueMessage={controller.sendToMainAgent}
+          onGuideQueuedMessage={ignoreQueuedMessage}
+          onPrepareAttachments={prepareNoAttachments}
+          onReorderQueueMessages={ignoreQueueOrder}
+          onSendMessage={controller.sendToMainAgent}
+          queueWhenSessionBusy={false}
+          roomMembers={[]}
+          runtimeKind={getDefaultAgentRuntimeKind()}
+          runtimePhase={controller.isSubmitting ? "sending" : null}
+          showActionMenu={false}
+          tourAnchor=""
         />
-        <div className="flex items-center gap-2">
-          <span className={cn("flex min-w-0 items-center gap-1.5", getUiTypographyClassName({ role: "metadata", tone: "soft" }))}>
-            <span aria-hidden className="home-launch-pulse" />
-            <span className="truncate">{t("home.launch.target")}</span>
-            <span className="max-sm:hidden">· {t("home.launch.shortcut_hint")}</span>
-          </span>
-          <UiIconButton
-            aria-busy={controller.isSubmitting}
-            aria-label={t("home.launch.submit")}
-            className="ml-auto"
-            disabled={!canSubmit}
-            shape="round"
-            size="sm"
-            tone="primary"
-            type="submit"
-            variant="solid"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </UiIconButton>
+      </div>
+      <div className="flex flex-col gap-2 px-3 sm:px-5 xl:px-6">
+        {controller.submitError ? (
+          <p className={getUiTypographyClassName({ role: "metadata", tone: "danger" })} role="alert">
+            {t("home.launch.submit_failed")}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {QUICK_ACTIONS.map(({ icon: Icon, labelKey, route }) => (
+            <button
+              className={cn("home-launch-chip", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}
+              key={labelKey}
+              onClick={() => controller.openRoute(route())}
+              type="button"
+            >
+              <Icon aria-hidden className="h-3.5 w-3.5" />
+              {t(labelKey)}
+            </button>
+          ))}
         </div>
-      </form>
-      {controller.submitError ? (
-        <p className={getUiTypographyClassName({ role: "metadata", tone: "danger" })} role="alert">
-          {t("home.launch.submit_failed")}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        {QUICK_ACTIONS.map(({ icon: Icon, labelKey, route }) => (
-          <button
-            className={cn("home-launch-chip", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}
-            key={labelKey}
-            onClick={() => controller.openRoute(route())}
-            type="button"
-          >
-            <Icon aria-hidden className="h-3.5 w-3.5" />
-            {t(labelKey)}
-          </button>
-        ))}
       </div>
     </section>
   );
@@ -345,4 +337,12 @@ function formatUpcomingTime(timestamp: number | null, locale: string): string {
   }
   const day = date.toLocaleDateString(locale, { day: "numeric", month: "numeric" });
   return `${day} ${time}`;
+}
+
+async function ignoreQueuedMessage(): Promise<void> {}
+
+async function ignoreQueueOrder(_orderedIds: string[]): Promise<void> {}
+
+async function prepareNoAttachments(): Promise<[]> {
+  return [];
 }

@@ -863,8 +863,9 @@
     outline-offset: 2px;
   }
 
-  .home-launch-input {
-    box-shadow: 0 8px 28px -18px color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 45%, transparent);
+  /* 首页 Composer 没有消息流需要羽化遮挡，背板透明以露出 ASCII 画布。 */
+  .home-launch-composer {
+    --conversation-composer-backdrop: transparent;
   }
 
   .home-launch-glyph {
@@ -886,15 +887,6 @@
   .home-launch-chip:hover {
     background: color-mix(in srgb, var(--surface-card-background) 85%, transparent);
     color: var(--text-strong);
-  }
-
-  /* 主智能体在线指示：与 ASCII 粒子同色的小圆点。 */
-  .home-launch-pulse {
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    background: var(--home-ascii-hero-ink, var(--primary));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 18%, transparent);
   }
 
   /* 首页画布避开原生标题栏，保留控件下方的呼吸空间。 */

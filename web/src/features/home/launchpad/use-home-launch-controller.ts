@@ -1,9 +1,11 @@
 // INPUT: Home 共享目录、Room 活动快照、定时任务目录、主智能体身份与路由。
-// OUTPUT: 首页启动台的草稿、提交、继续区、接下来任务与示例状态。
-// POS: Home 启动台控制器；主智能体投递复用 Direct Room 的 initial 草稿协议，不自行发送消息。
+// OUTPUT: 首页启动台的主智能体投递、示例填充、继续区、接下来任务与示例状态。
+// POS: Home 启动台控制器；输入框复用共享 Composer，投递复用 Direct Room 的 initial 草稿协议，不自行发送消息。
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+import { useComposerDraftStore } from "@/features/conversation/shared/composer/composer-draft-store";
 
 import { getDefaultAgentId } from "@/config/runtime-options";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
@@ -27,18 +29,19 @@ import {
 } from "./home-launch-model";
 
 const PERIOD_REFRESH_MS = 60_000;
+/** 首页 Composer 的草稿与发送历史作用域；与主智能体 DM 的 Session 草稿互不覆盖。 */
+export const HOME_LAUNCH_DRAFT_SCOPE = "home:main-agent";
 
 export interface HomeLaunchController {
   continueItems: SidebarConversationItem[];
-  draft: string;
+  fillDraft: (prompt: string) => void;
   hasLoaded: boolean;
   isSubmitting: boolean;
   openConversation: (item: SidebarConversationItem) => void;
   openRoute: (route: string) => void;
   period: HomeDayPeriod;
-  setDraft: (value: string) => void;
+  sendToMainAgent: (content: string) => Promise<void>;
   showSamples: boolean;
-  submit: () => void;
   submitError: boolean;
   upcomingTasks: ScheduledTaskItem[];
 }
@@ -49,7 +52,6 @@ export function useHomeLaunchController(): HomeLaunchController {
   const directory = useHomeDirectory();
   const roomActivity = useRoomActivity();
   const period = useHomeDayPeriod();
-  const [draft, setDraft] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(false);
   const upcomingTasks = useUpcomingTasks();
@@ -63,25 +65,34 @@ export function useHomeLaunchController(): HomeLaunchController {
     untitledRoomLabel: t("home.untitled_room"),
   }), [directory.agents, directory.conversations, directory.rooms, locale, roomActivity, t]);
 
-  const submit = useCallback(() => {
-    const message = draft.trim();
-    if (!message || isSubmitting) {
+  // Composer 已认领草稿后才调用；失败时抛出，让 Composer 按共享协议恢复草稿。
+  const sendToMainAgent = useCallback(async (content: string) => {
+    const message = content.trim();
+    if (!message) {
       return;
     }
     setIsSubmitting(true);
     setSubmitError(false);
-    // initial 草稿由主智能体 DM 的 Composer 消费并进入 inbox，首页不重复实现投递。
-    resolveDirectRoomNavigationTarget(getDefaultAgentId(), message)
-      .then(({ route }) => {
-        setDraft("");
-        navigate(route);
-      })
-      .catch((error: unknown) => {
-        console.error("[HomeLaunch] 打开主智能体对话失败:", error);
-        setSubmitError(true);
-      })
-      .finally(() => setIsSubmitting(false));
-  }, [draft, isSubmitting, navigate]);
+    try {
+      // initial 草稿由主智能体 DM 的 Composer 消费并进入 inbox，首页不重复实现投递。
+      const { route } = await resolveDirectRoomNavigationTarget(getDefaultAgentId(), message);
+      navigate(route);
+    } catch (error) {
+      console.error("[HomeLaunch] 打开主智能体对话失败:", error);
+      setSubmitError(true);
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [navigate]);
+
+  const fillDraft = useCallback((prompt: string) => {
+    useComposerDraftStore.getState().update_composer_draft(
+      HOME_LAUNCH_DRAFT_SCOPE,
+      (current) => ({ ...current, input: prompt }),
+    );
+    setSubmitError(false);
+  }, []);
 
   const openConversation = useCallback((item: SidebarConversationItem) => {
     const routeRoomId = item.routeRoomId ?? item.roomId;
@@ -95,18 +106,14 @@ export function useHomeLaunchController(): HomeLaunchController {
 
   return {
     continueItems: selectContinueItems(conversationItems),
-    draft,
+    fillDraft,
     hasLoaded: directory.hasLoaded,
     isSubmitting,
     openConversation,
     openRoute: navigate,
     period,
-    setDraft: (value: string) => {
-      setDraft(value);
-      setSubmitError(false);
-    },
+    sendToMainAgent,
     showSamples: directory.hasLoaded && shouldShowSamples(conversationItems),
-    submit,
     submitError,
     upcomingTasks,
   };
