@@ -89,14 +89,15 @@ function projectSystemEventBlock(
     retry_delay_ms: systemMessage.metadata?.retry_delay_ms,
     error_status: systemMessage.metadata?.error_status,
     error: systemMessage.metadata?.error,
-    ...projectCompactTokens(systemMessage),
+    ...projectCompactBoundary(systemMessage),
   };
 }
 
 // Claude Code 输出 snake_case（pre_tokens），nxs 输出 transcript 的 camelCase（preTokens）；两者都只在入口读取一次。
-function projectCompactTokens(
+// 摘要只有 nxs 随边界给出（顶层 summary）。
+function projectCompactBoundary(
   message: SystemMessage,
-): Pick<SystemEventContent, "compact_post_tokens" | "compact_pre_tokens"> {
+): Pick<SystemEventContent, "compact_post_tokens" | "compact_pre_tokens" | "compact_summary"> {
   if (message.metadata?.subtype !== "compact_boundary") {
     return {};
   }
@@ -105,6 +106,9 @@ function projectCompactTokens(
   return {
     compact_post_tokens: positiveTokenCount(metadata.post_tokens ?? metadata.postTokens),
     compact_pre_tokens: positiveTokenCount(metadata.pre_tokens ?? metadata.preTokens),
+    compact_summary: typeof message.metadata.summary === "string" && message.metadata.summary.trim()
+      ? message.metadata.summary.trim()
+      : null,
   };
 }
 

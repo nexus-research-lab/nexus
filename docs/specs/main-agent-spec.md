@@ -30,6 +30,11 @@
   - 只有 pending 输入可以撤回；已取走注入或已开跑的输入拒绝撤回。主窗口不提供排队/引导选择与重排。
   - 状态只经条件更新迁移（pending → delivering → consumed，pending → withdrawn），不依赖内存登记；进程启动时 delivering 退回 pending，并唤醒仍有 pending 的 inbox。
   - 宿主内部的恢复与自动化输入继续走原输入队列，在 inbox 之后处理；其他 Agent 的 DM 与 Room 不受影响。
+- 主窗口是长期单会话，上下文压缩与其他 Agent DM 共用 runtime 机制，宿主不另设压缩流程：
+  - runtime 在每次模型请求前按自身窗口与阈值自动压缩（Nexus 通过 `NEXUS_AUTOCOMPACT_PCT_OVERRIDE` 设为 70%），不更换会话 key、不打断当前轮；手动 `/compact` 作为斜杠命令独占一轮，走同一路径。
+  - 长期记忆由 runtime 在每轮结束后提取，受用户「自动记忆」偏好约束；宿主不在压缩前另起落盘轮，避免绕过该偏好。
+  - 压缩边界之后宿主清空已告知记录，下一轮重新告知 connector 等宿主事实。
+  - 时间线只显示一条「已整理较早的对话」标记，有摘要时可展开：实时取边界自带的 `summary`（nxs），历史取 transcript 中紧随边界的 `isCompactSummary` 条目（两种 runtime 一致），该条目本身不展示、不成为用户轮次。
 - `/nexus/v1/runtime/options` 返回当前 owner 的 `default_agent_id`、头像和默认模型偏好；前端只消费该结果，不维护第二份默认 ID。
 - 主智能体不能作为多人 Room 的普通成员，也不充当其成员模板。
 

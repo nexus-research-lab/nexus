@@ -1,8 +1,8 @@
 // INPUT: 已投影的系统事件内容、重试时序和本地化文案。
-// OUTPUT: 紧凑系统事件、显示节省 token 的上下文压缩行，以及可独立展开错误详情的 Provider 重试活动行。
+// OUTPUT: 紧凑系统事件、显示节省 token 且可展开摘要的上下文压缩行，以及可独立展开错误详情的 Provider 重试活动行。
 // POS: Conversation 消息内容视图；只解释系统事件展示，不拥有协议投影或重试状态。
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   ChevronRight,
   CornerDownRight,
@@ -74,7 +74,10 @@ export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
   );
 }
 
-/** 压缩边界只说结果：节省多少、压缩前后各多少；runtime 未给出数字时只保留标题，不展示 SDK 原文。 */
+/**
+ * 压缩边界只说结果：节省多少、压缩前后各多少；runtime 未给出数字时只保留标题，不展示 SDK 原文。
+ * runtime 随边界给出摘要（nxs）时可展开查看，默认收起；Claude Code 的边界不带摘要，只是一行标记。
+ */
 function ContextCompactedSystemEvent({
   block,
   Icon,
@@ -83,6 +86,7 @@ function ContextCompactedSystemEvent({
   Icon: LucideIcon;
 }) {
   const { t } = useI18n();
+  const [expanded, setExpanded] = useResettableState(false, block.source_message_id);
   const pre = block.compact_pre_tokens ?? null;
   const post = block.compact_post_tokens ?? null;
   const detail = pre != null && post != null && pre > post
@@ -94,11 +98,22 @@ function ContextCompactedSystemEvent({
     : pre != null
       ? t("message.context_compacted_from", { pre: formatTokens(pre) })
       : "";
+  const label = t("message.context_compacted");
+  if (!block.compact_summary) {
+    return <CompactSystemEvent block={{ ...block, content: detail, label }} Icon={Icon} />;
+  }
   return (
-    <CompactSystemEvent
-      block={{ ...block, content: detail, label: t("message.context_compacted") }}
+    <SystemEventDisclosure
+      detail={block.compact_summary}
+      detailClassName="max-h-80 overflow-y-auto whitespace-pre-wrap"
+      expanded={expanded}
       Icon={Icon}
-    />
+      onToggle={() => setExpanded((current) => !current)}
+      subtype={block.subtype}
+    >
+      <span className="shrink-0">{label}</span>
+      {detail ? <span className="min-w-0 truncate">{detail}</span> : null}
+    </SystemEventDisclosure>
   );
 }
 
@@ -184,15 +199,48 @@ function ApiRetrySystemEvent({
     : block.content;
 
   return (
+    <SystemEventDisclosure
+      expanded={expanded}
+      Icon={Icon}
+      onToggle={() => setExpanded((current) => !current)}
+      subtype={block.subtype}
+      detail={content}
+    >
+      <span>{t("message.api_retrying")}</span>
+      {attemptText ? <span className="shrink-0">{attemptText}</span> : null}
+      {waitText ? <span className="shrink-0 text-(--text-muted)">· {waitText}</span> : null}
+    </SystemEventDisclosure>
+  );
+}
+
+/** 可展开的系统事件行：标题行切换，明细缩进在图标之后；Provider 重试与压缩摘要共用。 */
+function SystemEventDisclosure({
+  children,
+  detail,
+  detailClassName,
+  expanded,
+  Icon,
+  onToggle,
+  subtype,
+}: {
+  children: ReactNode;
+  detail: ReactNode;
+  detailClassName?: string;
+  expanded: boolean;
+  Icon: LucideIcon;
+  onToggle: () => void;
+  subtype?: string;
+}) {
+  return (
     <div
       className="min-w-0 px-1.5 py-0.5 text-sm font-normal leading-5"
       data-activity-row="system-event"
-      data-system-event-subtype={block.subtype}
+      data-system-event-subtype={subtype}
     >
       <button
         aria-expanded={expanded}
         className="grid min-w-0 grid-cols-[20px_minmax(0,1fr)] items-center gap-1.5 text-left text-(--text-soft)"
-        onClick={() => setExpanded((current) => !current)}
+        onClick={onToggle}
         type="button"
       >
         <span
@@ -201,9 +249,7 @@ function ApiRetrySystemEvent({
           <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={1.5} />
         </span>
         <span className="flex min-w-0 items-center gap-1.5">
-          <span>{t("message.api_retrying")}</span>
-          {attemptText ? <span className="shrink-0">{attemptText}</span> : null}
-          {waitText ? <span className="shrink-0 text-(--text-muted)">· {waitText}</span> : null}
+          {children}
           <ChevronRight
             aria-hidden
             className={cn(
@@ -215,8 +261,13 @@ function ApiRetrySystemEvent({
         </span>
       </button>
       {expanded ? (
-        <span className="message-cjk-font ml-[26px] mt-0.5 block min-w-0 break-words text-xs leading-5 text-(--text-muted)">
-          {content}
+        <span
+          className={cn(
+            "message-cjk-font ml-[26px] mt-0.5 block min-w-0 break-words text-xs leading-5 text-(--text-muted)",
+            detailClassName,
+          )}
+        >
+          {detail}
         </span>
       ) : null}
     </div>
