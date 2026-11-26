@@ -230,7 +230,8 @@ export class HomeAsciiScene {
     this.canvas.style.height = `${height}px`;
     this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const bigSize = Math.round(Math.min(width * 0.04, height * 0.14, 30));
+    // 时钟只做角落里的环境信息，字号压到 20px 以内，不和中间的字标抢主角。
+    const bigSize = Math.round(Math.min(width * 0.03, height * 0.1, 20));
     const smallSize = Math.round(bigSize * 0.46);
     this.clock = {
       ...this.clock,
@@ -346,11 +347,11 @@ export class HomeAsciiScene {
     this.context.textAlign = "right";
     this.context.fillStyle = this.palette.clockInk;
     this.context.font = this.clock.fontSmall;
-    this.context.globalAlpha = 0.38;
+    this.context.globalAlpha = 0.3;
     this.context.fillText(secondsText, right, baseline);
     const secondsWidth = this.context.measureText(secondsText).width;
     this.context.font = this.clock.fontBig;
-    this.context.globalAlpha = 0.72;
+    this.context.globalAlpha = 0.5;
     this.context.fillText(`${this.clock.hh}:${this.clock.mm}`, right - secondsWidth - 2, baseline);
     this.context.globalAlpha = 1;
   }

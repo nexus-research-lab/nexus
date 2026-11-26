@@ -1,5 +1,5 @@
 // INPUT: 当前时间、侧栏同源的聊天投影与定时任务目录。
-// OUTPUT: 首页的时段、继续区条目、接下来的定时任务、新手示例与是否展示示例。
+// OUTPUT: 首页的时段、进行中的会话、接下来的定时任务、新手示例与是否展示示例。
 // POS: Home 启动台纯投影；不访问网络、路由或 DOM。
 
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -16,8 +16,8 @@ export interface HomeLaunchSample {
   promptKey: TranslationKey;
 }
 
-/** 继续区最多展示的会话数：两列两行，超出部分留给侧栏。 */
-const CONTINUE_LIMIT = 4;
+/** 进行中区最多展示的会话数；完整列表留给侧栏。 */
+const ACTIVE_LIMIT = 3;
 const UPCOMING_LIMIT = 3;
 /** 非主智能体会话少于该数量时视为新用户，示例卡占据首屏。 */
 const SAMPLE_VISIBLE_BELOW = 3;
@@ -65,20 +65,20 @@ export function resolveHomeDayPeriod(date: Date): HomeDayPeriod {
 }
 
 /**
- * 继续区优先展示需要用户介入的会话，其次是执行中的，最后按最近活动排序。
- * 主智能体会话不进入继续区：首页输入框本身就是它的入口。
+ * 首页只展示正在发生的会话：等你回复的在前，执行中的其次，同级保持侧栏的最近活动顺序。
+ * 空闲会话已在侧栏按时间排好，首页不再重复；主智能体会话的入口就是首页输入框，也不进入。
  */
-export function selectContinueItems(
+export function selectActiveItems(
   items: readonly SidebarConversationItem[],
 ): SidebarConversationItem[] {
   return items
-    .filter((item) => !item.isPinned)
+    .filter((item) => !item.isPinned && item.activityStatus !== null)
     .map((item, index) => ({ item, index }))
     .sort((left, right) => {
       const rankDelta = activityRank(left.item) - activityRank(right.item);
       return rankDelta !== 0 ? rankDelta : left.index - right.index;
     })
-    .slice(0, CONTINUE_LIMIT)
+    .slice(0, ACTIVE_LIMIT)
     .map(({ item }) => item);
 }
 
@@ -102,8 +102,5 @@ export function selectUpcomingTasks(
 }
 
 function activityRank(item: SidebarConversationItem): number {
-  if (item.activityStatus === "waiting") {
-    return 0;
-  }
-  return item.activityStatus === "working" ? 1 : 2;
+  return item.activityStatus === "waiting" ? 0 : 1;
 }

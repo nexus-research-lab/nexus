@@ -5,7 +5,7 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import {
   resolveHomeDayPeriod,
-  selectContinueItems,
+  selectActiveItems,
   selectUpcomingTasks,
   shouldShowSamples,
 } from "./home-launch-model";
@@ -29,13 +29,14 @@ describe("home launch model", () => {
     expect(resolveHomeDayPeriod(new Date(2026, 0, 1, 2))).toBe("night");
   });
 
-  it("继续区排除主智能体，等你回复和进行中的会话优先，最多四条", () => {
+  it("进行中只取等你回复和执行中的会话，排除主智能体与空闲会话，最多三条", () => {
     const items = [
-      item("main", { isPinned: true }),
-      item("a"), item("b"), item("c", { activityStatus: "working" }),
-      item("d"), item("e", { activityStatus: "waiting" }),
+      item("main", { isPinned: true, activityStatus: "working" }),
+      item("a"), item("b", { activityStatus: "working" }), item("c", { activityStatus: "working" }),
+      item("d", { activityStatus: "working" }), item("e", { activityStatus: "waiting" }),
     ];
-    expect(selectContinueItems(items).map((entry) => entry.id)).toEqual(["e", "c", "a", "b"]);
+    expect(selectActiveItems(items).map((entry) => entry.id)).toEqual(["e", "b", "c"]);
+    expect(selectActiveItems([item("a"), item("b")])).toEqual([]);
   });
 
   it("非主智能体会话少于三个时展示示例", () => {

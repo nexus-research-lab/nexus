@@ -1,5 +1,5 @@
 // INPUT: Home 共享目录、Room 活动快照、定时任务目录、主智能体身份/配置与路由。
-// OUTPUT: 首页启动台的主智能体投递、示例填充、继续区、接下来任务与示例状态。
+// OUTPUT: 首页启动台的主智能体投递、示例填充、进行中会话、接下来任务与示例状态。
 // POS: Home 启动台控制器；输入框复用共享 Composer，投递复用 Direct Room 的 initial 草稿协议，不自行发送消息。
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -27,7 +27,7 @@ import {
 } from "../sidebar/sidebar-conversation-model";
 import {
   resolveHomeDayPeriod,
-  selectContinueItems,
+  selectActiveItems,
   selectUpcomingTasks,
   shouldShowSamples,
   type HomeDayPeriod,
@@ -38,12 +38,12 @@ const PERIOD_REFRESH_MS = 60_000;
 export const HOME_LAUNCH_DRAFT_SCOPE = "home:main-agent";
 
 export interface HomeLaunchController {
-  continueItems: SidebarConversationItem[];
+  activeItems: SidebarConversationItem[];
   fillDraft: (prompt: string) => void;
   hasLoaded: boolean;
   isSubmitting: boolean;
   openConversation: (item: SidebarConversationItem) => void;
-  openRoute: (route: string) => void;
+  openScheduledTasks: () => void;
   period: HomeDayPeriod;
   prepareAttachments: (files: File[]) => Promise<MessageAttachment[]>;
   sendToMainAgent: (
@@ -152,12 +152,12 @@ export function useHomeLaunchController(): HomeLaunchController {
   }, [navigate]);
 
   return {
-    continueItems: selectContinueItems(conversationItems),
+    activeItems: selectActiveItems(conversationItems),
     fillDraft,
     hasLoaded: directory.hasLoaded,
     isSubmitting,
     openConversation,
-    openRoute: navigate,
+    openScheduledTasks: () => navigate(AppRouteBuilders.scheduledTasks()),
     period,
     prepareAttachments,
     sendToMainAgent,
