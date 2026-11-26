@@ -50,14 +50,10 @@ export function HomeAsciiHero({ children }: { children?: ReactNode }) {
   });
 
   return (
-    // 画布与其他工作区页面同一纯色底面；字标只靠自身墨色出现，不再叠渐变或光晕。
+    // 首页不再浮起一张画布卡：没有底面、边框和圆角，字标与启动台直接落在工作台纯色底上。
     <div
-      className="surface-radius-md relative h-full w-full overflow-hidden border"
-      style={{
-        ...preservedVisualStyle,
-        background: "var(--surface-canvas-background)",
-        borderColor: "var(--surface-canvas-border)",
-      }}
+      className="relative h-full w-full overflow-hidden"
+      style={preservedVisualStyle}
     >
 
       <div className="relative flex h-full min-h-0 flex-col overflow-y-auto">
