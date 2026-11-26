@@ -7,9 +7,9 @@ import type { SidebarSkyVariant } from "./view/sidebar-night-sky";
 
 // 按起始小时升序排列；跨零点的夜间段由最后一项延续到次日首项之前。
 const SKY_SCHEDULE: ReadonlyArray<readonly [startHour: number, variant: SidebarSkyVariant]> = [
-  [1, "night"],
+  [1, "constellation"],
   [5, "dawn"],
-  [9, "constellation"],
+  [9, "night"],
   [18, "aurora"],
   [22, "meteor"],
 ];

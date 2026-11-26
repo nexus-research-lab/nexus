@@ -9,12 +9,12 @@ function at(hour: number, minute = 0) {
 describe("sidebar sky schedule", () => {
   it.each([
     [0, "meteor"],
-    [1, "night"],
-    [4, "night"],
+    [1, "constellation"],
+    [4, "constellation"],
     [5, "dawn"],
     [8, "dawn"],
-    [9, "constellation"],
-    [17, "constellation"],
+    [9, "night"],
+    [17, "night"],
     [18, "aurora"],
     [21, "aurora"],
     [22, "meteor"],
