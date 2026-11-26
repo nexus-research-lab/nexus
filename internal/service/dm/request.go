@@ -56,11 +56,12 @@ func (s *Service) handleChatLocked(
 	mode chatExecutionMode,
 ) error {
 	for {
-		if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		unlock, err := s.dispatchLocks.lock(ctx, request.SessionKey)
+		if err != nil {
 			return err
 		}
-		err := s.handleChat(ctx, request, mode)
-		s.inputQueueDispatchMu.Unlock()
+		err = s.handleChat(ctx, request, mode)
+		unlock()
 		// 撞上自唤醒交接时释放派发锁让交接完成，再从路由阶段重试：届时自唤醒 round 已登记，输入按运行中规则排队或引导。
 		var pending *runtimeWakePendingError
 		if !errors.As(err, &pending) {
@@ -72,7 +73,7 @@ func (s *Service) handleChatLocked(
 	}
 }
 
-// handleChat 要求调用方已为显式输入持有 inputQueueDispatchMu；内部输入由各调度器自行保证互斥。
+// handleChat 要求调用方已持有该会话的派发锁（显式输入由 handleChatLocked 获取，内部输入由各调度器获取）。
 func (s *Service) handleChat(
 	ctx context.Context,
 	request Request,

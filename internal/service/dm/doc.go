@@ -6,6 +6,7 @@
 //
 // 成员清单：
 //   - recovery.go：启动队列扫描（跳过主窗口，改为唤醒 inbox 定时器）、非 Goal 自动/用户节点恢复输入（主窗口写入 inbox）、持久受理查询与精确 DM root Attempt 收口。
+//   - dispatch_lock.go：按会话的派发边界锁（引用计数回收、可随 ctx 取消）；不同会话的起轮、投递与引导 hook 互不阻塞，锁不可重入。
 //   - wiring.go：RequireWiring 在启动时校验生产必需依赖，业务方法不再为缺失依赖降级。
 //   - Service 嵌入 runtimehost.Host：Provider/admission/队列信任/用量/额度/执行上下文/MCP 工厂等共用依赖、注入方法与共用阶段只在 runtimehost 实现一次。
 //   - im_delivery_reply.go：IM 反馈持久幂等入队（主窗口进 inbox，其他 DM 进 JSONL 队列）、派发前复核与一次领取；反馈新轮次不继承旧轮次权限。

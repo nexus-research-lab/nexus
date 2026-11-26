@@ -42,10 +42,11 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 // pauseInputQueueForUserStop serializes the durable stop gate with dispatch
 // admission, but releases it before waiting for a running round to drain.
 func (s *Service) pauseInputQueueForUserStop(ctx context.Context, sessionKey string, roundID string) error {
-	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
-		return err
+	unlock, lockErr := s.dispatchLocks.lock(ctx, sessionKey)
+	if lockErr != nil {
+		return lockErr
 	}
-	defer s.inputQueueDispatchMu.Unlock()
+	defer unlock()
 	targetActive := roundID == ""
 	for _, id := range s.Runtime.GetRunningRoundIDs(sessionKey) {
 		if id == roundID {

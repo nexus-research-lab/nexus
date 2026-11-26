@@ -393,13 +393,11 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 		t.Fatalf("assistant 输出不能代替 applied ACK: items=%+v err=%v", items, err)
 	}
 
-	service.inputQueueDispatchMu.Lock()
-	dispatchLocked := true
-	defer func() {
-		if dispatchLocked {
-			service.inputQueueDispatchMu.Unlock()
-		}
-	}()
+	unlockDispatch, err := service.dispatchLocks.lock(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlockDispatch()
 	client.messages <- sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeResult,
 		SessionID: client.sessionID,
@@ -424,8 +422,7 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 			t.Fatalf("未 applied ACK 的引导不应写入当前 round: %+v", row)
 		}
 	}
-	service.inputQueueDispatchMu.Unlock()
-	dispatchLocked = false
+	unlockDispatch()
 
 	select {
 	case prompt := <-fallbackStarted:
@@ -498,8 +495,10 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 		if err != nil || !paused {
 			t.Errorf("queue stop gate = %v, %v", paused, err)
 		}
-		service.inputQueueDispatchMu.Lock()
-		service.inputQueueDispatchMu.Unlock()
+		// 等在途派发退出临界区。
+		if unlock, lockErr := service.dispatchLocks.lock(context.Background(), sessionKey); lockErr == nil {
+			unlock()
+		}
 	})
 
 	if err := service.HandleChat(context.Background(), Request{

@@ -40,10 +40,11 @@ func (s *Service) inputQueueGuidanceHook(
 		if !runtimehost.IsGuidanceHookEvent(input) {
 			return sdkhook.Output{}, nil
 		}
-		if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
-			return sdkhook.Output{}, err
+		unlock, lockErr := s.dispatchLocks.lock(ctx, sessionKey)
+		if lockErr != nil {
+			return sdkhook.Output{}, lockErr
 		}
-		defer s.inputQueueDispatchMu.Unlock()
+		defer unlock()
 		runningRoundIDs := s.Runtime.GetRunningRoundIDs(sessionKey)
 		if len(runningRoundIDs) == 0 {
 			return sdkhook.Output{}, nil

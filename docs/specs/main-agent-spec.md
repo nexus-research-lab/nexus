@@ -26,7 +26,7 @@
 - 侧栏固定的主智能体直接进入该主窗口；Header 和窄窗不提供会话标签、历史、新建或分支入口。
 - 主窗口的用户输入统一追加到该 Session 的 inbox（`agent_inbox_events`，按 `seq` 有序，按 `client_message_id` 幂等），WebSocket `chat` 与 `input_queue` enqueue 等价：
   - 空闲时立即起一轮；积压的 pending 输入合并成一轮（正文以空行拼接、附件按序合并），斜杠命令独占一轮，不同真人身份的输入不合并。
-  - 运行中把斜杠命令之前的全部 pending 输入交给当前轮。runtime 协商了 `running_input_v1`（默认 nxs）时逐条作为运行中输入发送（`input_id` 即 event ID），runtime 在下一次模型请求前回执 `system/input_consumed` 才标记 consumed，模型收尾时到达的输入也会让同一轮多请求一次；未协商时（Claude Code）在 PostToolUse 安全点注入，runtime 确认 applied 后才标记 consumed。consumed 的输入作为 durable 用户消息写入当前轮。轮次结束前未确认的输入退回 pending，本轮结束后立即开下一轮；用户主动停止的轮次结束后不自动开跑。运行中投递与轮末退回共用派发锁，不会遗留 delivering。
+  - 运行中把斜杠命令之前的全部 pending 输入交给当前轮。runtime 协商了 `running_input_v1`（默认 nxs）时逐条作为运行中输入发送（`input_id` 即 event ID），runtime 在下一次模型请求前回执 `system/input_consumed` 才标记 consumed，模型收尾时到达的输入也会让同一轮多请求一次；未协商时（Claude Code）在 PostToolUse 安全点注入，runtime 确认 applied 后才标记 consumed。consumed 的输入作为 durable 用户消息写入当前轮。轮次结束前未确认的输入退回 pending，本轮结束后立即开下一轮；用户主动停止的轮次结束后不自动开跑。运行中投递与轮末退回共用该会话的派发锁（按会话串行，不同会话互不阻塞），不会遗留 delivering。
   - 只有 pending 输入可以撤回；已取走注入或已开跑的输入拒绝撤回。主窗口不提供排队/引导选择与重排。
   - 状态只经条件更新迁移（pending → delivering → consumed，pending → withdrawn，宿主事件另有 → cancelled），不依赖内存登记；进程启动时 delivering 退回 pending。
   - 事件可带 `available_at`：未到点的事件对取走、合并与注入都不可见。dm service 的 inbox 定时器（duework）在启动时立即 reconcile，之后按全部 inbox 最近的 `available_at` 唤醒到点且有 pending 的主窗口；写入或取消未来事件后主动通知。
