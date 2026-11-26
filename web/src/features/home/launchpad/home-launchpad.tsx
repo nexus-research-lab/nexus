@@ -177,9 +177,9 @@ function HomeActivitySection({ controller }: { controller: HomeLaunchController 
         {controller.activeItems.map((item) => (
           <HomeActiveRow item={item} key={item.id} onOpen={controller.openConversation} />
         ))}
-        {controller.upcomingTasks.map((task) => (
-          <HomeUpcomingRow key={task.job_id} onOpen={controller.openScheduledTasks} task={task} />
-        ))}
+        {controller.upcomingTasks.length > 0 ? (
+          <HomeUpcomingStrip onOpen={controller.openScheduledTasks} tasks={controller.upcomingTasks} />
+        ) : null}
       </div>
     </section>
   );
@@ -232,12 +232,13 @@ function HomeActiveRow({
   );
 }
 
-function HomeUpcomingRow({
+/** 接下来的定时任务收成一行横排：任务只是时间提示，不和需要处理的会话抢行。 */
+function HomeUpcomingStrip({
   onOpen,
-  task,
+  tasks,
 }: {
   onOpen: () => void;
-  task: ScheduledTaskItem;
+  tasks: ScheduledTaskItem[];
 }) {
   const { locale, t } = useI18n();
   return (
@@ -246,17 +247,26 @@ function HomeUpcomingRow({
       onClick={onOpen}
       type="button"
     >
-      {/* 与会话头像同宽的图标槽，让任务名和会话名落在同一条文字基线上。 */}
+      {/* 与会话头像同宽的图标槽，让「接下来」和会话名落在同一条文字起点上。 */}
       <span className="flex h-7 w-7 shrink-0 items-center justify-center">
         <CalendarClock aria-hidden className="home-launch-glyph h-4 w-4" />
       </span>
-      <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
-        {task.name}
+      <span className={cn("shrink-0", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+        {t("home.launch.upcoming")}
       </span>
-      <span className={cn("shrink-0", getUiTypographyClassName({ role: "caption", tone: task.running ? "brand" : "soft" }))}>
-        {task.running
-          ? t("home.launch.upcoming_running")
-          : t("home.launch.upcoming_at", { time: formatUpcomingTime(task.next_run_at, locale) })}
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+        {tasks.map((task) => (
+          <span className="flex min-w-0 items-center gap-1.5" key={task.job_id}>
+            <span className={cn("truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
+              {task.name}
+            </span>
+            <span className={cn("shrink-0", getUiTypographyClassName({ role: "caption", tone: task.running ? "brand" : "soft" }))}>
+              {task.running
+                ? t("home.launch.upcoming_running")
+                : t("home.launch.upcoming_at", { time: formatUpcomingTime(task.next_run_at, locale) })}
+            </span>
+          </span>
+        ))}
       </span>
     </button>
   );
