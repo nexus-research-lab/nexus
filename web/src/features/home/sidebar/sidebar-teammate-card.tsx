@@ -21,9 +21,9 @@ export function SidebarTeammateCard({
   return (
     <section
       aria-label={t("sidebar.teammate_title")}
-      className="sidebar-teammate-card surface-radius-md ml-[9px] mt-2 flex flex-col gap-2 px-2.5 py-2.5"
+      className="sidebar-teammate-card surface-radius-md mx-2 mt-2 flex flex-col gap-2 px-2.5 py-2.5"
     >
-      {/* ml-[9px] 抵消列表行的左内边距，卡片边框与搜索框、行内头像同一左线。 */}
+      {/* mx-2 抵消列表行的水平内边距：左边框对齐搜索框与行内头像，右边框对齐顶部折叠和新建图标。 */}
       {/* 两行：头像组 + 标题，下面两个动作均分一行；侧栏约 176px，按钮文案保持短词不换行。 */}
       <span className="flex min-w-0 items-center gap-2">
         <span aria-hidden className="flex shrink-0">
@@ -33,7 +33,7 @@ export function SidebarTeammateCard({
               className={index > 0 ? "sidebar-teammate-avatar -ml-2" : "sidebar-teammate-avatar"}
               key={avatar}
               name=""
-              size="sm"
+              size="xs"
             />
           ))}
         </span>

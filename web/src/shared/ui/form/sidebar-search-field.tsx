@@ -24,10 +24,10 @@ export function SidebarSearchField({
 }) {
   const { t } = useI18n();
 
-  // 右侧 8px 让 36px 尾部动作的中轴落在侧栏右缘内 26px，与品牌栏折叠按钮、底栏设置按钮同一垂线；
-  // 搜索行位于独立滚动的列表之上，不受列表滚动条预留宽度影响。
+  // 左 16px 与侧栏可见右缘留白对称；36px 尾部动作贴目录右缘，图标右沿与品牌栏折叠、底栏设置同一垂线，
+  // 也是列表内容与引导卡的右边线。搜索行位于独立滚动的列表之上，不受列表滚动条影响；没有尾部动作时右侧留 10px，搜索框止于同一右边线。
   return (
-    <div className="flex items-center gap-2 pl-2.5 pr-2 pb-1.5 max-[559px]:gap-3 max-[559px]:px-4 max-[559px]:pb-3">
+    <div className={cn("flex items-center gap-2 pl-4 pb-1.5 max-[559px]:gap-3 max-[559px]:px-4 max-[559px]:pb-3", action ? "pr-0" : "pr-2.5")}>
       <UiSearchInput
         aria-label={label}
         className="flex-1 max-[559px]:h-12 max-[559px]:rounded-(--radius-control-lg) max-[559px]:px-4"

@@ -2275,11 +2275,6 @@
     scrollbar-gutter: stable both-edges;
   }
 
-  /* 侧栏窄列表只在滚动条一侧预留槽位；both-edges 会让左右各空出一条滚动条宽度。 */
-  .scrollbar-stable-gutter-end {
-    scrollbar-gutter: stable;
-  }
-
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
