@@ -902,15 +902,42 @@
     --sidebar-sky-ground: var(--surface-shell-directory-background);
   }
 
-  :root[data-theme="dark"] .sidebar-panel-shell,
-  :root[data-theme="rain"] .sidebar-panel-shell {
-    --sidebar-sky-top: #21164a;
-    --sidebar-sky-mid: #171640;
-    --sidebar-sky-bottom: #0f1530;
-    --sidebar-sky-glow: #4a4fb8;
-    --sidebar-sky-cloud-a: #4f78d6;
-    --sidebar-sky-cloud-b: #5d50c4;
-    --sidebar-sky-cloud-c: #8650b8;
+  /* 变体只替换底色、光晕和主角图层的颜色；深色与雨天主题统一压暗插画，渐隐底色仍跟随主题。 */
+  .sidebar-panel-sky[data-sky-variant="aurora"] {
+    --sidebar-sky-top: #07162c;
+    --sidebar-sky-mid: #0b2240;
+    --sidebar-sky-bottom: #0d1a33;
+    --sidebar-sky-glow: #1f6f8b;
+    --sidebar-sky-aurora-a: #5df2c0;
+    --sidebar-sky-aurora-b: #3cc8d8;
+    --sidebar-sky-aurora-c: #7a6cf0;
+    --sidebar-sky-star: #e8fbff;
+  }
+
+  .sidebar-panel-sky[data-sky-variant="dawn"] {
+    --sidebar-sky-top: #2a2466;
+    --sidebar-sky-mid: #7e4c9c;
+    --sidebar-sky-bottom: #e08a7c;
+    --sidebar-sky-glow: #ff9fb5;
+    --sidebar-sky-sun: #ffd39a;
+    --sidebar-sky-cloud-a: #ffd1dc;
+    --sidebar-sky-cloud-b: #ffc4b0;
+    --sidebar-sky-cloud-c: #f6b6e6;
+    --sidebar-sky-star: #fff4e8;
+  }
+
+  .sidebar-panel-sky[data-sky-variant="constellation"] {
+    --sidebar-sky-top: #0e1238;
+    --sidebar-sky-mid: #141a4a;
+    --sidebar-sky-bottom: #0c1630;
+    --sidebar-sky-glow: #3f5bd8;
+    --sidebar-sky-signal: #9db8ff;
+    --sidebar-sky-star: #e6ecff;
+  }
+
+  :root[data-theme="dark"] .sidebar-panel-sky-art,
+  :root[data-theme="rain"] .sidebar-panel-sky-art {
+    filter: brightness(0.8) saturate(0.92);
   }
 
   .sidebar-panel-sky {
@@ -950,11 +977,69 @@
     content: "";
   }
 
-  /* 星点缓慢明灭；减弱动态效果时保持静止。 */
+  .sidebar-sky-aurora-band {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+
+  .sidebar-sky-aurora-band-a { opacity: 0.85; }
+  .sidebar-sky-aurora-band-b { opacity: 0.6; }
+  .sidebar-sky-aurora-band-c { opacity: 0.5; }
+
+  .sidebar-sky-signal {
+    opacity: 0.9;
+    stroke-dasharray: 6 94;
+  }
+
+  .sidebar-sky-node-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* 所有动效只在用户未要求减弱动态效果时运行；静止时各图层停在首帧，构图依然完整。 */
   @media (prefers-reduced-motion: no-preference) {
     .sidebar-panel-sky-stars {
       animation: sidebar-sky-twinkle 5.6s ease-in-out infinite alternate;
     }
+
+    .sidebar-sky-meteor {
+      opacity: 0;
+      animation: sidebar-sky-meteor 9s linear infinite;
+    }
+
+    .sidebar-sky-aurora-band-a { animation: sidebar-sky-aurora 9s ease-in-out infinite alternate; }
+    .sidebar-sky-aurora-band-b { animation: sidebar-sky-aurora 13s ease-in-out -4s infinite alternate-reverse; }
+    .sidebar-sky-aurora-band-c { animation: sidebar-sky-aurora 16s ease-in-out -7s infinite alternate; }
+
+    .sidebar-sky-signal {
+      animation: sidebar-sky-signal 6s linear infinite;
+    }
+
+    .sidebar-sky-node-pulse {
+      animation: sidebar-sky-node-pulse 2.8s ease-in-out infinite alternate;
+    }
+  }
+
+  @keyframes sidebar-sky-meteor {
+    0% { opacity: 0; transform: translateX(0); }
+    1.5% { opacity: 1; }
+    10% { opacity: 0; transform: translateX(90px); }
+    100% { opacity: 0; transform: translateX(90px); }
+  }
+
+  @keyframes sidebar-sky-aurora {
+    from { transform: translateX(-10px) skewX(-4deg) scaleY(0.92); }
+    to { transform: translateX(10px) skewX(4deg) scaleY(1.06); }
+  }
+
+  @keyframes sidebar-sky-signal {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
+  }
+
+  @keyframes sidebar-sky-node-pulse {
+    from { opacity: 0.55; transform: scale(1); }
+    to { opacity: 1; transform: scale(1.7); }
   }
 
   @keyframes sidebar-sky-twinkle {

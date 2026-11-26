@@ -19,7 +19,7 @@ import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import { SidebarBrandLink } from "./sidebar-brand-link";
-import { SidebarNightSky } from "./sidebar-night-sky";
+import { SidebarNightSky, type SidebarSkyVariant } from "./sidebar-night-sky";
 import { SidebarPinnedConversations } from "./sidebar-pinned-conversations";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
 import {
@@ -67,6 +67,9 @@ interface SidebarPanelProps {
   tabs: SidebarPrimaryTabItem[];
   utility: SidebarUtilityActionsProps;
 }
+
+// 当前启用的品牌栏天空变体；其余变体保留在插画组件中供后续切换。
+const SIDEBAR_SKY_VARIANT: SidebarSkyVariant = "night";
 
 const PANEL_CONTENT: Record<SidebarPrimaryTab, ComponentType> = {
   capabilities: CapabilityPanel,
@@ -135,8 +138,8 @@ export function SidebarPanel({
         style={{ width }}
       >
         {/* 品牌栏背后的夜空装饰层：纯视觉、不拦截指针，由 theme-recipes 配方按主题着色。 */}
-        <div aria-hidden="true" className="sidebar-panel-sky">
-          <SidebarNightSky />
+        <div aria-hidden="true" className="sidebar-panel-sky" data-sky-variant={SIDEBAR_SKY_VARIANT}>
+          <SidebarNightSky variant={SIDEBAR_SKY_VARIANT} />
         </div>
         <div
           className={cn(
