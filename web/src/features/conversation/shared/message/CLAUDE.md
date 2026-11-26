@@ -8,7 +8,7 @@
 - `tool-activity.ts` 统一工具名称与输入摘要，供工具块和消息过程摘要直接消费，不依赖具体块视图。Goal/Execution 受管 CLI 必须从 exact `NEXUS_COMMAND_PATH` 调用投影出 domain/operation 语义标题；ToolBlock、折叠过程摘要和后续消费者不得把 Bash transport 当成业务动作名。
 - `item/message-item-projection.ts` 定义消息项内部的有序条目、轮次和内容投影，不承载 DOM 或视觉规则。
 - `item/activity/` 统一活动状态契约，以及轮次级和内容块级的纯状态推导。
-- `item/process/` 负责过程摘要、问答超时识别与 DM live 连续工具段纯投影；工具段只接收人工交互工具 ID 集合作为边界，不取得权限动作所有权。
+- `item/process/` 负责过程摘要与 DM live 连续工具段纯投影；工具段只接收人工交互工具 ID 集合作为边界，不取得权限动作所有权。
 - `ui/` 只保留跨消息表面的头像、动作、轨道和统计；消息项私有视图不得上提到共享聚合文件。
 - 用户消息展开、子智能体任务入口和 Artifact 外部动作必须直接复用 `UiButton` 的尺寸与状态合同；业务层只保留内容布局和领域命令，不得重新绘制按钮边框、圆角、hover 或 focus。
 - `ui/message-detail-toggle.tsx` 是 Thought、过程总览和工具过程段的统一展开行，固定 Button、箭头、ARIA、焦点与状态 tone；消费者只传前导身份、摘要、展开态和命令，不得各自复制 disclosure 按钮。

@@ -79,4 +79,6 @@ export interface PermissionDecisionPayload {
   automation_scope?: "once" | "task";
   message?: string;
   interrupt?: boolean;
+  /** 用户没批准而是直接写下的做法；宿主据此拒绝并把原话交给模型，本轮继续。 */
+  feedback?: string;
 }

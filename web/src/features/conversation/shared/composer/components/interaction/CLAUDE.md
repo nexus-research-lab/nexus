@@ -7,7 +7,7 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 - `composer-interaction-model.ts`：按 request 首次出现顺序收敛 DM/Room pending 队列，并区分权限、计划确认和结构化问答。
 - `composer-interaction-surface.tsx`：pending 期间原位替换输入壳内容，一次只处理一个请求，并为结构化问答补充当前 Agent 身份。
 - `composer-permission-model.ts`：把 runtime 权限建议翻译为 Nexus 规则动作、匹配内容与生效范围提示，不推断或扩张权限规则。
-- `composer-permission-surface.tsx`：以 Agent、工具、人话摘要、必要参数和单一决策行展示权限/计划；普通拒绝动作复用 `UiButton`，必要密钥复用 `UiInput`，runtime 提供的持久权限建议只通过共享 `UiSplitButton` 进入“允许本次”旁的次级菜单。
+- `composer-permission-surface.tsx`：以 Agent、工具、人话摘要、必要参数和单一决策行展示权限/计划；普通拒绝动作复用 `UiButton`，必要密钥与“直接说明做法”输入框复用 `UiInput`（写了做法即按拒绝提交 `feedback` 原话，宿主据此拒绝并让本轮继续），runtime 提供的持久权限建议只通过共享 `UiSplitButton` 进入“允许本次”旁的次级菜单。
 
 人工介入与普通输入是同一 Composer 位置的互斥状态，禁止叠成输入壳上方浮层，也禁止在 DM/Room 消息正文或 Thread 保留第二个操作入口。请求切换使用 `request_id` 重置本地表单、范围菜单和提交保护；禁用、密钥不完整或范围选项消失立即关闭次级菜单，恢复可提交后不自动重开；发送失败必须保留当前请求以便重试，发送成功后由 runtime pending 真相推进下一项。Room 并行请求继续按首次到达顺序排队，每项显示自己的 Agent 头像与名称，并使用 `request_id` 路由回原执行。
 结构化问答与权限确认共用 Agent/工具元信息节奏和底部决策行；Composer 壳是唯一边界，问题与选项不得再叠加 rail、footer card 或逐项阴影。
