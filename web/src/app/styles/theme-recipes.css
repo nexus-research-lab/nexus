@@ -843,6 +843,60 @@
     .home-workspace-frame { padding: 24px; }
   }
 
+  /* 首页启动台：卡片半透明叠在 ASCII 画布上，保留画布的渐变底色。 */
+  .home-launch-card {
+    background: color-mix(in srgb, var(--surface-card-background) 62%, transparent);
+    border: 1px solid color-mix(in srgb, var(--divider-subtle-color) 90%, transparent);
+    transition: background var(--motion-duration-fast), border-color var(--motion-duration-fast), transform var(--motion-duration-fast);
+  }
+
+  .home-launch-card:hover {
+    background: color-mix(in srgb, var(--surface-card-background) 88%, transparent);
+    border-color: var(--interaction-hover-border);
+  }
+
+  .home-launch-card:active { transform: translateY(1px); }
+
+  .home-launch-card:focus-visible,
+  .home-launch-chip:focus-visible {
+    outline: 2px solid var(--material-input-focus-border);
+    outline-offset: 2px;
+  }
+
+  .home-launch-input {
+    box-shadow: 0 8px 28px -18px color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 45%, transparent);
+  }
+
+  .home-launch-glyph {
+    color: var(--home-ascii-hero-ink, var(--primary));
+    background: color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 10%, transparent);
+  }
+
+  .home-launch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--divider-subtle-color) 90%, transparent);
+    background: color-mix(in srgb, var(--surface-card-background) 40%, transparent);
+    transition: background var(--motion-duration-fast), color var(--motion-duration-fast);
+  }
+
+  .home-launch-chip:hover {
+    background: color-mix(in srgb, var(--surface-card-background) 85%, transparent);
+    color: var(--text-strong);
+  }
+
+  /* 主智能体在线指示：与 ASCII 粒子同色的小圆点。 */
+  .home-launch-pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--home-ascii-hero-ink, var(--primary));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 18%, transparent);
+  }
+
   /* 首页画布避开原生标题栏，保留控件下方的呼吸空间。 */
   :root[data-desktop-platform="macos"] .home-workspace-frame {
     padding-block-start: var(--workspace-header-height);
