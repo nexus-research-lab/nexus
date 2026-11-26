@@ -69,6 +69,14 @@ export function useHomeLaunchController(): HomeLaunchController {
   const upcomingTasks = useUpcomingTasks();
   const mainAgentId = getDefaultAgentId();
   const mainAgent = useAgentStore((state) => state.agents.find((agent) => agent.agent_id === mainAgentId));
+  const loadAgentsFromServer = useAgentStore((state) => state.load_agents_from_server);
+  const hasAgentCatalog = useAgentStore((state) => state.agents.length > 0);
+  // 冷启动直接落在首页时 Agent 目录尚未加载；没有主智能体就投影不出 Footer 的权限与模型控件。
+  useEffect(() => {
+    if (!hasAgentCatalog) {
+      void loadAgentsFromServer();
+    }
+  }, [hasAgentCatalog, loadAgentsFromServer]);
 
   const conversationItems = useMemo(() => buildConversationItems({
     agents: directory.agents,

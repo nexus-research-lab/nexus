@@ -20,6 +20,7 @@ export const COMPOSER_SHELL_CLASS_NAME =
 export const COMPOSER_TEXTAREA_CLASS_NAME =
   "multiline-cursor soft-scrollbar relative z-10 block min-h-8 w-full min-w-0 resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-base leading-6 text-(--text-strong) outline-none shadow-none ring-0 placeholder:text-(--text-soft) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none";
 
+export const COMPOSER_TEXTAREA_MIN_HEIGHT_PX = 24;
 export const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 120;
 
 export const COMPOSER_COMPACT_LANE_CLASS_NAME =

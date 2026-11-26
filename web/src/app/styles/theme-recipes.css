@@ -1122,6 +1122,11 @@
     --interaction-hover-background: rgba(255, 255, 255, 0.12);
     --interaction-hover-border: rgba(255, 255, 255, 0.16);
     --interaction-active-background: rgba(255, 255, 255, 0.16);
+    /* 按钮直接消费 surface/text 语义层：这些 token 在 :root 已解析，只改上游 interaction 变量不会传到这里，必须在本层重写。 */
+    --text-default: rgba(240, 240, 255, 0.9);
+    --text-muted: rgba(226, 226, 255, 0.78);
+    --surface-interactive-hover-background: rgba(255, 255, 255, 0.14);
+    --surface-interactive-active-background: rgba(255, 255, 255, 0.2);
     background: transparent;
     box-shadow: none;
   }
