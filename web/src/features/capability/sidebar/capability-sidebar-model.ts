@@ -9,14 +9,12 @@ import {
 } from "lucide-react";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
-import type { CapabilitySummary } from "@/lib/api/capability/summary-api";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { SIDEBAR_CAPABILITY_ITEM_IDS } from "@/store/sidebar";
 
 interface CapabilitySidebarDefinition {
-  countKey: keyof CapabilitySummary;
   icon: LucideIcon;
   id: string;
   labelKey: TranslationKey;
@@ -27,48 +25,41 @@ export interface CapabilitySidebarItem {
   icon: LucideIcon;
   id: string;
   label: string;
-  meta: string;
   path: string;
 }
 
 const CAPABILITY_SIDEBAR_DEFINITIONS: readonly CapabilitySidebarDefinition[] = [
   {
-    countKey: "skills_count",
     icon: Puzzle,
     id: SIDEBAR_CAPABILITY_ITEM_IDS.skills,
     labelKey: "capability.skills",
     path: AppRouteBuilders.skills(),
   },
   {
-    countKey: "workgraph_distillations_count",
     icon: GitBranchPlus,
     id: SIDEBAR_CAPABILITY_ITEM_IDS.workGraphDistillations,
     labelKey: "capability.workgraph_distillations",
     path: AppRouteBuilders.workGraphDistillations(),
   },
   {
-    countKey: "connected_connectors_count",
     icon: Link2,
     id: SIDEBAR_CAPABILITY_ITEM_IDS.connectors,
     labelKey: "capability.connectors",
     path: AppRouteBuilders.connectors(),
   },
   {
-    countKey: "enabled_scheduled_tasks_count",
     icon: Calendar,
     id: SIDEBAR_CAPABILITY_ITEM_IDS.scheduledTasks,
     labelKey: "capability.scheduled",
     path: AppRouteBuilders.scheduledTasks(),
   },
   {
-    countKey: "connected_channels_count",
     icon: Radio,
     id: SIDEBAR_CAPABILITY_ITEM_IDS.channels,
     labelKey: "capability.channels",
     path: AppRouteBuilders.channels(),
   },
   {
-    countKey: "active_pairings_count",
     icon: Users2,
     id: SIDEBAR_CAPABILITY_ITEM_IDS.pairings,
     labelKey: "capability.pairings",
@@ -77,14 +68,12 @@ const CAPABILITY_SIDEBAR_DEFINITIONS: readonly CapabilitySidebarDefinition[] = [
 ];
 
 export function buildCapabilitySidebarItems(
-  summary: CapabilitySummary | null,
   translate: I18nContextValue["t"],
 ): CapabilitySidebarItem[] {
   return CAPABILITY_SIDEBAR_DEFINITIONS.map((definition) => ({
     icon: definition.icon,
     id: definition.id,
     label: translate(definition.labelKey),
-    meta: summary ? String(summary[definition.countKey]) : "",
     path: definition.path,
   }));
 }
@@ -94,5 +83,5 @@ export function filterCapabilitySidebarItems(
   query: string,
 ): CapabilitySidebarItem[] {
   const search = createUiSearchMatcher(query);
-  return items.filter((item) => search.matches([item.label, item.meta]));
+  return items.filter((item) => search.matches([item.label]));
 }

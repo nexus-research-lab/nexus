@@ -97,7 +97,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | 品牌字（Striper / Panchang） | 侧栏字标 / 新会话的短欢迎语 | 对话正文、设置页、导航、长 CJK 标题 |
 | `--font-mono` | code、kbd、源码、纯文本预览 | 连续 prose 或导航 |
 
-字号阶梯只有四档：`12 / 14 / 16 / 20px`，界面文字最小 12px，角标、快捷键与画布徽标不得写 `text-[9px]` 等阶梯外字号（头像字形与插画缩略除外）（Tailwind 主题键 `--text-2xs / xs / compact` 都落到 12px，`sm / base` 落到 14px，`md` 为 16px，`lg / xl / 2xl` 落到 20px；旧键名只作别名保留）。这是与 `theme-tokens.css` 一致的唯一 App 阶梯；旧的 `10 / 11 / 13 / 15 / 17 / 22 / 24 / 28 / 36 / 42px` 界面尺度不得回流。对话正文是独立阅读层，遵循 §6.2。
+字号阶梯只有五档：`12 / 13 / 14 / 16 / 20px`，界面文字最小 12px，角标、快捷键与画布徽标不得写 `text-[9px]` 等阶梯外字号（头像字形与插画缩略除外）（Tailwind 主题键 `--text-2xs / xs / compact` 都落到 12px，`sm` 为 13px（侧栏/列表标题与辅助说明），`base` 为 14px，`md` 为 16px，`lg / xl / 2xl` 落到 20px；旧键名只作别名保留）。这是与 `theme-tokens.css` 一致的唯一 App 阶梯；旧的 `10 / 11 / 15 / 17 / 22 / 24 / 28 / 36 / 42px` 界面尺度不得回流。对话正文是独立阅读层，遵循 §6.2。
 
 App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，不在每个文件重新组合字号、行高、字重与字距：
 
@@ -105,10 +105,10 @@ App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，
 | --- | --- | --- |
 | `display / featureTitle` | `20 / 20px` | 品牌、欢迎和明确的特性主标题 |
 | `objectTitle` | `20px` | 当前业务对象主标题 |
-| `pageTitle / sectionTitle` | `16 / 14px`（sectionTitle 为 semibold） | 页面与内容分区标题 |
-| `body / control / supporting` | `14 / 14 / 14px` | 正文、控件文字与辅助说明 |
+| `pageTitle / sectionTitle` | `16 / 13px`（sectionTitle 为 semibold） | 页面与内容分区标题 |
+| `body / control / supporting` | `14 / 14 / 13px` | 正文、控件文字与辅助说明 |
 | `metadata / caption` | `12 / 12px` | 元数据、计数与次级短标签 |
-| `code` | `14px` | App chrome 中的短技术标识 |
+| `code` | `13px` | App chrome 中的短技术标识 |
 
 业务组件只选择 role、tone 和有限的 weight；margin、截断与布局仍由调用方负责。品牌字、Markdown/文件阅读正文以及 WorkGraph/图形内必须像素对齐的微标签由所属 Surface 独立管理，并在其所有者文档说明理由。
 

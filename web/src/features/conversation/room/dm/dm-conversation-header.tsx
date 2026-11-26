@@ -1,5 +1,5 @@
 // INPUT: DM 身份、会话目录、当前标签、导航命令与是否为单会话主窗口。
-// OUTPUT: 使用标准主身份头像的 DM Header；主智能体主窗口不显示会话标签与历史菜单。
+// OUTPUT: 使用标准主身份头像的 DM Header；主智能体主窗口不显示会话标签与历史菜单，视图入口与普通 DM 一样靠右只显示图标，且只保留工作区与简介。
 // POS: DM 顶栏装配；标签持久化与创建/关闭事务归 navigation owner。
 
 "use client";
@@ -52,7 +52,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   const { t } = useI18n();
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const headerTitle = currentAgentName?.trim() || t("room.untitled_dm");
-  const roomTabs = buildRoomHeaderTabs(t);
+  const roomTabs = buildRoomHeaderTabs(t, { mainAgent: singleConversation });
 
   return (
     <WorkspaceSurfaceHeader
@@ -68,7 +68,10 @@ export const DmConversationHeader = memo(function DmConversationHeader({
       leadingVariant={widePanelCollapsed ? undefined : "identity"}
       onChangeTab={onChangeTab}
       tabs={roomTabs}
-      tabsLeading={singleConversation ? undefined : (
+      tabsLeading={singleConversation ? (
+        // 空占位撑开会话导航区，让视图入口与普通 DM 一样靠右并收成纯图标。
+        <span aria-hidden="true" />
+      ) : (
         <RoomConversationTabs
           conversationId={conversationId}
           conversations={conversations}

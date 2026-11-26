@@ -1,9 +1,8 @@
 // INPUT: 已投影的能力导航项、选中状态与选择命令。
-// OUTPUT: 共享 ListRow 中的能力图标、名称和稳定计数。
-// POS: 能力侧栏单行纯视图；不解释计数来源或执行路由。
+// OUTPUT: 共享 ListRow 中的能力图标与名称；不显示数量。
+// POS: 能力侧栏单行纯视图；不执行路由。
 import { cn } from "@/shared/ui/class-name";
 import { UiListRow } from "@/shared/ui/list/list-row";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { CapabilitySidebarItem } from "./capability-sidebar-model";
 
@@ -37,18 +36,6 @@ export function CapabilitySidebarItemView({
         </span>
       )}
       onClick={handleClick}
-      right={(
-        <span className={cn(
-          "shrink-0 tabular-nums",
-          getUiTypographyClassName({
-            role: "caption",
-            tone: active ? "muted" : "soft",
-            weight: "medium",
-          }),
-        )}>
-          {item.meta}
-        </span>
-      )}
       title={item.label}
     />
   );

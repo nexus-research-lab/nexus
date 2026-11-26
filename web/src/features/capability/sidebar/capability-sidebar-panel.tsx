@@ -1,4 +1,4 @@
-// INPUT: 能力摘要、当前选中项、搜索查询与路由导航命令。
+// INPUT: 当前选中项、搜索查询与路由导航命令。
 // OUTPUT: 使用共享搜索、列表行和语义排版的能力目录侧栏。
 // POS: 能力导航装配层；数据刷新和单行呈现归相邻 model/view。
 
@@ -18,7 +18,6 @@ import {
   type CapabilitySidebarItem,
   filterCapabilitySidebarItems,
 } from "./capability-sidebar-model";
-import { useCapabilitySummary } from "./use-capability-summary";
 
 export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
   const { scrollRef, fadeProps } = useScrollFade();
@@ -27,13 +26,12 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
   const activeItemId = useSidebarStore((state) => state.active_panel_item_id);
   const setActiveItem = useSidebarStore((state) => state.set_active_panel_item);
   const [query, setQuery] = useState("");
-  const summary = useCapabilitySummary();
   const items = useMemo(
     () => filterCapabilitySidebarItems(
-      buildCapabilitySidebarItems(summary, t),
+      buildCapabilitySidebarItems(t),
       query,
     ),
-    [query, summary, t],
+    [query, t],
   );
   const selectItem = useCallback((item: CapabilitySidebarItem) => {
     setActiveItem(item.id);

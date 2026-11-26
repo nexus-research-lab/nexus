@@ -676,13 +676,13 @@
   --color-warning: var(--warning);
 
   /*
-   * 界面字号只有四档：12 元数据、14 正文与控件、16 页面标题、20 对象标题与展示。
+   * 界面字号五档：12 元数据、13 侧栏与列表标题和辅助说明、14 正文与控件、16 页面标题、20 对象标题与展示。
    * 旧档位名保留为别名，消费者无需改名即可落到同一阶梯；阅读正文保留所属 Surface 的显式字号。
    */
   --text-2xs: 12px;
   --text-xs: 12px;
   --text-compact: 12px;
-  --text-sm: 14px;
+  --text-sm: 13px;
   --text-base: 14px;
   --text-md: 16px;
   --text-lg: 20px;

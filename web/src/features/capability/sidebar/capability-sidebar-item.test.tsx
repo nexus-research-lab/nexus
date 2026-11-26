@@ -1,5 +1,5 @@
 // INPUT: 能力导航项、选中状态与选择回调。
-// OUTPUT: 证明能力行显示摘要，并通过鼠标和键盘选择精确条目。
+// OUTPUT: 证明能力行只显示名称，并通过鼠标和键盘选择精确条目。
 // POS: 能力侧栏行 DOM 合同；摘要读取和路由写入由 panel/controller 负责。
 
 import { Puzzle } from "lucide-react";
@@ -14,7 +14,6 @@ const ITEM = {
   icon: Puzzle,
   id: "skills",
   label: "技能",
-  meta: "30",
   path: "/capability/skills",
 } satisfies CapabilitySidebarItem;
 
@@ -32,7 +31,7 @@ describe("CapabilitySidebarItemView", () => {
 
     const row = screen.getByRole("button");
     screen.getByText(ITEM.label);
-    screen.getByText(ITEM.meta);
+    expect(row.textContent).toBe(ITEM.label);
 
     await user.click(row);
     expect(onSelect).toHaveBeenCalledWith(ITEM);
