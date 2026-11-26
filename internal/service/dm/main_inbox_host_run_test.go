@@ -2,10 +2,12 @@ package dm
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	inboxstore "github.com/nexus-research-lab/nexus/internal/storage/inbox"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -111,18 +113,30 @@ func TestHostRunReplyCommitsOneAssistant(t *testing.T) {
 }
 
 func TestHostRunDefersUserInputUntilDone(t *testing.T) {
-	f := newMainWindowHostFixture(t, "host-run-defer")
-	f.appendTask(t, "run-1")
-	f.waitPrompts(t, 1)
-	f.send(t, "第二件事", "client-2")
-	f.waitOpen(t, 1)
-	if outputs := f.runSafePoint(t); len(outputs) != 0 {
-		t.Fatalf("宿主 run 不应在安全点注入用户输入: %+v", outputs)
+	for _, runningInput := range []bool{false, true} {
+		t.Run(fmt.Sprintf("running_input=%v", runningInput), func(t *testing.T) {
+			f := newMainWindowHostFixture(t, "host-run-defer")
+			f.client.runningInput = runningInput
+			f.appendTask(t, "run-1")
+			f.waitPrompts(t, 1)
+			f.send(t, "第二件事", "client-2")
+			if open := f.waitOpen(t, 1); open[0].Status != inboxstore.StatusPending {
+				t.Fatalf("宿主 run 期间的用户输入应留在 inbox: %+v", open)
+			}
+			if outputs := f.runSafePoint(t); len(outputs) != 0 {
+				t.Fatalf("宿主 run 不应在安全点注入用户输入: %+v", outputs)
+			}
+			f.client.mu.Lock()
+			sent := len(f.client.runningInputs)
+			f.client.mu.Unlock()
+			if sent != 0 {
+				t.Fatalf("宿主 run 不应接收运行中输入: %d", sent)
+			}
+			f.finishRound("defer-1")
+			if prompts := f.waitPrompts(t, 2); prompts[1] != "第二件事" {
+				t.Fatalf("用户输入应在宿主 run 收口后起新一轮: %q", prompts[1])
+			}
+			f.finishRound("defer-2")
+		})
 	}
-	f.waitOpen(t, 1)
-	f.finishRound("defer-1")
-	if prompts := f.waitPrompts(t, 2); prompts[1] != "第二件事" {
-		t.Fatalf("用户输入应在宿主 run 收口后起新一轮: %q", prompts[1])
-	}
-	f.finishRound("defer-2")
 }

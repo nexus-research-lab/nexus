@@ -160,9 +160,8 @@ func isHostNoReply(message protocol.Message) bool {
 	return text == "" || text == HostNoReplyMarker
 }
 
-// finishHostRun 在宿主 run 收口时放开安全点注入，并为没有回复的结局留下一条记录。
+// finishHostRun 为没有回复的宿主 run 结局留下一条记录。
 func (s *Service) finishHostRun(ctx context.Context, target mainInboxTarget, roundID string, outcome DeferredAssistantOutcome) {
-	s.hostRuns.Delete(roundID)
 	if outcome.Error != nil {
 		s.LoggerFor(ctx).Warn("宿主 run 未完成", "session_key", target.sessionKey, "round_id", roundID, "err", outcome.Error)
 	}

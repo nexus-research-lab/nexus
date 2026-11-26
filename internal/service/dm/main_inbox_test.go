@@ -174,6 +174,67 @@ func TestMainInboxInjectsRunningInputAtSafePointAfterAppliedAck(t *testing.T) {
 	}
 }
 
+func TestMainInboxRunningInputConfirmsOnlyConsumedEvents(t *testing.T) {
+	f := newMainInboxFixture(t, "inbox-running-input")
+	f.client.runningInput = true
+	f.send(t, "先查一下项目结构", "client-1")
+	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "running")
+	f.waitOpen(t, 0)
+
+	f.send(t, "顺便看看错误日志", "client-2")
+	f.send(t, "再列一下 TODO", "client-3")
+	sent := f.waitRunningInputs(t, 2)
+	if sent[0].content != "顺便看看错误日志" || sent[1].content != "再列一下 TODO" {
+		t.Fatalf("运行中输入应按 inbox 顺序逐条发送: %+v", sent)
+	}
+	if outputs := f.runSafePoint(t); len(outputs) != 0 {
+		t.Fatalf("协商运行中输入后 PostToolUse 不应再注入: %+v", outputs)
+	}
+
+	// 只回执第一条：第二条在 result 前没有回执，视为未消费。
+	f.client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeSystem,
+		SessionID: f.client.sessionID,
+		UUID:      "consumed-1",
+		System: &sdkprotocol.SystemMessage{
+			Subtype:       sdkprotocol.SystemSubtypeInputConsumed,
+			InputConsumed: &sdkprotocol.InputConsumedMessage{InputIDs: []string{sent[0].id}},
+		},
+	}
+	if open := f.waitOpen(t, 1); open[0].EventID != sent[1].id || open[0].Status != inboxstore.StatusDelivering {
+		t.Fatalf("未回执的输入应仍为 delivering: %+v", open)
+	}
+	userMessages := collectEventsUntil(t, f.sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeMessage && event.Data["content"] == "顺便看看错误日志"
+	})
+	if last := userMessages[len(userMessages)-1]; last.Data["role"] != "user" || last.Data["client_message_id"] != "client-2" {
+		t.Fatalf("回执的输入应落盘为当前回复内的用户消息: %+v", last)
+	}
+
+	f.finishRound("inbox-running-input")
+	prompts := f.waitPrompts(t, 2)
+	if prompts[1] != "再列一下 TODO" {
+		t.Fatalf("未消费的输入应在轮末退回并单独起下一轮: %+v", prompts)
+	}
+}
+
+func (f mainInboxFixture) waitRunningInputs(t *testing.T, want int) []fakeRunningInput {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		f.client.mu.Lock()
+		sent := append([]fakeRunningInput(nil), f.client.runningInputs...)
+		f.client.mu.Unlock()
+		if len(sent) >= want {
+			return sent
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("运行中输入发送次数 = %d, want %d", len(sent), want)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestMainInboxMergesBacklogIntoNextRound(t *testing.T) {
 	f := newMainInboxFixture(t, "inbox-backlog")
 	f.send(t, "第一件事", "client-1")

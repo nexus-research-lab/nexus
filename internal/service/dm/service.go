@@ -237,7 +237,7 @@ type Service struct {
 	roomActivity roomConversationActivityStore
 	// inbox 只承载主窗口的输入（用户消息与宿主事件），见 main_inbox.go。
 	inbox *inboxstore.Repository
-	// hostRuns 记下正在执行的主窗口宿主 run（round_id），它们不接受安全点注入。
+	// hostRuns 记下正在执行的主窗口宿主 run（round_id，含 Echo），它们不接受运行中输入；轮末统一移除。
 	hostRuns        sync.Map
 	mainWindowRooms mainWindowRooms
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.

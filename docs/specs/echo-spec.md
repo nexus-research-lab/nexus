@@ -59,7 +59,7 @@ Echo 不是提醒器，也不是让 Agent 定时找话说：对话暂停后仍�
 2. **同一身份**：最终消息必须由原 Agent 在原 DM Session 中生成，不能由 gate 模型代写。
 3. **同一语境**：不创建合成收件箱、匿名 main session 或新的用户对话。
 4. **默认静默**：任一判断不确定、上下文不完整或基础设施异常都不产生可见消息。
-5. **用户优先**：任何用户输入进入主窗口 inbox 时，立即把该 inbox 中 pending/delivering 的 `echo` 事件置为 `cancelled`；Echo 从不在安全点注入正在运行的轮次。
+5. **用户优先**：任何用户输入进入主窗口 inbox 时，立即把该 inbox 中 pending/delivering 的 `echo` 事件置为 `cancelled`；Echo 从不交给正在运行的轮次。
 6. **没有伪造输入**：隐藏 wake 只作为 synthetic round marker 保存，不作为可见用户消息。
 7. **没有工具**：v1 round 使用 message-only 策略；模型要求工具时本次静默。
 8. **最多一次**：同一 Session、trigger 和 anchor 最多产生一条可见 Echo 消息。
@@ -160,7 +160,7 @@ Echo 事件是 `agent_inbox_events` 的一行（见 main-agent-spec §3），不
 ## 9. 到点与预检
 
 - 到点唤醒由 dm service 的主窗口 inbox 定时器承担（[`internal/infra/duework`](../../internal/infra/duework/loop.go)）：启动时退回遗留 delivering 并立即 reconcile，写入未来事件后 `Notify`，之后只按 inbox 最近的 `available_at` 唤醒。
-- 主窗口空闲时，drain 发现队首是 echo 事件即认领并在后台运行 Decide；运行中到点的 echo 等本轮结束后再处理，从不进入安全点注入。
+- 主窗口空闲时，drain 发现队首是 echo 事件即认领并在后台运行 Decide；运行中到点的 echo 等本轮结束后再处理，从不交给运行中的轮次。
 - Decide 按固定顺序检查：开关仍开启 → 当前在活跃时段内（否则退回 pending 并顺延）→ 读取主窗口历史 → Gate。
 
 ## 10. Gate 合同
@@ -268,7 +268,7 @@ Echo round：
 Echo assistant 输出不能边生成边显示。DM runtime 捕获本 round 的候选 final，直到提交闸门（`DeferredAssistant.Admit`）确认：
 
 - round 成功结束，内容非空且不是 no-reply；
-- 主窗口 inbox 中没有待处理的用户输入（Echo round 无工具、没有安全点，期间到达的用户输入只会排在它之后）。
+- 主窗口 inbox 中没有待处理的用户输入（Echo round 不接收运行中输入，期间到达的用户输入留在 inbox、排在它之后）。
 
 - 闸门成功：宿主一次性持久化并广播 assistant message。
 - 闸门失败：丢弃候选输出与本轮 runtime 消息，静默结束；排队的用户输入随后照常开跑。

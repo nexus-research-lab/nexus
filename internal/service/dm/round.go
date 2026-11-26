@@ -218,7 +218,7 @@ func (r *roundRunner) executeRound(
 		InterruptReason: func() string {
 			return r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
-		ObserveMessage: r.observeDeferredRuntimeMessage,
+		ObserveMessage: r.observeRuntimeMessage,
 		SyncSessionID: func(sessionID string) error {
 			if sourceSessionID := r.forkSourceSessionID; sourceSessionID != "" &&
 				strings.TrimSpace(sessionID) == sourceSessionID {
@@ -321,6 +321,14 @@ func (r *roundRunner) runtimeInputOptions() sdkprotocol.OutboundMessageOptions {
 	}
 	options.RecallQuery = r.content
 	return options
+}
+
+// observeRuntimeMessage 在映射前收取 input_consumed：运行中输入只由主窗口 inbox 发送，回执即确认对应事件。
+func (r *roundRunner) observeRuntimeMessage(incoming sdkprotocol.ReceivedMessage) {
+	if incoming.System != nil && incoming.System.InputConsumed != nil {
+		r.service.confirmMainInboxInputs(mainInboxTarget{agent: r.agent, sessionKey: r.sessionKey}, r.roundID, incoming.System.InputConsumed.InputIDs)
+	}
+	r.observeDeferredRuntimeMessage(incoming)
 }
 
 func (r *roundRunner) observeDeferredRuntimeMessage(incoming sdkprotocol.ReceivedMessage) {
