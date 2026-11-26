@@ -2,7 +2,6 @@ package dm
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -37,11 +36,8 @@ func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("original task did not start")
 	}
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := dmTestDB(t, cfg)
+	var err error
 	t.Cleanup(func() {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()

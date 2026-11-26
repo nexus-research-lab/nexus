@@ -187,11 +187,7 @@ func newDMQueueProvenanceFixture(
 	t.Helper()
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
+	db := dmTestDB(t, cfg)
 
 	agentService := newDMAgentService(t, cfg)
 	client := newFakeDMClient()

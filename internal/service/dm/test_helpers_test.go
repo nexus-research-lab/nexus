@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,16 +45,30 @@ func accelerateDMExternalTyping(runner *roundRunner) {
 	}
 }
 
-func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
+// dmTestDBs 让同一测试库只有一个连接池：与生产一致（SQLite 单写者、MaxOpenConns=1），
+// 多个池在回滚日志模式下互相抢锁会绕过 busy_timeout 直接 SQLITE_BUSY。
+var dmTestDBs sync.Map
+
+func dmTestDB(t *testing.T, cfg config.Config) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if db, ok := dmTestDBs.Load(cfg.DatabaseURL); ok {
+		return db.(*sql.DB)
+	}
+	db, err := storage.OpenDB(cfg)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
+	dmTestDBs.Store(cfg.DatabaseURL, db)
 	t.Cleanup(func() {
+		dmTestDBs.Delete(cfg.DatabaseURL)
 		_ = db.Close()
 	})
-	return agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	return db
+}
+
+func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
+	t.Helper()
+	return agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", dmTestDB(t, cfg)))
 }
 
 // newPlainDMAgent 创建普通 Agent；主智能体的 DM 是主窗口，输入走 inbox，测旧待发送队列要用普通 Agent。
@@ -69,27 +84,12 @@ func newPlainDMAgent(t *testing.T, agentService *agentsvc.Service) *protocol.Age
 // newDMInboxStore 打开与测试 Agent 相同的数据库；主智能体 DM 的输入都经过 inbox。
 func newDMInboxStore(t *testing.T, cfg config.Config) *inboxstore.Repository {
 	t.Helper()
-	// 与生产一致带 busy_timeout：inbox 与测试 Agent 仓储是两个连接池，会并发写同一个 SQLite 文件。
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		t.Fatalf("打开 inbox 测试数据库失败: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
-	return inboxstore.NewRepository(cfg, db)
+	return inboxstore.NewRepository(cfg, dmTestDB(t, cfg))
 }
 
 func newDMProviderService(t *testing.T, cfg config.Config) *providercfg.Service {
 	t.Helper()
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开 provider 测试数据库失败: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
-	return providercfg.NewServiceWithDB(cfg, db)
+	return providercfg.NewServiceWithDB(cfg, dmTestDB(t, cfg))
 }
 
 func createDMProviderWithModel(
