@@ -294,7 +294,9 @@ notarize_app_bundle
 rm -rf "${STAGING_DIR}" "${DMG_DIR}" "${ARTIFACT_PATH}" "${SHA256_PATH}" "${METADATA_EXPORT_PATH}"
 mkdir -p "${STAGING_DIR}" "${OUTPUT_DIR}"
 
-rsync -a --delete --exclude ".DS_Store" "${APP_BUNDLE}/" "${STAGING_DIR}/${APP_NAME}.app/"
+if [[ "${ARTIFACT_FORMAT}" == "zip" ]]; then
+  rsync -a --delete --exclude ".DS_Store" "${APP_BUNDLE}/" "${STAGING_DIR}/${APP_NAME}.app/"
+fi
 NXS_RUNTIME_BUNDLED=false
 if [[ -x "${NXS_RUNTIME_PATH}" ]]; then
   NXS_RUNTIME_BUNDLED=true
@@ -430,7 +432,8 @@ case "${ARTIFACT_FORMAT}" in
     rm -rf "${DMG_DIR}"
     rm -f "${DMG_RW_PATH}"
     mkdir -p "${DMG_DIR}/.background" "${DMG_MOUNT_DIR}"
-    rsync -a --delete --exclude ".DS_Store" "${STAGING_DIR}/${APP_NAME}.app/" "${DMG_DIR}/${APP_NAME}.app/"
+    echo "==> [dmg] Staging app bundle"
+    rsync -a --delete --exclude ".DS_Store" "${APP_BUNDLE}/" "${DMG_DIR}/${APP_NAME}.app/"
     ln -s /Applications "${DMG_DIR}/Applications"
     cp "${DMG_BACKGROUND_PATH}" "${DMG_DIR}/.background/DMGBackground.png"
     SetFile -a V "${DMG_DIR}/.background"
@@ -445,6 +448,7 @@ case "${ARTIFACT_FORMAT}" in
       done
       hdiutil "$@" >/dev/null
     }
+    echo "==> [dmg] Creating writable HFS+ image"
     COPYFILE_DISABLE=1 retry_hdiutil create \
       -volname "${APP_NAME}" \
       -srcfolder "${DMG_DIR}" \
@@ -495,6 +499,7 @@ case "${ARTIFACT_FORMAT}" in
     }
     trap cleanup_dmg_mount EXIT
 
+    echo "==> [dmg] Attaching image and applying Finder layout"
     hdiutil attach \
       -readwrite \
       -noverify \
@@ -544,8 +549,10 @@ APPLESCRIPT
       "${DMG_MOUNT_DIR}/.Spotlight-V100" \
       "${DMG_MOUNT_DIR}/.Trashes"
     sync
+    echo "==> [dmg] Detaching writable image"
     detach_dmg "${DMG_DEVICE}"
     DMG_DEVICE=""
+    echo "==> [dmg] Converting to UDZO (zlib-level=${NEXUS_DESKTOP_DMG_ZLIB_LEVEL:-9})"
     retry_hdiutil convert \
       "${DMG_RW_PATH}" \
       -ov \

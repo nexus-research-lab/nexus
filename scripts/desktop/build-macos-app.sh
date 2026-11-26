@@ -160,19 +160,33 @@ else
   NEXUS_DESKTOP_BUILD=1 run_pnpm build
 fi
 
-echo "==> Building Go binaries (nexus-server, nexusctl, nexuscfg)"
+echo "==> Building Go binaries and Swift shell (${TARGET_ARCH}) in parallel"
 mkdir -p "${SIDECAR_BUILD_DIR}"
 cd "${ROOT_DIR}"
+SWIFT_BUILD_LOG="${SIDECAR_BUILD_DIR}/swift-build.log"
 GOWORK="${NEXUS_DESKTOP_GO_WORK:-off}" CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${SIDECAR_BUILD_DIR}/" \
   ./cmd/nexus-server \
   ./cmd/nexusctl \
-  ./cmd/nexuscfg
+  ./cmd/nexuscfg &
+go_build_pid=$!
 
-echo "==> Building Swift shell (${TARGET_ARCH})"
-swift build --package-path "${MACOS_DIR}" -c release --arch "${TARGET_ARCH}"
+swift build --package-path "${MACOS_DIR}" -c release --arch "${TARGET_ARCH}" >"${SWIFT_BUILD_LOG}" 2>&1 &
+swift_build_pid=$!
+
+go_build_rc=0
+swift_build_rc=0
+wait "${go_build_pid}" || go_build_rc=$?
+wait "${swift_build_pid}" || swift_build_rc=$?
+cat "${SWIFT_BUILD_LOG}"
+if (( go_build_rc != 0 )); then
+  exit "${go_build_rc}"
+fi
+if (( swift_build_rc != 0 )); then
+  exit "${swift_build_rc}"
+fi
 SWIFT_BIN_PATH="$(swift build --package-path "${MACOS_DIR}" -c release --arch "${TARGET_ARCH}" --show-bin-path)"
 
 echo "==> Assembling ${APP_BUNDLE}"

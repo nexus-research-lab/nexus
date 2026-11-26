@@ -111,7 +111,28 @@ jobs:
       - name: Test service packages
         shell: bash
         run: |
-          mapfile -t pkgs < <(go list ./... | grep -E '/internal/service($|/)')
+          set -euo pipefail
+          # internal/service/configuration 包含 50+ 独立串行 SQLite 用例，预编译后 4 路分片跑满 4 核。
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          go test -vet=off -c -o "$tmpdir/cfg.test" ./internal/service/configuration
+          mapfile -t cfg_tests < <("$tmpdir/cfg.test" -test.list '^Test' | grep '^Test')
+          (( ${#cfg_tests[@]} > 0 ))
+          pids=()
+          for b in 0 1 2 3; do
+            bucket=()
+            for ((i=b; i<${#cfg_tests[@]}; i+=4)); do bucket+=("${cfg_tests[$i]}"); done
+            (( ${#bucket[@]} == 0 )) && continue
+            pattern="^($(IFS="|"; echo "${bucket[*]}"))$"
+            (cd internal/service/configuration && "$tmpdir/cfg.test" -test.run "$pattern") >"$tmpdir/cfg_$b.log" 2>&1 &
+            pids+=($!)
+          done
+          rc=0
+          for ((b=0; b<${#pids[@]}; b++)); do
+            if ! wait "${pids[$b]}"; then rc=1; echo "::group::configuration shard $b FAILED"; cat "$tmpdir/cfg_$b.log"; echo "::endgroup::"; fi
+          done
+          (( rc == 0 ))
+          mapfile -t pkgs < <(go list ./... | grep -E '/internal/service($|/)' | grep -v '/internal/service/configuration$')
           go test -vet=off -p=4 -count=1 "${pkgs[@]}"
 
   tests-core:
@@ -127,8 +148,29 @@ jobs:
       - name: Test orchestration and remaining packages
         shell: bash
         run: |
+          set -euo pipefail
+          # internal/storage/orchestration 包含 58 个独立串行 SQLite 用例，预编译后 4 路分片跑满 4 核。
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          go test -vet=off -c -o "$tmpdir/orch.test" ./internal/storage/orchestration
+          mapfile -t orch_tests < <("$tmpdir/orch.test" -test.list '^Test' | grep '^Test')
+          (( ${#orch_tests[@]} > 0 ))
+          pids=()
+          for b in 0 1 2 3; do
+            bucket=()
+            for ((i=b; i<${#orch_tests[@]}; i+=4)); do bucket+=("${orch_tests[$i]}"); done
+            (( ${#bucket[@]} == 0 )) && continue
+            pattern="^($(IFS="|"; echo "${bucket[*]}"))$"
+            (cd internal/storage/orchestration && "$tmpdir/orch.test" -test.run "$pattern") >"$tmpdir/orch_$b.log" 2>&1 &
+            pids+=($!)
+          done
+          rc=0
+          for ((b=0; b<${#pids[@]}; b++)); do
+            if ! wait "${pids[$b]}"; then rc=1; echo "::group::orchestration shard $b FAILED"; cat "$tmpdir/orch_$b.log"; echo "::endgroup::"; fi
+          done
+          (( rc == 0 ))
           mapfile -t pkgs < <(go list ./... | grep -vE '/internal/(storage|service)($|/)')
-          go test -vet=off -p=4 -count=1 ./internal/storage/orchestration "${pkgs[@]}"
+          go test -vet=off -p=4 -count=1 "${pkgs[@]}"
 
   desktop-contracts:
     name: Native Go contracts (${{ matrix.os }})

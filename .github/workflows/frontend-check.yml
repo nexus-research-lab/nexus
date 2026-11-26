@@ -79,13 +79,13 @@ jobs:
           exit "$rc"
 
   tests:
-    name: Frontend tests (${{ matrix.shard }}/4)
+    name: Frontend tests (${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     defaults:
       run:
         working-directory: web
@@ -101,11 +101,11 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - name: Install pinned dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
-      - name: Behavior tests (shard ${{ matrix.shard }}/4)
+      - name: Behavior tests (shard ${{ matrix.shard }}/6)
         env:
           # ubuntu-latest 提供 4 核；本地默认仍为 1，避免开发机并发过高。
           VITEST_MAX_WORKERS: "4"
-        run: pnpm exec vitest run --shard=${{ matrix.shard }}/4
+        run: pnpm exec vitest run --shard=${{ matrix.shard }}/6
 
   frontend:
     if: ${{ always() }}
