@@ -1,5 +1,5 @@
-// INPUT: inbox 事件与按 event_id 的状态迁移请求。
-// OUTPUT: 幂等追加、按 seq 有序的未完成事件，以及只在源状态匹配时生效的迁移。
+// INPUT: inbox 事件（可带未来的 available_at）与按 event_id 的状态迁移请求。
+// OUTPUT: 幂等追加、按 seq 有序且已到点的未完成事件、最近到点时间，以及只在源状态匹配时生效的迁移。
 // POS: inbox 的唯一 SQL 边界；并发正确性全部来自条件更新，不在内存里推断状态。
 package inbox
 
@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +34,10 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 	return &Repository{db: db, dialect: storage.NewSQLDialect(cfg.DatabaseDriver)}
 }
 
-const eventColumns = `event_id, owner_user_id, inbox_key, seq, kind, dedupe_key, payload, status, COALESCE(round_id, ''), created_at`
+const eventColumns = `event_id, owner_user_id, inbox_key, seq, kind, dedupe_key, payload, status, COALESCE(round_id, ''), available_at, created_at`
+
+// dueClause 让未来事件到点前不可见；available_at 为空即立即可取。
+const dueClause = `(available_at IS NULL OR available_at <= %s)`
 
 // Append 按 (inbox_key, dedupe_key) 幂等追加；重复提交返回原事件与 duplicate=true。
 func (r *Repository) Append(ctx context.Context, event Event) (Event, bool, error) {
@@ -44,10 +48,10 @@ func (r *Repository) Append(ctx context.Context, event Event) (Event, bool, erro
 	now := time.Now().UTC()
 	d := r.dialect
 	query := `INSERT INTO agent_inbox_events (
-    event_id, owner_user_id, inbox_key, seq, kind, dedupe_key, payload, status, created_at, updated_at
+    event_id, owner_user_id, inbox_key, seq, kind, dedupe_key, payload, status, available_at, created_at, updated_at
 ) SELECT ` + d.Bind(1) + `, ` + d.Bind(2) + `, ` + d.Bind(3) + `, COALESCE(MAX(seq), 0) + 1, ` +
-		d.Bind(4) + `, ` + d.Bind(5) + `, ` + d.Bind(6) + `, 'pending', ` + d.Bind(7) + `, ` + d.Bind(8) + `
-FROM agent_inbox_events WHERE inbox_key = ` + d.Bind(9) + `
+		d.Bind(4) + `, ` + d.Bind(5) + `, ` + d.Bind(6) + `, 'pending', ` + d.Bind(7) + `, ` + d.Bind(8) + `, ` + d.Bind(9) + `
+FROM agent_inbox_events WHERE inbox_key = ` + d.Bind(10) + `
 ON CONFLICT (inbox_key, dedupe_key) DO NOTHING`
 	timestamp := d.TimestampValue(now)
 	r.appendMu.Lock()
@@ -61,7 +65,7 @@ ON CONFLICT (inbox_key, dedupe_key) DO NOTHING`
 	defer func() { _ = tx.Rollback() }()
 	result, err := tx.ExecContext(ctx, query,
 		event.EventID, event.OwnerUserID, event.InboxKey, event.Kind, event.DedupeKey, string(payload),
-		timestamp, timestamp, event.InboxKey)
+		r.nullableTime(event.AvailableAt), timestamp, timestamp, event.InboxKey)
 	if err != nil {
 		return Event{}, false, err
 	}
@@ -79,11 +83,75 @@ ON CONFLICT (inbox_key, dedupe_key) DO NOTHING`
 	return stored, affected == 0, tx.Commit()
 }
 
-// ListOpen 返回 inbox 中 pending 与 delivering 的事件，按 seq 升序。
-func (r *Repository) ListOpen(ctx context.Context, inboxKey string) ([]Event, error) {
+// ListOpen 返回 inbox 中已到点的 pending 与 delivering 事件，按 seq 升序。
+func (r *Repository) ListOpen(ctx context.Context, inboxKey string, now time.Time) ([]Event, error) {
 	d := r.dialect
-	rows, err := r.db.QueryContext(ctx, `SELECT `+eventColumns+` FROM agent_inbox_events
-WHERE inbox_key = `+d.Bind(1)+` AND status IN ('pending', 'delivering') ORDER BY seq`, inboxKey)
+	return r.queryEvents(ctx, `SELECT `+eventColumns+` FROM agent_inbox_events
+WHERE inbox_key = `+d.Bind(1)+` AND status IN ('pending', 'delivering') AND `+fmt.Sprintf(dueClause, d.Bind(2))+` ORDER BY seq`,
+		inboxKey, d.TimestampValue(now.UTC()))
+}
+
+// ListPendingKind 返回某类尚未取走的事件（含未到点的），按到点时间升序。
+func (r *Repository) ListPendingKind(ctx context.Context, inboxKey string, kind string) ([]Event, error) {
+	d := r.dialect
+	return r.queryEvents(ctx, `SELECT `+eventColumns+` FROM agent_inbox_events
+WHERE inbox_key = `+d.Bind(1)+` AND kind = `+d.Bind(2)+` AND status = 'pending' ORDER BY available_at, seq`,
+		inboxKey, kind)
+}
+
+// CancelKind 把某类 pending 与 delivering 事件标为 cancelled，返回被取消的 event_id。
+// 已交给 runtime 的 delivering 也一并失效：取走方必须用条件迁移确认自己仍持有事件。
+func (r *Repository) CancelKind(ctx context.Context, inboxKey string, kind string) ([]string, error) {
+	d := r.dialect
+	events, err := r.queryEvents(ctx, `SELECT `+eventColumns+` FROM agent_inbox_events
+WHERE inbox_key = `+d.Bind(1)+` AND kind = `+d.Bind(2)+` AND status IN ('pending', 'delivering')`,
+		inboxKey, kind)
+	if err != nil {
+		return nil, err
+	}
+	var cancelled []string
+	for _, status := range []string{StatusPending, StatusDelivering} {
+		ids := make([]string, 0, len(events))
+		for _, event := range events {
+			if event.Status == status {
+				ids = append(ids, event.EventID)
+			}
+		}
+		moved, moveErr := r.Transition(ctx, inboxKey, ids, status, StatusCancelled, "")
+		cancelled = append(cancelled, moved...)
+		if moveErr != nil {
+			return cancelled, moveErr
+		}
+	}
+	return cancelled, nil
+}
+
+// Defer 把已取走但不宜现在执行的事件退回 pending，并改到 availableAt 再出现。
+func (r *Repository) Defer(ctx context.Context, inboxKey string, eventID string, availableAt time.Time) (bool, error) {
+	d := r.dialect
+	result, err := r.db.ExecContext(ctx, `UPDATE agent_inbox_events SET status = 'pending', round_id = NULL, available_at = `+d.Bind(1)+
+		`, updated_at = `+d.Bind(2)+` WHERE inbox_key = `+d.Bind(3)+` AND event_id = `+d.Bind(4)+` AND status = 'delivering'`,
+		r.nullableTime(availableAt), d.TimestampValue(time.Now().UTC()), inboxKey, eventID)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
+// NextAvailableAt 返回所有 inbox 中最早的未来到点时间；没有未来事件时为 nil。
+func (r *Repository) NextAvailableAt(ctx context.Context, now time.Time) (*time.Time, error) {
+	d := r.dialect
+	var value any
+	if err := r.db.QueryRowContext(ctx, `SELECT MIN(available_at) FROM agent_inbox_events
+WHERE status = 'pending' AND available_at > `+d.Bind(1), d.TimestampValue(now.UTC())).Scan(&value); err != nil {
+		return nil, err
+	}
+	return storage.NullableTime(value)
+}
+
+func (r *Repository) queryEvents(ctx context.Context, query string, args ...any) ([]Event, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +165,13 @@ WHERE inbox_key = `+d.Bind(1)+` AND status IN ('pending', 'delivering') ORDER BY
 		events = append(events, event)
 	}
 	return events, rows.Err()
+}
+
+func (r *Repository) nullableTime(value time.Time) any {
+	if value.IsZero() {
+		return nil
+	}
+	return r.dialect.TimestampValue(value.UTC())
 }
 
 // Transition 把 from 状态的事件推进到 to，返回真正迁移成功的 event_id（保持入参顺序）。
@@ -152,9 +227,11 @@ type PendingInbox struct {
 	InboxKey    string
 }
 
-// ListPendingInboxes 返回仍有 pending 事件的 inbox，供启动时唤醒。
-func (r *Repository) ListPendingInboxes(ctx context.Context) ([]PendingInbox, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT DISTINCT owner_user_id, inbox_key FROM agent_inbox_events WHERE status = 'pending'`)
+// ListPendingInboxes 返回仍有已到点 pending 事件的 inbox，供启动与到点时唤醒。
+func (r *Repository) ListPendingInboxes(ctx context.Context, now time.Time) ([]PendingInbox, error) {
+	d := r.dialect
+	rows, err := r.db.QueryContext(ctx, `SELECT DISTINCT owner_user_id, inbox_key FROM agent_inbox_events WHERE status = 'pending' AND `+
+		fmt.Sprintf(dueClause, d.Bind(1)), d.TimestampValue(now.UTC()))
 	if err != nil {
 		return nil, err
 	}
@@ -179,14 +256,20 @@ WHERE inbox_key = `+d.Bind(1)+` AND dedupe_key = `+d.Bind(2), inboxKey, dedupeKe
 
 func scanEvent(scanner interface{ Scan(...any) error }) (Event, error) {
 	var (
-		event   Event
-		payload string
+		event       Event
+		payload     string
+		availableAt any
 	)
 	if err := scanner.Scan(
 		&event.EventID, &event.OwnerUserID, &event.InboxKey, &event.Seq, &event.Kind,
-		&event.DedupeKey, &payload, &event.Status, &event.RoundID, &event.CreatedAt,
+		&event.DedupeKey, &payload, &event.Status, &event.RoundID, &availableAt, &event.CreatedAt,
 	); err != nil {
 		return Event{}, err
+	}
+	if at, err := storage.NullableTime(availableAt); err != nil {
+		return Event{}, err
+	} else if at != nil {
+		event.AvailableAt = *at
 	}
 	if err := json.Unmarshal([]byte(payload), &event.Payload); err != nil {
 		return Event{}, err

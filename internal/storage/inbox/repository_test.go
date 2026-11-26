@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/pressly/goose/v3"
@@ -82,19 +83,85 @@ func TestRepositoryTransitionsOnlyFromExpectedStatus(t *testing.T) {
 	if err = r.ReleaseDelivering(ctx, "inbox-a", "round-other"); err != nil {
 		t.Fatal(err)
 	}
-	open, _ := r.ListOpen(ctx, "inbox-a")
+	open, _ := r.ListOpen(ctx, "inbox-a", time.Now().UTC())
 	if len(open) != 1 || open[0].Status != StatusDelivering {
 		t.Fatalf("只释放指定 round 的 delivering: %+v", open)
 	}
 	if err = r.ReleaseDelivering(ctx, "", ""); err != nil {
 		t.Fatal(err)
 	}
-	open, _ = r.ListOpen(ctx, "inbox-a")
+	open, _ = r.ListOpen(ctx, "inbox-a", time.Now().UTC())
 	if len(open) != 1 || open[0].EventID != "e2" || open[0].Status != StatusPending || open[0].RoundID != "" {
 		t.Fatalf("启动释放应把 delivering 退回 pending: %+v", open)
 	}
-	inboxes, err := r.ListPendingInboxes(ctx)
+	inboxes, err := r.ListPendingInboxes(ctx, time.Now().UTC())
 	if err != nil || len(inboxes) != 1 || inboxes[0] != (PendingInbox{OwnerUserID: "owner-1", InboxKey: "inbox-a"}) {
 		t.Fatalf("pending inboxes = %+v, %v", inboxes, err)
+	}
+}
+
+func appendFutureEvent(t *testing.T, r *Repository, id string, kind string, availableAt time.Time) {
+	t.Helper()
+	if _, _, err := r.Append(context.Background(), Event{
+		EventID: id, OwnerUserID: "owner-1", InboxKey: "inbox-a", Kind: kind,
+		DedupeKey: "d-" + id, AvailableAt: availableAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRepositoryFutureEventsStayHiddenUntilDue(t *testing.T) {
+	r := newInboxTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 26, 10, 0, 0, 0, time.UTC)
+	appendFutureEvent(t, r, "later", KindFollowUp, now.Add(time.Hour))
+	appendFutureEvent(t, r, "soon", KindFollowUp, now.Add(10*time.Minute))
+
+	if open, _ := r.ListOpen(ctx, "inbox-a", now); len(open) != 0 {
+		t.Fatalf("未到点事件不能被取走: %+v", open)
+	}
+	if inboxes, _ := r.ListPendingInboxes(ctx, now); len(inboxes) != 0 {
+		t.Fatalf("未到点 inbox 不该被唤醒: %v", inboxes)
+	}
+	next, err := r.NextAvailableAt(ctx, now)
+	if err != nil || next == nil || !next.Equal(now.Add(10*time.Minute)) {
+		t.Fatalf("next = %v, %v", next, err)
+	}
+	pending, _ := r.ListPendingKind(ctx, "inbox-a", KindFollowUp)
+	if len(pending) != 2 || pending[0].EventID != "soon" {
+		t.Fatalf("pending 应按到点时间排序: %+v", pending)
+	}
+	open, _ := r.ListOpen(ctx, "inbox-a", now.Add(30*time.Minute))
+	if len(open) != 1 || open[0].EventID != "soon" {
+		t.Fatalf("到点后只取已到点事件: %+v", open)
+	}
+}
+
+func TestRepositoryCancelKindAndDefer(t *testing.T) {
+	r := newInboxTestRepository(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	appendFutureEvent(t, r, "echo-1", KindEcho, now.Add(-time.Minute))
+	appendTestEvent(t, r, "inbox-a", "user-1", "u1")
+
+	if moved, _ := r.Transition(ctx, "inbox-a", []string{"echo-1"}, StatusPending, StatusDelivering, ""); len(moved) != 1 {
+		t.Fatal("claim echo failed")
+	}
+	deferred, err := r.Defer(ctx, "inbox-a", "echo-1", now.Add(time.Hour))
+	if err != nil || !deferred {
+		t.Fatalf("defer = %v, %v", deferred, err)
+	}
+	if open, _ := r.ListOpen(ctx, "inbox-a", now); len(open) != 1 || open[0].EventID != "user-1" {
+		t.Fatalf("顺延后的 echo 不应可见: %+v", open)
+	}
+	cancelled, err := r.CancelKind(ctx, "inbox-a", KindEcho)
+	if err != nil || !slices.Equal(cancelled, []string{"echo-1"}) {
+		t.Fatalf("cancel = %v, %v", cancelled, err)
+	}
+	if pending, _ := r.ListPendingKind(ctx, "inbox-a", KindEcho); len(pending) != 0 {
+		t.Fatalf("取消后不应剩 echo: %+v", pending)
+	}
+	if next, _ := r.NextAvailableAt(ctx, now); next != nil {
+		t.Fatalf("没有未来事件时 next 应为空: %v", next)
 	}
 }

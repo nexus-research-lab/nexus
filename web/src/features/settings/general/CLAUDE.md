@@ -7,7 +7,7 @@ L4 | 父级: web/src/features/settings
 - `settings-general-section.tsx`: 按设置导航分区装配 General、外观、工作区与权限视图
 - `use-general-settings-controller.ts`: 常规行为与权限动作编排
 - `use-user-preferences.ts`: 完整 Preferences 权威快照、首次读取门禁、version CAS、未知结果对账与草稿重应用
-- `use-echo-settings.ts`: 从 Preferences 快照读取主动跟进状态，独立执行 Echo CAS、未知结果对账与停用后在途跟进收口
+- `use-echo-settings.ts`: 从 Preferences 快照读取主动跟进状态，独立执行 Echo CAS 与未知结果对账
 - `use-desktop-settings.ts`、`use-workspace-settings.ts`: 各自独占 Section 所需的资源和桌面 Bridge 命令生命周期
 - `model/`: 分别组装完整偏好和桌面状态根快照；跨 Config 的值清洗规则归 `lib/settings/`
 - `sections/`: 桌面应用、外观、行为、工作区和权限纯视图，不直接调用 API 或 Desktop Bridge
@@ -23,7 +23,7 @@ Preferences 首次 GET 成功并取得持久 version 前禁止写入，不得用
 
 情绪系统是用户级显式偏好，默认关闭；常规设置只负责持久化开关，是否注入每轮情绪上下文由后端 DM/Room 运行时边界决定。
 
-主动跟进开关属于 Preferences 权威快照并复用其单调 version；页面首次加载不再重复读取 Echo。开关写入仍通过独立 Echo 服务完成停用后的 attempt 收口，PUT 必须携带权威快照的 ETag；成功后只在原 version 仍匹配时接纳 Echo 返回的完整开关/version 快照。冲突和结果未知才通过 Echo GET 对账；关闭请求丢失回执时仍需显式重跑幂等的“停止在途跟进”阶段，不能仅凭开关已为关闭就宣告整个流程完成。
+主动跟进开关属于 Preferences 权威快照并复用其单调 version；页面首次加载不再重复读取 Echo。开关写入经独立 Echo 服务，PUT 必须携带权威快照的 ETag；成功后只在原 version 仍匹配时接纳 Echo 返回的完整开关/version 快照。冲突和结果未知才通过 Echo GET 对账，对账只比较开关本身：关闭后已安排的 Echo 到点即静默，没有需要前端收口的在途阶段。
 
 自动记忆与自动整理记忆是 nxs 的用户级显式偏好，默认开启；前者控制新对话的长期记忆抽取，后者作为 AutoDream 总开关阻止宿主后台唤醒，均不删除已有记忆或会话摘要。
 

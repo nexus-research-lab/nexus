@@ -20,6 +20,7 @@ const (
 	DomainGoal       = nexusmcp.CommandDomainGoal
 	DomainExecution  = nexusmcp.CommandDomainExecution
 	DomainComputer   = nexusmcp.CommandDomainComputer
+	DomainFollowUp   = "follow_up"
 
 	GoalOperationCreate       = nexusmcp.GoalOperationCreate
 	GoalOperationRetarget     = nexusmcp.GoalOperationRetarget

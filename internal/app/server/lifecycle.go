@@ -144,7 +144,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startInputQueueRecovery,
 		s.startChannels,
 		s.startIMReplyRecovery,
-		s.startEcho,
+		s.startMainInboxTimer,
 		s.startAutomation,
 		s.startRoomDirectedWakes,
 		s.startTeamExecutor,
@@ -240,16 +240,12 @@ func (s *Server) startControlIdentityInvalidations(ctx context.Context) (func(),
 	).Start(ctx)
 }
 
-func (s *Server) startEcho(ctx context.Context) (func(), error) {
-	if s.services == nil || s.services.Echo == nil {
+// startMainInboxTimer 退回主窗口遗留的 delivering，并按最近的 available_at 唤醒到点的跟进与 Echo。
+func (s *Server) startMainInboxTimer(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.DM == nil {
 		return nil, nil
 	}
-	s.api.BaseLogger().Info("启动 Echo 调度器")
-	if err := s.services.Echo.Start(ctx); err != nil {
-		s.api.BaseLogger().Error("启动 Echo 调度器失败", "err", err)
-		return nil, err
-	}
-	return s.services.Echo.Stop, nil
+	return s.services.DM.StartMainInboxTimer(ctx)
 }
 
 func (s *Server) startOrchestrationRecovery(ctx context.Context) (func(), error) {
@@ -695,9 +691,6 @@ func (s *Server) startInputQueueRecovery(ctx context.Context) (func(), error) {
 	}
 	if err := s.services.DM.RecoverInputQueues(ctx); err != nil {
 		s.api.BaseLogger().Warn("启动时 DM 待发送队列恢复未完全完成，已跳过失败项", "err", err)
-	}
-	if err := s.services.DM.RecoverMainInboxes(ctx); err != nil {
-		s.api.BaseLogger().Warn("启动时主窗口 inbox 恢复未完全完成，已跳过失败项", "err", err)
 	}
 	if err := s.services.RoomRealtime.RecoverInputQueues(ctx); err != nil {
 		s.api.BaseLogger().Warn("启动时 Room 待发送队列恢复未完全完成，已跳过失败项", "err", err)

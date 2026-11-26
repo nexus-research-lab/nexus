@@ -40,9 +40,9 @@ func NewTool(handler Handler, diagnostics ...*Diagnostics) sdktool.Tool {
 	}
 	return sdktool.Tool{
 		Name: ToolName,
-		Description: "调用 Nexus 托管的 Goal、Execution、Computer Use、Automation 或 Subagent 命令。" +
+		Description: "调用 Nexus 托管的 Goal、Execution、Computer Use、Automation、Subagent 或主窗口跟进（follow_up）命令。" +
 			"用 contract 获取操作目录和精确输入 schema，再按对应 domain 使用 inspect/invoke 或 plan/apply；Execution 本轮已返回或宿主内联的 exact schema 可直接复用，权限仍以最新 binding 和 allowed_actions 为准。",
-		SearchHint:  "nexus goal execution computer use automation subagent contract inspect invoke plan apply 目标 执行 电脑 自动化",
+		SearchHint:  "nexus goal execution computer use automation subagent follow up contract inspect invoke plan apply 目标 执行 电脑 自动化 跟进",
 		AlwaysLoad:  true,
 		InputSchema: inputSchema,
 		Annotations: &sdktool.ToolAnnotations{Destructive: true},
@@ -81,20 +81,20 @@ func inputSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"domain": map[string]any{
-				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution, DomainComputer, DomainSubagent},
+				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution, DomainComputer, DomainSubagent, DomainFollowUp},
 			},
 			"action": map[string]any{
-				"description": "goal/execution：contract、inspect（固定读取，省略 operation）、invoke（提供 operation 和 request_id）；automation：contract、inspect（提供查询 operation）、plan、apply；subagent：contract、inspect（list）、invoke（其他 operation）。",
+				"description": "goal/execution：contract、inspect（固定读取，省略 operation）、invoke（提供 operation 和 request_id）；automation：contract、inspect（提供查询 operation）、plan、apply；subagent：contract、inspect（list）、invoke（其他 operation）；follow_up（仅主窗口）：contract、inspect（固定读取，省略 operation）、invoke。",
 				"type":        "string", "enum": []string{
 					ActionContract, ActionInspect, ActionInvoke, ActionPlan, ActionApply,
 				},
 			},
-			"operation": map[string]any{"type": "string", "description": "使用宿主提供或 contract 返回的精确 operation；contract 可指定它以读取精确 input_schema。goal/execution/subagent 的固定 inspect 必须省略。"},
+			"operation": map[string]any{"type": "string", "description": "使用宿主提供或 contract 返回的精确 operation；contract 可指定它以读取精确 input_schema。goal/execution/subagent/follow_up 的固定 inspect 必须省略。"},
 			"input":     map[string]any{"type": "object", "additionalProperties": true},
 			"request_id": map[string]any{
 				"type": "string", "minLength": 8, "maxLength": 128,
 				"pattern":     requestIDPattern.String(),
-				"description": "顶层请求 ID，不放在 input 中。goal/execution 的 action=invoke、automation 的 action=apply 和 subagent 的 mutation 必填；contract/inspect 及 subagent 只读操作可省略。仅允许 8-128 位 ASCII 字母、数字、点、下划线、冒号或连字符，例如 submit-work-20260910-001。每个新意图生成唯一 ID；同一意图重试复用，结果未知先对账，不要通过换 ID 重放。",
+				"description": "顶层请求 ID，不放在 input 中。goal/execution/follow_up 的 action=invoke、automation 的 action=apply 和 subagent 的 mutation 必填；contract/inspect 及 subagent 只读操作可省略。仅允许 8-128 位 ASCII 字母、数字、点、下划线、冒号或连字符，例如 submit-work-20260910-001。每个新意图生成唯一 ID；同一意图重试复用，结果未知先对账，不要通过换 ID 重放。",
 			},
 			"expected_revision": map[string]any{"type": "string", "description": "automation apply 必填的顶层字段，原样复制最近 plan 返回的 current_revision；其他 domain 省略。"},
 			"plan_digest":       map[string]any{"type": "string", "description": "automation apply 必填的顶层字段，原样复制同一 plan 返回的 plan_digest，并保持 input 一致；其他 domain 省略。"},

@@ -1,5 +1,5 @@
-// INPUT: Automation 到点写入的 main 目标定时任务。
-// OUTPUT: 主窗口 inbox 的 scheduled_task 事件、带来源说明的模型输入与时间线触发分隔条元数据。
+// INPUT: Automation 到点写入的 main 目标定时任务，以及到点的 agent 自设跟进与 Echo。
+// OUTPUT: 主窗口 inbox 的宿主事件、按 kind 查表得到的模型输入与时间线触发分隔条元数据。
 // POS: 宿主事件进入主窗口的唯一入口；起轮、安全点注入与收口复用 main_inbox.go 的同一条路径。
 package dm
 
@@ -15,8 +15,26 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// scheduledTaskInputKind 写入用户行 metadata.input_kind，前端据此渲染触发分隔条而非用户气泡。
-const scheduledTaskInputKind = "scheduled_task"
+// input_kind 写入用户行 metadata，前端据此渲染触发分隔条而非用户气泡。
+const (
+	scheduledTaskInputKind = "scheduled_task"
+	followUpInputKind      = "follow_up"
+)
+
+// hostEventSpec 描述一类宿主事件如何进入模型与时间线；新增宿主事件只需在表里加一行。
+type hostEventSpec struct {
+	inputKind string
+	prompt    func(inboxstore.Event) string
+	metadata  func(inboxstore.Event) map[string]string
+	// quietOnly 的事件只在对话空闲时独占一轮，不在安全点插进别的轮次；它的输入由自己的起轮路径给出。
+	quietOnly bool
+}
+
+var hostEventSpecs = map[string]hostEventSpec{
+	inboxstore.KindScheduledTask: {inputKind: scheduledTaskInputKind, prompt: scheduledTaskPrompt, metadata: scheduledTaskMetadata},
+	inboxstore.KindFollowUp:      {inputKind: followUpInputKind, prompt: followUpPrompt, metadata: followUpMetadata},
+	inboxstore.KindEcho:          {quietOnly: true},
+}
 
 // MainWindowTask 是一次交给主窗口执行的定时任务到点。
 type MainWindowTask struct {
@@ -55,9 +73,8 @@ func (s *Service) AppendMainWindowTask(ctx context.Context, agentID string, task
 	if !ok {
 		return "", fmt.Errorf("agent %s has no main window", agentID)
 	}
-	eventID := strings.Replace(protocol.NewRoundID(), "round_", "inbox_", 1)
 	if _, _, err = s.inbox.Append(ctx, inboxstore.Event{
-		EventID:     eventID,
+		EventID:     newInboxEventID(),
 		OwnerUserID: target.owner(),
 		InboxKey:    target.sessionKey,
 		Kind:        inboxstore.KindScheduledTask,
@@ -79,6 +96,7 @@ func (s *Service) AppendMainWindowTask(ctx context.Context, agentID string, task
 
 // mainInboxHostRequest 让宿主事件以内部轮次运行：不算用户输入、不排队、沿用主窗口会话的权限。
 func mainInboxHostRequest(target mainInboxTarget, roundID string, event inboxstore.Event) Request {
+	spec := hostEventSpecs[event.Kind]
 	return Request{
 		SessionKey:           target.sessionKey,
 		AgentID:              target.agent.AgentID,
@@ -89,20 +107,35 @@ func mainInboxHostRequest(target mainInboxTarget, roundID string, event inboxsto
 		Internal:             true,
 		InputOptions: sdkprotocol.OutboundMessageOptions{
 			Synthetic: true,
-			Purpose:   scheduledTaskInputKind,
+			Purpose:   spec.inputKind,
 			Metadata:  hostEventMetadata(event),
 		},
 		hostTrigger: true,
 	}
 }
 
-// isHostInboxEvent 区分宿主代写的事件；目前只有定时任务到点。
+// isHostInboxEvent 区分宿主代写的事件。
 func isHostInboxEvent(event inboxstore.Event) bool {
-	return event.Kind == inboxstore.KindScheduledTask
+	_, ok := hostEventSpecs[event.Kind]
+	return ok
+}
+
+// isQuietOnlyInboxEvent 标出只在对话空闲时出现的事件（Echo）。
+func isQuietOnlyInboxEvent(event inboxstore.Event) bool {
+	return hostEventSpecs[event.Kind].quietOnly
 }
 
 // hostEventPrompt 是模型看到的宿主输入：说明来源，避免被当成用户此刻说的话。
 func hostEventPrompt(event inboxstore.Event) string {
+	return hostEventSpecs[event.Kind].prompt(event)
+}
+
+// hostEventMetadata 写入用户行，时间线据此显示触发分隔条。
+func hostEventMetadata(event inboxstore.Event) map[string]string {
+	return hostEventSpecs[event.Kind].metadata(event)
+}
+
+func scheduledTaskPrompt(event inboxstore.Event) string {
 	return fmt.Sprintf(
 		"<scheduled-task name=%q>\nThe scheduled task is due. Carry out its instruction now; the user did not type this.\n\n%s\n</scheduled-task>",
 		hostEventTaskName(event),
@@ -110,8 +143,7 @@ func hostEventPrompt(event inboxstore.Event) string {
 	)
 }
 
-// hostEventMetadata 写入用户行，时间线据此显示「定时任务「名称」」分隔条。
-func hostEventMetadata(event inboxstore.Event) map[string]string {
+func scheduledTaskMetadata(event inboxstore.Event) map[string]string {
 	metadata := map[string]string{"input_kind": scheduledTaskInputKind, "task_name": hostEventTaskName(event)}
 	if task := event.Payload.Task; task != nil {
 		metadata["job_id"] = task.JobID

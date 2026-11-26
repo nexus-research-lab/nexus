@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"log/slog"
 	"strings"
 
@@ -24,6 +25,7 @@ import (
 	computercommand "github.com/nexus-research-lab/nexus/internal/mcp/command/computer"
 	executioncontract "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract"
 	executionoperation "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation"
+	followupcommand "github.com/nexus-research-lab/nexus/internal/mcp/command/followup"
 	goalcontract "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract"
 	goaloperation "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/operation"
 	subagentcommand "github.com/nexus-research-lab/nexus/internal/mcp/command/subagent"
@@ -63,6 +65,7 @@ func NewServerBuilder(
 	execution executioncontract.Service,
 	permissions *permissionctx.Context,
 	computerUse *computerusesvc.Service,
+	followUps followupcommand.Service,
 	builtInTools ToolBuilder,
 	workflowServices ...executioncontract.WorkflowService,
 ) func(context.Context, nexusmcp.RoundContext) (map[string]sdkmcp.ServerConfig, error) {
@@ -78,6 +81,7 @@ func NewServerBuilder(
 			execution,
 			permissions,
 			computerUse,
+			followUps,
 			round,
 			workflowServices...,
 		)
@@ -179,6 +183,7 @@ func buildNexusCommandMCPTool(
 	execution executioncontract.Service,
 	permissions *permissionctx.Context,
 	computerUse *computerusesvc.Service,
+	followUps followupcommand.Service,
 	round nexusmcp.RoundContext,
 	workflowServices ...executioncontract.WorkflowService,
 ) (sdktool.Tool, bool, error) {
@@ -252,6 +257,7 @@ func buildNexusCommandMCPTool(
 			execution,
 			permissions,
 			computerUse,
+			followUps,
 			actor,
 			request,
 			workflowServices...,
@@ -407,6 +413,7 @@ func dispatchNexusCommand(
 	execution executioncontract.Service,
 	permissions *permissionctx.Context,
 	computerUse *computerusesvc.Service,
+	followUps followupcommand.Service,
 	actor command.Actor,
 	request command.Request,
 	workflowServices ...executioncontract.WorkflowService,
@@ -425,6 +432,8 @@ func dispatchNexusCommand(
 		return HandleExecutionCommand(ctx, execution, actor, request, workflowServices...)
 	case command.DomainComputer:
 		return HandleComputerCommand(ctx, computerUse, permissions, actor, request)
+	case command.DomainFollowUp:
+		return HandleFollowUpCommand(ctx, followUps, actor, request)
 	default:
 		return nil, fmt.Errorf("未知 Nexus command domain %q", request.Domain)
 	}
@@ -452,6 +461,24 @@ func HandleComputerCommand(
 	}
 	operations := computercommand.BuildAllWithPermissions(svc, actor.OwnerUserID, actor.RoundID, sessionKey, permissions)
 	return command.HandleSemantic(ctx, actor, command.DomainComputer, "get_computer", operations, request)
+}
+
+// HandleFollowUpCommand 只对主智能体主窗口 round 开放；目标会话由宿主 Actor 固定，模型无法指定。
+func HandleFollowUpCommand(
+	ctx context.Context,
+	svc followupcommand.Service,
+	actor command.Actor,
+	request command.Request,
+) (any, error) {
+	if svc == nil {
+		return nil, errors.New("跟进 command service 尚未装配")
+	}
+	if !actor.IsMainAgent {
+		return nil, errors.New("跟进只能在主智能体主窗口中设定")
+	}
+	ctx = runtimehost.ContextWithExactOwner(ctx, actor.OwnerUserID)
+	operations := followupcommand.BuildAll(svc, actor.SessionKey, actor.AgentID)
+	return command.HandleSemantic(ctx, actor, command.DomainFollowUp, followupcommand.InspectOperation, operations, request)
 }
 
 func handleAutomationCommand(

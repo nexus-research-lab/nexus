@@ -12,6 +12,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -169,20 +170,26 @@ type DeferredAssistantHooks struct {
 	Complete func(context.Context, DeferredAssistantOutcome)
 }
 
-// EchoTerminalRound 是 Echo 需要观察的最小成功 DM 终态。
-type EchoTerminalRound struct {
+// EchoPolicy 是 Echo 域交给主窗口的两个判断：一轮结束后何时回头看，到点时是否开口。
+// 事件的写入、取消与起轮都由主窗口 inbox 负责，Echo 域不持有任何状态。
+type EchoPolicy interface {
+	// ScheduleAfter 返回这轮对话结束后的 Echo 到点时间；ok=false 表示不安排（开关关闭）。
+	ScheduleAfter(ctx context.Context, ownerUserID string, finishedAt time.Time) (time.Time, bool, error)
+	Decide(ctx context.Context, candidate EchoCandidate) (EchoDecision, error)
+}
+
+// EchoCandidate 是到点时交给 gate 判断的主窗口。
+type EchoCandidate struct {
 	OwnerUserID string
 	AgentID     string
 	SessionKey  string
-	RoundID     string
-	AssistantID string
-	FinishedAt  time.Time
 }
 
-// EchoLifecycleHooks 把普通 DM 用户活动与成功终态交给 Echo 域。
-type EchoLifecycleHooks struct {
-	OnUserActivity func(context.Context, string, string) ([]string, error)
-	OnTerminal     func(context.Context, EchoTerminalRound)
+// EchoDecision 三选一：Prompt 非空即开口，DeferUntil 非零即顺延，否则保持沉默。
+type EchoDecision struct {
+	Prompt     string
+	DeferUntil time.Time
+	Reason     string
 }
 
 // RewriteRequest 表示一次 DM 最后一条用户消息重写请求。replacement round_id 由后端 mint。
@@ -240,7 +247,9 @@ type Service struct {
 	connectorPreparations     map[string]*connectorRuntimePreparation
 	connectorPreparationDelay time.Duration
 	connectorPreparationRun   func(context.Context, protocol.Session) error
-	echoHooks                 EchoLifecycleHooks
+	echo                      EchoPolicy
+	// inboxTimer 只按最近的 available_at 唤醒到点的主窗口，见 main_inbox_timer.go。
+	inboxTimer *duework.Loop
 }
 
 // ConnectorRuntimeState 是可安全进入模型动态上下文的 Connector 脱敏状态。
@@ -338,9 +347,9 @@ func (s *Service) SetGoalContextProvider(provider goalContextProvider) {
 	s.goals = provider
 }
 
-// SetEchoLifecycleHooks 注入 Echo 的取消与调度回调。
-func (s *Service) SetEchoLifecycleHooks(hooks EchoLifecycleHooks) {
-	s.echoHooks = hooks
+// SetEchoPolicy 注入 Echo 的到点与开口判断；未注入时主窗口不安排 Echo。
+func (s *Service) SetEchoPolicy(policy EchoPolicy) {
+	s.echo = policy
 }
 
 // SetRoomSessionStore 注入 room 成员会话索引读写能力。
@@ -377,6 +386,7 @@ func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string)
 // SetInboxStore 注入主窗口 inbox 仓储。
 func (s *Service) SetInboxStore(store *inboxstore.Repository) {
 	s.inbox = store
+	s.inboxTimer = s.newMainInboxTimer()
 }
 
 // SetReplyPreviewRepository 注入消息落盘后的独立摘要投影。

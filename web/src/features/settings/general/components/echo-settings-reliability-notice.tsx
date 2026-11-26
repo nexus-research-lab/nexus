@@ -29,30 +29,21 @@ export function EchoSettingsReliabilityNotice({
   const success = feedback.tone === "success";
   const primaryAction = success
     ? undefined
-    : recovery.canFinishDisabling
+    : recovery.canCompare
       ? {
-          busy: recovery.repairing,
-          busyLabel: t("settings.general.echo_finishing_disable"),
           disabled: recovery.checking,
-          icon: <RefreshCw className="h-3.5 w-3.5" />,
-          label: t("settings.general.echo_finish_disable"),
-          onClick: recovery.finishDisabling,
+          label: t("settings.general.echo_reapply"),
+          onClick: recovery.reapplyChange,
         }
-      : recovery.canCompare
+      : recovery.canCheckLatest
         ? {
-            disabled: recovery.checking,
-            label: t("settings.general.echo_reapply"),
-            onClick: recovery.reapplyChange,
+            busy: recovery.checking,
+            busyLabel: t("settings.general.echo_checking"),
+            icon: <RefreshCw className="h-3.5 w-3.5" />,
+            label: t("settings.general.echo_check_latest"),
+            onClick: recovery.checkLatest,
           }
-        : recovery.canCheckLatest
-          ? {
-              busy: recovery.checking,
-              busyLabel: t("settings.general.echo_checking"),
-              icon: <RefreshCw className="h-3.5 w-3.5" />,
-              label: t("settings.general.echo_check_latest"),
-              onClick: recovery.checkLatest,
-            }
-          : undefined;
+        : undefined;
   if (success) {
     return (
       <UiResourceState

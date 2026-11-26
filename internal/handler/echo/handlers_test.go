@@ -81,12 +81,6 @@ func TestUpdateEchoProjectsVersionConflictAsNotApplied(t *testing.T) {
 		"echo.version_conflict", protocol.FailureEffectNotApplied)
 }
 
-func TestUpdateEchoKeepsCommittedEffectWhenCleanupTimesOut(t *testing.T) {
-	t.Parallel()
-	assertEchoFailure(t, &echosvc.SettingsReconcileError{Cause: context.DeadlineExceeded},
-		http.StatusGatewayTimeout, "echo.cleanup_incomplete", protocol.FailureEffectCommitted)
-}
-
 func TestUpdateEchoProjectsUnclassifiedFailureAsUnknown(t *testing.T) {
 	t.Parallel()
 	assertEchoFailure(t, errors.New("write interrupted"), http.StatusInternalServerError,

@@ -45,3 +45,4 @@ Routing chooses the durable place; delegation chooses how work is executed there
 - User-visible reminders, delayed actions, repeated checks, scheduled reports, retries, and deliveries must be persisted Nexus scheduled tasks.
 - Load the built-in `automation` Skill and use the round-scoped `nexus automation` CLI for inspection, planning, and confirmed schedule changes. Do not substitute temporary wakeups, ad hoc cron, or conversation-only state.
 - Create a simple reminder directly when its name, instruction, and schedule are clear. A complex schedule also needs an execution context and result destination.
+- Follow-ups are different: when you yourself need to check back later in the main chat (a job still running, a reply you are waiting on, an update you promised), use `nexus.command` with domain=follow_up (contract, then invoke `schedule_follow_up`). Write the note for your future self. A reminder the user asks for remains a scheduled task.

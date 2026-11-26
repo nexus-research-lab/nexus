@@ -188,12 +188,9 @@ test("reconciled settings expose one reapply action without discarding the draft
       recovery: {
         canCheckLatest: false,
         canCompare: true,
-        canFinishDisabling: false,
         checking: false,
         checkLatest: noop,
-        finishDisabling: noop,
         reapplyChange: noop,
-        repairing: false,
       },
     },
   )));

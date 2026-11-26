@@ -125,16 +125,6 @@ func (h *Handlers) writeUpdateError(
 		})
 		return
 	}
-	if echosvc.SettingsUpdateCommitted(err) {
-		h.api.WriteError(writer, request, http.StatusInternalServerError, handlershared.FailureSpec{
-			Code:     "echo.cleanup_incomplete",
-			Category: protocol.FailureCategoryInternal,
-			Effect:   protocol.FailureEffectCommitted,
-			Detail:   "主动跟进已关闭，但在途跟进还没有全部停止",
-			Cause:    err,
-		})
-		return
-	}
 	h.api.WriteError(writer, request, http.StatusInternalServerError, handlershared.FailureSpec{
 		Code:     "echo.update_result_unknown",
 		Category: protocol.FailureCategoryInternal,

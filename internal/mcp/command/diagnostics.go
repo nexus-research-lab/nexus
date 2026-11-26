@@ -56,7 +56,7 @@ func (d *Diagnostics) start(ctx context.Context, input map[string]any) (context.
 	}
 	call := &diagnosticCall{
 		collector: d, started: time.Now(), id: rand.Text(),
-		domain:    diagnosticLabel(input["domain"], DomainExecution, DomainGoal, DomainAutomation, DomainSubagent),
+		domain:    diagnosticLabel(input["domain"], DomainExecution, DomainGoal, DomainAutomation, DomainSubagent, DomainFollowUp),
 		action:    diagnosticLabel(input["action"], ActionContract, ActionInspect, ActionInvoke, ActionPlan, ActionApply),
 		operation: "unknown", requestID: "missing",
 	}

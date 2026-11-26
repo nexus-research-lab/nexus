@@ -22,19 +22,15 @@ export type EchoSettingsFeedback =
 export interface EchoSettingsRecoveryControls {
   canCheckLatest: boolean;
   canCompare: boolean;
-  canFinishDisabling: boolean;
   checking: boolean;
   checkLatest: () => void;
-  finishDisabling: () => void;
   reapplyChange: () => void;
-  repairing: boolean;
 }
 
 export interface PendingEchoChange {
   base: EchoSettings;
   desired: boolean;
   latest: EchoSettings | null;
-  cleanupRepairRequired: boolean;
 }
 
 export function validEchoSettings(value: EchoSettings): boolean {
