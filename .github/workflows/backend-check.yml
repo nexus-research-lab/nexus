@@ -98,6 +98,51 @@ jobs:
           mapfile -t pkgs < <(go list ./... | grep -E '/internal/storage($|/)' | grep -v '/internal/storage/orchestration$')
           go test -vet=off -p=4 -count=1 "${pkgs[@]}"
 
+  tests-heavy:
+    name: Backend tests (orchestration + config)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test heavy SQLite packages (4-way sharded)
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_sharded() {
+            local pkg="$1"
+            local tmpdir
+            tmpdir="$(mktemp -d)"
+            go test -vet=off -c -o "$tmpdir/pkg.test" "./$pkg"
+            mapfile -t tests < <("$tmpdir/pkg.test" -test.list '^Test' | grep '^Test')
+            (( ${#tests[@]} > 0 ))
+            local pids=()
+            for b in 0 1 2 3; do
+              local bucket=()
+              for ((i=b; i<${#tests[@]}; i+=4)); do bucket+=("${tests[$i]}"); done
+              (( ${#bucket[@]} == 0 )) && continue
+              local pattern="^($(IFS="|"; echo "${bucket[*]}"))$"
+              (cd "$pkg" && "$tmpdir/pkg.test" -test.run "$pattern") >"$tmpdir/b$b.log" 2>&1 &
+              pids+=($!)
+            done
+            local rc=0
+            for ((b=0; b<${#pids[@]}; b++)); do
+              if ! wait "${pids[$b]}"; then
+                rc=1
+                echo "::group::${pkg} shard $b FAILED"
+                cat "$tmpdir/b$b.log"
+                echo "::endgroup::"
+              fi
+            done
+            rm -rf "$tmpdir"
+            return "$rc"
+          }
+          run_sharded internal/storage/orchestration
+          run_sharded internal/service/configuration
+
   tests-service:
     name: Backend tests (service)
     runs-on: ubuntu-latest
@@ -111,11 +156,11 @@ jobs:
       - name: Test service packages
         shell: bash
         run: |
-          mapfile -t pkgs < <(go list ./... | grep -E '/internal/service($|/)')
+          mapfile -t pkgs < <(go list ./... | grep -E '/internal/service($|/)' | grep -v '/internal/service/configuration$')
           go test -vet=off -p=4 -count=1 "${pkgs[@]}"
 
   tests-core:
-    name: Backend tests (core + orchestration)
+    name: Backend tests (core)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -124,11 +169,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Test orchestration and remaining packages
+      - name: Test remaining packages
         shell: bash
         run: |
           mapfile -t pkgs < <(go list ./... | grep -vE '/internal/(storage|service)($|/)')
-          go test -vet=off -p=4 -count=1 ./internal/storage/orchestration "${pkgs[@]}"
+          go test -vet=off -p=4 -count=1 "${pkgs[@]}"
 
   desktop-contracts:
     name: Native Go contracts (${{ matrix.os }})

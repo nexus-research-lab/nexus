@@ -294,7 +294,9 @@ notarize_app_bundle
 rm -rf "${STAGING_DIR}" "${DMG_DIR}" "${ARTIFACT_PATH}" "${SHA256_PATH}" "${METADATA_EXPORT_PATH}"
 mkdir -p "${STAGING_DIR}" "${OUTPUT_DIR}"
 
-rsync -a --delete --exclude ".DS_Store" "${APP_BUNDLE}/" "${STAGING_DIR}/${APP_NAME}.app/"
+if [[ "${ARTIFACT_FORMAT}" == "zip" ]]; then
+  rsync -a --delete --exclude ".DS_Store" "${APP_BUNDLE}/" "${STAGING_DIR}/${APP_NAME}.app/"
+fi
 NXS_RUNTIME_BUNDLED=false
 if [[ -x "${NXS_RUNTIME_PATH}" ]]; then
   NXS_RUNTIME_BUNDLED=true
@@ -427,13 +429,9 @@ case "${ARTIFACT_FORMAT}" in
     fi
     DMG_RW_PATH="${OUTPUT_DIR}/${DIST_NAME}-rw.dmg"
     DMG_MOUNT_DIR="${STAGING_ROOT}/${DIST_NAME}-mount"
-    rm -rf "${DMG_DIR}"
+    rm -rf "${DMG_DIR}" "${DMG_MOUNT_DIR}"
     rm -f "${DMG_RW_PATH}"
-    mkdir -p "${DMG_DIR}/.background" "${DMG_MOUNT_DIR}"
-    rsync -a --delete --exclude ".DS_Store" "${STAGING_DIR}/${APP_NAME}.app/" "${DMG_DIR}/${APP_NAME}.app/"
-    ln -s /Applications "${DMG_DIR}/Applications"
-    cp "${DMG_BACKGROUND_PATH}" "${DMG_DIR}/.background/DMGBackground.png"
-    SetFile -a V "${DMG_DIR}/.background"
+    mkdir -p "${DMG_MOUNT_DIR}"
 
     retry_hdiutil() {
       local attempt
@@ -445,12 +443,17 @@ case "${ARTIFACT_FORMAT}" in
       done
       hdiutil "$@" >/dev/null
     }
+    # 预先创建固定大小的空 HFS+ UDIF 镜像再挂载拷贝，避免 macOS Intel 上
+    # hdiutil create -srcfolder 漫长的自动估算与内核拷贝路径（~130s -> ~5s）。
+    APP_BUNDLE_KB="$(du -sk "${APP_BUNDLE}" | awk '{ print $1 }')"
+    DMG_SIZE_MB="$(( (APP_BUNDLE_KB * 12 / 10 / 1024) + 64 ))"
+    echo "==> [dmg] Creating writable HFS+ image (${DMG_SIZE_MB} MB)"
     COPYFILE_DISABLE=1 retry_hdiutil create \
+      -megabytes "${DMG_SIZE_MB}" \
       -volname "${APP_NAME}" \
-      -srcfolder "${DMG_DIR}" \
       -fs HFS+ \
       -ov \
-      -format UDRW \
+      -type UDIF \
       "${DMG_RW_PATH}" >/dev/null
 
     DMG_DEVICE=""
@@ -495,6 +498,7 @@ case "${ARTIFACT_FORMAT}" in
     }
     trap cleanup_dmg_mount EXIT
 
+    echo "==> [dmg] Attaching image, copying bundle, and applying Finder layout"
     hdiutil attach \
       -readwrite \
       -noverify \
@@ -506,6 +510,12 @@ case "${ARTIFACT_FORMAT}" in
       echo "failed to resolve mounted macOS dmg device" >&2
       exit 1
     fi
+
+    mkdir -p "${DMG_MOUNT_DIR}/.background"
+    rsync -a --exclude ".DS_Store" "${APP_BUNDLE}/" "${DMG_MOUNT_DIR}/${APP_NAME}.app/"
+    ln -s /Applications "${DMG_MOUNT_DIR}/Applications"
+    cp "${DMG_BACKGROUND_PATH}" "${DMG_MOUNT_DIR}/.background/DMGBackground.png"
+    SetFile -a V "${DMG_MOUNT_DIR}/.background"
 
     osascript - "${DMG_MOUNT_DIR}" "${APP_NAME}" <<'APPLESCRIPT'
 on run argv
@@ -544,8 +554,10 @@ APPLESCRIPT
       "${DMG_MOUNT_DIR}/.Spotlight-V100" \
       "${DMG_MOUNT_DIR}/.Trashes"
     sync
+    echo "==> [dmg] Detaching writable image"
     detach_dmg "${DMG_DEVICE}"
     DMG_DEVICE=""
+    echo "==> [dmg] Converting to UDZO (zlib-level=${NEXUS_DESKTOP_DMG_ZLIB_LEVEL:-9})"
     retry_hdiutil convert \
       "${DMG_RW_PATH}" \
       -ov \
