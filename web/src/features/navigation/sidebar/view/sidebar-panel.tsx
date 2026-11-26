@@ -1,6 +1,6 @@
 /**
  * INPUT: 上层已装配的一级导航、固定会话、目录内容与侧栏系统动作。
- * OUTPUT: 展开/收起共用的主侧栏壳层及容纳中英文短标签的唯一紧凑导航轨。
+ * OUTPUT: 展开/收起共用的主侧栏壳层（含品牌栏夜空装饰层）及容纳中英文短标签的唯一紧凑导航轨。
  * POS: 主侧栏纯视图边界，不读取路由、Store 或业务 API。
  */
 import {
@@ -133,6 +133,8 @@ export function SidebarPanel({
         ref={resizeEnabled ? rootRef : undefined}
         style={{ width }}
       >
+        {/* 品牌栏背后的夜空装饰层：纯视觉、不拦截指针，由 theme-recipes 配方按主题着色。 */}
+        <div aria-hidden="true" className="sidebar-panel-sky" />
         <div
           className={cn(
             "sidebar-panel-header shell-region-header -mr-1.5 flex shrink-0 items-center",

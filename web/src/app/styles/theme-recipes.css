@@ -883,6 +883,115 @@
     transition: padding var(--motion-duration-layout) var(--motion-ease-layout);
   }
 
+  /*
+   * 品牌栏夜空：深靛夜色自顶部向下过渡为柔和云光，再羽化融入侧栏底面。
+   * 装饰层位于导航轨与目录之上、品牌栏之下，pointer-events 关闭，不影响拖动与点击。
+   * 颜色只在本配方内定义，由 --sidebar-sky-* 按主题切换；正文区域不铺任何纹理。
+   */
+  .sidebar-panel-shell {
+    --sidebar-sky-height: calc(var(--workspace-header-height, 60px) + 64px);
+    --sidebar-sky-night: #100e2b;
+    --sidebar-sky-dusk: #262361;
+    --sidebar-sky-violet: #5b54b0;
+    --sidebar-sky-haze: rgba(176, 182, 240, 0.62);
+    --sidebar-sky-cloud: rgba(240, 242, 255, 0.95);
+    --sidebar-sky-cloud-soft: rgba(214, 218, 255, 0.8);
+    --sidebar-sky-star: rgba(255, 255, 255, 0.92);
+  }
+
+  :root[data-theme="dark"] .sidebar-panel-shell,
+  :root[data-theme="rain"] .sidebar-panel-shell {
+    --sidebar-sky-night: #0b0a22;
+    --sidebar-sky-dusk: #1d1b4f;
+    --sidebar-sky-violet: #3c3887;
+    --sidebar-sky-haze: rgba(92, 96, 170, 0.42);
+    --sidebar-sky-cloud: rgba(150, 156, 230, 0.34);
+    --sidebar-sky-cloud-soft: rgba(120, 118, 210, 0.26);
+  }
+
+  .sidebar-panel-sky {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: var(--sidebar-sky-height);
+    overflow: hidden;
+    pointer-events: none;
+    background:
+      radial-gradient(70% 90% at 12% -10%, var(--sidebar-sky-dusk) 0%, transparent 70%),
+      radial-gradient(60% 80% at 88% 0%, color-mix(in srgb, var(--sidebar-sky-violet) 70%, transparent) 0%, transparent 72%),
+      linear-gradient(
+        180deg,
+        var(--sidebar-sky-night) 0%,
+        var(--sidebar-sky-dusk) 26%,
+        var(--sidebar-sky-violet) 42%,
+        var(--sidebar-sky-haze) 56%,
+        color-mix(in srgb, var(--sidebar-sky-haze) 40%, transparent) 72%,
+        transparent 100%
+      );
+    mask-image: linear-gradient(to bottom, #000 0, #000 60%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 60%, transparent 100%);
+  }
+
+  /* 星点：只散布在上半部夜色里，缓慢明灭；减弱动态效果时保持静止。 */
+  .sidebar-panel-sky::before {
+    position: absolute;
+    inset: 0 0 45% 0;
+    background:
+      radial-gradient(circle at 8% 22%, var(--sidebar-sky-star) 0 0.7px, transparent 1.3px),
+      radial-gradient(circle at 19% 64%, var(--sidebar-sky-star) 0 0.5px, transparent 1.1px),
+      radial-gradient(circle at 31% 14%, var(--sidebar-sky-star) 0 0.6px, transparent 1.2px),
+      radial-gradient(circle at 43% 48%, var(--sidebar-sky-star) 0 0.9px, transparent 1.6px),
+      radial-gradient(circle at 52% 9%, var(--sidebar-sky-star) 0 0.5px, transparent 1.1px),
+      radial-gradient(circle at 61% 72%, var(--sidebar-sky-star) 0 0.6px, transparent 1.2px),
+      radial-gradient(circle at 69% 30%, var(--sidebar-sky-star) 0 0.5px, transparent 1.1px),
+      radial-gradient(circle at 78% 58%, var(--sidebar-sky-star) 0 0.8px, transparent 1.4px),
+      radial-gradient(circle at 86% 16%, var(--sidebar-sky-star) 0 0.6px, transparent 1.2px),
+      radial-gradient(circle at 94% 44%, var(--sidebar-sky-star) 0 0.5px, transparent 1.1px),
+      radial-gradient(circle at 26% 86%, var(--sidebar-sky-star) 0 0.4px, transparent 1px),
+      radial-gradient(circle at 73% 90%, var(--sidebar-sky-star) 0 0.4px, transparent 1px);
+    content: "";
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .sidebar-panel-sky::before {
+      animation: sidebar-sky-twinkle 5.6s ease-in-out infinite alternate;
+    }
+  }
+
+  @keyframes sidebar-sky-twinkle {
+    from { opacity: 0.55; }
+    to { opacity: 1; }
+  }
+
+  /* 云光：几团模糊椭圆压在夜色下沿，与底部羽化一起把深色过渡回侧栏底面。 */
+  .sidebar-panel-sky::after {
+    position: absolute;
+    inset: 22% -10% 18% -10%;
+    background:
+      radial-gradient(26% 34% at 14% 46%, var(--sidebar-sky-cloud) 0%, transparent 74%),
+      radial-gradient(22% 28% at 30% 60%, var(--sidebar-sky-cloud-soft) 0%, transparent 74%),
+      radial-gradient(30% 30% at 56% 62%, var(--sidebar-sky-cloud-soft) 0%, transparent 74%),
+      radial-gradient(28% 32% at 84% 54%, var(--sidebar-sky-cloud) 0%, transparent 74%),
+      radial-gradient(70% 26% at 50% 78%, var(--sidebar-sky-cloud-soft) 0%, transparent 80%);
+    filter: blur(8px);
+    content: "";
+  }
+
+  /* 品牌栏坐在夜空上：去掉自身底面与分隔线，文字与图标切到夜色上的浅色。 */
+  .sidebar-panel-shell .sidebar-panel-header {
+    --text-strong: #f5f4ff;
+    --icon-strong: #f5f4ff;
+    --icon-default: rgba(236, 236, 255, 0.86);
+    --icon-muted: rgba(220, 220, 255, 0.66);
+    --interaction-hover-background: rgba(255, 255, 255, 0.12);
+    --interaction-hover-border: rgba(255, 255, 255, 0.16);
+    --interaction-active-background: rgba(255, 255, 255, 0.16);
+    background: transparent;
+    box-shadow: none;
+  }
+
   @media (width < 64rem) {
     :root[data-desktop-platform="macos"]
       .sidebar-panel-header[data-desktop-window-controls-leading]::before {
