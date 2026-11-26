@@ -2,6 +2,7 @@ import { GuideCenterDialog } from "@/features/onboarding/guide-center/guide-cent
 import { SettingsSidebarNavigation } from "@/features/settings/settings-sidebar-navigation";
 
 import { SidebarPanel } from "./view/sidebar-panel";
+import { useSidebarSkyVariant } from "./use-sidebar-sky-variant";
 import { useSidebarWidePanelController } from "./use-sidebar-wide-panel-controller";
 
 interface SidebarWidePanelProps {
@@ -14,6 +15,7 @@ export function SidebarWidePanel({
   navigationOnly = false,
 }: SidebarWidePanelProps) {
   const controller = useSidebarWidePanelController({ navigationOnly });
+  const skyVariant = useSidebarSkyVariant();
   const collapsed =
     !fillAvailableWidth && controller.collapsed;
   const settingsNavigation = controller.settingsMode
@@ -44,6 +46,7 @@ export function SidebarWidePanel({
         }
         settingsNavigation={settingsNavigation}
         showSplitEdge={!fillAvailableWidth}
+        skyVariant={skyVariant}
       />
       <GuideCenterDialog {...controller.guideCenterProps} />
     </>

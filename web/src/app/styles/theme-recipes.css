@@ -883,6 +883,183 @@
     transition: padding var(--motion-duration-layout) var(--motion-ease-layout);
   }
 
+  /*
+   * 品牌栏夜空：SVG 插画（sidebar-night-sky.tsx）负责斜向夜色、光晕、星点与成形云朵，
+   * 本配方只提供配色变量与两段渐隐——::after 叠一层侧栏底面色把云朵下沿洗成柔光，
+   * mask 再把整层羽化掉，最终与侧栏底面无缝衔接。装饰层压在导航轨与目录内容之下，
+   * 搜索框等控件保留自身底面；pointer-events 关闭，不影响拖动与点击。
+   */
+  .sidebar-panel-shell {
+    --sidebar-sky-height: calc(var(--workspace-header-height, 60px) + 28px);
+    --sidebar-sky-top: #2a1a58;
+    --sidebar-sky-mid: #1d1b4b;
+    --sidebar-sky-bottom: #141c38;
+    --sidebar-sky-glow: #5c62d8;
+    --sidebar-sky-cloud-a: #6f9cff;
+    --sidebar-sky-cloud-b: #7c6cf2;
+    --sidebar-sky-cloud-c: #b36ee8;
+    --sidebar-sky-star: #eef0ff;
+    --sidebar-sky-ground: var(--surface-shell-directory-background);
+  }
+
+  /* 变体只替换底色、光晕和主角图层的颜色；深色与雨天主题统一压暗插画，渐隐底色仍跟随主题。 */
+  .sidebar-panel-sky[data-sky-variant="aurora"] {
+    --sidebar-sky-top: #07162c;
+    --sidebar-sky-mid: #0b2240;
+    --sidebar-sky-bottom: #0d1a33;
+    --sidebar-sky-glow: #1f6f8b;
+    --sidebar-sky-aurora-a: #5df2c0;
+    --sidebar-sky-aurora-b: #3cc8d8;
+    --sidebar-sky-aurora-c: #7a6cf0;
+    --sidebar-sky-star: #e8fbff;
+  }
+
+  .sidebar-panel-sky[data-sky-variant="dawn"] {
+    --sidebar-sky-top: #2a2466;
+    --sidebar-sky-mid: #7e4c9c;
+    --sidebar-sky-bottom: #e08a7c;
+    --sidebar-sky-glow: #ff9fb5;
+    --sidebar-sky-sun: #ffd39a;
+    --sidebar-sky-cloud-a: #ffd1dc;
+    --sidebar-sky-cloud-b: #ffc4b0;
+    --sidebar-sky-cloud-c: #f6b6e6;
+    --sidebar-sky-star: #fff4e8;
+  }
+
+  .sidebar-panel-sky[data-sky-variant="constellation"] {
+    --sidebar-sky-top: #0e1238;
+    --sidebar-sky-mid: #141a4a;
+    --sidebar-sky-bottom: #0c1630;
+    --sidebar-sky-glow: #3f5bd8;
+    --sidebar-sky-signal: #9db8ff;
+    --sidebar-sky-star: #e6ecff;
+  }
+
+  :root[data-theme="dark"] .sidebar-panel-sky-art,
+  :root[data-theme="rain"] .sidebar-panel-sky-art {
+    filter: brightness(0.8) saturate(0.92);
+  }
+
+  .sidebar-panel-sky {
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: var(--sidebar-sky-height);
+    overflow: hidden;
+    pointer-events: none;
+    user-select: none;
+    mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 96%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 96%);
+  }
+
+  .sidebar-panel-sky-art {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 下半段逐级叠上侧栏底面色：云朵被洗成柔和的彩色光，而不是在边缘硬切。 */
+  .sidebar-panel-sky::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 34%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 10%, transparent) 46%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 32%, transparent) 58%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 60%, transparent) 70%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 84%, transparent) 80%,
+      var(--sidebar-sky-ground) 92%
+    );
+    content: "";
+  }
+
+  .sidebar-sky-aurora-band {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+
+  .sidebar-sky-aurora-band-a { opacity: 0.85; }
+  .sidebar-sky-aurora-band-b { opacity: 0.6; }
+  .sidebar-sky-aurora-band-c { opacity: 0.5; }
+
+  .sidebar-sky-signal {
+    opacity: 0.9;
+    stroke-dasharray: 6 94;
+  }
+
+  .sidebar-sky-node-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /* 所有动效只在用户未要求减弱动态效果时运行；静止时各图层停在首帧，构图依然完整。 */
+  @media (prefers-reduced-motion: no-preference) {
+    .sidebar-panel-sky-stars {
+      animation: sidebar-sky-twinkle 5.6s ease-in-out infinite alternate;
+    }
+
+    .sidebar-sky-meteor {
+      opacity: 0;
+      animation: sidebar-sky-meteor 9s linear infinite;
+    }
+
+    .sidebar-sky-aurora-band-a { animation: sidebar-sky-aurora 9s ease-in-out infinite alternate; }
+    .sidebar-sky-aurora-band-b { animation: sidebar-sky-aurora 13s ease-in-out -4s infinite alternate-reverse; }
+    .sidebar-sky-aurora-band-c { animation: sidebar-sky-aurora 16s ease-in-out -7s infinite alternate; }
+
+    .sidebar-sky-signal {
+      animation: sidebar-sky-signal 6s linear infinite;
+    }
+
+    .sidebar-sky-node-pulse {
+      animation: sidebar-sky-node-pulse 2.8s ease-in-out infinite alternate;
+    }
+  }
+
+  @keyframes sidebar-sky-meteor {
+    0% { opacity: 0; transform: translateX(0); }
+    1.5% { opacity: 1; }
+    10% { opacity: 0; transform: translateX(90px); }
+    100% { opacity: 0; transform: translateX(90px); }
+  }
+
+  @keyframes sidebar-sky-aurora {
+    from { transform: translateX(-10px) skewX(-4deg) scaleY(0.92); }
+    to { transform: translateX(10px) skewX(4deg) scaleY(1.06); }
+  }
+
+  @keyframes sidebar-sky-signal {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
+  }
+
+  @keyframes sidebar-sky-node-pulse {
+    from { opacity: 0.55; transform: scale(1); }
+    to { opacity: 1; transform: scale(1.7); }
+  }
+
+  @keyframes sidebar-sky-twinkle {
+    from { opacity: 0.6; }
+    to { opacity: 1; }
+  }
+
+  /* 品牌栏坐在夜空上：去掉自身底面与分隔线，文字与图标切到夜色上的浅色。 */
+  .sidebar-panel-shell .sidebar-panel-header {
+    --text-strong: #f5f4ff;
+    --icon-strong: #f5f4ff;
+    --icon-default: rgba(236, 236, 255, 0.86);
+    --icon-muted: rgba(220, 220, 255, 0.66);
+    --interaction-hover-background: rgba(255, 255, 255, 0.12);
+    --interaction-hover-border: rgba(255, 255, 255, 0.16);
+    --interaction-active-background: rgba(255, 255, 255, 0.16);
+    background: transparent;
+    box-shadow: none;
+  }
+
   @media (width < 64rem) {
     :root[data-desktop-platform="macos"]
       .sidebar-panel-header[data-desktop-window-controls-leading]::before {
@@ -916,7 +1093,12 @@
     /* 将壳层左侧留白纳入导航轨，图标与标签在整个可见区域内居中。 */
     margin-left: calc(-1 * var(--sidebar-shell-leading-padding, 4px));
     width: calc(56px + var(--sidebar-shell-leading-padding, 4px));
-    background: var(--surface-shell-navigation-background);
+    /* 顶部一段底色羽化为透明，露出品牌栏夜空的下沿，避免在导航轨处出现横向断层。 */
+    background: linear-gradient(
+      to bottom,
+      transparent 0,
+      var(--surface-shell-navigation-background) calc(var(--sidebar-sky-height, 0px) - var(--workspace-header-height, 60px))
+    );
     box-shadow: var(--surface-shell-inner-shadow);
   }
 
