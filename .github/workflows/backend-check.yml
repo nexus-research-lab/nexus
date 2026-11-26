@@ -13,8 +13,11 @@ on:
       - "web/src/types/generated/protocol.ts"
       - "go.mod"
       - "go.sum"
-      - "makefile"
+      - "Makefile"
       - ".github/workflows/backend-check.yml"
+      - "!**/README.md"
+      - "!**/CLAUDE.md"
+      - "!**/AGENTS.md"
   push:
     branches: [main]
     paths:
@@ -28,37 +31,28 @@ on:
       - "web/src/types/generated/protocol.ts"
       - "go.mod"
       - "go.sum"
-      - "makefile"
+      - "Makefile"
       - ".github/workflows/backend-check.yml"
+      - "!**/README.md"
+      - "!**/CLAUDE.md"
+      - "!**/AGENTS.md"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: backend-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: backend-check-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOWORK: "off"
 
 jobs:
-  checks:
-    name: Backend code checks
+  static:
+    name: Backend static checks
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: nexus
-          POSTGRES_PASSWORD: nexus-test
-          POSTGRES_DB: nexus_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U nexus -d nexus_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      NEXUS_TEST_POSTGRES_URL: postgres://nexus:nexus-test@127.0.0.1:5432/nexus_test?sslmode=disable
-      GOWORK: "off"
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -73,8 +67,68 @@ jobs:
           git diff --exit-code -- web/src/types/generated/protocol.ts
       - name: Static analysis
         run: go vet -p=4 ./...
-      - name: Tests
-        run: go test -p=4 -count=1 ./...
+
+  tests-storage:
+    name: Backend tests (storage + postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: nexus-test
+          POSTGRES_DB: nexus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexus -d nexus_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NEXUS_TEST_POSTGRES_URL: postgres://nexus:nexus-test@127.0.0.1:5432/nexus_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test storage packages
+        shell: bash
+        run: |
+          mapfile -t pkgs < <(go list ./... | grep -E '/internal/storage($|/)' | grep -v '/internal/storage/orchestration$')
+          go test -vet=off -p=4 -count=1 "${pkgs[@]}"
+
+  tests-service:
+    name: Backend tests (service)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test service packages
+        shell: bash
+        run: |
+          mapfile -t pkgs < <(go list ./... | grep -E '/internal/service($|/)')
+          go test -vet=off -p=4 -count=1 "${pkgs[@]}"
+
+  tests-core:
+    name: Backend tests (core + orchestration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test orchestration and remaining packages
+        shell: bash
+        run: |
+          mapfile -t pkgs < <(go list ./... | grep -vE '/internal/(storage|service)($|/)')
+          go test -vet=off -p=4 -count=1 ./internal/storage/orchestration "${pkgs[@]}"
 
   desktop-contracts:
     name: Native Go contracts (${{ matrix.os }})

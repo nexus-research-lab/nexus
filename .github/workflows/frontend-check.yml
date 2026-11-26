@@ -4,19 +4,19 @@ on:
   pull_request:
     paths:
       - "web/**"
+      - "!web/**/*.md"
       - "desktop/windows/Nexus.Desktop/Theme/**"
-      - "design.md"
-      - "docs/specs/**"
-      - "makefile"
+      - "docs/guides/room-skill-authoring*.md"
+      - "Makefile"
       - ".github/workflows/frontend-check.yml"
   push:
     branches: [main, master]
     paths:
       - "web/**"
+      - "!web/**/*.md"
       - "desktop/windows/Nexus.Desktop/Theme/**"
-      - "design.md"
-      - "docs/specs/**"
-      - "makefile"
+      - "docs/guides/room-skill-authoring*.md"
+      - "Makefile"
       - ".github/workflows/frontend-check.yml"
   workflow_dispatch:
 
@@ -24,40 +24,97 @@ permissions:
   contents: read
 
 concurrency:
-  group: frontend-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: frontend-check-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  checks:
-    name: Frontend code checks
+  static:
+    name: Frontend lint, typecheck, contracts & build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.2
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
       - name: Install pinned dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Run lint, typecheck, contracts and production build in parallel
+        shell: bash
         run: |
-          corepack enable
-          corepack prepare pnpm@9.15.2 --activate
-          pnpm install --frozen-lockfile
-      - name: Full lint, types, contracts, behavior tests and production build
+          set -uo pipefail
+          log_dir="$(mktemp -d)"
+          trap 'rm -rf "$log_dir"' EXIT
+
+          pnpm run lint >"$log_dir/lint.log" 2>&1 &
+          pid_lint=$!
+          pnpm run typecheck >"$log_dir/typecheck.log" 2>&1 &
+          pid_typecheck=$!
+          pnpm run test:contracts >"$log_dir/contracts.log" 2>&1 &
+          pid_contracts=$!
+          pnpm run build >"$log_dir/build.log" 2>&1 &
+          pid_build=$!
+
+          rc=0
+          for entry in "lint:$pid_lint" "typecheck:$pid_typecheck" "contracts:$pid_contracts" "build:$pid_build"; do
+            name="${entry%%:*}"
+            pid="${entry##*:}"
+            if wait "$pid"; then
+              echo "::group::${name} (passed)"
+            else
+              echo "::group::${name} (FAILED)"
+              rc=1
+            fi
+            cat "$log_dir/${name}.log"
+            echo "::endgroup::"
+          done
+          exit "$rc"
+
+  tests:
+    name: Frontend tests (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install pinned dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Behavior tests (shard ${{ matrix.shard }}/4)
         env:
           # ubuntu-latest 提供 4 核；本地默认仍为 1，避免开发机并发过高。
           VITEST_MAX_WORKERS: "4"
-        run: pnpm run check:full
+        run: pnpm exec vitest run --shard=${{ matrix.shard }}/4
 
   frontend:
     if: ${{ always() }}
-    needs: [checks]
+    needs: [static, tests]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require code checks
         env:
-          CHECKS_RESULT: ${{ needs.checks.result }}
-        run: test "$CHECKS_RESULT" = success
+          STATIC_RESULT: ${{ needs.static.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}
+        run: test "$STATIC_RESULT" = success && test "$TESTS_RESULT" = success

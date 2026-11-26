@@ -74,28 +74,17 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.2
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: "22"
-
-      - name: Setup pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.2 --activate
-
-      - name: Resolve pnpm Store
-        id: macos-pnpm-store
-        run: |
-          echo "path=$(pnpm store path --silent)" >> "${GITHUB_OUTPUT}"
-
-      - name: Cache pnpm Store
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.macos-pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-${{ matrix.target_arch }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target_arch }}-pnpm-
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Cache SwiftPM Build
         uses: actions/cache@v5
@@ -251,31 +240,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.2
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: "22"
-
-      - name: Setup pnpm
-        shell: pwsh
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.2 --activate
-
-      - name: Resolve pnpm Store
-        id: pnpm-store
-        shell: pwsh
-        run: |
-          $storePath = (pnpm store path --silent).Trim()
-          "path=$storePath" >> $env:GITHUB_OUTPUT
-
-      - name: Cache pnpm Store
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Cache Inno Setup
         uses: actions/cache@v5

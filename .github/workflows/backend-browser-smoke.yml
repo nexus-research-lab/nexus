@@ -7,10 +7,10 @@ permissions:
   contents: read
 concurrency:
   group: backend-browser-smoke-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   smoke:
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -18,16 +18,29 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.2
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('web/pnpm-lock.yaml') }}
       - name: Install and build Web
         working-directory: web
         run: |
-          corepack enable
-          corepack prepare pnpm@9.15.2 --activate
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install chromium
+          pnpm install --frozen-lockfile --prefer-offline
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
           pnpm run build
       - name: Fetch paired nxs runtime
         env:
@@ -35,11 +48,11 @@ jobs:
           NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
         run: |
           case "$(uname -m)" in
-            arm64) runtime_arch=arm64 ;;
+            arm64 | aarch64) runtime_arch=arm64 ;;
             x86_64) runtime_arch=amd64 ;;
             *) echo "Unsupported runner architecture" >&2; exit 1 ;;
           esac
-          node scripts/desktop/fetch-nxs-runtime.js --goos darwin --goarch "$runtime_arch" \
+          node scripts/desktop/fetch-nxs-runtime.js --goos linux --goarch "$runtime_arch" \
             --output "${RUNNER_TEMP}/nxs/nxs" --ripgrep-output "${RUNNER_TEMP}/nxs/rg"
       - name: Real backend, runtime and browser smoke
         env:
@@ -48,7 +61,7 @@ jobs:
         run: go test ./internal/app/server -run '^TestBrowserSmoke$' -count=1 -timeout=3m
       - name: Upload failure evidence
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-browser-smoke
           path: web/test-results/smoke/

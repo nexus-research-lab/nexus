@@ -550,7 +550,7 @@ APPLESCRIPT
       "${DMG_RW_PATH}" \
       -ov \
       -format UDZO \
-      -imagekey zlib-level=9 \
+      -imagekey zlib-level="${NEXUS_DESKTOP_DMG_ZLIB_LEVEL:-9}" \
       -o "${ARTIFACT_PATH}" >/dev/null
     rm -f "${DMG_RW_PATH}"
     trap - EXIT

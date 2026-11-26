@@ -210,23 +210,12 @@ try {
   # Desktop bundles are built as an independent module. A repository go.work
   # must not change the package's build graph.
   $env:GOWORK = "off"
+  Write-Host "==> Building Go binaries (nexus-server, nexusctl, nexuscfg)"
   $versionPackage = "github.com/nexus-research-lab/nexus/internal/version"
   $ldflags = "-s -w -X $versionPackage.AppVersion=$appVersion -X $versionPackage.GitCommit=$gitCommit -X $versionPackage.BuildDate=$buildDate"
-  go build -trimpath -ldflags $ldflags -o $sidecarPath ./cmd/nexus-server
+  go build -trimpath -ldflags $ldflags -o "$intermediateDir/" ./cmd/nexus-server ./cmd/nexusctl ./cmd/nexuscfg
   if ($LASTEXITCODE -ne 0) {
-    throw "Failed to build nexus-server with exit code $LASTEXITCODE"
-  }
-
-  Write-Host "==> Building nexusctl"
-  go build -trimpath -ldflags $ldflags -o $nexusctlPath ./cmd/nexusctl
-  if ($LASTEXITCODE -ne 0) {
-    throw "Failed to build nexusctl with exit code $LASTEXITCODE"
-  }
-
-  Write-Host "==> Building nexuscfg"
-  go build -trimpath -ldflags $ldflags -o $nexuscfgPath ./cmd/nexuscfg
-  if ($LASTEXITCODE -ne 0) {
-    throw "Failed to build nexuscfg with exit code $LASTEXITCODE"
+    throw "Failed to build Go desktop binaries with exit code $LASTEXITCODE"
   }
 
 } finally {
