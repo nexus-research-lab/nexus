@@ -27,6 +27,8 @@ export interface ComposerPanelProps {
   compact: boolean;
   commandCatalog: CommandCatalogData;
   defaultPlaceholder?: string;
+  /** 空态正文最小高度（px）；只有首页启动台这类无消息流的入口需要更高的落笔区。 */
+  inputMinHeight?: number;
   contextUsage: ContextUsageData | null;
   /** 纯文本消费者可隐藏附件与 Goal 动作入口。 */
   showActionMenu?: boolean;

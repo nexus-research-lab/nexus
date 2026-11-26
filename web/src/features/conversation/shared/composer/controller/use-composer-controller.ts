@@ -13,7 +13,7 @@ import type { CommandCatalogData } from "@/types/generated/protocol";
 import { useComposerAttachments } from "../attachments/use-composer-attachments";
 import type { ComposerPanelProps } from "../composer-model";
 import { focusComposerInputAtEnd } from "./composer-textarea";
-import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
+import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX, COMPOSER_TEXTAREA_MIN_HEIGHT_PX } from "../composer-styles";
 import { useComposerHistory } from "../use-composer-history";
 import { useComposerMention } from "../use-composer-mention";
 import { useComposerSlashCommand } from "../use-composer-slash-command";
@@ -44,6 +44,7 @@ export function useComposerController({
   draftScopeKey,
   goalCreateDisabledReason = null,
   historyScopeKey,
+  inputMinHeight = COMPOSER_TEXTAREA_MIN_HEIGHT_PX,
   inputQueueItems,
   interactionIdentity = null,
   isLoading,
@@ -147,8 +148,8 @@ export function useComposerController({
   });
 
   useTextareaHeight(textareaRef, draftState.input, {
-    minHeight: 24,
-    maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
+    minHeight: inputMinHeight,
+    maxHeight: Math.max(inputMinHeight, COMPOSER_TEXTAREA_MAX_HEIGHT_PX),
   });
 
   const focusTextarea = useCallback(() => {

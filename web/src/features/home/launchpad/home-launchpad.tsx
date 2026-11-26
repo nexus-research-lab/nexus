@@ -43,6 +43,9 @@ import {
 const EMPTY_COMMAND_CATALOG: CommandCatalogData = { commands: [], status: "unavailable" };
 const EMPTY_INPUT_QUEUE: InputQueueItem[] = [];
 
+/** 首页没有消息流争夺纵向空间，输入区空态留出约三行落笔高度。 */
+const HOME_COMPOSER_INPUT_MIN_HEIGHT_PX = 72;
+
 /** 与共享 Composer 外层的响应式内边距一致：列表行的悬停底色与输入壳左右边缘对齐。 */
 const CONTENT_INSET_CLASS = "px-3 sm:px-5 xl:px-6";
 
@@ -111,6 +114,7 @@ function HomeLaunchComposer({
           draftScopeKey={HOME_LAUNCH_DRAFT_SCOPE}
           goalScopeLabel="Nexus"
           historyScopeKey={HOME_LAUNCH_DRAFT_SCOPE}
+          inputMinHeight={HOME_COMPOSER_INPUT_MIN_HEIGHT_PX}
           inputQueueItems={EMPTY_INPUT_QUEUE}
           isLoading={controller.isSubmitting}
           onDeleteQueuedMessage={ignoreQueuedMessage}
