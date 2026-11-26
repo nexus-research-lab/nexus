@@ -24,3 +24,8 @@ func historyPageFileIdentity(file *os.File, _ os.FileInfo) string {
 		info.FileIndexLow,
 	)
 }
+
+// statFileIdentity 在 Windows 上需要打开句柄才能拿到 file index；lstat 快速校验因此不缓存。
+func statFileIdentity(_ os.FileInfo) string {
+	return ""
+}

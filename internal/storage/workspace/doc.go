@@ -44,6 +44,7 @@
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / session_lifecycle.go / artifact_probe.go / jsonl.go：
 //     Session runtime 回写可按 configuration version 强制拒绝过期的后台 Connector 预备；
 //     保留 Agent 执行身份与 public handoff reply 因果的房间历史、可反向修复两阶段写入且按稳定 message_id 幂等的 Goal-attributed 定向消息/Room handoff（含 terminal/Goal handback 独立阶段和审计约束的 legacy attribution repair）、immediate/delayed schedule-complete 唤醒、带最后一次上下文占用快照的会话文件、可随状态根重定位的删除恢复记录、只读目录证据探测与 JSONL。
+//   - session_meta_cache.go：ListSessions 的进程内 meta 读缓存，lstat 确认文件身份/大小/修改时间未变才复用上次安全读取的原始字节（每次重新解码），否则走 no-symlink 读取；Windows 无 lstat 文件身份时不缓存。
 //   - permissions.go / confined_path.go / transcript_confined.go：enforce 新建权限、
 //     owner/workspace 根绑定和 transcript confined-fd 访问。
 //   - paths.go / transcript_path.go / transcript_project_hash.go / value_coerce.go：

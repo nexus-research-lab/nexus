@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -431,5 +433,88 @@ func TestDeleteRoomConversationRemovesLedgerAndAssets(t *testing.T) {
 		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
 			t.Fatalf("Room 文件未删除: path=%s err=%v", path, statErr)
 		}
+	}
+}
+
+func TestListSessionsReusesUnchangedMetaAndRereadsReplacedMeta(t *testing.T) {
+	storeRoot := t.TempDir()
+	workspacePath := filepath.Join(storeRoot, "owner", "workspace", "agent")
+	store := NewSessionFileStore(storeRoot)
+	sessionKey := "agent:test:ws:dm:meta-cache"
+	now := time.Now().UTC()
+	if _, err := store.UpsertSession(workspacePath, protocol.Session{
+		SessionKey: sessionKey, AgentID: "test", ChannelType: "websocket",
+		ChatType: "dm", Status: "closed", Title: "first",
+		CreatedAt: now, LastActivity: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	listTitle := func() string {
+		t.Helper()
+		items, err := store.ListSessions(workspacePath)
+		if err != nil || len(items) != 1 {
+			t.Fatalf("ListSessions items=%+v err=%v", items, err)
+		}
+		return items[0].Title
+	}
+	if title := listTitle(); title != "first" {
+		t.Fatalf("title=%q", title)
+	}
+
+	// 命中缓存时每次重新解码：调用方改写 Options 不得污染下一次列表。
+	items, err := store.ListSessions(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items[0].Options["leak"] = true
+	again, err := store.ListSessions(workspacePath)
+	if err != nil || again[0].Options["leak"] != nil {
+		t.Fatalf("cached Options leaked between calls: %+v err=%v", again, err)
+	}
+
+	if len(loadSessionMetaSnapshots(workspacePath)) != 1 && runtime.GOOS != "windows" {
+		t.Fatal("unchanged meta should be cached after listing")
+	}
+
+	// 原子写入换新 inode。
+	updated, err := store.UpsertSession(workspacePath, protocol.Session{
+		SessionKey: sessionKey, AgentID: "test", ChannelType: "websocket",
+		ChatType: "dm", Status: "closed", Title: "second",
+		CreatedAt: now, LastActivity: now,
+	})
+	if err != nil || updated.Title != "second" {
+		t.Fatalf("upsert=%+v err=%v", updated, err)
+	}
+	if title := listTitle(); title != "second" {
+		t.Fatalf("atomic replacement not observed: title=%q", title)
+	}
+
+	// 原地改写改变大小。
+	metaPath := filepath.Join(New(storeRoot).SessionDir(workspacePath, sessionKey), "meta.json")
+	payload, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewritten := []byte(strings.Replace(string(payload), "\"second\"", "\"third-in-place\"", 1))
+	if err := os.WriteFile(metaPath, rewritten, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if title := listTitle(); title != "third-in-place" {
+		t.Fatalf("in-place rewrite not observed: title=%q", title)
+	}
+
+	// meta 被换成符号链接时不得继续返回缓存内容，而是走 no-symlink 读取并失败。
+	outside := filepath.Join(t.TempDir(), "outside.json")
+	if err := os.WriteFile(outside, rewritten, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(metaPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, metaPath); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	if _, err := store.ListSessions(workspacePath); err == nil {
+		t.Fatal("symlinked meta.json must not be served from cache")
 	}
 }
