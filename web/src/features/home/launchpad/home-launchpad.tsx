@@ -1,5 +1,5 @@
 // INPUT: Home 启动台控制器。
-// OUTPUT: 字标下方的居中单列：问候、复用共享 Composer 的主智能体输入框、新手示例、进行中的会话与接下来的定时任务。
+// OUTPUT: 字标下方以输入壳为左基线的窄列：问候、复用共享 Composer 的主智能体输入框、接下来的定时任务、新手示例与进行中的会话卡片。
 // POS: Home 启动台视图；数据与导航全部来自 useHomeLaunchController。
 "use client";
 
@@ -75,14 +75,16 @@ export function HomeLaunchpad() {
     });
   };
 
-  const hasActivity = controller.activeItems.length > 0 || controller.upcomingTasks.length > 0;
-
-  // 与字标同一条居中轴的窄列；分组只靠留白，除输入框外不再画边框，也不重复侧栏的会话列表。
+  // 字标居中，下方内容统一以输入壳左边缘为基线左对齐；不重复侧栏的会话列表与导航入口。
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-8 px-4 pb-12">
       <HomeLaunchComposer composerRef={composerRef} controller={controller} />
-      {controller.showSamples ? <HomeSampleSection onPick={fillSample} /> : null}
-      {hasActivity ? <HomeActivitySection controller={controller} /> : null}
+      {controller.showSamples || controller.activeItems.length > 0 ? (
+        <div className={cn("flex flex-col gap-8", CONTENT_INSET_CLASS)}>
+          {controller.showSamples ? <HomeSampleSection onPick={fillSample} /> : null}
+          {controller.activeItems.length > 0 ? <HomeActiveSection controller={controller} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -97,8 +99,8 @@ function HomeLaunchComposer({
   const { t } = useI18n();
 
   return (
-    <section className="flex flex-col gap-3">
-      <p className={cn("text-center", getUiTypographyClassName({ role: "pageTitle", tone: "default", weight: "regular" }))}>
+    <section className="flex flex-col gap-1">
+      <p className={cn(CONTENT_INSET_CLASS, getUiTypographyClassName({ role: "pageTitle", tone: "muted", weight: "regular" }))}>
         {t(GREETING_KEYS[controller.period])}
       </p>
       <div className="home-launch-composer" ref={composerRef}>
@@ -127,10 +129,18 @@ function HomeLaunchComposer({
           tourAnchor=""
         />
       </div>
-      {controller.submitError ? (
-        <p className={cn(CONTENT_INSET_CLASS, getUiTypographyClassName({ role: "metadata", tone: "danger" }))} role="alert">
-          {t("home.launch.submit_failed")}
-        </p>
+      {controller.submitError || controller.upcomingTasks.length > 0 ? (
+        <div className={cn("flex flex-col gap-2", CONTENT_INSET_CLASS)}>
+          {controller.submitError ? (
+            <p className={getUiTypographyClassName({ role: "metadata", tone: "danger" })} role="alert">
+              {t("home.launch.submit_failed")}
+            </p>
+          ) : null}
+          {/* 定时任务紧贴输入框：它是今天的时间提示，排在需要处理的会话之前。 */}
+          {controller.upcomingTasks.length > 0 ? (
+            <HomeUpcomingStrip onOpen={controller.openScheduledTasks} tasks={controller.upcomingTasks} />
+          ) : null}
+        </div>
       ) : null}
     </section>
   );
@@ -139,21 +149,23 @@ function HomeLaunchComposer({
 function HomeSampleSection({ onPick }: { onPick: (prompt: string) => void }) {
   const { t } = useI18n();
   return (
-    <section className={cn("flex flex-col gap-1.5", CONTENT_INSET_CLASS)}>
+    <section className="flex flex-col gap-3">
       <HomeSectionHeader title={t("home.launch.samples_title")} />
-      <div className="grid grid-cols-1 gap-x-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         {HOME_LAUNCH_SAMPLES.map((sample) => {
           const Icon = SAMPLE_ICONS[sample.id];
           return (
             <button
-              className="home-launch-row radius-control-md flex items-start gap-3 px-3 py-2.5 text-left"
+              className="home-launch-card radius-control-lg flex items-start gap-3 p-3.5 text-left"
               key={sample.id}
               onClick={() => onPick(t(sample.promptKey))}
               type="button"
             >
-              <Icon aria-hidden className="home-launch-glyph mt-0.5 h-4 w-4 shrink-0" />
+              <span className="home-launch-glyph radius-control-md flex h-9 w-9 shrink-0 items-center justify-center">
+                <Icon aria-hidden className="h-4 w-4" />
+              </span>
               <span className="flex min-w-0 flex-col gap-0.5">
-                <span className={getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" })}>
+                <span className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" })}>
                   {t(sample.titleKey)}
                 </span>
                 <span className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
@@ -168,24 +180,21 @@ function HomeSampleSection({ onPick }: { onPick: (prompt: string) => void }) {
   );
 }
 
-function HomeActivitySection({ controller }: { controller: HomeLaunchController }) {
+function HomeActiveSection({ controller }: { controller: HomeLaunchController }) {
   const { t } = useI18n();
   return (
-    <section className={cn("flex flex-col gap-1.5", CONTENT_INSET_CLASS)}>
+    <section className="flex flex-col gap-3">
       <HomeSectionHeader title={t("home.launch.activity_title")} />
-      <div className="flex flex-col">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         {controller.activeItems.map((item) => (
-          <HomeActiveRow item={item} key={item.id} onOpen={controller.openConversation} />
+          <HomeActiveCard item={item} key={item.id} onOpen={controller.openConversation} />
         ))}
-        {controller.upcomingTasks.length > 0 ? (
-          <HomeUpcomingStrip onOpen={controller.openScheduledTasks} tasks={controller.upcomingTasks} />
-        ) : null}
       </div>
     </section>
   );
 }
 
-function HomeActiveRow({
+function HomeActiveCard({
   item,
   onOpen,
 }: {
@@ -196,7 +205,7 @@ function HomeActiveRow({
   const isWorking = item.activityStatus === "working";
   return (
     <button
-      className="home-launch-row radius-control-md flex items-center gap-3 px-3 py-2 text-left"
+      className="home-launch-card radius-control-lg flex items-center gap-3 p-3 text-left"
       onClick={() => onOpen(item)}
       type="button"
     >
@@ -206,7 +215,7 @@ function HomeActiveRow({
           isWorking={isWorking}
           members={item.members}
           roomId={item.roomId}
-          size="sm"
+          size="md"
           title={item.title}
         />
       ) : (
@@ -214,20 +223,27 @@ function HomeActiveRow({
           avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
           isWorking={isWorking}
           name={item.members[0]?.name ?? item.title}
-          size="sm"
+          size="md"
         />
       )}
-      <span className={cn("max-w-[45%] shrink-0 truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
-        {item.title}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }))}>
+            {item.title}
+          </span>
+          {item.activityStatus === "waiting" ? (
+            <UiBadge shape="pill" size="xs" tone="primary">{t("home.launch.status_waiting")}</UiBadge>
+          ) : (
+            <UiBadge shape="pill" size="xs" tone="running">{t("home.launch.status_working")}</UiBadge>
+          )}
+          <span className={cn("ml-auto shrink-0", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
+            {item.timeLabel}
+          </span>
+        </span>
+        <span className={cn("truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
+          {item.summary}
+        </span>
       </span>
-      <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
-        {item.summary}
-      </span>
-      {item.activityStatus === "waiting" ? (
-        <UiBadge shape="pill" size="xs" tone="primary">{t("home.launch.status_waiting")}</UiBadge>
-      ) : (
-        <UiBadge shape="pill" size="xs" tone="running">{t("home.launch.status_working")}</UiBadge>
-      )}
     </button>
   );
 }
@@ -243,21 +259,18 @@ function HomeUpcomingStrip({
   const { locale, t } = useI18n();
   return (
     <button
-      className="home-launch-row home-launch-strip radius-control-md mt-1 flex items-center gap-3 px-3 py-2 text-left"
+      className="home-launch-card radius-control-lg flex items-center gap-3 px-3.5 py-2.5 text-left"
       onClick={onOpen}
       type="button"
     >
-      {/* 与会话头像同宽的图标槽，让「接下来」和会话名落在同一条文字起点上。 */}
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center">
-        <CalendarClock aria-hidden className="home-launch-glyph h-4 w-4" />
-      </span>
-      <span className={cn("shrink-0", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+      <span className={cn("flex shrink-0 items-center gap-1.5", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }))}>
+        <CalendarClock aria-hidden className="h-3.5 w-3.5" />
         {t("home.launch.upcoming")}
       </span>
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
         {tasks.map((task) => (
           <span className="flex min-w-0 items-center gap-1.5" key={task.job_id}>
-            <span className={cn("truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
+            <span className={cn("truncate", getUiTypographyClassName({ role: "metadata", tone: "strong" }))}>
               {task.name}
             </span>
             <span className={cn("shrink-0", getUiTypographyClassName({ role: "caption", tone: task.running ? "brand" : "soft" }))}>
@@ -274,9 +287,7 @@ function HomeUpcomingStrip({
 
 function HomeSectionHeader({ title }: { title: string }) {
   return (
-    <h3 className={cn("px-3", getUiTypographyClassName({ role: "caption", tone: "soft", weight: "medium" }))}>
-      {title}
-    </h3>
+    <h3 className={getUiTypographyClassName({ role: "control", tone: "default", weight: "semibold" })}>{title}</h3>
   );
 }
 

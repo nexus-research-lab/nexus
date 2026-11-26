@@ -881,27 +881,23 @@
     .sidebar-row-divider::after { display: none; }
   }
 
-  /* 首页列表行不画边框，只在悬停与按下时给一层中性底色，分组靠留白。 */
-  .home-launch-row {
-    transition: background var(--motion-duration-fast);
-  }
-
-  .home-launch-row:hover {
-    background: var(--interaction-hover-background);
-  }
-
-  .home-launch-row:active {
-    background: var(--interaction-active-background);
-  }
-
-  .home-launch-row:focus-visible {
-    outline: 2px solid var(--material-input-focus-border);
-    outline-offset: -2px;
-  }
-
-  /* 「接下来」定时任务条是会话行之外的提示，保留一圈细边把它和需要处理的会话分开。 */
-  .home-launch-row.home-launch-strip {
+  /* 首页卡片：半透明底与细边框，悬停加深一档；示例、进行中会话与定时任务条共用。 */
+  .home-launch-card {
+    background: color-mix(in srgb, var(--surface-card-background) 62%, transparent);
     border: 1px solid color-mix(in srgb, var(--divider-subtle-color) 90%, transparent);
+    transition: background var(--motion-duration-fast), border-color var(--motion-duration-fast), transform var(--motion-duration-fast);
+  }
+
+  .home-launch-card:hover {
+    background: color-mix(in srgb, var(--surface-card-background) 88%, transparent);
+    border-color: var(--interaction-hover-border);
+  }
+
+  .home-launch-card:active { transform: translateY(1px); }
+
+  .home-launch-card:focus-visible {
+    outline: 2px solid var(--material-input-focus-border);
+    outline-offset: 2px;
   }
 
   /*
@@ -915,6 +911,7 @@
 
   .home-launch-glyph {
     color: var(--home-ascii-hero-ink, var(--primary));
+    background: color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 10%, transparent);
   }
 
   /* 首页画布避开原生标题栏，保留控件下方的呼吸空间。 */
