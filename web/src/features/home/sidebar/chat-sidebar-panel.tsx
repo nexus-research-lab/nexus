@@ -25,6 +25,7 @@ import {
   SidebarListLoadingRows,
 } from "./sidebar-list-rows";
 import { getRoomDeletionRecoveryPresentation } from "./room-deletion-recovery";
+import { SidebarTeammateCard } from "./sidebar-teammate-card";
 import { useChatSidebarController } from "./use-chat-sidebar-controller";
 
 export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
@@ -110,7 +111,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
                 onAction={controller.list.retry}
                 title={t("sidebar.directory_load_failed")}
               />
-            ) : (
+            ) : controller.list.query || controller.directory.hasCustomAgents ? (
               <SidebarEmptyGuide
                 actionLabel={controller.list.query
                   ? undefined
@@ -126,7 +127,13 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
                   ? t("sidebar.no_matching_conversations")
                   : t("home.rooms_empty_title")}
               />
-            )}
+            ) : null}
+            {controller.list.hasLoaded && !controller.list.query && !controller.directory.hasCustomAgents ? (
+              <SidebarTeammateCard
+                onCreateAgent={controller.create.openAgent}
+                onCreateRoom={controller.create.open}
+              />
+            ) : null}
           </>
         )}
       </div>
