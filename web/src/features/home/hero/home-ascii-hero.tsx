@@ -15,16 +15,11 @@ import { useHomeAsciiScene } from "./use-home-ascii-scene";
 type HomeAsciiHeroStyle = CSSProperties & {
   "--home-ascii-clock-ink"?: string;
   "--home-ascii-hero-ink"?: string;
-  "--home-ascii-surface-background"?: string;
-  "--home-ascii-surface-border"?: string;
 };
 
 const PRESERVED_LIGHT_HERO_STYLE: HomeAsciiHeroStyle = {
   "--home-ascii-clock-ink": "#14202c",
   "--home-ascii-hero-ink": "#5b72ff",
-  "--home-ascii-surface-background":
-    "linear-gradient(180deg, rgba(251, 253, 255, 0.68), rgba(246, 249, 253, 0.6) 100%), #ebeae4",
-  "--home-ascii-surface-border": "rgba(255, 255, 255, 0.32)",
 };
 
 function shouldReduceHomeHeroMotion(prefersReducedMotion: boolean): boolean {
@@ -55,23 +50,15 @@ export function HomeAsciiHero({ children }: { children?: ReactNode }) {
   });
 
   return (
+    // 画布与其他工作区页面同一纯色底面；字标只靠自身墨色出现，不再叠渐变或光晕。
     <div
       className="surface-radius-md relative h-full w-full overflow-hidden border"
       style={{
         ...preservedVisualStyle,
-        background:
-          "var(--home-ascii-surface-background, var(--surface-canvas-background))",
-        borderColor:
-          "var(--home-ascii-surface-border, var(--surface-canvas-border))",
+        background: "var(--surface-canvas-background)",
+        borderColor: "var(--surface-canvas-border)",
       }}
     >
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 45% at 50% 22%, color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 12%, transparent), transparent)",
-        }}
-      />
 
       <div className="relative flex h-full min-h-0 flex-col overflow-y-auto">
         {/* 字标带：Canvas 只铺满这一段，指针交互与时钟都限定在字标附近。 */}

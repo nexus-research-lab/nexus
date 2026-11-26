@@ -21,11 +21,12 @@ const MOBILE_CHARSET = "01";
 const DEFAULT_HERO_INK = "#516dff";
 const DEFAULT_CLOCK_INK = "rgba(32, 45, 62, 0.88)";
 /**
- * 字标轮廓固定使用系统等宽字体，不跟随 PT Mono。
- * PT Mono 只在页面其他位置用到后才会加载，字标若引用它，轮廓会随加载时机在两种字形间跳变
- * （PT Mono 的 n/u 带衬线钩）；粒子字符与时钟仍使用 PT Mono。
+ * 字标轮廓固定使用 Menlo 一系的无钩等宽字形（Linux 回落到同源的 DejaVu Sans Mono），不跟随 PT Mono。
+ * PT Mono 只在页面其他位置用到后才会加载，字标若引用它，轮廓会随加载时机跳变；
+ * ui-monospace 在 macOS 解析为 SF Mono，它和 PT Mono 一样在 n、u 上带钩和尾巴，同样不能用。
+ * 粒子字符与时钟仍使用 PT Mono。
  */
-const WORDMARK_FONT_FAMILY = 'ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace';
+const WORDMARK_FONT_FAMILY = 'Menlo, Consolas, "DejaVu Sans Mono", monospace';
 
 interface HomeAsciiPalette {
   clockInk: string;
