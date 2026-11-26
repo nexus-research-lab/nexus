@@ -843,6 +843,79 @@
     .home-workspace-frame { padding: 24px; }
   }
 
+  /* 侧栏目录行之间的淡分隔线：从正文列起笔、不贯穿头像；悬停、选中及其上一行收起，避免线压在高亮底色边上。 */
+  .sidebar-row-divider::after {
+    content: "";
+    position: absolute;
+    left: 58px;
+    right: 8px;
+    bottom: -1.5px;
+    height: 1px;
+    background: var(--divider-subtle-color);
+    pointer-events: none;
+    transition: opacity var(--motion-duration-fast);
+  }
+
+  /* 行可能被 Tooltip 的 display:contents 包装；:has 不能嵌套，包装与未包装两种兄弟关系分开写。 */
+  .sidebar-row-divider:hover::after,
+  .sidebar-row-divider[data-active="true"]::after,
+  :has(> .sidebar-row-divider):not(:has(~ * > .sidebar-row-divider)) > .sidebar-row-divider::after,
+  :has(> .sidebar-row-divider):has(+ * > :is(.sidebar-row-divider:hover, .sidebar-row-divider[data-active="true"])) > .sidebar-row-divider::after,
+  .sidebar-row-divider:not(:only-child):not(:has(~ .sidebar-row-divider))::after,
+  .sidebar-row-divider:has(+ :is(.sidebar-row-divider:hover, .sidebar-row-divider[data-active="true"]))::after {
+    opacity: 0;
+  }
+
+  @media (width < 560px) {
+    .sidebar-row-divider::after { display: none; }
+  }
+
+  /* 首页启动台：卡片半透明叠在 ASCII 画布上，保留画布的渐变底色。 */
+  .home-launch-card {
+    background: color-mix(in srgb, var(--surface-card-background) 62%, transparent);
+    border: 1px solid color-mix(in srgb, var(--divider-subtle-color) 90%, transparent);
+    transition: background var(--motion-duration-fast), border-color var(--motion-duration-fast), transform var(--motion-duration-fast);
+  }
+
+  .home-launch-card:hover {
+    background: color-mix(in srgb, var(--surface-card-background) 88%, transparent);
+    border-color: var(--interaction-hover-border);
+  }
+
+  .home-launch-card:active { transform: translateY(1px); }
+
+  .home-launch-card:focus-visible,
+  .home-launch-chip:focus-visible {
+    outline: 2px solid var(--material-input-focus-border);
+    outline-offset: 2px;
+  }
+
+  /* 首页 Composer 没有消息流需要羽化遮挡，背板透明以露出 ASCII 画布。 */
+  .home-launch-composer {
+    --conversation-composer-backdrop: transparent;
+  }
+
+  .home-launch-glyph {
+    color: var(--home-ascii-hero-ink, var(--primary));
+    background: color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 10%, transparent);
+  }
+
+  .home-launch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--divider-subtle-color) 90%, transparent);
+    background: color-mix(in srgb, var(--surface-card-background) 40%, transparent);
+    transition: background var(--motion-duration-fast), color var(--motion-duration-fast);
+  }
+
+  .home-launch-chip:hover {
+    background: color-mix(in srgb, var(--surface-card-background) 85%, transparent);
+    color: var(--text-strong);
+  }
+
   /* 首页画布避开原生标题栏，保留控件下方的呼吸空间。 */
   :root[data-desktop-platform="macos"] .home-workspace-frame {
     padding-block-start: var(--workspace-header-height);

@@ -1,9 +1,9 @@
-// INPUT: Theme, reduced-motion preference and desktop platform.
-// OUTPUT: Hero canvas or static label using the established Windows motion exception.
+// INPUT: Theme, reduced-motion preference, desktop platform and the launchpad content below the wordmark.
+// OUTPUT: 首页画布：顶部 ASCII 字标带（Canvas 或静态字标）与其下方可滚动的启动台内容。
 // POS: Hero presentation; scene lifecycle stays in useHomeAsciiScene.
 "use client";
 
-import { useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 
 import { getDesktopRuntimeConfig } from "@/config/desktop-runtime";
 import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
@@ -36,7 +36,7 @@ function shouldReduceHomeHeroMotion(prefersReducedMotion: boolean): boolean {
   return runtimeConfig?.appMode !== "desktop" || runtimeConfig.platform !== "windows";
 }
 
-export function HomeAsciiHero() {
+export function HomeAsciiHero({ children }: { children?: ReactNode }) {
   const { theme } = useTheme();
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -56,7 +56,6 @@ export function HomeAsciiHero() {
 
   return (
     <div
-      ref={sectionRef}
       className="surface-radius-md relative h-full w-full overflow-hidden border"
       style={{
         ...preservedVisualStyle,
@@ -70,27 +69,36 @@ export function HomeAsciiHero() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse 60% 50% at 50% 50%, color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 12%, transparent), transparent)",
+            "radial-gradient(ellipse 70% 45% at 50% 22%, color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 12%, transparent), transparent)",
         }}
       />
 
-      <h2 className="sr-only">{HOME_HERO_LABEL}</h2>
-
-      {shouldReduceMotion ? (
+      <div className="relative flex h-full min-h-0 flex-col overflow-y-auto">
+        {/* 字标带：Canvas 只铺满这一段，指针交互与时钟都限定在字标附近。 */}
         <div
-          className="absolute inset-0 flex items-center justify-center font-mono text-6xl font-light italic leading-none sm:text-7xl lg:text-8xl"
-          style={{
-            color: "var(--home-ascii-hero-ink, var(--primary))",
-          }}
+          ref={sectionRef}
+          className="relative h-[clamp(170px,30vh,280px)] w-full shrink-0"
         >
-          {HOME_HERO_LABEL}
+          <h2 className="sr-only">{HOME_HERO_LABEL}</h2>
+
+          {shouldReduceMotion ? (
+            <div
+              className="absolute inset-0 flex items-center justify-center font-mono text-6xl font-light italic leading-none sm:text-7xl lg:text-8xl"
+              style={{
+                color: "var(--home-ascii-hero-ink, var(--primary))",
+              }}
+            >
+              {HOME_HERO_LABEL}
+            </div>
+          ) : (
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 block cursor-crosshair"
+            />
+          )}
         </div>
-      ) : (
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 block cursor-crosshair"
-        />
-      )}
+        {children}
+      </div>
     </div>
   );
 }

@@ -17,7 +17,8 @@ L4 | 父级: web/src/features/conversation/shared
 - `use-composer-mention.ts`: 以单一匹配对象管理 Room 成员提及，并复用共享 Mention 文本模型；已选目标的完整名称匹配同时服务投递资格与输入镜像，目录刷新时保留草稿身份
 - `slash-command-model.ts`: 解析输入框起始 Slash 查询，并以纯函数完成筛选和插入
 - `use-composer-slash-command.ts`: 管理加号菜单与 Slash 共用的 Plan 草稿模式切换，以及命令、模型与技能三级补全状态、选择、键盘导航、按需目录加载与草稿清空后的浮层收口
-- `use-conversation-composer-handlers.ts`: DM/Room 对 Composer 的发送适配
+- `use-conversation-composer-handlers.ts`: DM/Room 对 Composer 的发送适配；自动发送 initial 草稿时取走同正文的交接附件，失败归还
+- `composer-initial-attachments.ts`: 跨页面入口（首页启动台）随 `?initial=` 草稿交接已上传附件的一次性内存旁路，按正文匹配、60 秒过期
 - `controller/use-composer-controller.ts`: 除既有草稿/发送装配外，只接受同一 exact Session 的命名 WorkGraph 保存意图事件，把可见请求写入 Message 草稿并自动发送；不直接调用命名工作图创建 API
 - `attachments/`: 以单一规则表统一附件分类、批量校验、上传准备和本地展示
 - `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列，以及 已保存工作图选择器

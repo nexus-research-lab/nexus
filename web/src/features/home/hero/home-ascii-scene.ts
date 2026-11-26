@@ -20,6 +20,12 @@ const DESKTOP_CHARSET = ".:+-=*#@&~<>{}[]|/\\";
 const MOBILE_CHARSET = "01";
 const DEFAULT_HERO_INK = "#516dff";
 const DEFAULT_CLOCK_INK = "rgba(32, 45, 62, 0.88)";
+/**
+ * 字标轮廓固定使用系统等宽字体，不跟随 PT Mono。
+ * PT Mono 只在页面其他位置用到后才会加载，字标若引用它，轮廓会随加载时机在两种字形间跳变
+ * （PT Mono 的 n/u 带衬线钩）；粒子字符与时钟仍使用 PT Mono。
+ */
+const WORDMARK_FONT_FAMILY = 'ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace';
 
 interface HomeAsciiPalette {
   clockInk: string;
@@ -43,7 +49,6 @@ interface HomeAsciiClock {
   fontBig: string;
   fontSmall: string;
   hh: string;
-  hmWidth: number;
   mm: string;
   padX: number;
   padY: number;
@@ -68,7 +73,6 @@ const INITIAL_CLOCK: HomeAsciiClock = {
   fontBig: "",
   fontSmall: "",
   hh: "00",
-  hmWidth: 0,
   mm: "00",
   padX: 22,
   padY: 18,
@@ -226,7 +230,7 @@ export class HomeAsciiScene {
     this.canvas.style.height = `${height}px`;
     this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const bigSize = Math.round(Math.min(width * 0.072, height * 0.2, 56));
+    const bigSize = Math.round(Math.min(width * 0.04, height * 0.14, 30));
     const smallSize = Math.round(bigSize * 0.46);
     this.clock = {
       ...this.clock,
@@ -237,7 +241,6 @@ export class HomeAsciiScene {
       padY: isMobile ? 12 : 18,
       smallSize,
     };
-    this.measureClock();
   }
 
   private async waitForFonts(): Promise<void> {
@@ -257,10 +260,10 @@ export class HomeAsciiScene {
     if (!metricsContext) {
       return null;
     }
-    metricsContext.font = '600 80px "PT Mono", monospace';
+    metricsContext.font = `600 80px ${WORDMARK_FONT_FAMILY}`;
     const measuredWidth = metricsContext.measureText(HOME_HERO_LABEL).width || width;
     const fontSize = Math.min(
-      Math.floor((80 * width) / measuredWidth * 0.92),
+      Math.floor((80 * width) / measuredWidth * 0.7),
       Math.floor(height * 0.58),
     );
 
@@ -271,14 +274,14 @@ export class HomeAsciiScene {
     if (!context) {
       return null;
     }
-    context.font = `600 ${fontSize}px "PT Mono", monospace`;
+    context.font = `600 ${fontSize}px ${WORDMARK_FONT_FAMILY}`;
     const textWidth = context.measureText(HOME_HERO_LABEL).width;
     context.fillStyle = "#fff";
     context.textBaseline = "middle";
     context.fillText(
       HOME_HERO_LABEL,
       Math.max(0, (width - textWidth) / 2),
-      height * 0.46,
+      height * 0.54,
     );
     return context.getImageData(0, 0, width, height);
   }
@@ -333,22 +336,22 @@ export class HomeAsciiScene {
     }
   }
 
+  /** 时钟收到字标带右上角，让出下方空间给启动台输入框。 */
   private drawClock(): void {
-    const { height } = this.viewport;
-    const clockY = height - this.clock.padY - this.clock.bigSize * 0.28;
-    this.context.textAlign = "left";
-    this.context.textBaseline = "bottom";
+    const { width } = this.viewport;
+    const right = width - this.clock.padX;
+    const baseline = this.clock.padY + this.clock.bigSize;
+    const secondsText = `:${this.clock.ss}`;
+    this.context.textBaseline = "alphabetic";
+    this.context.textAlign = "right";
     this.context.fillStyle = this.palette.clockInk;
-    this.context.font = this.clock.fontBig;
-    this.context.globalAlpha = 0.82;
-    this.context.fillText(`${this.clock.hh}:${this.clock.mm}`, this.clock.padX, clockY);
     this.context.font = this.clock.fontSmall;
     this.context.globalAlpha = 0.38;
-    this.context.fillText(
-      `:${this.clock.ss}`,
-      this.clock.padX + this.clock.hmWidth + 2,
-      clockY + (this.clock.bigSize - this.clock.smallSize) * 0.82,
-    );
+    this.context.fillText(secondsText, right, baseline);
+    const secondsWidth = this.context.measureText(secondsText).width;
+    this.context.font = this.clock.fontBig;
+    this.context.globalAlpha = 0.72;
+    this.context.fillText(`${this.clock.hh}:${this.clock.mm}`, right - secondsWidth - 2, baseline);
     this.context.globalAlpha = 1;
   }
 
@@ -360,21 +363,10 @@ export class HomeAsciiScene {
       mm: pad2(now.getMinutes()),
       ss: pad2(now.getSeconds()),
     };
-    this.measureClock();
     if (this.particles.length > 0) {
       this.scheduleAnimationFrame();
     }
   };
-
-  private measureClock(): void {
-    if (!this.clock.fontBig) {
-      return;
-    }
-    this.context.font = this.clock.fontBig;
-    this.clock.hmWidth = this.context.measureText(
-      `${this.clock.hh}:${this.clock.mm}`,
-    ).width;
-  }
 
   private readonly handleMouseMove = (event: MouseEvent) => {
     this.setPointer(event.clientX, event.clientY);

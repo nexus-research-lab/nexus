@@ -2,7 +2,7 @@
 
 ## 职责边界
 
-- `home-ascii-hero.tsx` 只负责 React 视图、主题和减少动态效果偏好。
+- `home-ascii-hero.tsx` 只负责 React 视图、主题和减少动态效果偏好；画布顶部是字标带（Canvas 只铺满这一段，时钟在右上角），下方以 children 承载 `../launchpad/` 启动台并整体滚动。
 - Light/Sunny 的 ASCII Hero 使用局部 `--home-ascii-*` token 保留原有蓝色粒子、时钟和浅蓝白画布，不跟随主应用壳层的灰白黑重塑；Dark/Rain 继续消费各自主题 token。
 - `use-home-ascii-scene.ts` 只负责把 React 生命周期绑定到 Canvas 场景。
 - `home-ascii-scene.ts` 负责 Canvas、ResizeObserver、指针事件、时钟和动画资源。
@@ -12,6 +12,7 @@
 ## 约定
 
 - Canvas 场景状态不进入 React state，避免逐帧触发组件渲染。
+- 字标轮廓固定使用系统等宽字体栈，不引用按需加载的 PT Mono，避免字形随字体加载时机跳变；粒子字符与时钟继续使用 PT Mono。
 - 异步重建必须绑定递增代次；过期的字体等待或尺寸重建不得启动动画。
 - 场景销毁必须同时释放动画帧、定时器、观察器和输入事件。
 - 入场和指针回弹结束后必须停止连续 RAF；空闲时只允许时钟更新唤醒单帧，隐藏或离开视口必须暂停。
