@@ -443,6 +443,10 @@ func (r *roundRunner) persistMessage(message protocol.Message) error {
 		return err
 	}
 	r.RecordResultUsage(message, r.writeUsage)
+	return r.refreshSessionMetaAfterMessage(message)
+}
+
+func (r *roundRunner) refreshSessionMetaAfterMessage(message protocol.Message) error {
 	updated, err := r.service.refreshSessionMetaAfterMessageForOwner(
 		r.ownerUserID,
 		r.workspacePath,

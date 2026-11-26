@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -130,17 +131,23 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 	return result
 }
 
-// terminalControlMessage 识别不进入 runtime 的宿主控制记录。goal_set metadata
-// 兼容 control_only 字段上线前已经持久化的 Goal 控制历史。
+// terminalControlSubtypes 是自身即本轮终态的宿主记录：goal_set 兼容 control_only 字段上线前已经持久化的
+// Goal 控制历史；host_run_outcome 是主窗口宿主 run 没有回复时的结局，该轮不会再有 result。
+var terminalControlSubtypes = map[string]bool{
+	"goal_set": true,
+	message.SystemMessageSubtypeHostRunOutcome: true,
+}
+
+// terminalControlMessage 识别不进入 runtime 的宿主控制记录。
 func terminalControlMessage(row protocol.Message) bool {
 	if boolValueAny(row["control_only"]) {
 		return true
 	}
 	switch metadata := row["metadata"].(type) {
 	case map[string]string:
-		return strings.TrimSpace(metadata["subtype"]) == "goal_set"
+		return terminalControlSubtypes[strings.TrimSpace(metadata["subtype"])]
 	case map[string]any:
-		return stringFromAny(metadata["subtype"]) == "goal_set"
+		return terminalControlSubtypes[stringFromAny(metadata["subtype"])]
 	default:
 		return false
 	}

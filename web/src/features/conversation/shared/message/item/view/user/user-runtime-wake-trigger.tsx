@@ -1,5 +1,5 @@
 // INPUT: 已投影的触发事实（runtime 自唤醒、主窗口定时任务或跟进到点）与紧凑/展开阅读布局。
-// OUTPUT: 位于 Assistant 阅读轴上的单行触发分隔条：24px 图标槽、触发文案、可截断的任务摘要与时间。
+// OUTPUT: 位于 Assistant 阅读轴上的单行触发分隔条：24px 图标槽、触发文案、宿主 run 结局、可截断的任务摘要与时间。
 // POS: 非用户输入的 round 起点；替代用户气泡，不提供编辑、重跑或复制动作。
 import { AlarmClock, BellRing, Hourglass } from "lucide-react";
 
@@ -42,6 +42,14 @@ export function UserRuntimeWakeTrigger({ compact, presentation }: UserRuntimeWak
           <span className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" }))}>
             {t(presentation.labelKey)}
           </span>
+          {presentation.outcomeKey ? (
+            <span
+              className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "soft" }))}
+              data-host-run-outcome="true"
+            >
+              {t(presentation.outcomeKey)}
+            </span>
+          ) : null}
           {presentation.summary ? (
             <UiTooltip label={presentation.summary}>
               <span className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>

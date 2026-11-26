@@ -7,7 +7,7 @@
 - `chat-notification-target.ts` 通过有序身份规则和路径解析表统一路由、Room、Conversation 与 Session 的通知目标。
 - `chat-notification-directory.ts` 只建立共享目录索引并提供目标查询。
 - `chat-notification-model.ts` 只做完成事件判定、目标和通知内容纯投影。
-- `browser-notification.ts` 封装浏览器可见性、权限和系统通知副作用。
+- `browser-notification.ts` 封装窗口可见性、浏览器权限和系统通知副作用：桌面宿主可用时经 `app.show_notification` 发原生通知，否则退回浏览器 Notification；两条路径的点击都打开 `buildNotificationRoute` 投影的应用内路由（桌面经 `nexus:notification-open` 事件回到页面路由，不整页重载）。
 - `use-chat-notification-socket.ts` 处理 Room/DM 事件订阅、序列游标和事件分类，并把执行与人工交互生命周期写入 `../room-activity-resource.ts`。
 - `use-chat-completion-notifications.ts` 编排当前页面、未读 Store 与通知策略；精确 Conversation 在活动窗口中时直接确认目标，未读顺序只服务侧栏路由，不得进入 Feed 滚动层。
 

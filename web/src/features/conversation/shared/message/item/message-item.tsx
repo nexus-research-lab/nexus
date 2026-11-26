@@ -13,6 +13,7 @@ import type { MessageItemProps } from "./message-item-types";
 import { MessageAssistantSection } from "./view/assistant/message-assistant-section";
 import { MessageActivityClockProvider } from "./view/message-activity-clock";
 import { MessageUserSection } from "./view/user/message-user-section";
+import { projectHostRunOutcome } from "./view/user/user-message-model";
 
 function MessageItemInner({
   animateEntry = true,
@@ -65,6 +66,7 @@ function MessageItemInner({
   });
   // 活动计时从本轮最早一条消息（通常是用户发出那一刻）起算，与活动行在哪个位置渲染无关。
   const startedAt = useMemo(() => resolveRoundStartedAt(messages), [messages]);
+  const hostOutcome = useMemo(() => projectHostRunOutcome(messages), [messages]);
 
   return (
     <div
@@ -80,6 +82,7 @@ function MessageItemInner({
             <MessageUserSection
               compact={compact}
               agentMentionDirectory={agentMentionDirectory}
+              hostOutcome={hostOutcome}
               key={message.client_message_id?.trim() || message.message_id}
               message={message}
               onEditUserMessage={

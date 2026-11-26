@@ -171,6 +171,16 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         self.openRoute(route)
       }
       return ["opened": true]
+    case "app.show_notification":
+      let shown = DesktopNotificationCenter.shared.show(
+        title: request.stringPayload("title"),
+        body: request.stringPayload("body"),
+        tag: request.stringPayload("tag"),
+        route: request.stringPayload("route")
+      ) { [weak self] route in
+        self?.openNotificationRoute(route)
+      }
+      return ["shown": shown]
     case "app.start_update":
       return ["status": updateStarter()]
     case "app.get_persistent_state":
@@ -197,6 +207,24 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     default:
       throw DesktopBridgeError.unsupportedKind(request.kind)
     }
+  }
+
+  /// 通知点击：唤回窗口后交给页面路由跳转，避免整页重载；页面已经不在时退回宿主打开路由。
+  private func openNotificationRoute(_ rawRoute: String) {
+    let route = DesktopWebRoute.appRoute(rawRoute)
+    guard let window = webView?.window else {
+      if let route {
+        openRoute(route)
+      }
+      return
+    }
+    window.makeKeyAndOrderFront(nil)
+    NSApp.activate()
+    guard route != nil, let payload = try? JSONSerialization.data(withJSONObject: ["route": rawRoute]),
+          let json = String(data: payload, encoding: .utf8) else {
+      return
+    }
+    evaluate("window.dispatchEvent(new CustomEvent('nexus:notification-open', { detail: \(json) }));")
   }
 
   private func openExternalURL(_ rawURL: String) throws {

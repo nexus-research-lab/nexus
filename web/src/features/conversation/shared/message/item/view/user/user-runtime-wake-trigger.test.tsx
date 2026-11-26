@@ -5,10 +5,10 @@ import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
-import type { UserMessage } from "@/types/conversation/message/entity";
+import type { Message, UserMessage } from "@/types/conversation/message/entity";
 
 import { MessageUserSection } from "./message-user-section";
-import { projectRuntimeWakePresentation } from "./user-message-model";
+import { projectHostRunOutcome, projectRuntimeWakePresentation } from "./user-message-model";
 
 const SUMMARY = 'Background command "Wait for stage1 confirmation" completed (exit code 0)';
 
@@ -86,4 +86,30 @@ it("renders a runtime wake as an action-free trigger row instead of a user bubbl
   expect(note.closest("[data-message-kind='runtime-wake']")?.getAttribute("data-conversation-round-user-anchor")).toBe("true");
   expect(document.querySelector(".nexus-chat-user-frame")).toBeNull();
   expect(screen.queryByRole("button")).toBeNull();
+});
+
+it("folds a host run outcome into the trigger divider", () => {
+  const outcome = (value: string): Message => ({
+    message_id: "host_outcome_round-wake",
+    session_key: "agent:a:ws:dm:c",
+    agent_id: "a",
+    round_id: "round-wake",
+    role: "system",
+    content: value,
+    timestamp: Date.UTC(2026, 10, 19, 1, 2),
+    metadata: { subtype: "host_run_outcome", outcome: value },
+  });
+  expect(projectHostRunOutcome([outcome("quiet")])).toBe("message.host_run.quiet");
+  expect(projectHostRunOutcome([outcome("failed")])).toBe("message.host_run.failed");
+  expect(projectHostRunOutcome([outcome("unknown")])).toBeNull();
+  expect(projectHostRunOutcome([])).toBeNull();
+
+  const message = wakeMessage({ input_kind: "scheduled_task", task_name: "日报" });
+  render(
+    <I18nProvider>
+      <MessageUserSection compact={false} hostOutcome="message.host_run.quiet" message={message} />
+    </I18nProvider>,
+  );
+  const note = screen.getByRole("note");
+  expect(note.querySelector("[data-host-run-outcome='true']")?.textContent).toBe("Nothing to report");
 });

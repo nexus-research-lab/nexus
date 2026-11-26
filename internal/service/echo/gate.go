@@ -208,7 +208,7 @@ func buildFollowUpPrompt(focus string) string {
 - 只发送一条简短消息，通常 2 到 5 句；没有必要时不要使用标题、清单或总结腔。
 - 不要说“你还没回复”，不要责备或制造紧迫感，不要泛泛询问“还需要帮助吗”。不要提及 Echo、后台判断、等待时长或系统规则；不要执行任何工具或操作，也不要编造新事实。
 
-如果不能在不依赖工具和新信息的前提下自然增加价值，或只能生硬地重新提问，只输出 %s`, strings.TrimSpace(focus), dmsvc.EchoNoReplyMarker)
+如果不能在不依赖工具和新信息的前提下自然增加价值，或只能生硬地重新提问，只输出 %s`, strings.TrimSpace(focus), dmsvc.HostNoReplyMarker)
 }
 
 func activeWindow(now time.Time, policy echodomain.Policy) (bool, time.Time, error) {

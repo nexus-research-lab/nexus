@@ -36,6 +36,13 @@
     - 只对可信主智能体主窗口 round 开放，目标会话由宿主 Actor 固定；到点时间 5 分钟到 7 天，每个主窗口至多 10 条待触发；同一 `request_id` 的重试只留一条。用户要的提醒与周期工作仍是定时任务。
     - 跟进是 `follow_up` 宿主事件，到点后与定时任务同路：空闲独占一轮，运行中在安全点注入；模型看到 `<follow-up id=… set_at=…>` 包装的备注，时间线以「跟进 · 备注摘要」分隔条呈现（`metadata.input_kind=follow_up`）。
     - 存在待触发跟进时，宿主把 `<pending_follow_ups>` 作为上下文告知注入（变化时追加，compact 后重新告知），模型据此避免重复设定。
+  - **宿主 run（空闲独占的定时任务 / 跟进轮）**：以延迟提交轮执行，工具与权限照常可用，但过程不推送也不进入可见历史；时间线只显示触发分隔条与运行态，停止按钮照常生效。
+    - 模型可以沉默：整条输出 trim 后为空或恰为 `<nexus_no_reply/>`（`dm.HostNoReplyMarker`，与 Echo 共用）即不提醒。
+    - 收口只留一条记录：有回复 → 作为 overlay assistant 提交（照常触发未读与系统通知）；沉默 / 失败 / 中断 → 同轮写入 `role=system`、`metadata.subtype=host_run_outcome`、`metadata.outcome=quiet|failed|stopped` 的 overlay 记录，前端并进分隔条显示「无需提醒 / 未完成 / 已停止」，不产生通知。
+    - transcript 保留（`KeepTranscript`），模型下一轮仍记得这次 run 做过什么；历史投影按 round purpose `host_run` 隐藏其过程。
+    - `host_run_outcome` 本身即该轮终态：历史不再为其补 interrupted，恢复上下文只把 `failed` 视为失败。
+    - 宿主 run 期间用户输入不在安全点注入，等它收口后起新一轮；Echo 仍会被用户输入取消。注入进用户轮次或与用户消息同批的宿主事件照常可见。
+    - 不加节奏限制（冷却、日上限、连续轮次上限）。
   - **Echo**：主动跟进只在主窗口生效，是宿主写入的 `echo` 事件，规则见 [echo-spec](echo-spec.md)。它只在主窗口空闲时起隐藏的无工具轮，从不在安全点注入；任何用户输入都会取消待定的 echo 事件。
   - 宿主内部的恢复输入继续走原输入队列，在 inbox 之后处理；其他 Agent 的 DM 与 Room 不受影响。
 - 主窗口是长期单会话，上下文压缩与其他 Agent DM 共用 runtime 机制，宿主不另设压缩流程：

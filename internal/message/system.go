@@ -200,6 +200,10 @@ func normalizeCompactBoundaryMetadata(data map[string]any) map[string]any {
 
 const SystemMessageSubtypeGuidedInput = "guided_input"
 
+// SystemMessageSubtypeHostRunOutcome 是主窗口宿主 run 没有回复时的结局记录（metadata.outcome：quiet / failed / stopped）；
+// 它同时是该轮的 durable 终态，恢复上下文据此判断上一轮是否失败。
+const SystemMessageSubtypeHostRunOutcome = "host_run_outcome"
+
 // GuidedInputMessageInput 描述历史时间线中的用户引导。
 type GuidedInputMessageInput struct {
 	MessageID     string

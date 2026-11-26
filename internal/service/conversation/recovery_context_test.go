@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -49,5 +50,20 @@ func TestRecoveryContextRecognizesMaterializedIncompleteRound(t *testing.T) {
 		"result_summary": map[string]any{"subtype": "interrupted", "is_error": false, "terminal_reason": "interrupted_by_host"}}}
 	if blocks := RoundRecoveryContextualInputs(history, ""); len(blocks) != 1 {
 		t.Fatalf("blocks = %#v", blocks)
+	}
+}
+
+func TestRecoveryContextReadsHostRunOutcome(t *testing.T) {
+	for outcome, wantBlocks := range map[string]int{"quiet": 0, "stopped": 0, "failed": 1} {
+		history := []protocol.Message{
+			{"role": "user", "round_id": "host", "agent_id": "a", "content": "<scheduled-task>"},
+			{"role": "system", "round_id": "host", "agent_id": "a", "content": outcome, "metadata": map[string]any{
+				"subtype": messagepkg.SystemMessageSubtypeHostRunOutcome, "outcome": outcome,
+			}},
+			{"role": "user", "round_id": "current", "agent_id": "a"},
+		}
+		if blocks := RoundRecoveryContextualInputs(history, "a", "current"); len(blocks) != wantBlocks {
+			t.Fatalf("%s: recovery blocks = %#v", outcome, blocks)
+		}
 	}
 }

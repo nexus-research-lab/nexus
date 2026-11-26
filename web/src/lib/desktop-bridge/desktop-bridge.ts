@@ -13,6 +13,7 @@ type DesktopBridgeKind =
   | "app.open_workspace_file"
   | "app.export_logs"
   | "app.open_route"
+  | "app.show_notification"
   | "app.start_update"
   | "app.get_persistent_state"
   | "app.set_persistent_state"
@@ -196,6 +197,20 @@ export async function exportDesktopLogs(): Promise<DesktopExportLogsResult> {
 
 export async function openDesktopRoute(route: string): Promise<void> {
   await invokeDesktopBridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
+}
+
+export interface DesktopNotification {
+  body: string;
+  /** 点击后宿主唤回窗口并打开的应用内路由；为空时只唤回窗口。 */
+  route: string | null;
+  /** 同一 tag 的新通知替换旧通知。 */
+  tag: string;
+  title: string;
+}
+
+/** 宿主未获系统授权或不在 App bundle 内运行时返回 shown=false，调用方无需重试。 */
+export function showDesktopNotification(notification: DesktopNotification): Promise<{ shown: boolean }> {
+  return invokeDesktopBridge("app.show_notification", { ...notification, route: notification.route ?? "" });
 }
 
 export async function startDesktopUpdate(): Promise<DesktopUpdateStartResult> {

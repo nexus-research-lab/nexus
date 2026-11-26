@@ -193,8 +193,14 @@ func (s *Service) drainMainInbox(ctx context.Context, target mainInboxTarget) bo
 	if principal.UserID != "" {
 		roundCtx = authctx.WithQueuedHumanPrincipalBinding(ctx, authctx.QueuedHumanPrincipalBinding(principal))
 	}
-	err = s.handleChat(roundCtx, mainInboxRequest(target, roundID, batch), chatExecutionInline)
+	hostRun := isHostInboxEvent(batch[0])
+	if hostRun {
+		// 宿主 run 不接受安全点注入：期间到来的输入等它收口后另起一轮。
+		s.hostRuns.Store(roundID, struct{}{})
+	}
+	err = s.handleChat(roundCtx, s.mainInboxRequest(target, roundID, batch), chatExecutionInline)
 	if err != nil {
+		s.hostRuns.Delete(roundID)
 		s.releaseMainInbox(ctx, target, roundID)
 		s.reportMainInboxFailure(ctx, target, err)
 		return false
@@ -268,9 +274,9 @@ func (s *Service) claimMainInbox(
 	return selectEvents(picked, moved), nil
 }
 
-func mainInboxRequest(target mainInboxTarget, roundID string, batch []inboxstore.Event) Request {
+func (s *Service) mainInboxRequest(target mainInboxTarget, roundID string, batch []inboxstore.Event) Request {
 	if isHostInboxEvent(batch[0]) {
-		return mainInboxHostRequest(target, roundID, batch[0])
+		return s.mainInboxHostRequest(target, roundID, batch[0])
 	}
 	contents := make([]string, 0, len(batch))
 	var attachments []protocol.ChatAttachment
@@ -305,6 +311,9 @@ func (s *Service) mainInboxGuidanceHook(target mainInboxTarget) sdkhook.Callback
 			return sdkhook.Output{}, nil
 		}
 		roundID := running[0]
+		if _, hostRun := s.hostRuns.Load(roundID); hostRun {
+			return sdkhook.Output{}, nil
+		}
 		events, err := s.claimMainInbox(ctx, target, roundID, guidanceBatch)
 		if err != nil || len(events) == 0 {
 			return sdkhook.Output{}, err

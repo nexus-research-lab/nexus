@@ -16,6 +16,8 @@ internal sealed class DesktopTrayController : IDisposable
     private readonly Forms.ContextMenuStrip contextMenu;
     private readonly Icon icon;
     private readonly Forms.NotifyIcon notifyIcon;
+    // 托盘气泡同一时刻只有一条，点击只执行最近一次通知的动作。
+    private Action? balloonClicked;
     private bool disposed;
 
     public DesktopTrayController(
@@ -77,6 +79,19 @@ internal sealed class DesktopTrayController : IDisposable
             Visible = true,
         };
         notifyIcon.MouseClick += HandleMouseClick;
+        notifyIcon.BalloonTipClicked += HandleBalloonTipClicked;
+        notifyIcon.BalloonTipClosed += HandleBalloonTipClosed;
+    }
+
+    /// <summary>以托盘气泡发出系统通知（Windows 10/11 显示为系统 toast）；点击时执行 onClick。</summary>
+    public void ShowNotification(string title, string body, Action onClick)
+    {
+        if (disposed)
+        {
+            return;
+        }
+        balloonClicked = onClick;
+        notifyIcon.ShowBalloonTip(5000, title, body, Forms.ToolTipIcon.None);
     }
 
     public void Dispose()
@@ -88,6 +103,8 @@ internal sealed class DesktopTrayController : IDisposable
 
         disposed = true;
         notifyIcon.MouseClick -= HandleMouseClick;
+        notifyIcon.BalloonTipClicked -= HandleBalloonTipClicked;
+        notifyIcon.BalloonTipClosed -= HandleBalloonTipClosed;
         notifyIcon.Visible = false;
         notifyIcon.Dispose();
         contextMenu.Dispose();
@@ -129,6 +146,18 @@ internal sealed class DesktopTrayController : IDisposable
         {
             RestoreWindow();
         }
+    }
+
+    private void HandleBalloonTipClicked(object? sender, EventArgs e)
+    {
+        Action? onClick = balloonClicked;
+        balloonClicked = null;
+        onClick?.Invoke();
+    }
+
+    private void HandleBalloonTipClosed(object? sender, EventArgs e)
+    {
+        balloonClicked = null;
     }
 
     private void RestoreWindow()
