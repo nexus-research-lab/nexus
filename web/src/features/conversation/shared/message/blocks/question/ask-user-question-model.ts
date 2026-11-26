@@ -21,20 +21,17 @@ export type QuestionInteractionStatus =
   | "active"
   | "failed"
   | "observer"
-  | "submitted"
-  | "timed_out";
+  | "submitted";
 
 const TERMINAL_QUESTION_STATUSES = new Set<QuestionInteractionStatus>([
   "failed",
   "submitted",
-  "timed_out",
 ]);
 
 interface QuestionStatusInput {
   failed: boolean;
   interactionDisabled: boolean;
   submitted: boolean;
-  timedOut: boolean;
 }
 
 function parseQuestionOption(value: unknown): QuestionOption | null {
@@ -314,13 +311,11 @@ export function resolveQuestionInteractionStatus({
   failed,
   interactionDisabled,
   submitted,
-  timedOut,
 }: QuestionStatusInput): QuestionInteractionStatus {
   const candidates: Array<{
     active: boolean;
     status: QuestionInteractionStatus;
   }> = [
-    { active: timedOut, status: "timed_out" },
     { active: failed, status: "failed" },
     { active: submitted, status: "submitted" },
     { active: interactionDisabled, status: "observer" },

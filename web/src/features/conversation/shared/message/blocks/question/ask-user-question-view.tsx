@@ -253,8 +253,7 @@ interface QuestionResolutionPresentation {
     | "composer.question_status_active"
     | "composer.question_status_failed"
     | "composer.question_status_observer"
-    | "composer.question_status_submitted"
-    | "composer.question_status_timed_out";
+    | "composer.question_status_submitted";
   toneClassName: string;
 }
 
@@ -281,11 +280,6 @@ const QUESTION_RESOLUTION_PRESENTATIONS: Record<
     Icon: CheckCircle2,
     labelKey: "composer.question_status_submitted",
     toneClassName: "text-(--success)",
-  },
-  timed_out: {
-    Icon: AlertCircle,
-    labelKey: "composer.question_status_timed_out",
-    toneClassName: "text-(--warning)",
   },
 };
 

@@ -5,23 +5,21 @@ import type { AssistantContentMode } from "../../message-item-projection";
 interface UseProcessExpansionLifecycleOptions {
   assistantContentMode: AssistantContentMode;
   hasPendingPermissions: boolean;
-  hasTimedOutQuestion: boolean;
   setIsProcessExpanded: (isOpen: boolean) => void;
 }
 
 export function useProcessExpansionLifecycle({
   assistantContentMode,
   hasPendingPermissions,
-  hasTimedOutQuestion,
   setIsProcessExpanded,
 }: UseProcessExpansionLifecycleOptions): void {
   const wasLiveModeRef = useRef(assistantContentMode === "dm_live");
 
   useEffect(() => {
-    if (hasPendingPermissions || hasTimedOutQuestion) {
+    if (hasPendingPermissions) {
       setIsProcessExpanded(true);
     }
-  }, [hasPendingPermissions, hasTimedOutQuestion, setIsProcessExpanded]);
+  }, [hasPendingPermissions, setIsProcessExpanded]);
 
   useEffect(() => {
     const isLiveMode = assistantContentMode === "dm_live";

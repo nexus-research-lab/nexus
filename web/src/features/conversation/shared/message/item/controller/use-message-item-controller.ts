@@ -10,7 +10,6 @@ import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 
 import type { MessageItemProps } from "../message-item-types";
 import { resolvePendingInteractionOwner } from "../message-item-projection";
-import { hasTimedOutAskUserQuestion } from "../process/message-question-timeout";
 import { resolveAssistantDisplayState } from "./display/message-item-display-model";
 import { useProcessExpansionLifecycle } from "./display/use-process-expansion-lifecycle";
 import { useMessageItemProjection } from "./projection/use-message-item-projection";
@@ -72,14 +71,10 @@ export function useMessageItemController({
     pendingPermissionCount: pendingPermissions.length,
     projection,
   });
-  const hasTimedOutQuestion = hasTimedOutAskUserQuestion(
-    projection.processProjection.content,
-  );
 
   useProcessExpansionLifecycle({
     assistantContentMode,
     hasPendingPermissions: pendingPermissions.length > 0,
-    hasTimedOutQuestion,
     setIsProcessExpanded,
   });
 

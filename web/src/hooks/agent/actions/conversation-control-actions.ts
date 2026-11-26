@@ -162,6 +162,7 @@ function buildPermissionResponse(
     decision: payload.decision,
     message: payload.message || PERMISSION_DECISION_MESSAGES[payload.decision],
     interrupt: payload.interrupt === true,
+    ...(payload.feedback ? { feedback: payload.feedback } : {}),
     ...(configurationSecrets
       ? { configuration_secrets: configurationSecrets }
       : {}),

@@ -562,3 +562,22 @@ func TestPermissionReplayDoesNotDuplicateDelayedLiveDispatch(t *testing.T) {
 		synctest.Wait()
 	})
 }
+
+// 用户不点批准、直接打字：拒绝并把原话交给模型，本轮不中断；没有原话时保持原拒绝语义。
+func TestPermissionDenyCarriesUserFeedbackWithoutInterrupt(t *testing.T) {
+	ctx := NewContext()
+	pending := &PendingRequest{RequestID: "req-1", ToolName: "Bash"}
+
+	withFeedback := ctx.buildPermissionDecision(t.Context(), pending, map[string]any{
+		"decision": "deny", "feedback": "  先跑测试再提交  ", "interrupt": true,
+	})
+	if withFeedback.Behavior != sdkpermission.BehaviorDeny || withFeedback.Interrupt ||
+		withFeedback.Message != userFeedbackDenyPrefix+"先跑测试再提交" {
+		t.Fatalf("decision = %+v, 用户原话应作为拒绝理由且不中断", withFeedback)
+	}
+
+	plain := ctx.buildPermissionDecision(t.Context(), pending, map[string]any{"decision": "deny"})
+	if plain.Message != "User denied permission" || plain.Interrupt {
+		t.Fatalf("decision = %+v", plain)
+	}
+}

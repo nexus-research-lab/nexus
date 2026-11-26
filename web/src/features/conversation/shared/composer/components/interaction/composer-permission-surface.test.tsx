@@ -1,5 +1,5 @@
 // INPUT: Composer 权限请求、密钥输入、主决策与范围菜单用户事件。
-// OUTPUT: 证明请求/禁用切换关闭范围菜单，失败保留密钥，重试只提交 runtime 原始建议。
+// OUTPUT: 证明请求/禁用切换关闭范围菜单，失败保留密钥，重试只提交 runtime 原始建议，直接打字回车即带原话拒绝。
 // POS: Composer 权限确认面行为测试；权限建议投影细节由纯模型测试负责。
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -58,6 +58,24 @@ describe("ComposerPermissionSurface", () => {
       decision: "deny",
       request_id: "permission-1",
     });
+  });
+
+  it("denies with the typed instruction when the user types instead of approving", async () => {
+    const user = userEvent.setup();
+    const { onResponse } = renderPermissionSurface();
+    const feedback = screen.getByLabelText("composer.permission_feedback_placeholder");
+
+    expect(document.activeElement).toBe(feedback);
+    await user.keyboard("{Enter}");
+    expect(onResponse).not.toHaveBeenCalled();
+
+    await user.keyboard("  先跑测试  {Enter}");
+    expect(onResponse).toHaveBeenCalledWith({
+      decision: "deny",
+      feedback: "先跑测试",
+      request_id: "permission-1",
+    });
+    expect(screen.getByRole("button", { name: "composer.permission_deny_with_feedback" })).toBeTruthy();
   });
 
   it("uses masked shared inputs and enables allow only after every secret is filled", async () => {

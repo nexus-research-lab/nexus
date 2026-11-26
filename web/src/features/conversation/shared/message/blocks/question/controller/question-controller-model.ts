@@ -15,7 +15,6 @@ import {
   type QuestionDraft,
   type QuestionInteractionStatus,
 } from "../ask-user-question-model";
-import { isAskUserQuestionTimedOutResult } from "../ask-user-question-timeout";
 
 export interface QuestionInteractionProjection {
   readOnly: boolean;
@@ -41,13 +40,10 @@ export function projectQuestionInteraction({
   toolResult?: ToolResultContent;
 }): QuestionInteractionProjection {
   const submitted = [initialSubmitted, hasLocalSubmission].some(Boolean);
-  const timedOut = isAskUserQuestionTimedOutResult(toolResult);
-  const failed = [Boolean(toolResult?.is_error), !timedOut].every(Boolean);
   const status = resolveQuestionInteractionStatus({
-    failed,
+    failed: Boolean(toolResult?.is_error),
     interactionDisabled,
     submitted,
-    timedOut,
   });
   return {
     readOnly: status !== "active",

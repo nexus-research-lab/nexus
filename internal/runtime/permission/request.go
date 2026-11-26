@@ -249,11 +249,17 @@ func (c *Context) buildPermissionDecision(
 			deserializePermissionUpdates(message["updated_permissions"]),
 		)
 	}
+	// 用户没批准、而是直接说了想怎么做：原话交给模型，本轮继续（与 Claude Code 一致）。
+	if feedback := strings.TrimSpace(textutil.AnyString(message["feedback"])); feedback != "" {
+		return sdkpermission.Deny(userFeedbackDenyPrefix+feedback, false)
+	}
 	return sdkpermission.Deny(
 		textutil.FirstNonEmpty(textutil.AnyString(message["message"]), "User denied permission"),
 		normalizeBool(message["interrupt"]),
 	)
 }
+
+const userFeedbackDenyPrefix = "The user did not approve this tool call and told you what to do instead:\n"
 
 func normalizeConfigurationSecrets(value any) map[string]string {
 	raw, ok := value.(map[string]any)

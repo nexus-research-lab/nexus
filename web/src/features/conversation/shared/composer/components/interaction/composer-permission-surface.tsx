@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前 Composer-owned 权限/计划请求、Agent 身份与响应动作。
- * OUTPUT: 工具类型、人话摘要、必要参数和单一决策行组成的精简确认面。
+ * OUTPUT: 工具类型、人话摘要、必要参数、直接说明做法的输入框和单一决策行组成的精简确认面；写了做法即按拒绝提交原话。
  * POS: Composer 人工介入的唯一确认视图；范围菜单按 request_id 重置且服从当前可提交状态，决定动作显式消费领域命中区配方。
  */
 import {
@@ -96,6 +96,14 @@ export function ComposerPermissionSurface({
     false,
     permission.request_id,
   );
+  const [feedback, setFeedback] = useResettableState("", permission.request_id);
+  const trimmedFeedback = feedback.trim();
+  const feedbackInputRef = useRef<HTMLInputElement>(null);
+  const focusFeedback = (permission.configuration_secret_slots?.length ?? 0) === 0;
+  // 卡片替换了 Composer 输入壳：每个新请求把焦点交给做法输入框，用户可以直接打字；需要填密钥时不抢焦点。
+  useEffect(() => {
+    if (focusFeedback) feedbackInputRef.current?.focus();
+  }, [focusFeedback, permission.request_id]);
   const [secretDraft, setSecretDraft] = useState(() =>
     createConfigurationSecretDraft(permission.request_id));
   const scopeMenuAnchorRef = useRef<HTMLButtonElement>(null);
@@ -168,6 +176,7 @@ export function ComposerPermissionSurface({
     const accepted = onResponse({
       decision,
       request_id: permission.request_id,
+      ...(decision === "deny" && trimmedFeedback ? { feedback: trimmedFeedback } : {}),
       ...(configurationSecrets
         ? { configuration_secrets: configurationSecrets }
         : {}),
@@ -328,6 +337,23 @@ export function ComposerPermissionSurface({
         </fieldset>
       ) : null}
 
+      <UiInput
+        aria-label={t("composer.permission_feedback_placeholder")}
+        controlSize="lg"
+        data-composer-permission-feedback
+        disabled={interactionDisabled}
+        onChange={(event) => setFeedback(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" || event.nativeEvent.isComposing || !trimmedFeedback) return;
+          event.preventDefault();
+          respond("deny");
+        }}
+        placeholder={t("composer.permission_feedback_placeholder")}
+        ref={feedbackInputRef}
+        value={feedback}
+        variant="surface"
+      />
+
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
         <UiButton
           className={cn(CONVERSATION_DECISION_ACTION_CLASS_NAME, decisionWidthClassName)}
@@ -338,7 +364,7 @@ export function ComposerPermissionSurface({
           size="sm"
           variant="surface"
         >
-          {t("composer.permission_deny")}
+          {t(trimmedFeedback ? "composer.permission_deny_with_feedback" : "composer.permission_deny")}
         </UiButton>
         <UiSplitButton
           ariaLabel={t("composer.permission_allow_once")}
