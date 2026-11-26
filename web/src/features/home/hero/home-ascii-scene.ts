@@ -21,11 +21,12 @@ const MOBILE_CHARSET = "01";
 const DEFAULT_HERO_INK = "#516dff";
 const DEFAULT_CLOCK_INK = "rgba(32, 45, 62, 0.88)";
 /**
- * 字标轮廓固定使用系统等宽字体，不跟随 PT Mono。
- * PT Mono 只在页面其他位置用到后才会加载，字标若引用它，轮廓会随加载时机在两种字形间跳变
- * （PT Mono 的 n/u 带衬线钩）；粒子字符与时钟仍使用 PT Mono。
+ * 字标轮廓固定使用 Menlo 一系的无钩等宽字形（Linux 回落到同源的 DejaVu Sans Mono），不跟随 PT Mono。
+ * PT Mono 只在页面其他位置用到后才会加载，字标若引用它，轮廓会随加载时机跳变；
+ * ui-monospace 在 macOS 解析为 SF Mono，它和 PT Mono 一样在 n、u 上带钩和尾巴，同样不能用。
+ * 粒子字符与时钟仍使用 PT Mono。
  */
-const WORDMARK_FONT_FAMILY = 'ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace';
+const WORDMARK_FONT_FAMILY = 'Menlo, Consolas, "DejaVu Sans Mono", monospace';
 
 interface HomeAsciiPalette {
   clockInk: string;
@@ -230,7 +231,8 @@ export class HomeAsciiScene {
     this.canvas.style.height = `${height}px`;
     this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const bigSize = Math.round(Math.min(width * 0.04, height * 0.14, 30));
+    // 时钟只做角落里的环境信息，字号压到 20px 以内，不和中间的字标抢主角。
+    const bigSize = Math.round(Math.min(width * 0.03, height * 0.1, 20));
     const smallSize = Math.round(bigSize * 0.46);
     this.clock = {
       ...this.clock,
@@ -264,7 +266,7 @@ export class HomeAsciiScene {
     const measuredWidth = metricsContext.measureText(HOME_HERO_LABEL).width || width;
     const fontSize = Math.min(
       Math.floor((80 * width) / measuredWidth * 0.7),
-      Math.floor(height * 0.58),
+      Math.floor(height * 0.74),
     );
 
     const offscreen = document.createElement("canvas");
@@ -281,7 +283,7 @@ export class HomeAsciiScene {
     context.fillText(
       HOME_HERO_LABEL,
       Math.max(0, (width - textWidth) / 2),
-      height * 0.54,
+      height * 0.5,
     );
     return context.getImageData(0, 0, width, height);
   }
@@ -346,11 +348,11 @@ export class HomeAsciiScene {
     this.context.textAlign = "right";
     this.context.fillStyle = this.palette.clockInk;
     this.context.font = this.clock.fontSmall;
-    this.context.globalAlpha = 0.38;
+    this.context.globalAlpha = 0.3;
     this.context.fillText(secondsText, right, baseline);
     const secondsWidth = this.context.measureText(secondsText).width;
     this.context.font = this.clock.fontBig;
-    this.context.globalAlpha = 0.72;
+    this.context.globalAlpha = 0.5;
     this.context.fillText(`${this.clock.hh}:${this.clock.mm}`, right - secondsWidth - 2, baseline);
     this.context.globalAlpha = 1;
   }
