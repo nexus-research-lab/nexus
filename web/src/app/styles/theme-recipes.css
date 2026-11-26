@@ -884,33 +884,33 @@
   }
 
   /*
-   * 品牌栏夜空：深靛夜色自顶部向下过渡为柔和云光，再羽化融入侧栏底面。
-   * 夜色在品牌栏高度内完成过渡，只向下多留一小段与侧栏底面同色的羽化，不染到搜索框等控件。
-   * 装饰层压在侧栏底面之上、导航轨与目录内容之下；导航轨顶部底色同步羽化，让过渡在整条侧栏宽度上连续。
-   * pointer-events 关闭，不影响拖动与点击。
-   * 颜色只在本配方内定义，由 --sidebar-sky-* 按主题切换；正文区域不铺任何纹理。
+   * 品牌栏夜空：SVG 插画（sidebar-night-sky.tsx）负责斜向夜色、光晕、星点与成形云朵，
+   * 本配方只提供配色变量与两段渐隐——::after 叠一层侧栏底面色把云朵下沿洗成柔光，
+   * mask 再把整层羽化掉，最终与侧栏底面无缝衔接。装饰层压在导航轨与目录内容之下，
+   * 搜索框等控件保留自身底面；pointer-events 关闭，不影响拖动与点击。
    */
   .sidebar-panel-shell {
     --sidebar-sky-height: calc(var(--workspace-header-height, 60px) + 28px);
-    --sidebar-sky-night: #100e2b;
-    --sidebar-sky-dusk: #262361;
-    --sidebar-sky-violet: #5b54b0;
-    --sidebar-sky-haze: #8f92d8;
-    --sidebar-sky-cloud: rgba(246, 246, 252, 0.95);
-    --sidebar-sky-cloud-soft: rgba(226, 228, 250, 0.85);
-    --sidebar-sky-star: rgba(255, 255, 255, 0.92);
-    /* 夜空最终落到侧栏底面本身的颜色，保证与下方目录无缝衔接。 */
+    --sidebar-sky-top: #2a1a58;
+    --sidebar-sky-mid: #1d1b4b;
+    --sidebar-sky-bottom: #141c38;
+    --sidebar-sky-glow: #5c62d8;
+    --sidebar-sky-cloud-a: #6f9cff;
+    --sidebar-sky-cloud-b: #7c6cf2;
+    --sidebar-sky-cloud-c: #b36ee8;
+    --sidebar-sky-star: #eef0ff;
     --sidebar-sky-ground: var(--surface-shell-directory-background);
   }
 
   :root[data-theme="dark"] .sidebar-panel-shell,
   :root[data-theme="rain"] .sidebar-panel-shell {
-    --sidebar-sky-night: #0b0a22;
-    --sidebar-sky-dusk: #1d1b4f;
-    --sidebar-sky-violet: #3c3887;
-    --sidebar-sky-haze: rgba(62, 60, 128, 0.7);
-    --sidebar-sky-cloud: rgba(150, 156, 230, 0.34);
-    --sidebar-sky-cloud-soft: rgba(120, 118, 210, 0.26);
+    --sidebar-sky-top: #21164a;
+    --sidebar-sky-mid: #171640;
+    --sidebar-sky-bottom: #0f1530;
+    --sidebar-sky-glow: #4a4fb8;
+    --sidebar-sky-cloud-a: #4f78d6;
+    --sidebar-sky-cloud-b: #5d50c4;
+    --sidebar-sky-cloud-c: #8650b8;
   }
 
   .sidebar-panel-sky {
@@ -922,65 +922,44 @@
     height: var(--sidebar-sky-height);
     overflow: hidden;
     pointer-events: none;
-    background:
-      radial-gradient(70% 90% at 12% -10%, var(--sidebar-sky-dusk) 0%, transparent 70%),
-      radial-gradient(60% 80% at 88% 0%, color-mix(in srgb, var(--sidebar-sky-violet) 70%, transparent) 0%, transparent 72%),
-      linear-gradient(
-        180deg,
-        var(--sidebar-sky-night) 0%,
-        var(--sidebar-sky-dusk) 26%,
-        var(--sidebar-sky-violet) 48%,
-        var(--sidebar-sky-haze) 62%,
-        color-mix(in srgb, var(--sidebar-sky-haze) 35%, var(--sidebar-sky-ground)) 76%,
-        var(--sidebar-sky-ground) 100%
-      );
-    mask-image: linear-gradient(to bottom, #000 0, #000 72%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 72%, transparent 100%);
+    user-select: none;
+    mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 96%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 96%);
   }
 
-  /* 星点：只散布在上半部夜色里，缓慢明灭；减弱动态效果时保持静止。 */
-  .sidebar-panel-sky::before {
+  .sidebar-panel-sky-art {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 下半段逐级叠上侧栏底面色：云朵被洗成柔和的彩色光，而不是在边缘硬切。 */
+  .sidebar-panel-sky::after {
     position: absolute;
-    inset: 0 0 50% 0;
-    background:
-      radial-gradient(circle at 8% 22%, var(--sidebar-sky-star) 0 0.7px, transparent 1.3px),
-      radial-gradient(circle at 19% 64%, var(--sidebar-sky-star) 0 0.5px, transparent 1.1px),
-      radial-gradient(circle at 31% 14%, var(--sidebar-sky-star) 0 0.6px, transparent 1.2px),
-      radial-gradient(circle at 43% 48%, var(--sidebar-sky-star) 0 0.9px, transparent 1.6px),
-      radial-gradient(circle at 52% 9%, var(--sidebar-sky-star) 0 0.5px, transparent 1.1px),
-      radial-gradient(circle at 61% 72%, var(--sidebar-sky-star) 0 0.6px, transparent 1.2px),
-      radial-gradient(circle at 69% 30%, var(--sidebar-sky-star) 0 0.5px, transparent 1.1px),
-      radial-gradient(circle at 78% 58%, var(--sidebar-sky-star) 0 0.8px, transparent 1.4px),
-      radial-gradient(circle at 86% 16%, var(--sidebar-sky-star) 0 0.6px, transparent 1.2px),
-      radial-gradient(circle at 94% 44%, var(--sidebar-sky-star) 0 0.5px, transparent 1.1px),
-      radial-gradient(circle at 26% 86%, var(--sidebar-sky-star) 0 0.4px, transparent 1px),
-      radial-gradient(circle at 73% 90%, var(--sidebar-sky-star) 0 0.4px, transparent 1px);
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 34%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 10%, transparent) 46%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 32%, transparent) 58%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 60%, transparent) 70%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 84%, transparent) 80%,
+      var(--sidebar-sky-ground) 92%
+    );
     content: "";
   }
 
+  /* 星点缓慢明灭；减弱动态效果时保持静止。 */
   @media (prefers-reduced-motion: no-preference) {
-    .sidebar-panel-sky::before {
+    .sidebar-panel-sky-stars {
       animation: sidebar-sky-twinkle 5.6s ease-in-out infinite alternate;
     }
   }
 
   @keyframes sidebar-sky-twinkle {
-    from { opacity: 0.55; }
+    from { opacity: 0.6; }
     to { opacity: 1; }
-  }
-
-  /* 云光：几团模糊椭圆压在夜色下沿，与底部羽化一起把深色过渡回侧栏底面。 */
-  .sidebar-panel-sky::after {
-    position: absolute;
-    inset: 38% -10% 4% -10%;
-    background:
-      radial-gradient(26% 34% at 14% 46%, var(--sidebar-sky-cloud) 0%, transparent 74%),
-      radial-gradient(22% 28% at 30% 60%, var(--sidebar-sky-cloud-soft) 0%, transparent 74%),
-      radial-gradient(30% 30% at 56% 62%, var(--sidebar-sky-cloud-soft) 0%, transparent 74%),
-      radial-gradient(28% 32% at 84% 54%, var(--sidebar-sky-cloud) 0%, transparent 74%),
-      radial-gradient(70% 26% at 50% 78%, var(--sidebar-sky-cloud-soft) 0%, transparent 80%);
-    filter: blur(12px);
-    content: "";
   }
 
   /* 品牌栏坐在夜空上：去掉自身底面与分隔线，文字与图标切到夜色上的浅色。 */

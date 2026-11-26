@@ -19,6 +19,7 @@ import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import { SidebarBrandLink } from "./sidebar-brand-link";
+import { SidebarNightSky } from "./sidebar-night-sky";
 import { SidebarPinnedConversations } from "./sidebar-pinned-conversations";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
 import {
@@ -134,7 +135,9 @@ export function SidebarPanel({
         style={{ width }}
       >
         {/* 品牌栏背后的夜空装饰层：纯视觉、不拦截指针，由 theme-recipes 配方按主题着色。 */}
-        <div aria-hidden="true" className="sidebar-panel-sky" />
+        <div aria-hidden="true" className="sidebar-panel-sky">
+          <SidebarNightSky />
+        </div>
         <div
           className={cn(
             "sidebar-panel-header shell-region-header -mr-1.5 flex shrink-0 items-center",
