@@ -47,10 +47,15 @@ const ROOM_HEADER_TAB_DEFINITIONS: readonly RoomHeaderTabDefinition[] = [
   },
 ];
 
+/** 主智能体主窗口只提供工作区与简介；工作图与子智能体不进入它的顶栏。 */
+const MAIN_AGENT_TAB_KEYS: ReadonlySet<RoomSurfaceTabKey> = new Set(["workspace", "about"]);
+
 export function buildRoomHeaderTabs(
   t: I18nContextValue["t"],
+  options: { mainAgent?: boolean } = {},
 ): RoomHeaderTab[] {
   return ROOM_HEADER_TAB_DEFINITIONS
+    .filter((tab) => !options.mainAgent || MAIN_AGENT_TAB_KEYS.has(tab.key))
     .map(({ labelKey, ...tab }) => ({
       ...tab,
       label: t(labelKey),
