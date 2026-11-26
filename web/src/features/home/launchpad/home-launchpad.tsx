@@ -243,7 +243,7 @@ function HomeUpcomingStrip({
   const { locale, t } = useI18n();
   return (
     <button
-      className="home-launch-row radius-control-md flex items-center gap-3 px-3 py-2 text-left"
+      className="home-launch-row home-launch-strip radius-control-md mt-1 flex items-center gap-3 px-3 py-2 text-left"
       onClick={onOpen}
       type="button"
     >
