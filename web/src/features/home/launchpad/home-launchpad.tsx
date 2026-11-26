@@ -1,5 +1,5 @@
 // INPUT: Home 启动台控制器。
-// OUTPUT: 字标下方以输入壳为左基线的窄列：问候、复用共享 Composer 的主智能体输入框、接下来的定时任务、新手示例与进行中的会话卡片。
+// OUTPUT: 字标下方以输入壳为左基线的窄列：问候、复用共享 Composer 的主智能体输入框、接下来的定时任务、新手示例与进行中的会话行。
 // POS: Home 启动台视图；数据与导航全部来自 useHomeLaunchController。
 "use client";
 
@@ -185,16 +185,17 @@ function HomeActiveSection({ controller }: { controller: HomeLaunchController })
   return (
     <section className="flex flex-col gap-3">
       <HomeSectionHeader title={t("home.launch.activity_title")} />
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+      {/* 会话用无边框单列行：行内容贴左基线，悬停底色向两侧外扩，避免一排卡片显得杂乱。 */}
+      <div className="-mx-3 flex flex-col">
         {controller.activeItems.map((item) => (
-          <HomeActiveCard item={item} key={item.id} onOpen={controller.openConversation} />
+          <HomeActiveRow item={item} key={item.id} onOpen={controller.openConversation} />
         ))}
       </div>
     </section>
   );
 }
 
-function HomeActiveCard({
+function HomeActiveRow({
   item,
   onOpen,
 }: {
@@ -205,7 +206,7 @@ function HomeActiveCard({
   const isWorking = item.activityStatus === "working";
   return (
     <button
-      className="home-launch-card radius-control-lg flex items-center gap-3 p-3 text-left"
+      className="home-launch-row radius-control-md flex items-center gap-3 px-3 py-2 text-left"
       onClick={() => onOpen(item)}
       type="button"
     >
@@ -215,7 +216,7 @@ function HomeActiveCard({
           isWorking={isWorking}
           members={item.members}
           roomId={item.roomId}
-          size="md"
+          size="sm"
           title={item.title}
         />
       ) : (
@@ -223,27 +224,20 @@ function HomeActiveCard({
           avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
           isWorking={isWorking}
           name={item.members[0]?.name ?? item.title}
-          size="md"
+          size="sm"
         />
       )}
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }))}>
-            {item.title}
-          </span>
-          {item.activityStatus === "waiting" ? (
-            <UiBadge shape="pill" size="xs" tone="primary">{t("home.launch.status_waiting")}</UiBadge>
-          ) : (
-            <UiBadge shape="pill" size="xs" tone="running">{t("home.launch.status_working")}</UiBadge>
-          )}
-          <span className={cn("ml-auto shrink-0", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
-            {item.timeLabel}
-          </span>
-        </span>
-        <span className={cn("truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
-          {item.summary}
-        </span>
+      <span className={cn("max-w-[45%] shrink-0 truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
+        {item.title}
       </span>
+      <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
+        {item.summary}
+      </span>
+      {item.activityStatus === "waiting" ? (
+        <UiBadge shape="pill" size="xs" tone="primary">{t("home.launch.status_waiting")}</UiBadge>
+      ) : (
+        <UiBadge shape="pill" size="xs" tone="running">{t("home.launch.status_working")}</UiBadge>
+      )}
     </button>
   );
 }

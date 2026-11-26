@@ -881,7 +881,25 @@
     .sidebar-row-divider::after { display: none; }
   }
 
-  /* 首页卡片：半透明底与细边框，悬停加深一档；示例、进行中会话与定时任务条共用。 */
+  /* 「正在进行」会话行不画边框，只在悬停与按下时给一层中性底色。 */
+  .home-launch-row {
+    transition: background var(--motion-duration-fast);
+  }
+
+  .home-launch-row:hover {
+    background: var(--interaction-hover-background);
+  }
+
+  .home-launch-row:active {
+    background: var(--interaction-active-background);
+  }
+
+  .home-launch-row:focus-visible {
+    outline: 2px solid var(--material-input-focus-border);
+    outline-offset: -2px;
+  }
+
+  /* 首页卡片：半透明底与细边框，悬停加深一档；示例与定时任务条共用。 */
   .home-launch-card {
     background: color-mix(in srgb, var(--surface-card-background) 62%, transparent);
     border: 1px solid color-mix(in srgb, var(--divider-subtle-color) 90%, transparent);
