@@ -100,47 +100,52 @@ export interface UpdatePersonalProfileParams {
 }
 
 export async function getAuthStatus(): Promise<AuthStatus> {
-  const localStatus = await requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/status`, {
+  // 三个读取互不依赖，同时发出；本地身份失败仍直接抛出，其余请求的失败各自收敛为降级结果。
+  const localRequest = requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/status`, {
     method: "GET",
     notify_on_401: false,
   });
   // 部署能力独立于组织身份；探测失败时保持关闭且标记不可用，由界面提示而不是猜测开启。
-  const capabilities = await requestApi<{ enabled: boolean }>(`${AUTH_API_BASE_URL}/team/capabilities`, {
+  const capabilitiesRequest = requestApi<{ enabled: boolean }>(`${AUTH_API_BASE_URL}/team/capabilities`, {
     method: "GET",
     notify_on_401: false,
   }).catch(() => null);
-  localStatus.multiplayer_enabled = capabilities?.enabled === true;
-  localStatus.multiplayer_unavailable = capabilities === null;
-  if (!isDesktopRuntime()) {
-    return localStatus;
-  }
-  try {
-    const remoteStatus = await requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/status`, {
+  const remoteRequest = isDesktopRuntime()
+    ? requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/status`, {
       method: "GET",
       notify_on_401: false,
-    });
-    if (!remoteStatus.authenticated) {
-      return {
-        ...localStatus,
-        password_login_enabled: remoteStatus.password_login_enabled,
-      };
-    }
-    return {
-      ...remoteStatus,
-      multiplayer_enabled: localStatus.multiplayer_enabled,
-      multiplayer_unavailable: localStatus.multiplayer_unavailable,
-      auth_required: false,
-	  control_user_id: localStatus.control_user_id ?? remoteStatus.user_id,
-      setup_enabled: false,
-      setup_required: false,
-      user_id: localStatus.user_id,
-    };
-  } catch {
+    }).catch(() => null)
+    : null;
+  const localStatus = await localRequest;
+  const capabilities = await capabilitiesRequest;
+  localStatus.multiplayer_enabled = capabilities?.enabled === true;
+  localStatus.multiplayer_unavailable = capabilities === null;
+  if (!remoteRequest) {
+    return localStatus;
+  }
+  const remoteStatus = await remoteRequest;
+  if (!remoteStatus) {
     return {
       ...localStatus,
       password_login_enabled: true,
     };
   }
+  if (!remoteStatus.authenticated) {
+    return {
+      ...localStatus,
+      password_login_enabled: remoteStatus.password_login_enabled,
+    };
+  }
+  return {
+    ...remoteStatus,
+    multiplayer_enabled: localStatus.multiplayer_enabled,
+    multiplayer_unavailable: localStatus.multiplayer_unavailable,
+    auth_required: false,
+    control_user_id: localStatus.control_user_id ?? remoteStatus.user_id,
+    setup_enabled: false,
+    setup_required: false,
+    user_id: localStatus.user_id,
+  };
 }
 
 export async function loginApi(params: LoginParams): Promise<AuthStatus> {
