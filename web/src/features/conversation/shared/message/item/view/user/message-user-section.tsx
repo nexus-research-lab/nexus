@@ -1,6 +1,6 @@
 /**
  * INPUT: 单条 durable user message、发送方向与编辑、复制、附件回调。
- * OUTPUT: 可独立渲染的用户消息区块；runtime 自唤醒行改为触发分隔条。
+ * OUTPUT: 可独立渲染的用户消息区块；runtime 自唤醒与宿主事件行改为触发分隔条，宿主 run 结局并入其后缀。
  * POS: DM / Room 共用的 user message 视图。
  */
 import { useCallback } from "react";
@@ -17,6 +17,7 @@ import { UserMessageContent } from "./user-message-content";
 import { UserMessageEditor } from "./user-message-editor";
 import { UserMessageHeader } from "./user-message-header";
 import {
+  type HostRunOutcomeLabelKey,
   projectAvailableUserMessageAction,
   projectRuntimeWakePresentation,
   projectUserMessagePresentation,
@@ -25,6 +26,8 @@ import { UserRuntimeWakeTrigger } from "./user-runtime-wake-trigger";
 import { useUserMessageEditor } from "./use-user-message-editor";
 
 interface MessageUserSectionProps {
+  /** 本轮宿主 run 没有回复时的结局，只对触发分隔条生效。 */
+  hostOutcome?: HostRunOutcomeLabelKey | null;
   onOpenAttachment?: (attachment: import("@/types/conversation/message/attachment").MessageAttachment) => void;
   compact: boolean;
   alignment?: "left" | "right";
@@ -39,7 +42,7 @@ interface MessageUserSectionProps {
 
 export function MessageUserSection(props: MessageUserSectionProps) {
   const { message } = props;
-  const runtimeWake = projectRuntimeWakePresentation(message);
+  const runtimeWake = projectRuntimeWakePresentation(message, props.hostOutcome ?? null);
   if (runtimeWake) {
     return <UserRuntimeWakeTrigger compact={props.compact} presentation={runtimeWake} />;
   }

@@ -279,8 +279,8 @@ func visitProjectedTranscriptFrom(
 			sdkprotocol.MessageTypeAttachment,
 			sdkprotocol.MessageTypeSystem,
 			sdkprotocol.MessageTypeTaskProgress:
-			// Echo 输出必须通过宿主准入后的 overlay 才能进入用户历史。
-			if state.CurrentRoundPurpose == "echo_followup" {
+			// 延迟提交轮（Echo、主窗口宿主 run）的输出只能经宿主准入后的 overlay 进入用户历史。
+			if deferredCommitPurposes[state.CurrentRoundPurpose] {
 				continue
 			}
 			if state.reducer == nil {
@@ -299,6 +299,13 @@ func visitProjectedTranscriptFrom(
 	if pending != nil {
 		roundStart(*pending, *state)
 	}
+}
+
+// deferredCommitPurposes 是延迟提交轮的 marker purpose（与 dm 的 echoPurpose、hostRunPurpose 对应）：
+// 这些轮次在 transcript 里的过程只给模型看，用户历史只认 overlay。
+var deferredCommitPurposes = map[string]bool{
+	"echo_followup": true,
+	"host_run":      true,
 }
 
 func buildTranscriptUserMessage(

@@ -166,7 +166,12 @@ type DeferredAssistantOutcome struct {
 
 // DeferredAssistantHooks 控制后台 assistant 的最终准入与尝试收口。
 type DeferredAssistantHooks struct {
-	Admit    func(context.Context, DeferredAssistantCandidate) (protocol.Message, bool, error)
+	// Announce 让轮次照常公告起止（用户行与运行态），只隐藏过程；Echo 不公告。
+	Announce bool
+	// KeepTranscript 让没有提交回复的轮次仍留在 runtime 历史里：宿主 run 做过的事，模型之后要记得。
+	KeepTranscript bool
+	Admit          func(context.Context, DeferredAssistantCandidate) (protocol.Message, bool, error)
+	// Complete 在每个结局（delivered / quiet / failed / cancelled）恰好调用一次。
 	Complete func(context.Context, DeferredAssistantOutcome)
 }
 
@@ -231,7 +236,9 @@ type Service struct {
 	roomStore    roomSessionStore
 	roomActivity roomConversationActivityStore
 	// inbox 只承载主窗口的输入（用户消息与宿主事件），见 main_inbox.go。
-	inbox           *inboxstore.Repository
+	inbox *inboxstore.Repository
+	// hostRuns 记下正在执行的主窗口宿主 run（round_id），它们不接受安全点注入。
+	hostRuns        sync.Map
 	mainWindowRooms mainWindowRooms
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
 	inputQueueDispatchMu contextMutex

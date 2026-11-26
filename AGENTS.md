@@ -35,7 +35,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 cmd/nexus-delta/ 与 internal/appdelta/ 负责桌面发布差分生成、从已安装应用目录重建新版及逐文件校验。
 cmd/        - 可执行入口：nexus-server（单个 main.go 装配服务、自动迁移与 runtime 检查；平台实例锁由 infra/desktopinstance 装配）、nexusctl 资源 CLI、nexuscfg 配置 CLI、Linux runtime launcher
 web/        - React 前端（features / store / shared / lib，见 web/AGENTS.md）
-desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 Chromium browser-extension；macOS Bridge/ 下的 ComputerUsePermissionWizard、ComputerUsePermissionGuide、ComputerUseSettingsTarget 分别负责权限向导窗口、应用拖放和系统设置列表定位
+desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 Chromium browser-extension；macOS Bridge/ 下的 ComputerUsePermissionWizard、ComputerUsePermissionGuide、ComputerUseSettingsTarget 分别负责权限向导窗口、应用拖放和系统设置列表定位，DesktopNotificationCenter 独占系统通知授权、投递与点击回路由
 skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与参考资料）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源与 TS codegen 输入

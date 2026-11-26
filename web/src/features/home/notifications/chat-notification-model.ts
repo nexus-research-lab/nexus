@@ -1,6 +1,6 @@
 /**
  * INPUT: 聊天事件、assistant 终态消息与共享目录索引。
- * OUTPUT: 排除 tool-use 中间段的完成判定、通知目标和精简展示内容。
+ * OUTPUT: 排除 tool-use 中间段的完成判定、通知目标、精简展示内容与点击后打开的路由。
  * POS: Home 聊天通知的纯协议投影，不持有 WebSocket 或未读状态。
  */
 import type { ChatNotificationTargetState } from "@/store/sidebar";
@@ -20,6 +20,7 @@ import {
   type ChatNotificationDirectoryIndex,
 } from "./chat-notification-directory";
 import { buildChatNotificationTargetKey } from "./chat-notification-target";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 
 const NOTIFICATION_TEXT_LIMIT = 120;
 const TERMINAL_ASSISTANT_STOP_REASONS = new Set([
@@ -27,6 +28,18 @@ const TERMINAL_ASSISTANT_STOP_REASONS = new Set([
   "max_tokens",
   "stop_sequence",
 ]);
+
+/** 通知点击后打开的路由：优先精确 Conversation，其次 Room；只有 Session 的目标没有稳定路由。 */
+export function buildNotificationRoute(target: ChatNotificationTarget): string | null {
+  const roomId = target.room_id?.trim();
+  if (!roomId) {
+    return null;
+  }
+  const conversationId = target.conversation_id?.trim();
+  return conversationId
+    ? AppRouteBuilders.conversation(roomId, conversationId)
+    : AppRouteBuilders.room(roomId);
+}
 
 export interface ChatNotificationTarget {
   agent_id?: string | null;

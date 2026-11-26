@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
@@ -77,6 +78,10 @@ func latestTerminalOutcome(history []protocol.Message, agentID string, currentRo
 				return terminalOutcome{}, true
 			}
 			return terminalOutcome{failed: true, reason: recoveryInterruptedByHost}, true
+		case "system":
+			if outcome, ok := hostRunTerminalOutcome(message); ok {
+				return outcome, true
+			}
 		case "user":
 			if textutil.AnyString(message["round_id"]) != "" {
 				return terminalOutcome{failed: true, reason: recoveryInterruptedByHost}, true
@@ -84,6 +89,18 @@ func latestTerminalOutcome(history []protocol.Message, agentID string, currentRo
 		}
 	}
 	return terminalOutcome{}, false
+}
+
+// hostRunTerminalOutcome 读主窗口宿主 run 没有回复时的结局记录：只有 failed 算失败，沉默与用户停止都是正常终态。
+func hostRunTerminalOutcome(message protocol.Message) (terminalOutcome, bool) {
+	metadata, _ := message["metadata"].(map[string]any)
+	if textutil.AnyString(metadata["subtype"]) != messagepkg.SystemMessageSubtypeHostRunOutcome {
+		return terminalOutcome{}, false
+	}
+	if textutil.AnyString(metadata["outcome"]) == "failed" {
+		return terminalOutcome{failed: true, reason: recoveryRuntimeError}, true
+	}
+	return terminalOutcome{}, true
 }
 
 func terminalOutcomeFrom(terminal map[string]any, message protocol.Message) terminalOutcome {

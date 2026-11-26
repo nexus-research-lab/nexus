@@ -5,11 +5,9 @@ package dm
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
-	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
@@ -17,9 +15,6 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
-
-// EchoNoReplyMarker 是 Echo 轮次选择沉默时的唯一输出。
-const EchoNoReplyMarker = "<nexus_echo_no_reply/>"
 
 const (
 	echoPurpose         = "echo_followup"
@@ -157,14 +152,9 @@ func (s *Service) echoRequest(target mainInboxTarget, roundID string, event inbo
 	}
 }
 
-// admitEcho 是提交前复核：沉默、失败，或生成期间用户已经开口，都丢弃本轮且不留痕迹。
+// admitEcho 是提交前复核：沉默，或生成期间用户已经开口，都丢弃本轮且不留痕迹（失败在准入前已分流）。
 func (s *Service) admitEcho(ctx context.Context, target mainInboxTarget, event inboxstore.Event, candidate DeferredAssistantCandidate) (protocol.Message, bool, error) {
-	if candidate.TerminalStatus != "finished" ||
-		(candidate.ResultSubtype != "" && candidate.ResultSubtype != "success") {
-		return nil, false, nil
-	}
-	text := strings.TrimSpace(messageutil.ExtractAssistantDisplayText(candidate.Message))
-	if text == "" || text == EchoNoReplyMarker {
+	if isHostNoReply(candidate.Message) {
 		return nil, false, nil
 	}
 	ctx = runtimehost.ContextWithExactOwner(ctx, target.owner())

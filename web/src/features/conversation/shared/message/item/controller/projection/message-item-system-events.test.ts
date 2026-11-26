@@ -16,3 +16,9 @@ it("projects compaction tokens and summary from both runtime shapes", () => {
   const [claude] = buildSystemEventBlocks([boundary({ compact_metadata: { pre_tokens: 5000 } })], true);
   expect(claude).toMatchObject({ compact_pre_tokens: 5000, compact_post_tokens: null, compact_summary: null });
 });
+
+it("leaves host run outcomes to the trigger divider", () => {
+  const outcome = { message_id: "host_outcome_r", role: "system", content: "quiet", timestamp: 1,
+    metadata: { subtype: "host_run_outcome", outcome: "quiet" } } as unknown as Message;
+  expect(buildSystemEventBlocks([outcome], true)).toEqual([]);
+});

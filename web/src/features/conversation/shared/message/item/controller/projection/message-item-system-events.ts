@@ -18,6 +18,9 @@ interface SystemEventVisibilityContext {
   message: SystemMessage & { content: string };
 }
 
+/** 主窗口宿主 run 没有回复时的结局记录（metadata.outcome = quiet / failed / stopped）；并进触发分隔条，不作为系统事件渲染。 */
+export const HOST_RUN_OUTCOME_SUBTYPE = "host_run_outcome";
+
 const DEFAULT_SYSTEM_MESSAGE_DISPLAY_META: SystemMessageDisplayMeta = {
   icon: "status",
   label: "系统事件",
@@ -44,6 +47,7 @@ const SYSTEM_EVENT_VISIBILITY_RULES: ReadonlyArray<
   (context: SystemEventVisibilityContext) => boolean
 > = [
   ({ message }) => Boolean(message.content.trim()),
+  ({ message }) => message.metadata?.subtype !== HOST_RUN_OUTCOME_SUBTYPE,
   ({ includeTransientEvents, message }) => includeTransientEvents
     || ["guided_input", "memory_saved", "permission_review"].includes(
       message.metadata?.subtype ?? "",

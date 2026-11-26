@@ -203,7 +203,7 @@ func newInboxEventID() string {
 
 func followUpPrompt(event inboxstore.Event) string {
 	return fmt.Sprintf(
-		"<follow-up id=%q set_at=%q>\nA follow-up you scheduled earlier is now due. The user did not type this; pick up from your note.\n\n%s\n</follow-up>",
+		"<follow-up id=%q set_at=%q>\nA follow-up you scheduled earlier is now due. The user did not type this; pick up from your note. "+hostQuietRule+"\n\n%s\n</follow-up>",
 		event.EventID,
 		event.CreatedAt.UTC().Format(time.RFC3339),
 		event.Payload.Content,

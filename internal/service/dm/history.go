@@ -104,9 +104,7 @@ func (s *Service) appendRuntimeHistoryMessageForOwner(
 	sessionValue protocol.Session,
 	message protocol.Message,
 ) error {
-	metadata, _ := message["metadata"].(map[string]any)
-	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) &&
-		textutil.AnyString(metadata["source"]) != "echo" {
+	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
 		s.History.ForOwner(ownerUserID).RecordReplyPreview(sessionValue.SessionKey, message)
 		return nil
 	}

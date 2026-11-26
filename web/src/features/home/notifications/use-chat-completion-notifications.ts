@@ -1,10 +1,10 @@
 /**
  * INPUT: 全局聊天完成事件、共享聊天目录、当前路由与窗口可见性。
- * OUTPUT: 浏览器通知、侧栏未读数字及用于选择目标 Conversation 的消息顺序。
+ * OUTPUT: 系统通知（桌面原生或浏览器）、侧栏未读数字及用于选择目标 Conversation 的消息顺序。
  * POS: 聊天完成通知副作用入口；当前可见目标直接确认，不向 Feed 注入未读定位。
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { useHomeDirectory } from "@/features/home/home-directory-resource";
 import { hasVisibleAssistantOutput } from "@/features/conversation/shared/message/message-content-model";
@@ -14,8 +14,9 @@ import type { EventMessage } from "@/types/generated/protocol";
 
 import {
   isWindowActive,
-  showBrowserNotification,
+  showSystemNotification,
   subscribeBrowserNotificationPermission,
+  subscribeDesktopNotificationOpen,
 } from "./browser-notification";
 import {
   buildChatNotificationDirectoryIndex,
@@ -24,6 +25,7 @@ import {
 import {
   buildMessageNotificationTarget,
   buildNotificationContent,
+  buildNotificationRoute,
   getNotificationMessageId,
   toChatNotificationTargetState,
 } from "./chat-notification-model";
@@ -37,6 +39,7 @@ import { useChatNotificationSocket } from "./use-chat-notification-socket";
 
 export function useChatCompletionNotifications(): void {
   const location = useLocation();
+  const navigate = useNavigate();
   const directory = useHomeDirectory();
   const directoryIndex = useMemo(
     () => buildChatNotificationDirectoryIndex(directory),
@@ -88,6 +91,7 @@ export function useChatCompletionNotifications(): void {
 
   useEffect(clearActiveNotifications, [clearActiveNotifications, directoryIndex, location.pathname]);
   useEffect(() => subscribeBrowserNotificationPermission(), []);
+  useEffect(() => subscribeDesktopNotificationOpen(navigate), [navigate]);
   useEffect(() => {
     if (!directory.hasLoaded) {
       return;
@@ -173,8 +177,8 @@ export function useChatCompletionNotifications(): void {
       return;
     }
     const { body, title } = buildNotificationContent(target, message, index);
-    showBrowserNotification(title, body, messageId);
-  }, [clearRoomNotifications, clearTarget, recordNotification]);
+    showSystemNotification({ body, route: buildNotificationRoute(target), tag: messageId, title }, navigate);
+  }, [clearRoomNotifications, clearTarget, navigate, recordNotification]);
 
   const roomIdsKey = useMemo(
     () => directory.rooms.map((room) => room.id).filter(Boolean).sort().join("\n"),

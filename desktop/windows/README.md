@@ -113,6 +113,8 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 
 待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台或最小化时用 FlashWindowEx 闪烁任务栏，回到窗口或清空待处理请求时停止，不抢焦点。隐藏 WebView 只停止绘制，不暂停事件连接。
 
+聊天完成通知通过 `app.show_notification {title, body, tag, route}` 交给托盘 NotifyIcon 的气泡（Windows 10/11 呈现为系统通知）；点击后唤回窗口并向页面派发 `nexus:notification-open`，由 Web 路由跳转。
+
 ## 退出与重启回归
 
 Windows 普通用户运行：

@@ -181,6 +181,8 @@ xattr -dr com.apple.quarantine /Applications/Nexus.app
 
 待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台使用 Dock 数字角标显示待确认事项总数，不弹跳，回到应用或清空待处理请求时取消，窗口最小化不切断事件连接。
 
+聊天完成通知通过 `app.show_notification {title, body, tag, route}` 交给 `Bridge/DesktopNotificationCenter.swift`，经 UNUserNotificationCenter 发出（首次请求授权；只在 .app bundle 内可用，`swift run` 开发进程返回 `shown=false`）。同一 tag 替换旧通知；点击后宿主唤回窗口并向页面派发 `nexus:notification-open`，由 Web 路由跳转，不整页重载。
+
 ## 独立测试 App（Preview）
 
 在仓库根目录执行：

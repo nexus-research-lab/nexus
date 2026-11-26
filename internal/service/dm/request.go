@@ -840,7 +840,7 @@ func (e *dmChatExecution) launch() {
 		)
 		e.broadcastAck()
 	}
-	if e.request.DeferredAssistant == nil {
+	if !e.request.DeferredAssistant.silent() {
 		e.broadcastRoundStarted(e.ctx)
 	}
 	go e.runner.run(e.roundCtx)
@@ -848,7 +848,7 @@ func (e *dmChatExecution) launch() {
 
 func (e *dmChatExecution) broadcastAcceptance() {
 	e.broadcastAck()
-	if e.request.DeferredAssistant == nil {
+	if !e.request.DeferredAssistant.silent() {
 		e.broadcastRoundStarted(e.runtimeContext())
 	}
 }

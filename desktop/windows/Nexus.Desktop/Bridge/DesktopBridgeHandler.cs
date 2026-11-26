@@ -80,6 +80,7 @@ internal sealed class DesktopBridgeHandler
                 "app.open_workspace_file" => OpenWorkspaceFile(payload),
                 "app.export_logs" => ExportLogs(),
                 "app.open_route" => await OpenRouteAsync(payload),
+                "app.show_notification" => ShowNotification(payload),
                 "app.start_update" => new { status = updateStarter() },
                 "app.get_persistent_state" => GetPersistentState(payload),
                 "app.set_persistent_state" => SetPersistentState(payload),
@@ -546,6 +547,19 @@ internal sealed class DesktopBridgeHandler
 
         await openRoute(route);
         return new { opened = true };
+    }
+
+    private static object ShowNotification(JsonElement payload)
+    {
+        if (System.Windows.Application.Current?.MainWindow is not Nexus.Desktop.Window.MainWindow window)
+        {
+            return new { shown = false };
+        }
+        window.ShowNotification(
+            StringPayload(payload, "title"),
+            StringPayload(payload, "body"),
+            StringPayload(payload, "route"));
+        return new { shown = true };
     }
 
     private static object SetAttention(JsonElement payload)

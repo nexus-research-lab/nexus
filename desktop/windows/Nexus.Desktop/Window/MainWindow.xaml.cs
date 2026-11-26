@@ -404,6 +404,32 @@ public partial class MainWindow : System.Windows.Window
         Hide();
     }
 
+    /// <summary>
+    /// 发一条系统通知；点击后唤回窗口，再把路由交给页面内跳转，避免整页重载。
+    /// </summary>
+    public void ShowNotification(string title, string body, string route)
+    {
+        trayController.ShowNotification(title, body, () => OpenNotificationRoute(route));
+    }
+
+    private void OpenNotificationRoute(string route)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => OpenNotificationRoute(route));
+            return;
+        }
+        RestoreFromTray();
+        WebView2CompositionControl? webView = GetActiveWebView();
+        if (string.IsNullOrWhiteSpace(route) || webView?.CoreWebView2 is null)
+        {
+            return;
+        }
+        string detailJSON = JsonSerializer.Serialize(new { route });
+        _ = webView.CoreWebView2.ExecuteScriptAsync(
+            $"window.dispatchEvent(new CustomEvent('nexus:notification-open', {{ detail: {detailJSON} }}));");
+    }
+
     private void RestoreFromTray()
     {
         if (!Dispatcher.CheckAccess())
