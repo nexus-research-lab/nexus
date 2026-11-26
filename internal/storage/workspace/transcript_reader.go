@@ -1,5 +1,5 @@
 // INPUT: runtime transcript JSONL 与父链/并行工具关联。
-// OUTPUT: 供历史投影消费的主链（经 logicalParentUuid 跨 compact_boundary 续接，压缩摘要视为 meta），以及与主链工具调用对应的并行结果和子任务附件。
+// OUTPUT: 供历史投影消费的主链（经 logicalParentUuid 跨 compact_boundary 续接，压缩摘要视为 meta 并挂回边界的 summary），以及与主链工具调用对应的并行结果和子任务附件。
 // POS: transcript 读取、规范化与执行链选择边界；完整解析经 transcript_parallel_read.go 分块并行。
 package workspace
 
@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -177,7 +178,25 @@ func buildTranscriptChain(
 	})
 	chain := walkTranscriptParentChain(terminals[0], byUUID)
 	slices.Reverse(chain)
+	attachCompactSummaries(chain)
 	return includeParallelTranscriptTaskEntries(entries, chain, shouldSkip)
+}
+
+// attachCompactSummaries 把紧跟 compact_boundary 的压缩摘要正文挂回边界的 summary。
+// Claude Code 与 nxs 都把摘要写成边界之后的 isCompactSummary 伪 user 条目；该条目本身作为 meta 隐藏，
+// 历史里的压缩标记只能从边界读到摘要。边界已自带 summary 时保持原样。
+func attachCompactSummaries(chain []transcriptEntry) {
+	for index := 1; index < len(chain); index++ {
+		boundary := chain[index-1].Data
+		if stringFromAny(boundary["subtype"]) != "compact_boundary" || stringFromAny(boundary["summary"]) != "" ||
+			!boolValueAny(chain[index].Data["isCompactSummary"]) {
+			continue
+		}
+		if summary := transcriptRawUserContent(chain[index].Data); summary != "" {
+			chain[index-1].Data = maps.Clone(boundary)
+			chain[index-1].Data["summary"] = summary
+		}
+	}
 }
 
 func indexTranscriptEntries(entries []transcriptEntry) (map[string]transcriptEntry, map[string]struct{}) {

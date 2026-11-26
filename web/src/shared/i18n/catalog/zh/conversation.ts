@@ -1006,7 +1006,7 @@ export const zhConversationMessages = {
   "message.goal_tokens_used": "使用 {count} tokens",
   "message.recalled_memories": "引用的记忆",
   "message.activity_compacting": "正在压缩上下文",
-  "message.context_compacted": "已压缩上下文",
+  "message.context_compacted": "已整理较早的对话",
   "message.context_compacted_saved": "节省 {saved} tokens（{pre} → {post}）",
   "message.context_compacted_from": "压缩前 {pre} tokens",
   "message.activity_sending": "正在发送",

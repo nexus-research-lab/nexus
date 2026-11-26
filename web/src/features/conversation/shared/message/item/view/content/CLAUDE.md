@@ -6,7 +6,7 @@
 - `content-renderer-model.ts`: 建立 toolUse/result、任务进度、已消费块索引与 live 文本挂载判定。
 - `content-block-view.tsx`: 通过穷尽注册表分派 ContentBlock，并拥有空节点框架；结构化文件与 Markdown 一样传递消息级 workspaceAgentId，来源归并归 Artifact 适配器；live 空文本必须先挂载 Markdown 身份，让首批正文进入平滑 backlog，静态空文本仍不占布局；`progress_update` 是非渲染协议块，由消息活动投影读取，不得包装成正文或过程摘要。
 - `content-tool-block.tsx`: 普通消息内工具统一投影为静态 ToolBlock 证据；内建 `show_widget` 是唯一生成式 UI 视图分支。`AskUserQuestion` 无论处于 pending、历史完成、恢复或未匹配状态，都不得在 DM、Room、Thread 或过程展开中重新挂载选项树，唯一可操作入口属于 Composer。
-- `content-system-event.tsx`: 渲染系统事件与 API 重试倒计时；长期记忆保存与上下文压缩事件使用与工具、Thought 相同的单行活动记录，压缩行只展示投影出的压缩前后 token 与节省量（runtime 未给出时只留标题），不展示 SDK 原文。
+- `content-system-event.tsx`: 渲染系统事件与 API 重试倒计时；长期记忆保存与上下文压缩事件使用与工具、Thought 相同的单行活动记录，压缩行只展示投影出的压缩前后 token 与节省量（runtime 未给出时只留标题），不展示 SDK 原文；有投影出的压缩摘要时与 Provider 重试共用同一可展开行，默认收起。
 
 内容数组只在纯投影层建立关联；具体块视图不得再次扫描整轮内容或猜测工具归属。
 新增内容块类型必须同时进入穷尽渲染注册表，禁止在编排器中追加类型分支。

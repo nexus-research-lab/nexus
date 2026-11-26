@@ -8,7 +8,7 @@ import (
 )
 
 // 自动压缩后 compact_boundary 的 parentUuid 为 null；主链必须沿 logicalParentUuid
-// 续接压缩前的历史，且压缩摘要不能成为用户轮次。
+// 续接压缩前的历史，压缩摘要不能成为用户轮次，但要挂回边界供时间线展开。
 func TestPrimaryTranscriptChainCrossesCompactBoundary(t *testing.T) {
 	entries := []transcriptEntry{
 		{Index: 0, Data: map[string]any{
@@ -55,7 +55,11 @@ func TestPrimaryTranscriptChainCrossesCompactBoundary(t *testing.T) {
 
 	rows := projectTranscriptChain("/workspace", "agent:a:ws:dm:c", "a", chain, nil)
 	var texts []string
+	var boundarySummary string
 	for _, row := range rows {
+		if metadata, _ := row["metadata"].(map[string]any); metadata["subtype"] == "compact_boundary" {
+			boundarySummary = stringFromAny(metadata["summary"])
+		}
 		if row["role"] == "user" && strings.Contains(stringFromAny(row["content"]), "continued from a previous") {
 			t.Fatalf("压缩摘要被投影为用户消息: %+v", row)
 		}
@@ -64,6 +68,12 @@ func TestPrimaryTranscriptChainCrossesCompactBoundary(t *testing.T) {
 				texts = append(texts, stringFromAny(block["text"]))
 			}
 		}
+	}
+	if !strings.Contains(boundarySummary, "continued from a previous") {
+		t.Fatalf("compact_boundary summary = %q, 历史标记缺少摘要", boundarySummary)
+	}
+	if stringFromAny(entries[2].Data["summary"]) != "" {
+		t.Fatal("挂回摘要不能改写原始 transcript 条目")
 	}
 	joined := strings.Join(texts, "|")
 	if !strings.Contains(joined, "127.0.0.1") || !strings.Contains(joined, "PPT 已完成") {

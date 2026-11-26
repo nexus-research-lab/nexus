@@ -1,7 +1,7 @@
 // INPUT: Current and expired Provider retry events.
-// OUTPUT: Countdown timers stop at the deadline and never run for historical retries; compaction rows report saved tokens.
+// OUTPUT: Countdown timers stop at the deadline and never run for historical retries; compaction rows report saved tokens and expand their summary.
 // POS: System event timer lifecycle regression.
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { ContentSystemEvent } from "./content-system-event";
@@ -28,4 +28,14 @@ it("shows how many tokens a compaction saved instead of the SDK text", () => {
   expect(screen.queryByText("Conversation compacted")).toBeNull();
   rerender(<I18nProvider><ContentSystemEvent block={{ ...block, compact_pre_tokens: 120_000 }} /></I18nProvider>);
   expect(screen.getByText(/120K/)).toBeTruthy();
+});
+
+it("keeps the compaction summary collapsed until the row is expanded", () => {
+  const block = { type: "system_event" as const, source_message_id: "compact", subtype: "compact_boundary", icon: "status" as const, tone: "neutral" as const, label: "x", content: "Conversation compacted", timestamp: 1, compact_pre_tokens: 120_000, compact_post_tokens: 15_600, compact_summary: "用户在做 Q3 复盘" };
+  render(<I18nProvider><ContentSystemEvent block={block} /></I18nProvider>);
+  const toggle = screen.getByRole("button");
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByText("用户在做 Q3 复盘")).toBeNull();
+  fireEvent.click(toggle);
+  expect(screen.getByText("用户在做 Q3 复盘")).toBeTruthy();
 });

@@ -180,6 +180,8 @@ export interface SystemEventContent {
   /** compact_boundary 的压缩前后上下文 token（runtime 估算口径）；未知为 null。 */
   compact_pre_tokens?: number | null;
   compact_post_tokens?: number | null;
+  /** compact_boundary 随附的压缩摘要（nxs 提供；Claude Code 不提供时为 null）。 */
+  compact_summary?: string | null;
 }
 
 export type ContentBlock =

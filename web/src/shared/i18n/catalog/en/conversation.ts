@@ -1009,7 +1009,7 @@ export const enConversationMessages = {
   "message.goal_tokens_used": "Used {count} tokens",
   "message.recalled_memories": "Referenced memories",
   "message.activity_compacting": "Compacting context",
-  "message.context_compacted": "Context compacted",
+  "message.context_compacted": "Earlier conversation summarized",
   "message.context_compacted_saved": "saved {saved} tokens ({pre} → {post})",
   "message.context_compacted_from": "{pre} tokens before compaction",
   "message.activity_sending": "Sending",
