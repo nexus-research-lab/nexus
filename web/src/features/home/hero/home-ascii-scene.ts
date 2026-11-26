@@ -266,7 +266,7 @@ export class HomeAsciiScene {
     const measuredWidth = metricsContext.measureText(HOME_HERO_LABEL).width || width;
     const fontSize = Math.min(
       Math.floor((80 * width) / measuredWidth * 0.7),
-      Math.floor(height * 0.58),
+      Math.floor(height * 0.74),
     );
 
     const offscreen = document.createElement("canvas");
@@ -283,7 +283,7 @@ export class HomeAsciiScene {
     context.fillText(
       HOME_HERO_LABEL,
       Math.max(0, (width - textWidth) / 2),
-      height * 0.54,
+      height * 0.5,
     );
     return context.getImageData(0, 0, width, height);
   }

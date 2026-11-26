@@ -60,7 +60,7 @@ export function HomeAsciiHero({ children }: { children?: ReactNode }) {
         {/* 字标带：Canvas 只铺满这一段，指针交互与时钟都限定在字标附近。 */}
         <div
           ref={sectionRef}
-          className="relative h-[clamp(170px,30vh,280px)] w-full shrink-0"
+          className="relative h-[clamp(140px,24vh,220px)] w-full shrink-0"
         >
           <h2 className="sr-only">{HOME_HERO_LABEL}</h2>
 
