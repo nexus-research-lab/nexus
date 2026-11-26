@@ -152,9 +152,9 @@
     justify-content: center;
     min-width: 1.5rem;
     padding: 0.15rem 0.42rem;
-    font-size: 10px;
+    font-size: var(--text-compact);
     font-family: var(--font-mono);
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1;
     border-radius: var(--radius-control-xs);
     color: var(--text-kbd-color);

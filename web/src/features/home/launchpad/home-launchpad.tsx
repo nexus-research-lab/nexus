@@ -224,7 +224,7 @@ function HomeActiveRow({
         {item.summary}
       </span>
       {item.activityStatus === "waiting" ? (
-        <UiBadge shape="pill" size="xs" tone="warning">{t("home.launch.status_waiting")}</UiBadge>
+        <UiBadge shape="pill" size="xs" tone="primary">{t("home.launch.status_waiting")}</UiBadge>
       ) : (
         <UiBadge shape="pill" size="xs" tone="running">{t("home.launch.status_working")}</UiBadge>
       )}

@@ -97,22 +97,22 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | 品牌字（Striper / Panchang） | 侧栏字标 / 新会话的短欢迎语 | 对话正文、设置页、导航、长 CJK 标题 |
 | `--font-mono` | code、kbd、源码、纯文本预览 | 连续 prose 或导航 |
 
-字号阶梯：`10 / 11 / 12 / 13 / 14 / 16 / 20 / 24 / 36px`，界面文字最小 10px（`text-2xs`），角标、快捷键与画布徽标不得写 `text-[9px]` 等阶梯外字号（头像字形与插画缩略除外）（Tailwind 主题键 `--text-2xs / xs / compact / sm / base / md / lg / xl / 2xl`）。这是与 `theme-tokens.css` 一致的唯一 App 阶梯；旧的 `15 / 17 / 22 / 28 / 42px` 界面尺度不得回流。对话正文是独立阅读层，遵循 §6.2。
+字号阶梯只有四档：`12 / 14 / 16 / 20px`，界面文字最小 12px，角标、快捷键与画布徽标不得写 `text-[9px]` 等阶梯外字号（头像字形与插画缩略除外）（Tailwind 主题键 `--text-2xs / xs / compact` 都落到 12px，`sm / base` 落到 14px，`md` 为 16px，`lg / xl / 2xl` 落到 20px；旧键名只作别名保留）。这是与 `theme-tokens.css` 一致的唯一 App 阶梯；旧的 `10 / 11 / 13 / 15 / 17 / 22 / 24 / 28 / 36 / 42px` 界面尺度不得回流。对话正文是独立阅读层，遵循 §6.2。
 
 App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，不在每个文件重新组合字号、行高、字重与字距：
 
 | 语义角色 | 字号 | 用途 |
 | --- | --- | --- |
-| `display / featureTitle` | `36 / 24px` | 品牌、欢迎和明确的特性主标题 |
+| `display / featureTitle` | `20 / 20px` | 品牌、欢迎和明确的特性主标题 |
 | `objectTitle` | `20px` | 当前业务对象主标题 |
-| `pageTitle / sectionTitle` | `16 / 14px` | 页面与内容分区标题 |
-| `body / control / supporting` | `14 / 14 / 13px` | 正文、控件文字与辅助说明 |
-| `metadata / caption` | `12 / 11px` | 元数据、计数与次级短标签 |
-| `code` | `13px` | App chrome 中的短技术标识 |
+| `pageTitle / sectionTitle` | `16 / 14px`（sectionTitle 为 semibold） | 页面与内容分区标题 |
+| `body / control / supporting` | `14 / 14 / 14px` | 正文、控件文字与辅助说明 |
+| `metadata / caption` | `12 / 12px` | 元数据、计数与次级短标签 |
+| `code` | `14px` | App chrome 中的短技术标识 |
 
 业务组件只选择 role、tone 和有限的 weight；margin、截断与布局仍由调用方负责。品牌字、Markdown/文件阅读正文以及 WorkGraph/图形内必须像素对齐的微标签由所属 Surface 独立管理，并在其所有者文档说明理由。
 
-普通分组标签使用 metadata / medium，设置内的配置分组使用 supporting / medium；说明和运行结果使用 supporting，不缩成计数字号。保留英文原始大小写与正常字距，不提供全大写、大字距的 overline 角色。10px 阶梯保留供公共紧凑徽标、头像字母与图形微标签使用，不能套到普通配置标题、错误或截断提示。相邻小标题与主标题表达同一件事时，只保留能说明下一步的主标题。
+普通分组标签使用 metadata / medium，设置内的配置分组使用 supporting / medium；说明和运行结果使用 supporting，不缩成计数字号。保留英文原始大小写与正常字距，不提供全大写、大字距的 overline 角色。阶梯外的更小字号只允许头像字母与图形微标签使用，不能套到普通配置标题、错误或截断提示。相邻小标题与主标题表达同一件事时，只保留能说明下一步的主标题。
 
 Login/Setup 的宣传标题是共用 Access 品牌 Surface：640px 以下 44px，以上 64px，
 600 字重与 1.02 行高统一由 `features/access/access-page.css` 持有，不扩展普通 App
@@ -122,9 +122,9 @@ Login/Setup 的宣传标题是共用 Access 品牌 Surface：640px 以下 44px�
 
 Settings 不单独维护字号和字重：区块标题、设置项名称、说明与控件文字分别选择上述语义角色。分段选择统一使用 `UiSegmentedControl`，普通设置不使用胶囊圆角，选中态只通过背景与文字对比表达，不加阴影。
 
-- 新会话欢迎：`2xl`、常规字重、宽松行高；一行主要信息 + 一个蓝色 Nexus 签名。
+- 新会话欢迎：`2xl`（20px）、常规字重、宽松行高；一行主要信息 + 一个蓝色 Nexus 签名。
 - 侧栏 / 设置：`--font-sans`；条目紧凑、组标题可扫描、摘要不抢正文。
-- 字重使用克制阶梯：正文 `400`，表单 label `500`，标题与语义强调 `600` 封顶；不用全大写、宽字距、满屏 semibold 或彩色标题制造层级。
+- 字重只有两档：正文、控件与 label 用 `400`，标题与语义强调用 `600`；`medium` / `bold` 只作别名保留，分别落到 `400` / `600`；不用全大写、宽字距、满屏 semibold 或彩色标题制造层级。
 
 ## 5. 表面、组件与几何
 

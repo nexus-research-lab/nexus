@@ -31,8 +31,8 @@
   --brand-foreground: #ffffff;
   --secondary: #f0efec;
   --secondary-foreground: #20201f;
-  --accent: #4fa29f;
-  --accent-foreground: #f6fbfb;
+  --accent: var(--primary);
+  --accent-foreground: var(--primary-foreground);
   --card: rgba(255, 255, 255, 0.72);
   --card-foreground: #131313;
   --muted: #e7e6e1;
@@ -165,8 +165,8 @@
   --brand-foreground: #08111d;
   --secondary: #16202b;
   --secondary-foreground: #ebf0f6;
-  --accent: #67d0c2;
-  --accent-foreground: #071715;
+  --accent: var(--primary);
+  --accent-foreground: var(--primary-foreground);
   --card: rgba(17, 24, 34, 0.76);
   --card-foreground: #ebf0f6;
   --muted: #17212c;
@@ -287,8 +287,8 @@
   --brand-foreground: #08111d;
   --secondary: #33404e;
   --secondary-foreground: #eef3f8;
-  --accent: #74d9cb;
-  --accent-foreground: #071715;
+  --accent: var(--primary);
+  --accent-foreground: var(--primary-foreground);
   --card: rgba(51, 62, 76, 0.78);
   --card-foreground: #eef3f8;
   --muted: #34414f;
@@ -676,18 +676,24 @@
   --color-warning: var(--warning);
 
   /*
-   * 桌面 App 以 14px 为常规界面基准；小字只承担元数据，阅读正文保留所属 Surface 的显式字号。
-   * 保留紧凑的 10–13px 档位，避免全局缩放把已经稳定的侧栏与说明文字继续压小。
+   * 界面字号只有四档：12 元数据、14 正文与控件、16 页面标题、20 对象标题与展示。
+   * 旧档位名保留为别名，消费者无需改名即可落到同一阶梯；阅读正文保留所属 Surface 的显式字号。
    */
-  --text-2xs: 10px;
-  --text-xs: 11px;
+  --text-2xs: 12px;
+  --text-xs: 12px;
   --text-compact: 12px;
-  --text-sm: 13px;
+  --text-sm: 14px;
   --text-base: 14px;
   --text-md: 16px;
   --text-lg: 20px;
-  --text-xl: 24px;
-  --text-2xl: 36px;
+  --text-xl: 20px;
+  --text-2xl: 20px;
+  /* 界面字重只有 regular 与 semibold：medium 落到 regular，bold 落到 semibold。 */
+  --font-weight-light: 400;
+  --font-weight-normal: 400;
+  --font-weight-medium: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
 
   --font-sans:
     -apple-system,
