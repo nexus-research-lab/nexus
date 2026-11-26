@@ -51,7 +51,7 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
       <div
         ref={scrollRef}
         {...fadeProps}
-        className="soft-scrollbar scrollbar-stable-gutter-end flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2 pl-2.5 pr-0.5 overscroll-contain max-[559px]:gap-1 max-[559px]:px-3"
+        className="soft-scrollbar scrollbar-stable-gutter-end flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2 pl-px pr-0.5 overscroll-contain max-[559px]:gap-1 max-[559px]:px-3"
       >
         {items.length > 0 ? items.map((item) => (
           <CapabilitySidebarItemView
