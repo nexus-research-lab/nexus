@@ -311,8 +311,10 @@ function HomeActiveRow({
   const statusLabel = t(isWorking ? "home.launch.status_working" : "home.launch.status_waiting");
   return (
     <button
+      aria-label={`${item.title} · ${statusLabel}`}
       className="home-launch-row radius-control-md flex items-center gap-3 px-3 py-2 text-left"
       onClick={() => onOpen(item)}
+      title={item.title}
       type="button"
     >
       {item.kind === "room" ? (
@@ -332,11 +334,9 @@ function HomeActiveRow({
           size="sm"
         />
       )}
-      <span className={cn("max-w-[45%] shrink-0 truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
-        {item.title}
-      </span>
-      <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
-        {item.summary}
+      {/* 行内只留头像和最新一句：名称长短不一会把摘要挤得参差不齐，名称交给头像、读屏标签与悬停提示。 */}
+      <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "supporting", tone: "default" }))}>
+        {item.summary || item.title}
       </span>
       {/* 状态与侧栏一致只用色点：等你回复为品牌蓝，进行中为 running 蓝灰；文字留给读屏与悬停提示。 */}
       <span
