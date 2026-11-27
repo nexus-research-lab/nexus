@@ -1,5 +1,5 @@
 // INPUT: exact ToolUse Artifact 事实与当前 Runtime Graph 节点集合。
-// OUTPUT: 到达顺序无关的 Artifact upsert，以及分批读取后按 Agent round + ToolUse 精确回挂。
+// OUTPUT: 到达顺序无关的 Artifact upsert，以及单条固定 SQL 读取后按 Agent round + ToolUse 精确回挂。
 // POS: Runtime Graph Repository 的 Artifact 子域；不创建节点、不推断结果、不选择 Agent 路线。
 package orchestration
 
@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -118,81 +117,66 @@ func (r *Repository) attachRuntimeGraphArtifacts(
 	if len(tools) == 0 {
 		return nil
 	}
-	slices.SortFunc(tools, func(left, right exactTool) int {
-		if order := strings.Compare(left.agentRoundID, right.agentRoundID); order != 0 {
-			return order
-		}
-		return strings.Compare(left.toolUseID, right.toolUseID)
-	})
-	const toolBatchSize = 200
-	for start := 0; start < len(tools); start += toolBatchSize {
-		end := min(start+toolBatchSize, len(tools))
-		args := []any{ownerUserID, sessionKey}
-		conditions := make([]string, 0, end-start)
-		for _, tool := range tools[start:end] {
-			agentRoundBind := r.bind(len(args) + 1)
-			args = append(args, tool.agentRoundID)
-			toolUseBind := r.bind(len(args) + 1)
-			args = append(args, tool.toolUseID)
-			conditions = append(
-				conditions,
-				"(agent_round_id = "+agentRoundBind+" AND tool_use_id = "+toolUseBind+")",
-			)
-		}
-		query := fmt.Sprintf(`
-SELECT agent_round_id, tool_use_id, artifact_json
-FROM runtime_graph_artifact_refs
-WHERE owner_user_id = %s AND session_key = %s
-  AND (%s)
-ORDER BY updated_at DESC, artifact_ref_id DESC
+	// 全部精确工具身份作为一个 JSON 参数绑定：按批拼 OR 条件会让每批生成新的 SQL 文本并重新解析，
+	// 解析成本随历史线性增长。CROSS JOIN 固定 SQLite 以工具身份为外层，逐个命中 exact_tool 索引。
+	keys := make([][2]string, len(tools))
+	for index, tool := range tools {
+		keys[index] = [2]string{tool.agentRoundID, tool.toolUseID}
+	}
+	encodedKeys, err := json.Marshal(keys)
+	if err != nil {
+		return err
+	}
+	query := fmt.Sprintf(`
+SELECT a.agent_round_id, a.tool_use_id, a.artifact_json
+FROM %s
+CROSS JOIN runtime_graph_artifact_refs a
+WHERE a.owner_user_id = %s AND a.session_key = %s
+  AND a.agent_round_id = tool.value ->> 0
+  AND a.tool_use_id = tool.value ->> 1
+ORDER BY a.updated_at DESC, a.artifact_ref_id DESC
 LIMIT %d`,
-			r.bind(1),
-			r.bind(2),
-			strings.Join(conditions, " OR "),
-			(end-start)*protocol.ExecutionRuntimeGraphArtifactProjectionLimit,
-		)
-		rows, err := r.db.QueryContext(ctx, query, args...)
-		if err != nil {
+		r.dialect.JSONArrayRows(1, "tool"),
+		r.bind(2),
+		r.bind(3),
+		len(tools)*protocol.ExecutionRuntimeGraphArtifactProjectionLimit,
+	)
+	rows, err := r.db.QueryContext(ctx, query, string(encodedKeys), ownerUserID, sessionKey)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var agentRoundID, toolUseID string
+		var artifactJSON []byte
+		if err = rows.Scan(&agentRoundID, &toolUseID, &artifactJSON); err != nil {
 			return err
 		}
-		for rows.Next() {
-			var agentRoundID, toolUseID string
-			var artifactJSON []byte
-			if err = rows.Scan(&agentRoundID, &toolUseID, &artifactJSON); err != nil {
-				rows.Close()
-				return err
-			}
-			index, exists := toolNodeIndex[strings.TrimSpace(agentRoundID)+"\x00"+strings.TrimSpace(toolUseID)]
-			if !exists || len(nodes[index].Artifacts) >= protocol.ExecutionRuntimeGraphArtifactProjectionLimit {
-				continue
-			}
-			var artifact protocol.WorkspaceFileArtifactBlock
-			if json.Unmarshal(artifactJSON, &artifact) != nil ||
-				strings.TrimSpace(artifact.Path) == "" ||
-				strings.TrimSpace(artifact.SourceToolUseID) != strings.TrimSpace(toolUseID) {
-				continue
-			}
-			duplicate := false
-			for _, current := range nodes[index].Artifacts {
-				if current.ID != "" && current.ID == artifact.ID ||
-					(current.SourceToolUseID == artifact.SourceToolUseID && current.Path == artifact.Path) {
-					duplicate = true
-					break
-				}
-			}
-			if !duplicate {
-				nodes[index].Artifacts = append(nodes[index].Artifacts, artifact)
-			}
+		index, exists := toolNodeIndex[strings.TrimSpace(agentRoundID)+"\x00"+strings.TrimSpace(toolUseID)]
+		if !exists || len(nodes[index].Artifacts) >= protocol.ExecutionRuntimeGraphArtifactProjectionLimit {
+			continue
 		}
-		if err = rows.Err(); err != nil {
-			rows.Close()
-			return err
+		var artifact protocol.WorkspaceFileArtifactBlock
+		if json.Unmarshal(artifactJSON, &artifact) != nil ||
+			strings.TrimSpace(artifact.Path) == "" ||
+			strings.TrimSpace(artifact.SourceToolUseID) != strings.TrimSpace(toolUseID) {
+			continue
 		}
-		if err = rows.Close(); err != nil {
-			return err
+		if !runtimeGraphArtifactListed(nodes[index].Artifacts, artifact) {
+			nodes[index].Artifacts = append(nodes[index].Artifacts, artifact)
 		}
 	}
-	return nil
+	return rows.Err()
+}
+
+func runtimeGraphArtifactListed(current []protocol.WorkspaceFileArtifactBlock, artifact protocol.WorkspaceFileArtifactBlock) bool {
+	for _, item := range current {
+		if item.ID != "" && item.ID == artifact.ID ||
+			(item.SourceToolUseID == artifact.SourceToolUseID && item.Path == artifact.Path) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateRuntimeGraphArtifact(item protocol.ExecutionRuntimeArtifactRef) error {

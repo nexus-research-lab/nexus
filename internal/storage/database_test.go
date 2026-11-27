@@ -1,8 +1,12 @@
 package storage
 
 import (
+	"database/sql"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -107,5 +111,62 @@ func TestSQLDialect(t *testing.T) {
 				t.Fatalf("InsertIgnoreSuffix() = %q, want %q", got, test.suffix)
 			}
 		})
+	}
+}
+
+func TestSQLiteConnectionDSNDefaultsPageCacheAndKeepsExplicitValue(t *testing.T) {
+	pragmasOf := func(dsn string) []string {
+		_, query, _ := strings.Cut(dsn, "?")
+		values, err := url.ParseQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return values["_pragma"]
+	}
+	defaulted, err := sqliteConnectionDSN("nexus.db", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(pragmasOf(defaulted), sqliteDefaultCacheSize) {
+		t.Fatalf("default page cache missing: %s", defaulted)
+	}
+	explicit, err := sqliteConnectionDSN("nexus.db?_pragma=cache_size(-1000)", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pragmas := pragmasOf(explicit)
+	if slices.Contains(pragmas, sqliteDefaultCacheSize) || !slices.Contains(pragmas, "cache_size(-1000)") {
+		t.Fatalf("explicit cache_size must win: %v", pragmas)
+	}
+}
+
+func TestSQLDialectJSONSetsBindOneArray(t *testing.T) {
+	postgres := NewSQLDialect("postgres")
+	if got := postgres.JSONTextSet(3); got != "SELECT jsonb_array_elements_text($3::jsonb)" {
+		t.Fatalf("postgres JSONTextSet = %q", got)
+	}
+	if got := postgres.JSONArrayRows(1, "tool"); got != "jsonb_array_elements($1::jsonb) AS tool(value)" {
+		t.Fatalf("postgres JSONArrayRows = %q", got)
+	}
+
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	sqlite := NewSQLDialect("sqlite")
+	var count int
+	if err = db.QueryRow(
+		"SELECT COUNT(*) FROM (SELECT 'a' AS id UNION ALL SELECT 'b' UNION ALL SELECT 'c') WHERE id IN ("+sqlite.JSONTextSet(1)+")",
+		`["a","c","missing"]`,
+	).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("sqlite JSONTextSet matched %d, err=%v", count, err)
+	}
+	var round, tool string
+	if err = db.QueryRow(
+		"SELECT pair.value ->> 0, pair.value ->> 1 FROM "+sqlite.JSONArrayRows(1, "pair"),
+		`[["round","tool"]]`,
+	).Scan(&round, &tool); err != nil || round != "round" || tool != "tool" {
+		t.Fatalf("sqlite JSONArrayRows = %q/%q, err=%v", round, tool, err)
 	}
 }

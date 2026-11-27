@@ -91,13 +91,18 @@ func sqliteConnectionDSN(dsn string, enforceForeignKeys bool) (string, error) {
 		return "", fmt.Errorf("parse sqlite DSN query: %w", err)
 	}
 	pragmas := values["_pragma"][:0]
+	cacheSize := sqliteDefaultCacheSize
 	for _, pragma := range values["_pragma"] {
 		switch sqlitePragmaName(pragma) {
 		case "busy_timeout", "foreign_keys":
 			continue
-		default:
-			pragmas = append(pragmas, pragma)
+		case "cache_size":
+			cacheSize = ""
 		}
+		pragmas = append(pragmas, pragma)
+	}
+	if cacheSize != "" {
+		pragmas = append(pragmas, cacheSize)
 	}
 	foreignKeys := "foreign_keys(0)"
 	if enforceForeignKeys {
@@ -112,6 +117,11 @@ func sqliteConnectionDSN(dsn string, enforceForeignKeys bool) (string, error) {
 	values["_pragma"] = append(pragmas, "busy_timeout(5000)", foreignKeys)
 	return base + "?" + values.Encode(), nil
 }
+
+// sqliteDefaultCacheSize 把单连接页缓存从 SQLite 默认 2 MiB 提到 64 MiB（按需分配的上限）。
+// 连接池固定单连接，长历史 WorkGraph 读取的工作集远超 2 MiB，默认缓存会在同一次读取内反复换页；
+// DSN 显式给出 cache_size 时尊重配置。
+const sqliteDefaultCacheSize = "cache_size(-65536)"
 
 func sqlitePragmaName(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
