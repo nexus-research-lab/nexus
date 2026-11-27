@@ -11,7 +11,7 @@ import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
-import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
+import { UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
@@ -138,10 +138,14 @@ function ConversationRowStatus({
     : null;
   return (
     <>
+      {/* 状态只用一个色点表达，文字留给读屏与悬停提示，避免徽标挤占摘要宽度。 */}
       {presentation ? (
-        <UiBadge size="xs" tone={presentation.tone}>
-          {t(presentation.labelKey)}
-        </UiBadge>
+        <span
+          aria-label={t(presentation.labelKey)}
+          className={cn("h-2 w-2 shrink-0 rounded-full", presentation.dotClassName)}
+          role="img"
+          title={t(presentation.labelKey)}
+        />
       ) : null}
       <UiCounterBadge count={unreadCount} />
     </>
@@ -205,11 +209,11 @@ export function ConversationRow({
 const ACTIVITY_PRESENTATION = {
   waiting: {
     labelKey: "status.needs_response",
-    tone: "primary",
+    dotClassName: "bg-(--primary)",
   },
   working: {
     labelKey: "status.working",
-    tone: "running",
+    dotClassName: "bg-(--status-running-soft-text)",
   },
 } as const;
 
