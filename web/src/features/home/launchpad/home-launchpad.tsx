@@ -28,6 +28,7 @@ import type { InputQueueItem } from "@/types/agent/agent-conversation";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { CommandCatalogData } from "@/types/generated/protocol";
 
+import { ConversationStatusDot } from "../sidebar/conversation-status-dot";
 import type { SidebarConversationItem } from "../sidebar/sidebar-conversation-model";
 import {
   HOME_LAUNCH_CATEGORIES,
@@ -318,7 +319,7 @@ function HomeActiveRow({
       type="button"
     >
       {/* Room 头像 32px、Agent 头像 28px：放进同一宽度的槽里，让各行文字起点对齐。 */}
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
         {item.kind === "room" ? (
           <UiRoomAvatar
             avatar={item.avatar}
@@ -336,18 +337,12 @@ function HomeActiveRow({
             size="sm"
           />
         )}
+        <ConversationStatusDot status={item.activityStatus} />
       </span>
       {/* 行内只留头像和最新一句：名称长短不一会把摘要挤得参差不齐，名称交给头像、读屏标签与悬停提示。 */}
       <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "supporting", tone: "default" }))}>
         {item.summary || item.title}
       </span>
-      {/* 状态与侧栏一致只用色点：等你回复为品牌蓝，进行中为 running 蓝灰；文字留给读屏与悬停提示。 */}
-      <span
-        aria-label={statusLabel}
-        className={cn("h-2 w-2 shrink-0 rounded-full", isWorking ? "bg-(--status-running-soft-text)" : "bg-(--primary)")}
-        role="img"
-        title={statusLabel}
-      />
     </button>
   );
 }
