@@ -155,7 +155,7 @@
 
 :root[data-theme="dark"] {
   --background: var(--nexus-page-background-dark);
-  --foreground: #ebf0f6;
+  --foreground: #ececee;
   --primary: #8ea4ff;
   --primary-rgb: 142, 164, 255;
   --primary-foreground: #08111d;
@@ -163,57 +163,57 @@
   --brand-action: #8ea4ff;
   --brand-action-hover: #9bafff;
   --brand-foreground: #08111d;
-  --secondary: #16202b;
-  --secondary-foreground: #ebf0f6;
+  --secondary: #222225;
+  --secondary-foreground: #ececee;
   --accent: var(--primary);
   --accent-foreground: var(--primary-foreground);
-  --card: rgba(17, 24, 34, 0.76);
-  --card-foreground: #ebf0f6;
-  --muted: #17212c;
-  --muted-foreground: #97a5b8;
-  --border: rgba(171, 189, 214, 0.16);
-  --input: rgba(17, 24, 34, 0.78);
+  --card: rgba(30, 30, 33, 0.76);
+  --card-foreground: #ececee;
+  --muted: #222225;
+  --muted-foreground: #a3a3a9;
+  --border: rgba(255, 255, 255, 0.11);
+  --input: rgba(30, 30, 33, 0.78);
   --ring: rgba(142, 164, 255, 0.2);
   --destructive: #f26d77;
   --destructive-foreground: #24090e;
   --success: #49d09a;
   --success-foreground: #06140f;
   --warning: #efb554;
-  --scrollbar-thumb: rgba(177, 194, 216, 0.16);
-  --scrollbar-thumb-hover: rgba(177, 194, 216, 0.28);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.22);
 
   --ambient-page-pattern:
     var(--nexus-page-pattern-dark);
-  --material-panel-border: rgba(182, 199, 223, 0.16);
+  --material-panel-border: rgba(255, 255, 255, 0.11);
   --material-panel-shadow:
     0 22px 48px rgba(0, 5, 12, 0.34),
     0 4px 16px rgba(0, 5, 12, 0.16);
   --shadow-color: rgb(0 5 12);
-  --material-shell-navigation-background: rgba(4, 8, 14, 0.38);
-  --material-shell-directory-background: rgba(29, 37, 49, 0.22);
-  --material-shell-header-background: rgba(29, 37, 49, 0.18);
+  --material-shell-navigation-background: rgba(0, 0, 0, 0.26);
+  --material-shell-directory-background: rgba(255, 255, 255, 0.025);
+  --material-shell-header-background: rgba(255, 255, 255, 0.02);
   --material-shell-edge-shadow:
     10px 0 30px rgba(0, 4, 10, 0.28);
   --material-shell-inner-shadow:
     7px 0 22px rgba(0, 4, 10, 0.18);
-  --material-shell-edge-divider: #24282f;
+  --material-shell-edge-divider: #2a2a2e;
   --material-shell-header-shadow:
     0 9px 26px rgba(0, 4, 10, 0.22);
   --material-shell-footer-shadow:
     0 -8px 24px rgba(0, 4, 10, 0.18);
 
   --material-canvas-background:
-    linear-gradient(180deg, rgba(13, 19, 28, 0.82), rgba(10, 15, 22, 0.74) 100%);
-  --material-canvas-border: rgba(182, 199, 223, 0.12);
+    linear-gradient(180deg, rgba(25, 25, 28, 0.82), rgba(21, 21, 24, 0.74) 100%);
+  --material-canvas-border: rgba(255, 255, 255, 0.08);
 
-  --material-chip-background: rgba(22, 29, 40, 0.8);
-  --material-chip-border: rgba(182, 199, 223, 0.12);
+  --material-chip-background: rgba(38, 38, 42, 0.8);
+  --material-chip-border: rgba(255, 255, 255, 0.08);
   --material-chip-shadow:
     0 8px 16px rgba(0, 5, 12, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
-  --material-overlay-background: rgba(18, 24, 34, 0.985);
-  --material-overlay-border: rgba(182, 199, 223, 0.22);
+  --material-overlay-background: rgba(32, 32, 35, 0.985);
+  --material-overlay-border: rgba(255, 255, 255, 0.14);
   --material-overlay-shadow: 0 18px 48px rgba(0, 5, 12, 0.44);
   --material-popover-background: var(--material-overlay-background);
   --material-popover-border: var(--material-overlay-border);
@@ -224,44 +224,44 @@
   --material-dialog-surface-shadow: 0 28px 72px rgba(0, 5, 12, 0.5);
   --dialog-backdrop-color: rgba(2, 6, 14, 0.46);
 
-  --material-input-background: rgba(22, 29, 39, 0.9);
-  --material-input-border: rgba(182, 199, 223, 0.18);
-  --material-input-focus-background: rgba(25, 33, 45, 0.94);
+  --material-input-background: rgba(32, 32, 35, 0.9);
+  --material-input-border: rgba(255, 255, 255, 0.12);
+  --material-input-focus-background: rgba(36, 36, 40, 0.94);
   --material-input-focus-border: rgba(142, 164, 255, 0.34);
 
   --material-avatar-background:
-    linear-gradient(180deg, rgba(35, 44, 58, 0.995), rgba(22, 28, 39, 0.985) 100%);
-  --material-avatar-border: rgba(182, 199, 223, 0.34);
+    linear-gradient(180deg, rgba(44, 44, 48, 0.995), rgba(30, 30, 33, 0.985) 100%);
+  --material-avatar-border: rgba(255, 255, 255, 0.2);
   --material-avatar-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 10px 22px rgba(0, 5, 12, 0.18);
 
   --material-paper-background: rgba(250, 252, 255, 0.98);
-  --material-paper-border: rgba(182, 199, 223, 0.26);
+  --material-paper-border: rgba(255, 255, 255, 0.16);
   --material-paper-foreground: #17212c;
   --material-paper-muted: rgba(70, 84, 101, 0.78);
   --material-paper-shadow:
     0 22px 68px rgba(0, 5, 12, 0.38),
     0 4px 18px rgba(0, 5, 12, 0.18);
 
-  --divider-subtle-color: rgba(171, 189, 214, 0.1);
-  --divider-strong-color: rgba(171, 189, 214, 0.16);
+  --divider-subtle-color: rgba(255, 255, 255, 0.07);
+  --divider-strong-color: rgba(255, 255, 255, 0.11);
   --border-200-color: hsl(48deg 12.5% 68%);
-  --text-strong: #edf3fb;
-  --text-default: rgba(218, 227, 240, 0.92);
-  --text-muted: rgba(165, 180, 198, 0.82);
-  --text-soft: rgba(131, 146, 165, 0.92);
-  --icon-strong: rgba(235, 242, 252, 0.92);
-  --icon-default: rgba(173, 188, 208, 0.82);
-  --icon-muted: rgba(127, 142, 162, 0.66);
+  --text-strong: #f2f2f3;
+  --text-default: rgba(228, 228, 231, 0.92);
+  --text-muted: rgba(172, 172, 178, 0.82);
+  --text-soft: rgba(138, 138, 146, 0.92);
+  --icon-strong: rgba(240, 240, 242, 0.92);
+  --icon-default: rgba(186, 186, 192, 0.82);
+  --icon-muted: rgba(140, 140, 148, 0.66);
   --interaction-hover-background: rgba(255, 255, 255, 0.05);
-  --interaction-hover-border: rgba(182, 199, 223, 0.16);
+  --interaction-hover-border: rgba(255, 255, 255, 0.11);
   --interaction-active-background: rgba(255, 255, 255, 0.1);
-  --interaction-active-border: rgba(182, 199, 223, 0.16);
+  --interaction-active-border: rgba(255, 255, 255, 0.11);
   --interaction-active-shadow: none;
-  --text-kbd-color: #d7e0ee;
-  --surface-kbd-background: rgba(28, 36, 49, 0.84);
-  --divider-kbd-border: rgba(182, 199, 223, 0.12);
+  --text-kbd-color: #e0e0e4;
+  --surface-kbd-background: rgba(42, 42, 46, 0.84);
+  --divider-kbd-border: rgba(255, 255, 255, 0.08);
   --surface-kbd-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 8px 16px rgba(0, 5, 12, 0.22);

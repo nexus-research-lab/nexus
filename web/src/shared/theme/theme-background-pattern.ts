@@ -2,9 +2,9 @@
  * theme-background-pattern.ts
  *
  * 生成 SVG 平铺背景纹理，通过 CSS custom property 注入 body。
- * 深色主题使用等边三角形 isometric grid 骨架，浅色主题保持纯净画布：
+ * 雨夜主题使用等边三角形 isometric grid 骨架，浅色与深色保持纯净画布：
  *   - light：Claude 风格中性灰白底，不叠加纹理
- *   - dark ：深色描边（engraved）—— 深邃、精密
+ *   - dark ：中性石墨底，不叠加纹理（buildDarkSvg 保留以便回退）
  *   - rain ：深色轻描边（etched）—— 内敛、沉静
  *
  * 深色线条与背景保持低对比，"感觉得到但不抢内容"。
@@ -47,7 +47,7 @@ function buildGridSvg(strokeColor: string, strokeWidth: number): string {
   ].join("");
 }
 
-/* Dark — 深色 engraved 描边，在 #131316 上形成微弱阴刻质感 */
+/* Dark — 深色 engraved 描边，在 #18181a 上形成微弱阴刻质感 */
 function buildDarkSvg(): string {
   return buildGridSvg("rgba(0,0,0,0.24)", 0.6);
 }
@@ -79,7 +79,7 @@ function resolveVariant(theme: BackgroundTheme): PatternVariant {
 
 const BACKGROUNDS: Record<PatternVariant, string> = {
   light: "#f9f9f7",
-  dark: "#131316",
+  dark: "#18181a",
   rain: "#39424d",
 };
 
@@ -92,7 +92,8 @@ const BUILDERS: Record<TexturedPatternVariant, () => string> = {
 const cache = new Map<TexturedPatternVariant, string>();
 
 function buildPatternUrl(variant: PatternVariant): string {
-  if (variant === "light") {
+  // 浅色与深色都保持纯色画布：深色的三角网格在大面积留白处显得杂乱，只保留给雨夜。
+  if (variant === "light" || variant === "dark") {
     return "none";
   }
   let url = cache.get(variant);
