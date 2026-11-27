@@ -24,6 +24,7 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
   appearance: [
     ["theme.switch_title"],
     ["language.switch_title"],
+    ["settings.appearance.sky_title", "settings.appearance.sky_description"],
     ["settings.reading.font"],
     ["settings.reading.size"],
     ["settings.reading.spacing"],

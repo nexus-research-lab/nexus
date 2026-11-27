@@ -978,7 +978,8 @@
    * mask 再把整层羽化掉，最终与侧栏底面无缝衔接。装饰层压在导航轨与目录内容之下，
    * 搜索框等控件保留自身底面；pointer-events 关闭，不影响拖动与点击。
    */
-  .sidebar-panel-shell {
+  .sidebar-panel-shell,
+  .sidebar-sky-preview {
     --sidebar-sky-height: calc(var(--workspace-header-height, 60px) + 28px);
     --sidebar-sky-top: #2a1a58;
     --sidebar-sky-mid: #1d1b4b;
@@ -991,19 +992,13 @@
     --sidebar-sky-ground: var(--surface-shell-directory-background);
   }
 
-  /* 变体只替换底色、光晕和主角图层的颜色；深色与雨天主题统一压暗插画，渐隐底色仍跟随主题。 */
-  .sidebar-panel-sky[data-sky-variant="aurora"] {
-    --sidebar-sky-top: #07162c;
-    --sidebar-sky-mid: #0b2240;
-    --sidebar-sky-bottom: #0d1a33;
-    --sidebar-sky-glow: #1f6f8b;
-    --sidebar-sky-aurora-a: #5df2c0;
-    --sidebar-sky-aurora-b: #3cc8d8;
-    --sidebar-sky-aurora-c: #7a6cf0;
-    --sidebar-sky-star: #e8fbff;
+  /* 关闭天空后导航轨顶部不再需要羽化露出，计算结果为负值即整段实色。 */
+  .sidebar-panel-shell[data-sidebar-sky="off"] {
+    --sidebar-sky-height: 0px;
   }
 
-  .sidebar-panel-sky[data-sky-variant="dawn"] {
+  /* 变体只替换底色、光晕和主角图层的颜色；深色与雨天主题统一压暗插画，渐隐底色仍跟随主题。 */
+  :is(.sidebar-panel-sky, .sidebar-sky-preview)[data-sky-variant="dawn"] {
     --sidebar-sky-top: #2a2466;
     --sidebar-sky-mid: #7e4c9c;
     --sidebar-sky-bottom: #e08a7c;
@@ -1015,13 +1010,34 @@
     --sidebar-sky-star: #fff4e8;
   }
 
-  .sidebar-panel-sky[data-sky-variant="constellation"] {
-    --sidebar-sky-top: #0e1238;
-    --sidebar-sky-mid: #141a4a;
-    --sidebar-sky-bottom: #0c1630;
-    --sidebar-sky-glow: #3f5bd8;
-    --sidebar-sky-signal: #9db8ff;
-    --sidebar-sky-star: #e6ecff;
+  /* 白天：偏深的晴空蓝保证品牌栏浅色文字仍清晰，右上角暖白日光，云朵改为白色。 */
+  :is(.sidebar-panel-sky, .sidebar-sky-preview)[data-sky-variant="day"] {
+    --sidebar-sky-top: #2f6fdc;
+    --sidebar-sky-mid: #4b8eea;
+    --sidebar-sky-bottom: #86bdf4;
+    --sidebar-sky-glow: #bfe0ff;
+    --sidebar-sky-sun: #fff6dc;
+    --sidebar-sky-wisp: rgba(255, 255, 255, 0.55);
+    --sidebar-sky-cloud-a: #ffffff;
+    --sidebar-sky-cloud-b: #f2f8ff;
+    --sidebar-sky-cloud-c: #fdfcff;
+  }
+
+  /* 外观设置里的缩略预览复用同一插画与配色；底部只做轻度洗白，让小图仍能看清主角图层。 */
+  .sidebar-sky-preview {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sidebar-sky-preview::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      transparent 55%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 45%, transparent) 100%
+    );
+    content: "";
   }
 
   :root[data-theme="dark"] .sidebar-panel-sky-art,
@@ -1066,23 +1082,8 @@
     content: "";
   }
 
-  .sidebar-sky-aurora-band {
+  .sidebar-sky-drift {
     transform-box: fill-box;
-    transform-origin: 50% 100%;
-  }
-
-  .sidebar-sky-aurora-band-a { opacity: 0.85; }
-  .sidebar-sky-aurora-band-b { opacity: 0.6; }
-  .sidebar-sky-aurora-band-c { opacity: 0.5; }
-
-  .sidebar-sky-signal {
-    opacity: 0.9;
-    stroke-dasharray: 6 94;
-  }
-
-  .sidebar-sky-node-pulse {
-    transform-box: fill-box;
-    transform-origin: center;
   }
 
   /* 所有动效只在用户未要求减弱动态效果时运行；静止时各图层停在首帧，构图依然完整。 */
@@ -1096,16 +1097,13 @@
       animation: sidebar-sky-meteor 9s linear infinite;
     }
 
-    .sidebar-sky-aurora-band-a { animation: sidebar-sky-aurora 9s ease-in-out infinite alternate; }
-    .sidebar-sky-aurora-band-b { animation: sidebar-sky-aurora 13s ease-in-out -4s infinite alternate-reverse; }
-    .sidebar-sky-aurora-band-c { animation: sidebar-sky-aurora 16s ease-in-out -7s infinite alternate; }
+    /* 白天的云只做很慢的左右漂移，日光轻微呼吸，不抢注意力。 */
+    .sidebar-sky-drift-a { animation: sidebar-sky-drift 26s ease-in-out infinite alternate; }
+    .sidebar-sky-drift-b { animation: sidebar-sky-drift 34s ease-in-out -12s infinite alternate-reverse; }
+    .sidebar-sky-drift-clouds { animation: sidebar-sky-drift-slow 40s ease-in-out infinite alternate; }
 
-    .sidebar-sky-signal {
-      animation: sidebar-sky-signal 6s linear infinite;
-    }
-
-    .sidebar-sky-node-pulse {
-      animation: sidebar-sky-node-pulse 2.8s ease-in-out infinite alternate;
+    .sidebar-sky-sun-breathe {
+      animation: sidebar-sky-twinkle 7s ease-in-out infinite alternate;
     }
   }
 
@@ -1116,19 +1114,14 @@
     100% { opacity: 0; transform: translateX(90px); }
   }
 
-  @keyframes sidebar-sky-aurora {
-    from { transform: translateX(-10px) skewX(-4deg) scaleY(0.92); }
-    to { transform: translateX(10px) skewX(4deg) scaleY(1.06); }
+  @keyframes sidebar-sky-drift {
+    from { transform: translateX(-14px); }
+    to { transform: translateX(14px); }
   }
 
-  @keyframes sidebar-sky-signal {
-    from { stroke-dashoffset: 100; }
-    to { stroke-dashoffset: 0; }
-  }
-
-  @keyframes sidebar-sky-node-pulse {
-    from { opacity: 0.55; transform: scale(1); }
-    to { opacity: 1; transform: scale(1.7); }
+  @keyframes sidebar-sky-drift-slow {
+    from { transform: translateX(-5px); }
+    to { transform: translateX(5px); }
   }
 
   @keyframes sidebar-sky-twinkle {
@@ -1136,8 +1129,8 @@
     to { opacity: 1; }
   }
 
-  /* 品牌栏坐在夜空上：去掉自身底面与分隔线，文字与图标切到夜色上的浅色。 */
-  .sidebar-panel-shell .sidebar-panel-header {
+  /* 品牌栏坐在天空上：去掉自身底面与分隔线，文字与图标切到天色上的浅色；外观设置关闭天空时整组覆盖失效。 */
+  .sidebar-panel-shell:not([data-sidebar-sky="off"]) .sidebar-panel-header {
     --text-strong: #f5f4ff;
     --icon-strong: #f5f4ff;
     --icon-default: rgba(236, 236, 255, 0.86);
