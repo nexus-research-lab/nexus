@@ -8,7 +8,6 @@
 import {
   ArrowLeft,
   MessageCircle,
-  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -178,10 +177,6 @@ export function AgentCommunicationView({
               currentConversationId={state.conversationId}
               onBack={onBackToDirectory}
               onCreateConversation={onCreateConversation}
-              onRefresh={() => onRefresh(
-                state.conversationFailure?.kind
-                ?? (state.conversationId ? "messages" : "channel"),
-              )}
               onRemove={() => setPendingRemoval({ ...selectedContact })}
               onSelectConversation={onSelectConversation}
             />
@@ -242,7 +237,6 @@ function CommunicationHeader({
   currentConversationId,
   onBack,
   onCreateConversation,
-  onRefresh,
   onRemove,
   onSelectConversation,
 }: {
@@ -251,7 +245,6 @@ function CommunicationHeader({
   currentConversationId: string | null;
   onBack: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onRefresh: () => void;
   onRemove: () => void;
   onSelectConversation: (conversationId: string) => void;
 }) {
@@ -302,15 +295,6 @@ function CommunicationHeader({
         )}
         trailing={(
           <div className="flex items-center gap-0.5">
-            <UiIconButton
-              aria-label={t("agent_options.contact.refresh")}
-              onClick={onRefresh}
-              size="sm"
-              title={t("agent_options.contact.refresh")}
-              variant="ghost"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </UiIconButton>
             <UiIconButton
               aria-label={t("agent_options.contact.remove_friend")}
               onClick={onRemove}

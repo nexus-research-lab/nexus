@@ -1,5 +1,5 @@
 // INPUT: 真实历史资源/命令 Hook、共享 Dialog、受控读取接口与当前语言。
-// OUTPUT: 证明实例标题隔离、刷新在途禁用，以及语言切换后仍确认 exact run/投递 attempt。
+// OUTPUT: 证明实例标题隔离、仅当前 Job 事件触发对账刷新，以及语言切换后仍确认 exact run/投递 attempt。
 // POS: Scheduled 历史装配 DOM 回归；不启动浏览器、不向真实任务提交命令。
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { listScheduledTaskRunsApi } from "@/lib/api/capability/scheduled-task-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
+import { useAppEventRefresh, type AppEventRefreshOptions } from "@/lib/websocket/use-app-event-refresh";
 import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
 import { MESSAGES } from "@/shared/i18n/messages";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
@@ -18,6 +19,22 @@ import { SCHEDULED_TASK_COMMAND_KINDS } from "../controller/scheduled-task-direc
 import { ScheduledTaskRunHistoryDialog } from "./scheduled-task-run-history-dialog";
 
 vi.mock("@/lib/api/capability/scheduled-task-api", () => ({ listScheduledTaskRunsApi: vi.fn() }));
+vi.mock("@/lib/websocket/use-app-event-refresh", () => ({ useAppEventRefresh: vi.fn() }));
+
+function taskChanged(jobId: string) {
+  return { event_type: "scheduled_task_changed", data: { job_id: jobId } } as unknown as Parameters<AppEventRefreshOptions["onEvent"]>[0];
+}
+// 取最近一次挂载里认领该 Job 事件的推送订阅，模拟服务端推送触发的刷新。
+function pushOptions(jobId: string): AppEventRefreshOptions {
+  const calls = vi.mocked(useAppEventRefresh).mock.calls.map(([options]) => options);
+  const match = calls.reverse().find((options) => options.enabled !== false && options.onEvent(taskChanged(jobId)));
+  if (!match) throw new Error(`no push subscription for ${jobId}`);
+  return match;
+}
+function pushRefresh(jobId = TASK.job_id) {
+  // 与真实 Hook 一致：推送刷新的失败由资源自身呈现，不向上抛出。
+  void pushOptions(jobId).refresh().catch(() => undefined);
+}
 
 const TASK: ScheduledTaskItem = {
   agent_id: "current-agent", configuration_version: 7, delivery: { mode: "none" }, enabled: true,
@@ -56,7 +73,7 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     const first = props();
     const second = props({ task: { ...TASK, job_id: "job-2", name: "Weekly report", enabled: false } });
     const { rerender } = render(view([first, second]));
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Refresh", hidden: true }).every((button) => !(button as HTMLButtonElement).disabled)).toBe(true));
+    await waitFor(() => expect(screen.getAllByText("No runs yet")).toHaveLength(2));
     const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
     expect(dialogs).toHaveLength(2);
     const ids = dialogs.map((dialog) => dialog.getAttribute("aria-labelledby"));
@@ -73,23 +90,20 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     expect(document.getElementById(ids[1]!)?.textContent).toBe("Weekly report已暂停");
   });
 
-  it("marks manual refresh busy, prevents repeated clicks, and only reconciles the requested history", async () => {
+  it("refreshes only on the current Job's pushed change and reconciles the requested history", async () => {
     const callbacks = props();
     render(view([callbacks]));
-    const refresh = screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement;
-    await waitFor(() => expect(refresh.disabled).toBe(false));
+    expect(await screen.findByText("No runs yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
+    const options = pushOptions(TASK.job_id);
+    expect(options.onEvent(taskChanged("job-2"))).toBe(false);
     vi.mocked(listScheduledTaskRunsApi).mockClear();
     let resolve!: (runs: ScheduledTaskRunItem[]) => void;
     vi.mocked(listScheduledTaskRunsApi).mockReturnValueOnce(new Promise((done) => { resolve = done; }));
-    fireEvent.click(refresh);
-    expect(refresh.disabled).toBe(true);
-    expect(refresh.getAttribute("aria-busy")).toBe("true");
-    fireEvent.click(refresh);
+    act(() => pushRefresh());
     expect(listScheduledTaskRunsApi).toHaveBeenCalledExactlyOnceWith(TASK.job_id);
     await act(async () => resolve([RUN]));
     expect(callbacks.onRunHistoryReconciled).toHaveBeenCalledExactlyOnceWith(TASK, [RUN]);
-    expect(refresh.disabled).toBe(false);
-    expect(refresh.getAttribute("aria-busy")).toBe("false");
     expect(callbacks.onRetryTask).not.toHaveBeenCalled();
     expect(callbacks.onRetryDelivery).not.toHaveBeenCalled();
     expect(callbacks.onRecoverTaskRun).not.toHaveBeenCalled();
@@ -122,7 +136,7 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     render(view([callbacks]));
     expect(await screen.findByText(run.result_text)).toBeTruthy();
     vi.mocked(listScheduledTaskRunsApi).mockRejectedValue(new ApiRequestError("private denial detail", status));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    act(() => pushRefresh());
     expect(await screen.findByText("This account cannot access this content")).toBeTruthy();
     expect(screen.queryByText(run.result_text)).toBeNull();
     expect(document.body.textContent).not.toContain("private denial detail");
@@ -133,7 +147,6 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     fireEvent.click(retry);
     expect(retry.disabled).toBe(true);
     expect(retry.getAttribute("aria-busy")).toBe("true");
-    expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(retry);
     expect(listScheduledTaskRunsApi).toHaveBeenCalledExactlyOnceWith(TASK.job_id);
     expect(screen.queryByText(run.result_text)).toBeNull();
@@ -152,14 +165,13 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     render(view([callbacks]));
     const original = await screen.findByText(run.result_text);
     vi.mocked(listScheduledTaskRunsApi).mockRejectedValue(new Error("private read error"));
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    act(() => pushRefresh());
     expect(await screen.findByText("Run history could not be refreshed")).toBeTruthy();
     expect(screen.getByText(run.result_text)).toBe(original);
     let resolve!: (runs: ScheduledTaskRunItem[]) => void;
     vi.mocked(listScheduledTaskRunsApi).mockReturnValue(new Promise((done) => { resolve = done; }));
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(screen.getByText(run.result_text)).toBe(original);
-    expect((screen.getByRole("button", { name: "Refresh" }) as HTMLButtonElement).disabled).toBe(true);
     const next = { ...RUN, result_text: "Current result" };
     await act(async () => resolve([next]));
     expect(screen.queryByText(run.result_text)).toBeNull();

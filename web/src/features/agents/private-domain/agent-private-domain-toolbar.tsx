@@ -1,43 +1,14 @@
-// INPUT: Private record title, loading state and refresh command.
-// OUTPUT: Header metadata and the shared refresh control.
-// POS: Private-domain header presentation; no resource reads or independent control styling.
-
-import { RefreshCw } from "lucide-react";
+// INPUT: Private record title.
+// OUTPUT: Header title row for the private-domain directory.
+// POS: Private-domain header presentation; records refresh via realtime pushes, so no manual control.
 
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
-import { UiIconButton } from "@/shared/ui/button/button";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
-export function PrivateDomainToolbar({
-  isLoading: isLoading,
-  onRefresh: onRefresh,
-  refreshLabel,
-  title,
-}: {
-  isLoading: boolean;
-  onRefresh: () => void;
-  refreshLabel: string;
-  title: string;
-}) {
+export function PrivateDomainToolbar({ title }: { title: string }) {
   return (
-    <div className="flex min-h-[48px] items-center justify-between gap-3 px-3">
+    <div className="flex min-h-[48px] items-center gap-3 px-3">
       <span className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "semibold" }))}>{title}</span>
-      <UiIconButton
-        aria-busy={isLoading}
-        aria-label={refreshLabel}
-        disabled={isLoading}
-        onClick={onRefresh}
-        size="xs"
-        title={refreshLabel}
-        variant="ghost"
-      >
-        <RefreshCw
-          className={isLoading
-            ? getUiSpinnerClassName({ size: "sm", tone: "muted" })
-            : "h-3.5 w-3.5"}
-        />
-      </UiIconButton>
     </div>
   );
 }

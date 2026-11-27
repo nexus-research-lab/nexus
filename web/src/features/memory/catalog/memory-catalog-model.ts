@@ -1,5 +1,6 @@
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { matchesUiSearchFields } from "@/shared/ui/form/search-query";
+import type { EventMessage } from "@/types/generated/protocol";
 import type { MemoryDocument, MemorySnapshot } from "@/types/memory/memory";
 
 export type MemoryFilter = "all" | "user" | "feedback" | "project" | "reference" | "daily_log";
@@ -168,4 +169,19 @@ function projectMemoryCatalogRow(
     document,
     isSelected: document.path === selectedPath,
   };
+}
+
+// 目录只关心记忆文件的落盘与删除；写入中的增量由正文 live 状态承接。
+const MEMORY_CATALOG_CHANGE_TYPES = new Set(["file_write_end", "file_deleted"]);
+
+/** 判定工作区文件事件是否改变了当前 Agent 的记忆目录（`MEMORY.md` 与 `memory/` 下的文档）。 */
+export function isMemoryCatalogChange(event: EventMessage, agentId: string): boolean {
+  if (event.event_type !== "workspace_event" || event.data.agent_id !== agentId) {
+    return false;
+  }
+  const { path, type } = event.data;
+  return typeof type === "string"
+    && MEMORY_CATALOG_CHANGE_TYPES.has(type)
+    && typeof path === "string"
+    && (path === "MEMORY.md" || path.startsWith("memory/"));
 }

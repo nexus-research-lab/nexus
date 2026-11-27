@@ -260,6 +260,8 @@ func (s *ControlService) touchPairing(ctx context.Context, ownerUserID string, p
 		// dispatch as if the pairing were still active.
 		return ErrExternalSessionGrantUnavailable
 	}
+	// 最近消息时间不经过控制版本，仍需让配对目录看到更新。
+	s.notifyControlChanged(ctx, ownerUserID)
 	return nil
 }
 

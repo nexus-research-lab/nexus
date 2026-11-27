@@ -1,5 +1,5 @@
 // INPUT: Owner Pairing/Agent snapshots, current locale and exact create/update/delete intents.
-// OUTPUT: Stale-safe reads, conservative mutation reconciliation, and replay locks.
+// OUTPUT: Stale-safe reads refreshed by channel_control pushes, conservative mutation reconciliation, and replay locks.
 // POS: Pairing directory controller; unknown writes are reconciled by reads, never auto-replayed.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -38,6 +38,7 @@ import {
   type PairingMutationIntent,
 } from "./pairing-recovery";
 import { usePairingCommand } from "./use-pairing-command";
+import { useChannelControlRefresh } from "../use-channel-control-refresh";
 
 const INITIAL_FILTERS: PairingFilters = {
   agentId: "",
@@ -68,7 +69,8 @@ export function usePairingsController() {
   const [recovery, setRecovery] = useState<PairingMutationRecovery | null>(null);
   const { pendingAction, runCommand } = usePairingCommand();
 
-  const refresh = useCallback(async (reportError = true): Promise<boolean> => {
+  const readSnapshot = useCallback(async (silent: boolean): Promise<boolean> => {
+    const reportError = !silent;
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
@@ -118,6 +120,7 @@ export function usePairingsController() {
       }
     }
   }, [t]);
+  const refresh = useChannelControlRefresh(readSnapshot);
 
   useEffect(() => {
     void refresh();
@@ -169,7 +172,7 @@ export function usePairingsController() {
           action: "update",
           pairing_id: updated.pairing_id,
         });
-        const refreshed = await refresh(false);
+        const refreshed = await refresh(true);
         setFeedback(refreshed
           ? {
               tone: "success",
@@ -211,7 +214,7 @@ export function usePairingsController() {
           action: "delete",
           pairing_id: item.pairing_id,
         });
-        const refreshed = await refresh(false);
+        const refreshed = await refresh(true);
         setFeedback(refreshed
           ? {
               tone: "success",
@@ -260,7 +263,7 @@ export function usePairingsController() {
         action: "create",
         pairing_id: created.pairing_id,
       });
-      const refreshed = await refresh(false);
+      const refreshed = await refresh(true);
       setFeedback(refreshed
         ? {
             tone: "success",

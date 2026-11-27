@@ -162,6 +162,8 @@ type Service struct {
 	factory            roomClientFactory
 	broadcaster        RoomBroadcaster
 	titles             roomTitleScheduler
+	// privateDomainNotifier 在 directed message 落盘后令相关 Agent 的私域投影失效。
+	privateDomainNotifier PrivateDomainNotifier
 	// executionSubmissionContract is the command parser's schema, injected by app.
 	executionSubmissionContract string
 	executionReviewContract     string

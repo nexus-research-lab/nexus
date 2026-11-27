@@ -7,7 +7,6 @@
 
 import {
   Plus,
-  RefreshCw,
   ShieldCheck,
 } from "lucide-react";
 
@@ -54,15 +53,6 @@ export function PairingsDirectory() {
         <CapabilityPageLayout
           actions={(
             <div className="flex items-center gap-2">
-              <UiButton
-                disabled={controller.loading}
-                onClick={() => void controller.refresh()}
-                size="2xs"
-                variant="text"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                {t("capability.refresh")}
-              </UiButton>
               <UiButton
                 disabled={controller.agents.length === 0 || controller.busy}
                 onClick={controller.openCreate}

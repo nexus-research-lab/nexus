@@ -8,7 +8,6 @@
 import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import {
   MessageCircle,
-  RefreshCw,
 } from "lucide-react";
 
 import {
@@ -18,7 +17,6 @@ import {
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
 import {
   completeFeedbackBanner,
   type FeedbackBannerProps,
@@ -60,17 +58,6 @@ export function ChannelsDirectory() {
         stableGutter
       >
         <CapabilityPageLayout
-          actions={(
-            <UiButton
-              disabled={controller.loading}
-              onClick={() => void controller.refresh()}
-              size="2xs"
-              variant="text"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t("capability.refresh")}
-            </UiButton>
-          )}
           title={t("capability.channels_intro_title")}
         >
           <CapabilityFilterBar>

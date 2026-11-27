@@ -6,10 +6,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { RefreshCw } from "lucide-react";
 
+import { useAppEventRefresh } from "@/lib/websocket/use-app-event-refresh";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import {
@@ -95,6 +94,15 @@ export function ScheduledTaskRunHistoryDialog({
   const deletionBlocked = Boolean(activeTask?.deletion_state?.trim());
   const cancelDeliveryVerification = actions.cancelDeliveryVerification;
   const cancelRecovery = actions.cancelRecovery;
+  const activeJobId = activeTask?.job_id ?? null;
+  // 同一 Job 的运行变化由服务端推送；收到后重读并核对，不再需要手动刷新。
+  useAppEventRefresh({
+    enabled: Boolean(activeJobId),
+    onEvent: (event) => (
+      event.event_type === "scheduled_task_changed" && event.data.job_id === activeJobId
+    ),
+    refresh: refreshAndReconcile,
+  });
   useEffect(() => {
     if (accessBlocked || deletionBlocked) {
       cancelDeliveryVerification();
@@ -117,19 +125,6 @@ export function ScheduledTaskRunHistoryDialog({
         <UiDialogShell size="xl" viewport="adaptive">
             <UiDialogHeader
               appearance="plain"
-              actions={(
-                <UiButton
-                  aria-busy={resource.isLoading}
-                  disabled={resource.isLoading}
-                  onClick={() => void refreshAndReconcile().catch(() => undefined)}
-                  size="xs"
-                  type="button"
-                  variant="text"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  {t("common.refresh")}
-                </UiButton>
-              )}
               onClose={onClose}
               title={(
                 <span className="flex min-w-0 items-center gap-2">

@@ -136,6 +136,7 @@ export function GoalStatusStrip({
     executionBinding,
     goal,
     isGenerating,
+    mutationBlocked,
   });
   const actionHandlers: GoalActionHandlers = {
     clear: onClearRequest,

@@ -11,7 +11,7 @@
 - 动作的 `busy` 只来自实际在途请求，`disabled` 继续独立受未确认、删除与运行资格约束；刷新只读取/对账，读取中原生禁用并标记 aria-busy。
 - 历史文件按钮与结果 Markdown 共用 `getRunWorkspaceAgentID`，只接受 run 持久 Session 中的明确 Agent 身份；当前任务改绑、当前全局 Agent 或投递目标均不能替代。复制诊断分别标注当前任务 Agent/执行类型和历史 Run Agent，未知历史身份留空。
 - 任务处于 `deleting` 或 `review_required` 时历史仍可读取和刷新，但重跑、重试投递与释放占用都必须禁用；目录事件 handler 同时保留第二道 guard。
-- `scheduled-task-run-history-dialog.tsx` 只装配共享 Dialog 壳层、资源、命令与内容视图。
+- `scheduled-task-run-history-dialog.tsx` 只装配共享 Dialog 壳层、资源、命令与内容视图；当前 Job 的 `scheduled_task_changed` 事件推送触发历史刷新，弹窗头部不再提供手动刷新，读取失败面仍保留重试。
 - 历史标题通过 `UiDialogHeader.title` 自动关联最近 Backdrop，任务名旁组合公共 Badge，不重复维护固定标题 ID；语言切换不能清除展开状态或替换嵌套确认所绑定的 exact run/投递 attempt。
 - `view/` 保存内容状态、单项、诊断详情与动作视图，只消费窄接口，不直接请求运行历史或维护命令状态。
 - 历史主输出只投影已知问题解释或中立错误摘要；完整运行/投递错误进入折叠诊断，复制诊断继续保留原文。历史与看板都调用 `scheduled-task-error-copy.ts` 的当前语言映射，不能把未知错误的首行作为普通摘要。
