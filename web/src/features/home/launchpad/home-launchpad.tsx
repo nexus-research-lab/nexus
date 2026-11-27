@@ -205,7 +205,7 @@ function HomePromptPicker({
 
   if (!openId) {
     return (
-      <div aria-label={t("home.launch.samples_title")} className="flex flex-wrap gap-2" role="group">
+      <div aria-label={t("home.launch.samples_title")} className="flex flex-wrap justify-center gap-2" role="group">
         {PICKER_IDS.map((id) => {
           const Icon = PICKER_ICONS[id];
           return (
