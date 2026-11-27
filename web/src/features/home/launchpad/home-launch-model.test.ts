@@ -4,6 +4,8 @@ import type { SidebarConversationItem } from "../sidebar/sidebar-conversation-mo
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import {
+  HOME_LAUNCH_CATEGORIES,
+  pickMixedPrompts,
   resolveHomeDayPeriod,
   selectActiveItems,
   selectUpcomingTasks,
@@ -54,5 +56,20 @@ describe("home launch model", () => {
       task("gone", { deletion_state: "deleting", next_run_at: 2 }),
     ];
     expect(selectUpcomingTasks(tasks).map((entry) => entry.job_id)).toEqual(["run", "soon", "late"]);
+  });
+});
+
+describe("pickMixedPrompts", () => {
+  it("每个分类各取一条并打乱顺序", () => {
+    const picked = pickMixedPrompts(HOME_LAUNCH_CATEGORIES, () => 0);
+    expect(picked).toHaveLength(HOME_LAUNCH_CATEGORIES.length);
+    const categories = picked.map((item) => item.id.split("-")[0]);
+    expect(new Set(categories)).toEqual(new Set(HOME_LAUNCH_CATEGORIES.map((category) => category.id)));
+  });
+
+  it("每个分类都有四条提示词", () => {
+    for (const category of HOME_LAUNCH_CATEGORIES) {
+      expect(category.prompts).toHaveLength(4);
+    }
   });
 });

@@ -37,7 +37,7 @@ export function SidebarTeammateCard({
             />
           ))}
         </span>
-        <span className={`truncate ${getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "semibold" })}`}>
+        <span className={`truncate ${getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "regular" })}`}>
           {t("sidebar.teammate_title")}
         </span>
       </span>
