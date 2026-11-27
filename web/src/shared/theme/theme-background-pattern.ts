@@ -47,7 +47,7 @@ function buildGridSvg(strokeColor: string, strokeWidth: number): string {
   ].join("");
 }
 
-/* Dark — 深色 engraved 描边，在 #18181a 上形成微弱阴刻质感 */
+/* Dark — 深色 engraved 描边，在 #222225 上形成微弱阴刻质感 */
 function buildDarkSvg(): string {
   return buildGridSvg("rgba(0,0,0,0.24)", 0.6);
 }
@@ -79,7 +79,7 @@ function resolveVariant(theme: BackgroundTheme): PatternVariant {
 
 const BACKGROUNDS: Record<PatternVariant, string> = {
   light: "#f9f9f7",
-  dark: "#18181a",
+  dark: "#222225",
   rain: "#39424d",
 };
 
