@@ -61,8 +61,8 @@ describe("RoomGoalPanel", () => {
     expect(screen.getByText(context.t("room.goal_lead_status", { name }))).toBeTruthy();
     expect(document.body.textContent).not.toContain("beta");
   });
-  it("keeps refresh on the shared controller instead of maintaining a second Goal request", () => {
-    resource.isLoading = false; render(view());
+  it("keeps the locked-state refresh on the shared controller instead of maintaining a second Goal request", () => {
+    resource.isLoading = false; resource.mutationsBlocked = true; resource.mutationBlockReason = "stale_read"; render(view());
     vi.mocked(resource.refresh).mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(resource.refresh).toHaveBeenCalledOnce();

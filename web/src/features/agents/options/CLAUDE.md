@@ -2,7 +2,7 @@
 
 本目录拥有 Agent 配置编辑器、业务弹窗和字段子域。
 
-- 普通 Agent 的内联身份页简介正文由 identity/agent-profile-file-editor.tsx 读取并完整展示根级 AGENTS.md，独立处理 Markdown 预览、编辑和确认保存；该用户可审阅正文不因页面密度优化而折叠。主 Nexus 不生成 AGENTS.md，因此隐藏这块文件简介。创建来源例外：默认行为模板从后端读取，并随创建事务一次性落为新 Agent 的 AGENTS.md；不得把模板混入数据库摘要字段。
+- 普通 Agent 的内联身份页简介正文由 identity/agent-profile-file-editor.tsx 读取并完整展示根级 AGENTS.md，独立处理 Markdown 预览、编辑和直接保存；该用户可审阅正文不因页面密度优化而折叠。主 Nexus 不生成 AGENTS.md，因此隐藏这块文件简介。创建来源例外：默认行为模板从后端读取，并随创建事务一次性落为新 Agent 的 AGENTS.md；不得把模板混入数据库摘要字段。
 
 - `AgentOptionsInlineEditor` 与 `AgentOptionsDialogEditor` 是两个明确壳层入口；不得恢复通过可选参数拼装内联导航、Footer 和关闭策略的组合模式。
 - `AgentOptionsInlineEditor` 可由既有 Agent 详情启用自动保存：草稿停止变化后再提交，不渲染底部保存/删除操作区，并通过外层 Header 回报保存状态；显式提交场景仍保留原操作区。动作行由一个 `buttonSize` 同时控制删除、取消、保存：内联 sm、弹窗 md，不混用默认高度。成功反馈采用完整换行的 supporting/success 状态播报，不截断或重复 title；失败继续使用共享 Notice。弹窗 Footer 继续遵循 Dialog 壳层自己的分区语义。

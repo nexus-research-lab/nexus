@@ -1,5 +1,5 @@
-// INPUT: exact Agent 的 AGENTS.md 文件 scope 与资料页保存确认。
-// OUTPUT: 具名公共源码编辑器与 Agent 隔离的忙碌保存确认，保留较新的草稿。
+// INPUT: exact Agent 的 AGENTS.md 文件 scope 与资料页编辑/保存动作。
+// OUTPUT: 具名公共源码编辑器与 Agent 隔离的直接保存，保存期间继续编辑时保留较新的草稿。
 // POS: Agent 身份页适配层；不绕过 workspace 文本编辑器的可靠性边界。
 "use client";
 
@@ -12,7 +12,6 @@ import { useTextFileEditor } from "@/features/conversation/shared/editor/text/us
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiButton } from "@/shared/ui/button/button";
-import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiField } from "@/shared/ui/form/form-control";
 
 const AGENT_PROFILE_FILE_PATH = "AGENTS.md";
@@ -37,8 +36,7 @@ function AgentProfileFileEditorScope({
     fallbackSaveError: t("workspace_file.save_failed_fallback"),
     path: AGENT_PROFILE_FILE_PATH,
   });
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [submitBusy, setSubmitBusy] = useState(false);
   const editorId = useId();
   const mountedRef = useRef(true);
   const submittingRef = useRef(false);
@@ -68,7 +66,7 @@ function AgentProfileFileEditorScope({
     saveBlocked,
     translate: t,
   });
-  const isBusy = confirmBusy || !editor.hasLoadedContent
+  const isBusy = submitBusy || !editor.hasLoadedContent
     || !revisionReady
     || editor.isLoading
     || editor.isExternalWriting
@@ -76,9 +74,24 @@ function AgentProfileFileEditorScope({
     || editor.isReconciling
     || saveBlocked;
 
-  useEffect(() => {
-    if (!confirmBusy && (!editor.hasLoadedContent || !revisionReady || saveBlocked)) setIsConfirmOpen(false);
-  }, [confirmBusy, editor.hasLoadedContent, revisionReady, saveBlocked]);
+  // 点「保存」即提交：版本冲突与结果未知仍由文本编辑器的 revision 与对账处理，不再二次确认。
+  const handleSave = useCallback(async () => {
+    if (isBusy || submittingRef.current) return;
+    const submittedDraft = editor.draftContent;
+    submittingRef.current = true;
+    setSubmitBusy(true);
+    try {
+      const didSave = await editor.save();
+      if (!mountedRef.current) return;
+      const current = currentEditorRef.current;
+      if (didSave && (current.draftContent === submittedDraft || !current.isDirty)) {
+        current.setIsEditing(false);
+      }
+    } finally {
+      submittingRef.current = false;
+      if (mountedRef.current) setSubmitBusy(false);
+    }
+  }, [editor, isBusy]);
 
   const handleEditAction = useCallback(() => {
     if (isBusy) {
@@ -92,31 +105,8 @@ function AgentProfileFileEditorScope({
       editor.setIsEditing(false);
       return;
     }
-    setIsConfirmOpen(true);
-  }, [editor, isBusy]);
-
-  const handleConfirmSave = useCallback(async () => {
-    if (isBusy || submittingRef.current || !isConfirmOpen) return;
-    const submittedDraft = editor.draftContent;
-    submittingRef.current = true;
-    setConfirmBusy(true);
-    try {
-      const didSave = await editor.save();
-      if (!mountedRef.current) return;
-      setIsConfirmOpen(false);
-      const current = currentEditorRef.current;
-      if (didSave && (current.draftContent === submittedDraft || !current.isDirty)) {
-        current.setIsEditing(false);
-      }
-    } finally {
-      submittingRef.current = false;
-      if (mountedRef.current) setConfirmBusy(false);
-    }
-  }, [editor, isBusy, isConfirmOpen]);
-
-  const handleCancelConfirmation = useCallback(() => {
-    if (!submittingRef.current) setIsConfirmOpen(false);
-  }, []);
+    void handleSave();
+  }, [editor, handleSave, isBusy]);
 
   return (
     <UiField className="flex min-h-0 min-w-0 flex-1 flex-col gap-2"
@@ -172,18 +162,6 @@ function AgentProfileFileEditorScope({
         saveIssue={editor.saveIssue}
       />
 
-      <ConfirmDialog
-        busy={confirmBusy || editor.isSaving || editor.isReconciling}
-        cancelText={t("agent_options.identity.profile_save_confirm_cancel")}
-        confirmText={t("agent_options.identity.profile_save_confirm_action")}
-        isOpen={isConfirmOpen}
-        message={t("agent_options.identity.profile_save_confirm_message")}
-        onCancel={handleCancelConfirmation}
-        onConfirm={() => {
-          void handleConfirmSave();
-        }}
-        title={t("agent_options.identity.profile_save_confirm_title")}
-      />
     </UiField>
   );
 }

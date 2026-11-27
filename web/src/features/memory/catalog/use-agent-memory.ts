@@ -1,6 +1,6 @@
 /**
  * INPUT: exact owner generation + Agent 的 Memory 目录、用户选择与已确认删除意图。
- * OUTPUT: stale-preserving 目录读取、path-scoped 删除结果锁、只读对账和显式新意图入口。
+ * OUTPUT: stale-preserving 目录读取（含工作区文件事件驱动的后台重读）、path-scoped 删除结果锁、只读对账和显式新意图入口。
  * POS: Memory Catalog 控制器；删除提交与目录刷新分离，普通刷新不得解除未知写入。
  */
 import {
@@ -27,6 +27,7 @@ import {
   isAuthOwnerScopeGenerationCurrent,
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
+import { useAppEventRefresh } from "@/lib/websocket/use-app-event-refresh";
 import type { MemorySnapshot } from "@/types/memory/memory";
 
 import {
@@ -44,6 +45,7 @@ import {
 } from "./memory-deletion-recovery";
 import {
   type MemoryFilter,
+  isMemoryCatalogChange,
   projectMemoryCatalog,
   resolveSelectedMemoryPath,
 } from "./memory-catalog-model";
@@ -153,6 +155,14 @@ export function useAgentMemory(
       directorySequenceRef.current += 1;
     };
   }, [refresh, scopeKey]);
+
+  // 记忆文件由 Agent 运行时写入；工作区文件事件命中记忆路径即后台重读目录。
+  useAppEventRefresh({
+    enabled: Boolean(agentId),
+    onEvent: (event) => isMemoryCatalogChange(event, agentId),
+    refresh,
+    subscription: { type: "subscribe_workspace", agent_id: agentId },
+  });
 
   const projection = useMemo(
     () => projectMemoryCatalog(

@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"maps"
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
@@ -75,6 +76,19 @@ func (h *Handler) BroadcastScheduledTaskChanged(ctx context.Context, event autom
 	})
 	message.AgentID = strings.TrimSpace(event.AgentID)
 	h.appEventSubs.Broadcast(ctx, message)
+}
+
+// BroadcastResourceChanged 广播通用资源失效事件；载荷只含资源名与定位 ID，前端收到后自行重读快照。
+func (h *Handler) BroadcastResourceChanged(ctx context.Context, resource string, data map[string]any) {
+	if h.appEventSubs == nil {
+		return
+	}
+	payload := maps.Clone(data)
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	payload["resource"] = resource
+	h.appEventSubs.Broadcast(ctx, protocol.NewEvent(protocol.EventTypeResourceChanged, payload))
 }
 
 // NotifyAutomationPermissionEvent 把 Automation 权限事件投影到 Session 与 Room。

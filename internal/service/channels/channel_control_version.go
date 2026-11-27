@@ -103,6 +103,8 @@ WHERE owner_user_id = ` + s.bind(1) + ` AND version = ` + s.bind(2)
 		// The caller must reconcile the exact Channel aggregate before another write.
 		return 0, channelControlMutationFailure(ControlMutationUnknown, err)
 	}
+	// 所有控制状态写入都经过这里：提交成功后统一通知，调用方无需各自广播。
+	s.notifyControlChanged(ctx, ownerUserID)
 	return currentVersion + 1, nil
 }
 

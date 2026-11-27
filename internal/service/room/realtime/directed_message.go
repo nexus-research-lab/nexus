@@ -65,8 +65,7 @@ func (s *Service) HandleDirectedMessage(
 	s.touchSharedConversationActivity(ctx, message.ConversationID, time.UnixMilli(message.Timestamp).UTC())
 
 	if inserted {
-		event := newRoomDirectedMessageEvent(*message)
-		s.broadcastSharedEventWithTimeout(ctx, protocol.BuildRoomSharedSessionKey(message.ConversationID), message.RoomID, event)
+		s.publishDirectedMessageCreated(ctx, protocol.BuildRoomSharedSessionKey(message.ConversationID), *message)
 	}
 	s.LoggerFor(ctx).Info("Room directed message 已创建",
 		"room_id", message.RoomID,
@@ -718,7 +717,7 @@ func (s *Service) recordRoomDirectedMessageReply(
 	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 		return err
 	}
-	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, newRoomDirectedMessageEvent(message))
+	s.publishDirectedMessageCreated(ctx, roundValue.SessionKey, message)
 	if replyRoute.WakePolicy == protocol.RoomWakePolicyImmediate {
 		wakeMessage := message
 		wakeMessage.WakePolicy = protocol.RoomWakePolicyImmediate

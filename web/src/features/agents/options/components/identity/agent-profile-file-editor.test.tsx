@@ -1,8 +1,8 @@
-// INPUT: Exact Agent profile editor, confirmation, deferred save and newer draft state.
+// INPUT: Exact Agent profile editor, direct save, deferred save and newer draft state.
 // OUTPUT: Named source editing, synchronous submit lock and isolation of late completion.
 // POS: Profile UI regression; revision, access and save results come from the existing file controller.
 
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -36,74 +36,65 @@ function view(agentId = "first") {
     <AgentProfileFileEditor agentId={agentId} label="Behavior template" />
   </I18N_CONTEXT.Provider>;
 }
-async function confirmButton() {
-  await userEvent.click(screen.getByRole("button", { name: "Save" }));
-  return within(screen.getByRole("dialog")).getByRole("button", { name: MESSAGES.en["agent_options.identity.profile_save_confirm_action"] });
+function saveButton() {
+  return screen.getByRole("button", { name: "Save" });
 }
 
-it("binds the visible profile label to the real source editor and keeps blur in edit mode", async () => {
+it("binds the visible profile label to the real source editor", () => {
   render(view());
   const source = screen.getByRole("textbox", { name: "Behavior template" });
   expect(document.activeElement).toBe(source);
-  await userEvent.click(screen.getByRole("button", { name: "Save" }));
-  expect(first.setIsEditing).not.toHaveBeenCalled();
-  expect(first.save).not.toHaveBeenCalled();
 });
 
-it("locks one save before the controller renders busy and reveals failure without exiting editing", async () => {
+it("saves directly without a confirmation dialog and exits after the same draft is saved", async () => {
+  render(view()); await userEvent.click(saveButton());
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(first.save).toHaveBeenCalledOnce();
+  expect(first.setIsEditing).toHaveBeenCalledExactlyOnceWith(false);
+});
+
+it("locks one save before the controller renders busy and keeps editing on failure", async () => {
   let finish!: (saved: boolean) => void;
   first.save = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
-  render(view()); const confirm = await confirmButton();
-  act(() => { fireEvent.click(confirm); fireEvent.click(confirm); });
+  render(view());
+  act(() => { fireEvent.click(saveButton()); fireEvent.click(saveButton()); });
   expect(first.save).toHaveBeenCalledOnce();
-  const dialog = screen.getByRole("dialog");
-  expect(within(dialog).getAllByRole("button").every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
-  await userEvent.keyboard("{Escape}"); expect(screen.getByRole("dialog")).toBe(dialog);
+  expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   await act(async () => finish(false));
-  expect(screen.queryByRole("dialog")).toBeNull();
   expect(first.setIsEditing).not.toHaveBeenCalled();
   expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("# Agent profile");
 });
 
-it("does not let an old Agent save close the new Agent's confirmation", async () => {
+it("does not let an old Agent save close the new Agent's editor", async () => {
   let finish!: (saved: boolean) => void;
   first.save = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
-  const { rerender } = render(view()); await userEvent.click(await confirmButton());
-  rerender(view("second")); expect(screen.queryByRole("dialog")).toBeNull();
-  await confirmButton(); const current = screen.getByRole("dialog");
+  const { rerender } = render(view()); await userEvent.click(saveButton());
+  rerender(view("second"));
   await act(async () => finish(true));
-  expect(screen.getByRole("dialog")).toBe(current);
   expect(second.save).not.toHaveBeenCalled(); expect(second.setIsEditing).not.toHaveBeenCalled();
 });
 
 it("retains editing when a newer draft arrives during save", async () => {
   let finish!: (saved: boolean) => void;
   first.save = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
-  const { rerender } = render(view()); await userEvent.click(await confirmButton());
+  const { rerender } = render(view()); await userEvent.click(saveButton());
   first = { ...first, displayContent: "newer draft", draftContent: "newer draft" };
   rerender(view()); await act(async () => finish(true));
   expect(first.setIsEditing).not.toHaveBeenCalled();
   expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("newer draft");
 });
 
-it("exits editing after the same draft is saved successfully", async () => {
-  render(view()); await userEvent.click(await confirmButton());
-  expect(first.setIsEditing).toHaveBeenCalledExactlyOnceWith(false);
-  expect(screen.queryByRole("dialog")).toBeNull();
-});
-
-it("closes a superseded confirmation to expose a conflict without saving", async () => {
-  const { rerender } = render(view()); await confirmButton();
+it("blocks saving while a conflict needs resolution", () => {
   first = { ...first, saveIssue: { kind: "conflict", phase: "reload_required" } };
-  rerender(view());
-  expect(screen.queryByRole("dialog")).toBeNull(); expect(first.save).not.toHaveBeenCalled();
+  render(view());
+  expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+  expect(first.save).not.toHaveBeenCalled();
   expect(screen.getByText(MESSAGES.en["workspace_file.conflict_title"])).toBeTruthy();
 });
 
-it("does not offer a save confirmation without the required read revision", () => {
+it("does not save without the required read revision", () => {
   first = { ...first, revision: null };
   render(view());
-  expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.queryByRole("dialog")).toBeNull();
+  expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   expect(first.save).not.toHaveBeenCalled();
 });

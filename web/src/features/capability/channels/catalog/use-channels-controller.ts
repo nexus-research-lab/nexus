@@ -1,5 +1,5 @@
 // INPUT: Owner-scoped Channel and Agent reads plus catalog-level committed callbacks.
-// OUTPUT: Stale-safe directory snapshots, read recovery, and strict user feedback.
+// OUTPUT: Stale-safe directory snapshots refreshed by channel_control pushes, read recovery, and strict user feedback.
 // POS: Channel catalog controller; reads never erase the last reliable snapshot.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -13,6 +13,7 @@ import type { Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { notifyCapabilitySummaryMutated } from "../../capability-summary-events";
+import { useChannelControlRefresh } from "../use-channel-control-refresh";
 import type { ChannelFeedback } from "../channel-model";
 import {
   filterChannels,
@@ -31,7 +32,7 @@ export function useChannelsController() {
   const [readFailed, setReadFailed] = useState(false);
   const [feedback, setFeedback] = useState<ChannelFeedback | null>(null);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const readSnapshot = useCallback(async (silent: boolean): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
@@ -51,7 +52,9 @@ export function useChannelsController() {
       const complete = channelResult.status === "fulfilled"
         && agentResult.status === "fulfilled";
       setReadFailed(channelResult.status === "rejected");
-      if (!complete) {
+      if (silent) {
+        // 后台读取不改写命令反馈；失败由下一次读取或错误态承接。
+      } else if (!complete) {
         setFeedback({
           impact: t("capability.channel_catalog_load_failed_impact"),
           nextStep: t("capability.channel_catalog_load_failed_next_step"),
@@ -67,7 +70,7 @@ export function useChannelsController() {
       // current snapshot is safer than projecting an empty directory.
       if (requestId === requestIdRef.current) {
         setReadFailed(true);
-        setFeedback({
+        if (!silent) setFeedback({
           impact: t("capability.channel_catalog_load_failed_impact"),
           nextStep: t("capability.channel_catalog_load_failed_next_step"),
           tone: "error",
@@ -81,6 +84,7 @@ export function useChannelsController() {
       }
     }
   }, [locale, t]);
+  const refresh = useChannelControlRefresh(readSnapshot);
 
   useEffect(() => {
     void refresh();

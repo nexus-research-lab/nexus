@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent/Room/Conversation scope 与只读联络记录 API。
- * OUTPUT: 在公共 Panel 中保留最后成功快照、隔离过期响应并提供就地恢复动作的私域联络视图。
+ * OUTPUT: 在公共 Panel 中保留最后成功快照、按 `resource_changed` 推送重读、隔离过期响应并提供就地恢复动作的私域联络视图。
  * POS: Agent 私域记录读取编排；不把读取失败解释成数据修改，也不显示原始异常。
  */
 "use client";
@@ -22,6 +22,8 @@ import {
   listAgentPrivateThreadsApi,
 } from "@/lib/api/agent/private-domain-api";
 import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
+import { isResourceChange } from "@/lib/websocket/protocol/resource-change";
+import { useAppEventRefresh } from "@/lib/websocket/use-app-event-refresh";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiPanel } from "@/shared/ui/panel";
@@ -176,22 +178,21 @@ export function AgentPrivateDomainView({
     [selectedThreadId, threads],
   );
 
-  const handleRefresh = useCallback(() => {
-    void loadThreads();
-    void loadEvents(selectedThreadId);
+  // 新的定向消息由服务端按涉及的 Agent 推送失效；线程与当前时间线一起重读。
+  const refreshRecords = useCallback(async () => {
+    await Promise.all([loadThreads(), loadEvents(selectedThreadId)]);
   }, [loadEvents, loadThreads, selectedThreadId]);
+  useAppEventRefresh({
+    onEvent: (event) => isResourceChange(event, "agent_private_domain", agent.agent_id),
+    refresh: refreshRecords,
+  });
 
   if (isPreview) {
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <div className="grid h-full min-h-0 flex-1 grid-cols-[230px_minmax(0,1fr)] items-stretch gap-3 overflow-hidden px-4 pb-4 pt-3 2xl:grid-cols-[250px_minmax(0,1fr)]">
           <UiPanel className="flex h-full min-h-0 flex-col overflow-hidden" padding="none" variant="filled">
-            <PrivateDomainToolbar
-                isLoading={threadsLoading || eventsLoading}
-              onRefresh={handleRefresh}
-              refreshLabel={t("agent_options.contact.refresh")}
-              title={t("agent_options.contact.preview_title")}
-            />
+            <PrivateDomainToolbar title={t("agent_options.contact.preview_title")} />
             {threadsFailure ? (
               <PrivateRecordsFailure
                 compact
@@ -233,12 +234,7 @@ export function AgentPrivateDomainView({
   return (
     <div className="nexus-private-domain-layout grid min-h-0 min-w-0 flex-1 overflow-hidden">
       <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-shell-directory-background)">
-        <PrivateDomainToolbar
-          isLoading={threadsLoading || eventsLoading}
-          onRefresh={handleRefresh}
-          refreshLabel={t("agent_options.contact.refresh")}
-          title={t("agent_options.contact.records_title")}
-        />
+        <PrivateDomainToolbar title={t("agent_options.contact.records_title")} />
         {threadsFailure ? (
           <PrivateRecordsFailure
             failure={threadsFailure}

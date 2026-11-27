@@ -103,9 +103,6 @@ export function useAgentSkillsController({
   const mountedRef = useRef(true);
   const [busyCommand, setBusyCommand] = useState<SkillCommandToken | null>(null);
   const [searchQuery, setSearchQuery] = useResettableState("", scopeAgentId);
-  const [pendingDisableSkill, setPendingDisableSkill] = useResettableState<
-    AgentSkillEntry | null
-  >(null, scopeAgentId);
   const [actionFailures, setActionFailures] = useResettableState<Record<
     string,
     AgentSkillMutationFailure
@@ -214,21 +211,10 @@ export function useAgentSkillsController({
     t,
   ]);
 
+  // 停用可随时重新启用，属于可逆开关，直接执行不再二次确认。
   const requestSkillAction = useCallback((skill: AgentSkillEntry): void => {
-    if (skill.enabled_for_agent) {
-      setPendingDisableSkill(skill);
-      return;
-    }
     void runSkillToggle(skill);
-  }, [runSkillToggle, setPendingDisableSkill]);
-
-  const confirmDisable = useCallback((): void => {
-    if (!pendingDisableSkill) {
-      return;
-    }
-    setPendingDisableSkill(null);
-    void runSkillToggle(pendingDisableSkill);
-  }, [pendingDisableSkill, runSkillToggle, setPendingDisableSkill]);
+  }, [runSkillToggle]);
 
   const mutationFailures = Object.values(actionFailures).filter(
     (failure) => failure.target.agentId === scopeAgentId,
@@ -240,12 +226,9 @@ export function useAgentSkillsController({
       .filter((failure) => failure.blocksRepeat)
       .map((failure) => failure.target.skillName)),
     busySkillName: scopedCommand?.skillName ?? null,
-    cancelDisable: () => setPendingDisableSkill(null),
     commandBusy: scopedCommand !== null,
-    confirmDisable,
     loading,
     mutationFailures,
-    pendingDisableSkill,
     projection,
     readFailure,
     refresh,

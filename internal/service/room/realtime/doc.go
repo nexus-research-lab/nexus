@@ -20,6 +20,7 @@
 //   - directed_message.go / public_*.go：公开消息、服务端分类为 handoff（区别于 queue/internal）的 mention conversation handoff、不触发新 wake 的 host-owned reply 因果投影、
 //     visible context、由成功 Goal mutation receipt 派生且首次写 ledger 即固化的非授权 revision attribution、分离 target terminal/Goal handback 阶段并严格修复 legacy attribution 的持久 handoff、私域消息
 //     两阶段写入修复、host command 幂等、immediate/delayed durable wake 调度与在线重试。
+//   - private_domain_notify.go：定向消息落盘后的唯一发布点，广播 Room 事件并按来源/接收 Agent 通知私域记录失效。
 //     @ 不创建 Assignment；正式责任只来自单项/批量 assign command。
 //   - goal_command.go：服务端验证当前 lead 身份后写入共享 Goal 与携带 exact client message identity 的完成态 public 控制记录；成员数量与协作审计事实不构成完成门槛，控制命令不占用普通 Agent slot。
 //   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / goal_completion_receipt.go / quota.go：
