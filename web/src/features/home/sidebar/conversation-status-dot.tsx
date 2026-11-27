@@ -1,6 +1,6 @@
 // INPUT: 会话的活动状态（等你回复 / 工作中）。
-// OUTPUT: 压在头像右上角的状态色点，带一圈页面底色描边，文字作为读屏标签与悬停提示。
-// POS: 侧栏聊天行与首页「正在进行」共用的状态标记；外层需要 relative 定位的头像容器。
+// OUTPUT: 状态色点，文字作为读屏标签与悬停提示；avatar 形态压在头像右上角并带页面底色描边，inline 形态排在行尾。
+// POS: 侧栏聊天行（avatar，外层需要 relative 定位的头像容器）与首页「正在进行」（inline）共用的状态标记。
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
@@ -13,8 +13,10 @@ const STATUS_PRESENTATION = {
 } as const;
 
 export function ConversationStatusDot({
+  placement = "avatar",
   status,
 }: {
+  placement?: "avatar" | "inline";
   status: SidebarConversationItem["activityStatus"];
 }) {
   const { t } = useI18n();
@@ -27,7 +29,10 @@ export function ConversationStatusDot({
     <span
       aria-label={label}
       className={cn(
-        "pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-(--background)",
+        "rounded-full",
+        placement === "avatar"
+          ? "pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 ring-2 ring-(--background)"
+          : "h-2 w-2 shrink-0",
         presentation.dotClassName,
       )}
       role="img"

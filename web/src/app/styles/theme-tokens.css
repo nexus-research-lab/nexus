@@ -189,18 +189,17 @@
     0 22px 48px rgba(0, 5, 12, 0.34),
     0 4px 16px rgba(0, 5, 12, 0.16);
   --shadow-color: rgb(0 5 12);
-  --material-shell-navigation-background: rgba(0, 0, 0, 0.16);
-  --material-shell-directory-background: rgba(255, 255, 255, 0.025);
-  --material-shell-header-background: rgba(255, 255, 255, 0.02);
-  --material-shell-edge-shadow:
-    10px 0 30px rgba(0, 4, 10, 0.28);
-  --material-shell-inner-shadow:
-    7px 0 22px rgba(0, 4, 10, 0.18);
-  --material-shell-edge-divider: #3e3e43;
+  /* 与浅色同一套分区：导航轨、目录栏用相邻的不透明灰阶，交界只靠一根 hairline，不叠投影。 */
+  --material-shell-navigation-background: #232326;
+  --material-shell-directory-background: #262629;
+  --material-shell-header-background: #262629;
+  --material-shell-edge-shadow: none;
+  --material-shell-inner-shadow: none;
+  --material-shell-edge-divider: #38383d;
   --material-shell-header-shadow:
-    0 9px 26px rgba(0, 4, 10, 0.22);
+    0 1px 0 rgba(255, 255, 255, 0.05);
   --material-shell-footer-shadow:
-    0 -8px 24px rgba(0, 4, 10, 0.18);
+    0 -1px 0 rgba(255, 255, 255, 0.05);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(45, 45, 49, 0.82), rgba(41, 41, 45, 0.74) 100%);

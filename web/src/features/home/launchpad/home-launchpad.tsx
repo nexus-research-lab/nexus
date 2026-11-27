@@ -319,7 +319,7 @@ function HomeActiveRow({
       type="button"
     >
       {/* Room 头像 32px、Agent 头像 28px：放进同一宽度的槽里，让各行文字起点对齐。 */}
-      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center">
         {item.kind === "room" ? (
           <UiRoomAvatar
             avatar={item.avatar}
@@ -337,12 +337,13 @@ function HomeActiveRow({
             size="sm"
           />
         )}
-        <ConversationStatusDot status={item.activityStatus} />
       </span>
       {/* 行内只留头像和最新一句：名称长短不一会把摘要挤得参差不齐，名称交给头像、读屏标签与悬停提示。 */}
       <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "supporting", tone: "default" }))}>
         {item.summary || item.title}
       </span>
+      {/* 首页行宽充裕，状态色点排在行尾，和左侧头像分开读。 */}
+      <ConversationStatusDot placement="inline" status={item.activityStatus} />
     </button>
   );
 }
