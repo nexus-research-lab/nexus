@@ -199,24 +199,10 @@ launcher 至少校验：
 ### 6.3 历史布局迁移
 
 - 运行时只读写 canonical `.nexus/app`、`.nexus/users/<owner>` 与 `.nexus/shared-workspaces`。
-- 历史数据只能经 `internal/migration/state_layout.go`、`workspace_layout.go` 这类版本化、可重试、可审计的启动迁移进入 canonical 布局；不提供旧路径运行时回读。
-- 迁移不能因版本发布而提前移除，必须允许跨多个版本直接升级。
+- 历史数据只能经 `internal/migration` 中版本化、可重试、可审计的启动迁移进入 canonical 布局；不提供旧路径运行时回读。
+- 迁移需允许跨多个版本直接升级；超过一个月的一次性迁移可以删除，更早的安装须先升级到中间版本。2026-10 之前的状态根布局、workspace 布局与 `app/rooms` 迁移已据此删除。
 - 迁移只执行 rename、不覆盖式合并和 owner 数据库映射。
 - 运行中的 server 不猜测历史目录归属，也不把 `app/` 当作用户 runtime 的兼容回退。
-
-v0.1.27/v0.1.28 直接升级到 v0.1.30 的修复迁移（v0.1.30 曾遗漏该入口）：
-
-- 若受影响版本已误建 `app/data/nexus.db` 与 `users/` 数据，先把两个新分支隔离到 `app/.migration-quarantine/skipped-state-layout-v1/`。
-- 恢复旧库、Agent workspace、transcript 与 Room 源文件。
-- 以旧数据优先、外键完整的单事务补入新库非冲突记录；不冲突的 owner 文件并回 canonical `users/`；文件冲突保留在隔离区。
-
-旧版共享 `app/rooms` 的 Room 文件迁移（有完成标记）：
-
-- 先从数据库按 `conversation_id` 确认 `owner_user_id`，再迁入 `users/<owner>/state/rooms`；不能从目录名或文件内声明猜测 owner。
-- `overlay.jsonl`、directed message、消费游标、public handoff 与 delayed wake 按 owner 拆分；JSONL 按规范化内容去重，支持中断后重试。
-- 旧 `attachments/` 迁入 `users/<owner>/workspace/.rooms/<conversation>/` 的对应相对路径。
-- 无法确认 owner、混合多个 conversation、含符号链接/硬链接/特殊文件的状态移入宿主私有 `app/.migration-quarantine/room-state-v1`。
-- 迁移告警不阻断启动；完成后移除旧目录并在 `app/.migrations` 写入标记，不再回读 `app/rooms`。
 
 ## 7. Runtime 环境与配置
 

@@ -15,6 +15,19 @@ import (
 
 // 旧 SDK 以摘要目录作 cwd 运行 session-memory fork，project 名因此形如
 // <sanitized runtime/projects/...>-<session>-session-memory，内容只有 fork transcript。
+// 已从代码中删除的 2026-10 之前迁移的完成标记；迁移本身不再存在，标记只是噪音。
+var retiredMigrationMarkers = []string{
+	"20260710_remove_legacy_memory_sessions",
+	"20260710_remove_legacy_memory_directories",
+	"20260712_remove_retired_managed_skills",
+	"20260713_remove_legacy_memory_manager_skill",
+	"20260723_migrate_v0_1_27_skill_storage",
+	"20260723_state_layout_v1",
+	"20260723_workspace_layout_v1",
+	"20260727_move_room_state_to_user_state",
+	"20260727_consolidate_legacy_no_user_input_conversations",
+}
+
 const (
 	orphanSessionMemoryProjectMarker = "-runtime-projects-"
 	orphanSessionMemoryProjectSuffix = "-session-memory"
@@ -40,6 +53,9 @@ func removeRetiredStateEntries(migrationContext workspaceFileMigrationContext) (
 		collect(removeOrphanSessionMemoryProjects(filepath.Join(owner, "runtime", "projects")))
 	}
 
+	for _, name := range retiredMigrationMarkers {
+		collect(removeRegularFile(workspaceFileMigrationMarker(appRoot, name), false))
+	}
 	// app 是宿主控制面，记忆只属于 Agent workspace；旧 runtime 误把 app 当 cwd 时留下这对入口。
 	collect(removeEmptyDirectory(filepath.Join(appRoot, "memory")))
 	if _, statErr := os.Lstat(filepath.Join(appRoot, "memory")); os.IsNotExist(statErr) {
@@ -92,43 +108,4 @@ func removeOrphanSessionMemoryProjects(projectsRoot string) (int, error) {
 		removed++
 	}
 	return removed, errors.Join(errs...)
-}
-
-// removeEmptyDirectory 只删除真实的空目录；非空或不存在都视为无需处理。
-func removeEmptyDirectory(path string) (int, error) {
-	ok, err := isRealDirectory(path)
-	if err != nil || !ok {
-		return 0, err
-	}
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return 0, fmt.Errorf("读取待清理目录 %q: %w", path, err)
-	}
-	for _, entry := range entries {
-		if entry.Name() != ".DS_Store" {
-			return 0, nil
-		}
-	}
-	if err := os.RemoveAll(path); err != nil {
-		return 0, fmt.Errorf("删除空目录 %q: %w", path, err)
-	}
-	return 1, nil
-}
-
-// removeRegularFile 删除普通文件；emptyOnly 时只删零字节文件，避免误删仍有内容的数据。
-func removeRegularFile(path string, emptyOnly bool) (int, error) {
-	info, err := os.Lstat(path)
-	if os.IsNotExist(err) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, fmt.Errorf("检查待清理文件 %q: %w", path, err)
-	}
-	if !info.Mode().IsRegular() || (emptyOnly && info.Size() != 0) {
-		return 0, nil
-	}
-	if err := os.Remove(path); err != nil {
-		return 0, fmt.Errorf("删除残留文件 %q: %w", path, err)
-	}
-	return 1, nil
 }

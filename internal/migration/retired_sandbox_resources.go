@@ -95,32 +95,3 @@ func removeRetiredSandboxScratch(base string) (int, error) {
 	}
 	return removed, errors.Join(errs...)
 }
-
-func isRealDirectory(path string) (bool, error) {
-	info, err := os.Lstat(path)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("检查旧沙箱路径 %q: %w", path, err)
-	}
-	return info.IsDir(), nil
-}
-
-// removeRetiredTree 是删除入口，测试可替换以模拟中途失败。
-var removeRetiredTree = removeTreeForced
-
-// removeTreeForced 先补齐目录写权限再删除，覆盖 scratch 中的只读模块缓存。
-// WalkDir 不跟随符号链接，链接本身作为普通条目删除。
-func removeTreeForced(root string) error {
-	_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err == nil && entry.IsDir() {
-			_ = os.Chmod(path, 0o700)
-		}
-		return nil
-	})
-	if err := os.RemoveAll(root); err != nil {
-		return fmt.Errorf("删除旧沙箱资源 %q: %w", root, err)
-	}
-	return nil
-}

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - 启动时一次性清理状态根里的残留：旧版 SDK 每次会话摘要都会多生成一个 `…-session-memory` 孤立 project 目录，这些目录会被删除；同时删除 `app/memory` 空目录与 `app/MEMORY.md`、从未写入过的 `app/debug`、零字节的 `app/data/nexus.sqlite`、根级旧 `runtime/arg-files`，以及非 Linux 上的空 `shared-workspaces`。清理失败不阻断启动，下次启动重试。
+- 删除 2026 年 10 月之前的启动迁移：旧状态根与 workspace 布局重排、v0.1.30 迁移缺口修复、旧 `app/rooms` 迁移、桌面 Provider scope 补偿、历史空白 Session 收口，以及旧记忆目录与已退役内置 Skill 清理。仍停在 2026 年 10 月之前版本的安装，须先升级到 10 月之后的发布版，再升级到本版本。这些迁移留下的完成标记会在启动时删除，`provider_scope_recovery` 表也一并删除。
 - 桌面端（macOS / Windows）不再创建 `app/debug`，日志导出包与诊断信息中也去掉了这一项。
 
 ### Changed
