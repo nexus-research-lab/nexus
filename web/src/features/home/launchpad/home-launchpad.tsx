@@ -23,7 +23,6 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
-import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
@@ -309,6 +308,7 @@ function HomeActiveRow({
 }) {
   const { t } = useI18n();
   const isWorking = item.activityStatus === "working";
+  const statusLabel = t(isWorking ? "home.launch.status_working" : "home.launch.status_waiting");
   return (
     <button
       className="home-launch-row radius-control-md flex items-center gap-3 px-3 py-2 text-left"
@@ -338,11 +338,13 @@ function HomeActiveRow({
       <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
         {item.summary}
       </span>
-      {item.activityStatus === "waiting" ? (
-        <UiBadge shape="pill" size="xs" tone="primary">{t("home.launch.status_waiting")}</UiBadge>
-      ) : (
-        <UiBadge shape="pill" size="xs" tone="running">{t("home.launch.status_working")}</UiBadge>
-      )}
+      {/* 状态与侧栏一致只用色点：等你回复为品牌蓝，进行中为 running 蓝灰；文字留给读屏与悬停提示。 */}
+      <span
+        aria-label={statusLabel}
+        className={cn("h-2 w-2 shrink-0 rounded-full", isWorking ? "bg-(--status-running-soft-text)" : "bg-(--primary)")}
+        role="img"
+        title={statusLabel}
+      />
     </button>
   );
 }
