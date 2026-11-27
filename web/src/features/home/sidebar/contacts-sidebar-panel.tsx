@@ -75,7 +75,8 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     : null;
   const filteredAgents = useMemo(() => {
     const search = createUiSearchMatcher(query);
-    return agents.filter((agent) => search.matches([agent.name]));
+    // 主智能体固定在聊天目录顶部，联系人只列自建 Agent，与联系人页目录一致。
+    return agents.filter((agent) => !isMainAgent(agent.id) && search.matches([agent.name]));
   }, [agents, query]);
 
   const hasCustomAgents = agents.some((agent) => !isMainAgent(agent.id));
