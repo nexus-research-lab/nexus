@@ -47,21 +47,16 @@ export function ExecutionNodeRunHistory({
     <section data-execution-node-run-history>
       {runs.length > 0 ? (
         <>
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <h4 className={getUiTypographyClassName({
+          <h4 className={cn(
+            "mb-1",
+            getUiTypographyClassName({
               role: "metadata",
               tone: "default",
               weight: "medium",
-            })}>
-              {t("execution.run_history")}
-            </h4>
-            <span className={cn(
-              "tabular-nums",
-              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
-            )}>
-              {t("execution.run_history_count", { count: runs.length })}
-            </span>
-          </div>
+            }),
+          )}>
+            {t("execution.run_history")}
+          </h4>
           <div className="space-y-1.5">
             {runs.map((run, index) => (
               <ExecutionNodeRunDetail

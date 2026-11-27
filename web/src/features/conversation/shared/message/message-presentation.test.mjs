@@ -617,7 +617,7 @@ test("live commentary separates completed and active tool groups", async () => {
         anchorRef: { current: null },
         expanded: false,
         projection: { content: [], streamingIndexes: new Set() },
-        summary: { kind: "details", latestDetail: null, metrics: [] },
+        summary: { errorCount: 0, kind: "details", latestDetail: null },
         toggle: () => {},
         visible: false,
       },
@@ -763,12 +763,9 @@ test("DM and Room Thread activity groups default to collapsed", async () => {
         expanded: true,
         projection: toolRunProps.projection,
         summary: {
+          errorCount: 2,
           kind: "details",
-          latestDetail: null,
-          metrics: [
-            { count: 4, kind: "thinking" },
-            { count: 5, kind: "action" },
-          ],
+          latestDetail: { detail: "ls", kind: "tool", toolName: "Bash" },
         },
         toggle: () => {},
         visible: true,
@@ -777,7 +774,8 @@ test("DM and Room Thread activity groups default to collapsed", async () => {
   ));
   assert.match(archivedHtml, /data-tool-run-id=/);
   assert.match(archivedHtml, /aria-expanded="false"/);
-  assert.match(archivedHtml, /4 段思路 · 5 次动作/);
+  assert.match(archivedHtml, /2 个异常 · /);
+  assert.doesNotMatch(archivedHtml, /段思路|次动作/);
   assert.doesNotMatch(archivedHtml, /Thought 0/);
 });
 
@@ -966,7 +964,7 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   const [cancelledSegment] = projectToolRunSegments({interactiveToolUseIds: new Set(), live: false, projection: {content: cancelledContent, streamingIndexes: new Set()}, responseResumed: true, toolUseSummary: null});
   assert.equal(cancelledSegment.phase, "stopped");
   assert.equal(cancelledSegment.errorCount, 0);
-  assert.deepEqual(buildProcessSummary({pendingPermissionCount: 0, processContent: cancelledContent}).metrics, [{kind: "action", count: 1}]);
+  assert.equal(buildProcessSummary({pendingPermissionCount: 0, processContent: cancelledContent}).errorCount, 0);
   const { I18nProvider } = await import("@/shared/i18n/i18n-provider.tsx");
   const tool = {
     type: "tool_use",
@@ -1019,11 +1017,8 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     buildProcessSummary({
       pendingPermissionCount: 0,
       processContent: [tool, result],
-    }).metrics,
-    [
-      { count: 1, kind: "action" },
-      { count: 1, kind: "error" },
-    ],
+    }).errorCount,
+    1,
   );
 
   const provider = (child) => React.createElement(I18nProvider, null, child);
@@ -1130,8 +1125,8 @@ test("superseded WorkGraph result is muted and does not count as failure", async
     buildProcessSummary({
       pendingPermissionCount: 0,
       processContent: [tool, result],
-    }).metrics,
-    [{ count: 1, kind: "action" }],
+    }).errorCount,
+    0,
   );
 
   const provider = (child) => React.createElement(I18nProvider, null, child);
@@ -1286,7 +1281,7 @@ test("DM live and terminal keep the final response on one content surface", asyn
       anchorRef: { current: null },
       expanded: false,
       projection: { content: [], streamingIndexes: new Set() },
-      summary: { kind: "details", latestDetail: null, metrics: [] },
+      summary: { errorCount: 0, kind: "details", latestDetail: null },
       toggle: () => {},
       visible: false,
     },

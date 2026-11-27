@@ -1576,10 +1576,6 @@ function ExecutionNodeInspector({
   );
   const visibleErrorSummary = errorSummary
     || (status === "failed" ? t("execution.error_summary_unavailable") : "");
-  const retryEdges = (execution.graph?.edges ?? []).filter((edge) => (
-    edge.kind === "retry"
-    && (edge.source_node_id === node.id || edge.target_node_id === node.id)
-  ));
   const controlReturnObserved = (execution.graph?.edges ?? []).some((edge) => (
     edge.kind === "loop_back" && edge.source_node_id === node.id
   ));
@@ -1718,11 +1714,6 @@ function ExecutionNodeInspector({
       {controlReturnObserved ? (
         <NodeDetailSection label={t("execution.control_return")}>
           <p>{t("execution.control_return_observed")}</p>
-        </NodeDetailSection>
-      ) : null}
-      {retryEdges.length > 0 ? (
-        <NodeDetailSection label={t("execution.retry_relation")}>
-          <p>{t("execution.retry_relation_count", { count: retryEdges.length })}</p>
         </NodeDetailSection>
       ) : null}
       {submission ? (

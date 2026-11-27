@@ -7,12 +7,10 @@ import { Wrench } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
-import type { TranslationKey } from "@/shared/i18n/messages";
 
 import { getLocalizedToolTitle } from "../../../tool-activity";
 import type {
   ProcessSummaryDetail,
-  ProcessSummaryMetricKind,
   ProcessSummaryProjection,
 } from "../../process/message-process-summary";
 import type {
@@ -74,28 +72,6 @@ function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
   );
 }
 
-const PROCESS_METRIC_KEYS: Record<
-  ProcessSummaryMetricKind,
-  { one: TranslationKey; other: TranslationKey }
-> = {
-  action: {
-    one: "message.process_action_one",
-    other: "message.process_action_other",
-  },
-  error: {
-    one: "message.process_error_one",
-    other: "message.process_error_other",
-  },
-  guidance: {
-    one: "message.process_guidance_one",
-    other: "message.process_guidance_other",
-  },
-  thinking: {
-    one: "message.process_thinking_one",
-    other: "message.process_thinking_other",
-  },
-};
-
 function formatProcessSummary(
   summary: ProcessSummaryProjection,
   t: I18nContextValue["t"],
@@ -103,20 +79,14 @@ function formatProcessSummary(
   if (summary.kind === "waiting_permission") {
     return t("message.process_waiting_permission");
   }
-  const metricText = summary.metrics.map(({ count, kind }) => {
-    const keys = PROCESS_METRIC_KEYS[kind];
-    return t(count === 1 ? keys.one : keys.other, { count });
-  });
-  const overview = metricText.length > 0
-    ? metricText.join(" · ")
-    : t("message.process_view");
-  if (!summary.latestDetail) {
-    return overview;
-  }
-  return t("message.process_latest", {
-    detail: formatProcessDetail(summary.latestDetail, t),
-    summary: overview,
-  });
+  // 只保留最近动作与异常数；两者都没有时退回通用入口文案。
+  const parts = [
+    summary.errorCount > 0
+      ? t(summary.errorCount === 1 ? "message.process_error_one" : "message.process_error_other", { count: summary.errorCount })
+      : null,
+    summary.latestDetail ? formatProcessDetail(summary.latestDetail, t) : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : t("message.process_view");
 }
 
 function formatProcessDetail(

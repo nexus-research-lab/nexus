@@ -40,21 +40,12 @@ export function MCPToolsSection({
 }: MCPToolsSectionProps) {
   const { t } = useI18n();
   const catalog = available && !failure?.access ? sourceCatalog : null;
-  const toolCount = catalog?.tools.length ?? 0;
   return (
     <section className="py-5">
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
             {t("capability.custom_mcp_tools")}
-            {catalog?.inspection_state === "connected" ? (
-              <span className={cn(
-                "ml-2 tabular-nums",
-                getUiTypographyClassName({ role: "caption", tone: "soft" }),
-              )}>
-                {toolCount}
-              </span>
-            ) : null}
           </h2>
           <p className={cn(
             "mt-1 [overflow-wrap:anywhere]",

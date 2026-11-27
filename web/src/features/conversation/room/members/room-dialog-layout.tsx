@@ -49,16 +49,12 @@ export function RoomMemberDirectory({ header, query, onQueryChange, searchLabel,
 }
 
 export function RoomMemberTypeTabs({
-  agentCount,
   disabled = false,
   onChange,
-  userCount,
   value,
 }: {
-  agentCount: number;
   disabled?: boolean;
   onChange: (value: "users" | "agents") => void;
-  userCount: number;
   value: "users" | "agents";
 }) {
   const { t } = useI18n();
@@ -69,8 +65,8 @@ export function RoomMemberTypeTabs({
       disabled={disabled}
       onChange={onChange}
       options={[
-        { label: t("room.people_count", { count: userCount }), value: "users" },
-        { label: t("room.agents_count", { count: agentCount }), value: "agents" },
+        { label: t("room.people"), value: "users" },
+        { label: t("room.agents"), value: "agents" },
       ]}
       stretch
       title={t("room.member_type")}

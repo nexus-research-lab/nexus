@@ -137,12 +137,7 @@ function ExternalResultsReady({
   const { t } = useI18n();
   return (
     <section>
-      <CapabilitySectionHeader
-        count={t("capability.result_count", {
-          count: model.visibleItems.length,
-        })}
-        title={model.title}
-      />
+      <CapabilitySectionHeader title={model.title} />
       {model.showSourceFilters ? (
         <ExternalSourceFilters
           groups={model.groups}

@@ -62,17 +62,15 @@ export function RoomMemberSelector({
       searchLabel={t(showsUsers ? "room.search_user_placeholder" : "room.search_agent_placeholder")} header={<>
         {separateUsers ? (
           <RoomMemberTypeTabs
-            agentCount={agents.length}
             disabled={disabled}
             onChange={(value) => {
               setMemberType(value);
               onQueryChange("");
             }}
-            userCount={users.length}
             value={memberType}
           />
         ) : (
-          <p className="dialog-label">{t("room.agents_count", { count: agents.length })}</p>
+          <p className="dialog-label">{t("room.agents")}</p>
         )}
       </>}>
           {showsUsers ? users.map((user) => (

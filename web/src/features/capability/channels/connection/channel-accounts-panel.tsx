@@ -46,7 +46,6 @@ export function ChannelAccountsPanel({
         )}>
           {t("capability.channel_accounts_title")}
         </h3>
-        <UiBadge size="xs">{t("capability.channel_accounts_count").replace("{count}", String(accounts.length))}</UiBadge>
       </div>
       {accounts.length === 0 ? (
         <p className={cn(

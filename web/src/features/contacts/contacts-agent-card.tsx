@@ -35,14 +35,12 @@ interface ContactsAgentCardProps {
 }
 
 interface ContactsAgentCardViewProps extends Omit<ContactsAgentCardProps, "view"> {
-  allowedToolsCount: number;
   businessTags: string[];
   chatLabel: string;
   createTeamLabel: string;
   editLabel: string;
   permissionMode: string;
   provider: string;
-  skillsCount: number;
 }
 
 export function ContactsAgentCard({
@@ -60,15 +58,12 @@ export function ContactsAgentCard({
   const provider = agent.options.provider?.trim()
     ? formatProviderLabel(agent.options.provider)
     : t("agent_options.identity.follow_default_provider");
-  const allowedToolsCount = agent.options.allowed_tools?.length || 0;
-  const skillsCount = agent.skills_count || 0;
   const businessTags = [...new Set(
     (agent.business_tags ?? []).map((tag) => tag.trim()).filter(Boolean),
   )];
 
   const viewProps: ContactsAgentCardViewProps = {
     agent,
-    allowedToolsCount,
     businessTags,
     chatLabel: t("contacts.chat"),
     createTeamLabel: t("contacts.create_team"),
@@ -78,7 +73,6 @@ export function ContactsAgentCard({
     onOpenRoom,
     permissionMode: t(permissionMode.labelKey),
     provider,
-    skillsCount,
   };
 
   if (view === "list") {
@@ -110,7 +104,7 @@ function ContactsAgentListRow(props: ContactsAgentCardViewProps) {
           </UiBadge>
           <ContactsAgentBusinessTags className="hidden md:flex" tags={businessTags} />
         </div>
-        <ContactsAgentMetadata provider={props.provider} allowedToolsCount={props.allowedToolsCount} skillsCount={props.skillsCount} />
+        <ContactsAgentMetadata provider={props.provider} />
         <p className={cn("mt-1 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
           {agent.description || t("contacts.no_description")}
         </p>
@@ -150,8 +144,8 @@ function ContactsAgentGridCard(props: ContactsAgentCardViewProps) {
   );
 }
 
-function ContactsAgentMetadata({ provider, allowedToolsCount, skillsCount, permissionMode, className }:
-  Pick<ContactsAgentCardViewProps, "provider" | "allowedToolsCount" | "skillsCount"> & { permissionMode?: string; className?: string }) {
+function ContactsAgentMetadata({ provider, permissionMode, className }:
+  Pick<ContactsAgentCardViewProps, "provider"> & { permissionMode?: string; className?: string }) {
   const { t } = useI18n();
   return <dl className={cn("mt-2 flex min-w-0 flex-wrap gap-x-3 gap-y-1",
     getUiTypographyClassName({ role: "metadata", tone: "muted" }), className)}>
@@ -165,8 +159,6 @@ function ContactsAgentMetadata({ provider, allowedToolsCount, skillsCount, permi
       <dt className="inline">{t("contacts.metadata.provider")}</dt>{" "}
       <dd className="inline">{provider}</dd>
     </div>
-    <div className="flex gap-1"><dt>{t("contacts.metadata.tools")}</dt><dd>{allowedToolsCount}</dd></div>
-    <div className="flex gap-1"><dt>{t("contacts.metadata.skills")}</dt><dd>{skillsCount}</dd></div>
   </dl>;
 }
 

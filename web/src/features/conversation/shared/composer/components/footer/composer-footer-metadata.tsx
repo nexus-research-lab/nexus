@@ -1,5 +1,5 @@
 // INPUT: 当前字符数/限制和历史导航位置。
-// OUTPUT: 共享 caption 数字排版与领域计数色调；没有数据时不占底栏间距。
+// OUTPUT: 共享 caption 数字排版与领域计数色调；字数只在接近或超过上限时出现，没有数据时不占底栏间距。
 // POS: Composer Footer 辅助元数据；字符限制与历史行为由控制器拥有。
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -22,16 +22,19 @@ export function ComposerFooterMetadata({
   isOverLimit: boolean;
   maxLength: number;
 }) {
-  if (charCount === 0 && historyIndex < 0) return null;
+  const showCount = isNearLimit || isOverLimit;
+  if (!showCount && historyIndex < 0) return null;
 
   return (
     <div className={`nexus-chat-composer-footer-metadata flex items-center gap-3 tabular-nums ${getUiTypographyClassName({ role: "caption" })}`}>
-      <ComposerCharacterCount
-        charCount={charCount}
-        isNearLimit={isNearLimit}
-        isOverLimit={isOverLimit}
-        maxLength={maxLength}
-      />
+      {showCount ? (
+        <ComposerCharacterCount
+          charCount={charCount}
+          isNearLimit={isNearLimit}
+          isOverLimit={isOverLimit}
+          maxLength={maxLength}
+        />
+      ) : null}
       <ComposerHistoryPosition
         historyIndex={historyIndex}
         inputHistoryLength={inputHistoryLength}
@@ -51,9 +54,6 @@ function ComposerCharacterCount({
   isOverLimit: boolean;
   maxLength: number;
 }) {
-  if (charCount === 0) {
-    return null;
-  }
   return (
     <div>
       <span className={getUiToneClassName(getCharacterCountTone({ isNearLimit, isOverLimit }))}>

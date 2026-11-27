@@ -180,9 +180,7 @@ export function TeamRoomMembersDialog({
                   searchLabel={t(memberType === "users" ? "room.search_user_placeholder" : "room.search_agent_placeholder")}
                   header={
                     <RoomMemberTypeTabs
-                      agentCount={agentMembers.length}
                       onChange={(value) => { setMemberType(value); setQuery(""); }}
-                      userCount={members.length}
                       value={memberType}
                     />
                   }>

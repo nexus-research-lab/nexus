@@ -63,9 +63,6 @@ function ConnectorStatusBadges({
       {STATUS_BADGE[state.status](state, t)}
       <UiBadge>{t(getConnectorAuthLabelKey(detail.auth_type))}</UiBadge>
       <UiBadge>{getConnectorCategoryLabel(detail.category, t)}</UiBadge>
-      {detail.scopes.length > 0 ? (
-        <UiBadge>{t("capability.connector_scopes_count", { count: detail.scopes.length })}</UiBadge>
-      ) : null}
     </div>
   );
 }
