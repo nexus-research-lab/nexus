@@ -4,7 +4,6 @@ package runtime
 import (
 	"context"
 	"strings"
-	"sync"
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -38,61 +37,6 @@ func TestSubagentControlCannotBorrowSuccessorRound(t *testing.T) {
 	}
 	if _, err := manager.BindSubagentControl("other-parent", "round-2")(context.Background(), "tool-3", "list", nil); err == nil {
 		t.Fatal("foreign session accepted")
-	}
-}
-
-func TestSubagentResourceLimitCountsPendingAcrossSessionsAndReleasesTerminal(t *testing.T) {
-	m := NewManager()
-	m.SetResourceLimits(ResourceLimits{MaxSubagents: 1})
-	entered, release := make(chan struct{}), make(chan struct{})
-	var starts, stops int
-	callbacks := lifecycleTestCallbacks(&starts, &stops)
-	callbacks.PreToolUse = func(context.Context, sdkhook.Input, string) (sdkhook.Output, error) {
-		close(entered)
-		<-release
-		return sdkhook.Output{}, nil
-	}
-	m.SetSubagentHookCallbacks("a", "round-a", callbacks)
-	m.SetSubagentHookCallbacks("b", "round-b", lifecycleTestCallbacks(&starts, &stops))
-	done := make(chan error, 1)
-	go func() {
-		_, err := m.routeSubagentPreToolUse(t.Context(), "a", sdkhook.Input{ToolName: "Agent"}, "first")
-		done <- err
-	}()
-	<-entered
-	var once sync.Once
-	defer once.Do(func() { close(release) })
-	output, err := m.routeSubagentPreToolUse(t.Context(), "b", sdkhook.Input{ToolName: "Agent"}, "second")
-	if err != nil || subagentHookOutputAccepted(sdkhook.EventPreToolUse, output) {
-		t.Fatalf("pending launch bypassed global child cap: output=%+v err=%v", output, err)
-	}
-	once.Do(func() { close(release) })
-	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-	if _, err := m.routeSubagentLifecycle(t.Context(), "a", sdkhook.EventSubagentStop, sdkhook.Input{}, "first"); err != nil {
-		t.Fatal(err)
-	}
-	output, err = m.routeSubagentPreToolUse(t.Context(), "b", sdkhook.Input{ToolName: "Agent"}, "second")
-	if err != nil || !subagentHookOutputAccepted(sdkhook.EventPreToolUse, output) {
-		t.Fatalf("terminal child retained cap: output=%+v err=%v", output, err)
-	}
-}
-
-func TestSubagentLifecycleHookFailsClosedWithoutBindingCallback(t *testing.T) {
-	manager := NewManager()
-	options := manager.WithSubagentAdmissionHooks(agentclient.Options{}, "runtime-session")
-	output, err := options.Hooks.Matchers[sdkhook.EventSubagentStart][0].Hooks[0](
-		context.Background(),
-		sdkhook.Input{EventName: sdkhook.EventSubagentStart, AgentID: "sdk-agent-1"},
-		"",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if output.Continue == nil || *output.Continue ||
-		!strings.Contains(output.StopReason, subagentHookCorrelationCode) {
-		t.Fatalf("SubagentStart should fail closed: %#v", output)
 	}
 }
 

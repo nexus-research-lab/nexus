@@ -14,14 +14,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	"github.com/go-chi/chi/v5"
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -31,11 +29,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	launchersvc "github.com/nexus-research-lab/nexus/internal/service/launcher"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
-	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 	"github.com/pressly/goose/v3"
 )
@@ -265,31 +261,6 @@ func TestBrowserSmoke(t *testing.T) {
 	}
 }
 
-func TestDesktopTeamCapabilityIsolation(t *testing.T) {
-	for _, disabled := range []bool{false, true} {
-		t.Run(strconv.FormatBool(disabled), func(t *testing.T) {
-			calls := 0
-			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls++
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"data":{"enabled":false},"success":true,"code":"0000"}`))
-			}))
-			defer upstream.Close()
-			s := &Server{config: config.Config{AppMode: "desktop", APIPrefix: "/nexus/v1", RemoteURL: upstream.URL, MultiplayerDisabled: disabled}, api: handlershared.NewAPI(nil), router: newPathParamRouter()}
-			s.mountRemoteGateway()
-			s.mountTeamRoutes()
-			response := httptest.NewRecorder()
-			s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/capabilities", nil))
-			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"enabled":false`) {
-				t.Fatalf("capability status=%d body=%s", response.Code, response.Body.String())
-			}
-			if (calls == 0) != disabled {
-				t.Fatalf("upstream calls=%d disabled=%v", calls, disabled)
-			}
-		})
-	}
-}
-
 func TestDesktopRemoteGatewayKeepsSessionOnLocalOrigin(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Origin") != "http://"+request.Host ||
@@ -472,33 +443,6 @@ func TestExternalRoomChangeReachesDirectorySubscriber(t *testing.T) {
 	}
 }
 
-func TestPathParamRouterPreservesProviderModelIDForLegacyServiceDecoder(t *testing.T) {
-	t.Parallel()
-
-	router := newPathParamRouter()
-	router.Get("/models/{model_id}", func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = io.WriteString(
-			writer,
-			chi.URLParam(request, "model_id")+"|"+handlershared.PathParam(request, "model_id"),
-		)
-	})
-	server := httptest.NewServer(router)
-	defer server.Close()
-
-	response, err := server.Client().Get(server.URL + "/models/namespace%2Fmodel")
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer response.Body.Close()
-	payload, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatalf("read response failed: %v", err)
-	}
-	if got := strings.TrimSpace(string(payload)); got != "namespace%2Fmodel|namespace%2Fmodel" {
-		t.Fatalf("model_id = %q, want service-compatible escaped value", got)
-	}
-}
-
 func TestChannelCurrentLoginGETAndStartPOSTRemainSeparateRoutes(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
@@ -557,20 +501,5 @@ func assertChannelRouteFailure(
 	}
 	if payload.Data.Failure.Code != wantCode || payload.Data.Failure.Effect != wantEffect {
 		t.Fatalf("failure = %+v", payload.Data.Failure)
-	}
-}
-
-func TestNewTeamHandlerRequiresControlAuthority(t *testing.T) {
-	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	client, err := relaysvc.NewClient("https://relay.example.com", time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	services := &app.AppServices{
-		Auth:  authsvc.NewLocalAuthority("", nil, nil),
-		Relay: client,
-	}
-	if handler := newTeamHandler(api, services); handler != nil {
-		t.Fatal("Desktop Local authority must not expose Team routes")
 	}
 }

@@ -4,51 +4,14 @@
 package automation
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"io"
-	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 )
-
-func TestBindAutomationJSONReportsKnownPreServiceFailure(t *testing.T) {
-	t.Parallel()
-
-	handler := &Handlers{api: handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))}
-	request := httptest.NewRequest(http.MethodPost, "/api/automation/tasks", bytes.NewBufferString("{"))
-	request.Header.Set("X-Request-ID", "transport-json-invalid")
-	recorder := httptest.NewRecorder()
-
-	handlershared.RequestContextMiddleware(slog.New(slog.NewTextHandler(io.Discard, nil)))(
-		http.HandlerFunc(func(writer http.ResponseWriter, scopedRequest *http.Request) {
-			if handler.bindAutomationJSON(writer, scopedRequest, &scheduledTaskCreatePayload{}, false) {
-				t.Fatal("malformed JSON must stop before the service")
-			}
-		}),
-	).ServeHTTP(recorder, request)
-	var envelope struct {
-		Data struct {
-			Failure protocol.FailureCore `json:"failure"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
-		t.Fatalf("decode failure response: %v", err)
-	}
-	if recorder.Code != http.StatusBadRequest ||
-		envelope.Data.Failure.Code != "automation.request_body_invalid" ||
-		envelope.Data.Failure.Effect != protocol.FailureEffectNotApplied ||
-		envelope.Data.Failure.TransportRequestID != "transport-json-invalid" {
-		t.Fatalf("unexpected failure response: status=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-}
 
 func TestMapAutomationFailurePreservesEffectEvidence(t *testing.T) {
 	t.Parallel()

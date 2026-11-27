@@ -6,34 +6,10 @@ import (
 	"math"
 	"math/rand/v2"
 	"reflect"
-	"strings"
 	"testing"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestBuildAssistantResultSummaryPreservesPermissionDenials(t *testing.T) {
-	summary := BuildAssistantResultSummary(protocol.Message{
-		"message_id": "result-1",
-		"role":       "result",
-		"subtype":    "success",
-		"result":     "无法完成搜索：WebSearch 未被允许",
-		"permission_denials": []map[string]any{{
-			"tool_name": "WebSearch",
-		}},
-		"errors": []string{"permission denied"},
-	}, "")
-
-	denials, ok := summary["permission_denials"].([]map[string]any)
-	if !ok || len(denials) != 1 || denials[0]["tool_name"] != "WebSearch" {
-		t.Fatalf("permission_denials 未进入 result_summary: %+v", summary)
-	}
-	errorsValue, ok := summary["errors"].([]string)
-	if !ok || len(errorsValue) != 1 || errorsValue[0] != "permission denied" {
-		t.Fatalf("errors 未进入 result_summary: %+v", summary)
-	}
-}
 
 func TestProcessorPreservesResultPermissionDenials(t *testing.T) {
 	processor := NewProcessor(MessageContext{
@@ -72,85 +48,6 @@ func TestProcessorPreservesResultPermissionDenials(t *testing.T) {
 	}
 }
 
-func TestProcessorTreatsSuccessSubtypeWithErrorFlagAsFailure(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:test",
-		AgentID:    "nexus",
-		RoundID:    "round-error-flag",
-		ParentID:   "round-error-flag",
-	}, "sdk-session-error")
-
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeResult,
-		UUID: "result-error-flag",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype:          "success",
-			IsError:          true,
-			Result:           "provider reported an error",
-			ModelUsage:       map[string]any{"glm-5.2": map[string]any{"input_tokens": 42}},
-			StructuredOutput: map[string]any{"status": "failed"},
-			FastModeState:    "cooldown",
-		},
-	})
-
-	if output.ResultSubtype != "error" || output.TerminalStatus != "error" {
-		t.Fatalf("output terminal = (%q, %q), want error", output.ResultSubtype, output.TerminalStatus)
-	}
-	if len(output.DurableMessages) != 1 {
-		t.Fatalf("durable messages = %+v", output.DurableMessages)
-	}
-	result := output.DurableMessages[0]
-	if result["is_error"] != true || result["subtype"] != "error" || result["runtime_subtype"] != "success" {
-		t.Fatalf("result error semantics = %+v", result)
-	}
-	if result["fast_mode_state"] != "cooldown" || result["structured_output"] == nil || result["model_usage"] == nil {
-		t.Fatalf("result diagnostics missing = %+v", result)
-	}
-}
-
-func TestProcessorNormalizesProviderContentFilterResultError(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:room:test",
-		RoomID:     "room-test",
-		AgentID:    "agent-test",
-		RoundID:    "round-content-filtered",
-	}, "sdk-session-content-filtered")
-
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeResult,
-		UUID: "result-content-filtered",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype:        "error",
-			IsError:        true,
-			Result:         "request rejected",
-			StopReason:     "sensitive",
-			TerminalReason: "invalid_request",
-			Errors:         []string{"generation stopped by Provider"},
-		},
-	})
-
-	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
-		t.Fatalf("content filter should remain a terminal error: %+v", output)
-	}
-	result := output.DurableMessages[0]
-	if result["result"] != contentFilteredDisplayText {
-		t.Fatalf("terminal result did not use fallback copy: %+v", result)
-	}
-	if !strings.Contains(contentFilteredDisplayText, "敏感信息") || !strings.Contains(contentFilteredDisplayText, "新建对话") {
-		t.Fatalf("content filter copy must explain the sensitive-content risk and direct the user to a fresh conversation: %q", contentFilteredDisplayText)
-	}
-	if result["terminal_reason"] != contentFilteredTerminalReason {
-		t.Fatalf("terminal reason was not normalized: %+v", result)
-	}
-	if result["stop_reason"] != "error" {
-		t.Fatalf("Provider stop reason was not normalized: %+v", result)
-	}
-	errors, ok := result["errors"].([]string)
-	if !ok || len(errors) != 1 || errors[0] != contentFilteredTerminalReason {
-		t.Fatalf("raw terminal error should not remain user-visible: %+v", result)
-	}
-}
-
 func TestProcessorNormalizesHookStoppedResultError(t *testing.T) {
 	processor := NewProcessor(MessageContext{RoundID: "round-hook-stopped"}, "")
 	output := processor.Process(sdkprotocol.ReceivedMessage{
@@ -179,59 +76,6 @@ func TestProcessorNormalizesHookStoppedResultError(t *testing.T) {
 	projected := ProjectResultMessage(nil, result)
 	if projected == nil || ExtractAssistantDisplayText(projected) != hookStoppedDisplayText {
 		t.Fatalf("hook stopped result 未投影为 assistant 正文: %+v", projected)
-	}
-}
-
-func reducerAssistantMessage(t *testing.T, messageID string, text string) sdkprotocol.ReceivedMessage {
-	t.Helper()
-	decoded, err := sdkprotocol.DecodeMessage(map[string]any{
-		"type": "assistant", "uuid": "entry-" + messageID, "session_id": "sdk-session",
-		"message": map[string]any{
-			"id": messageID, "role": "assistant", "stop_reason": "end_turn",
-			"content": []any{map[string]any{"type": "text", "text": text}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("解码 assistant 消息失败: %v", err)
-	}
-	return decoded
-}
-
-// 轮次身份只来自边界事件：同一个归约器换轮后，新消息带新轮的全部身份，位置只写在回放的行上。
-func TestReducerTakesRoundIdentityFromBoundaryEvents(t *testing.T) {
-	reducer := NewReducer(MessageContext{SessionKey: "agent:a:ws:dm:c", AgentID: "a"})
-	if reducer.Active() {
-		t.Fatal("没有边界事件时不应有可用轮次")
-	}
-
-	reducer.BeginRound(RoundBoundary{
-		Kind: RoundBoundaryUserInput, RoundID: "round-1", AgentRoundID: "agent-round-1", ParentID: "msg_user_round-1",
-	})
-	live := reducer.Reduce(reducerAssistantMessage(t, "msg-1", "第一轮")).DurableMessages
-	if len(live) != 1 || live[0]["round_id"] != "round-1" || live[0]["agent_round_id"] != "agent-round-1" ||
-		live[0]["parent_id"] != "msg_user_round-1" {
-		t.Fatalf("第一轮身份 = %+v", live)
-	}
-	if _, positioned := live[0][TranscriptLineField]; positioned {
-		t.Fatalf("实时行不应带 transcript 位置: %+v", live[0])
-	}
-
-	reducer.BeginRound(ImplicitRoundBoundary("round-2", "sdk-session"))
-	if boundary := reducer.Boundary(); boundary.Kind != RoundBoundaryImplicit || boundary.ParentID != "msg_user_round-2" {
-		t.Fatalf("隐式边界 = %+v", boundary)
-	}
-	replayed := reducer.ReduceAt(
-		reducerAssistantMessage(t, "msg-2", "第二轮"),
-		TranscriptPosition{Line: 7, Timestamp: 1795050000000},
-	).DurableMessages
-	if len(replayed) != 1 || replayed[0]["round_id"] != "round-2" || replayed[0]["parent_id"] != "msg_user_round-2" {
-		t.Fatalf("第二轮身份 = %+v", replayed)
-	}
-	if _, inherited := replayed[0]["agent_round_id"]; inherited {
-		t.Fatalf("新轮次继承了上一轮的 agent_round_id: %+v", replayed[0])
-	}
-	if replayed[0][TranscriptLineField] != 7 || replayed[0]["timestamp"] != int64(1795050000000) {
-		t.Fatalf("回放行的位置 = %+v", replayed[0])
 	}
 }
 

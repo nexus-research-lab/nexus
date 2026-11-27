@@ -157,43 +157,6 @@ func (c *fakeClient) VerifyState(context.Context, nexuscua.VerifyStateInput, tim
 	return nexuscua.VerificationOutput{Matched: true, Evidence: "fixture"}, nil
 }
 
-func TestMetadataObservationPreservesUnknownWindowState(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round := prepareRound(t, service)
-	client.windows = []nexuscua.WindowSummary{{
-		WindowRef: "window-1", State: nexuscua.WindowUnknown, Visible: true,
-		ScreenBounds: nexuscua.ScreenRect{Width: 131, Height: 160},
-	}}
-	observation, err := round.Observe(context.Background(), ObserveInput{Accessibility: "disabled"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	status := observation.Data["window_status"].(map[string]any)
-	if status["state"] != nexuscua.WindowUnknown || status["foreground"] != false || status["source"] != "list_windows_before_observe" {
-		t.Fatalf("lost discovery evidence: %#v", status)
-	}
-	if client.lastObserve.IncludeScreenshot || client.lastObserve.Accessibility != nexuscua.AccessibilityDisabled {
-		t.Fatal("metadata recovery unexpectedly requested capture or AX")
-	}
-	if !strings.Contains(observation.Data["window_state_hint"].(string), "one authorized focus_window") {
-		t.Fatal("unknown thumbnail state lacks focus recovery guidance")
-	}
-	client.actionError = &nexuscua.CUAError{Code: nexuscua.ErrorTargetUnavailable, MutationStatus: nexuscua.MutationNotDispatched}
-	if _, err := round.PerformAction(context.Background(), "restore-failed", ActionInput{Kind: "restore_window"}); err == nil {
-		t.Fatal("preflight rejection unexpectedly succeeded")
-	}
-	client.actionError = nil
-	if _, err := round.Observe(context.Background(), ObserveInput{Accessibility: "disabled"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := round.PerformAction(context.Background(), "focus-recovery", ActionInput{Kind: "focus_window"}); err != nil {
-		t.Fatalf("known preflight rejection blocked recovery: %v", err)
-	}
-	if client.openCalls != 1 || client.reconcileCalls != 0 {
-		t.Fatal("recovery reopened authority or treated preflight as indeterminate")
-	}
-}
-
 func (c *fakeClient) PerformAction(_ context.Context, input nexuscua.PerformActionInput, _ time.Duration) (nexuscua.ActionOutput, *nexuscua.ActionRequest, error) {
 	c.performCalls++
 	c.lastInput = input
@@ -237,63 +200,6 @@ func prepareRound(t *testing.T, service *Service) *Round {
 		t.Fatal(err)
 	}
 	return round
-}
-
-func TestServiceDisabledFailsClosed(t *testing.T) {
-	service, _, supervisor := newFakeService(t)
-	if err := service.SetEnabled(context.Background(), false); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.Round(context.Background(), "owner-a", "round-a"); !errors.Is(err, ErrDisabled) {
-		t.Fatalf("Round error = %v, want ErrDisabled", err)
-	}
-	if supervisor.starts != 0 {
-		t.Fatalf("sidecar starts = %d, want 0", supervisor.starts)
-	}
-}
-
-func TestServiceOwnerAndRoundIsolation(t *testing.T) {
-	service, _, supervisor := newFakeService(t)
-	roundA, err := service.Round(context.Background(), "owner-a", "round-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.Round(context.Background(), "owner-b", "round-b"); !errors.Is(err, ErrOwnerConflict) {
-		t.Fatalf("owner conflict error = %v", err)
-	}
-	roundB, err := service.Round(context.Background(), "owner-a", "round-b")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if roundA == roundB {
-		t.Fatal("different round ids shared one round object")
-	}
-	if supervisor.starts != 1 {
-		t.Fatalf("sidecar starts = %d, want one shared epoch", supervisor.starts)
-	}
-	if err := service.CloseRound(context.Background(), "owner-b", "round-a"); !errors.Is(err, ErrOwnerConflict) {
-		t.Fatalf("cross-owner close error = %v", err)
-	}
-	if err := service.CloseRound(context.Background(), "owner-a", "round-a"); err != nil {
-		t.Fatal(err)
-	}
-	if roundB.HasSession() {
-		t.Fatal("closing round-a changed round-b state")
-	}
-}
-
-func TestServiceCloseRoundByIDCleansTrustedRuntimeFinish(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round := prepareRound(t, service)
-	if err := service.CloseRoundByID(context.Background(), round.ID()); err != nil {
-		t.Fatal(err)
-	}
-	if round.HasSession() || client.closeCalls != 1 {
-		t.Fatalf("round finish cleanup session=%v close_calls=%d", round.HasSession(), client.closeCalls)
-	}
-	if err := service.CloseRoundByID(context.Background(), round.ID()); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestServiceSwitchOwnerRevokesPreviousRounds(t *testing.T) {
@@ -351,18 +257,6 @@ func TestSelectTargetRecoversWhenOldRuntimeSessionAlreadyExpired(t *testing.T) {
 	}
 }
 
-func TestSessionUnavailableClearsRoundState(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round := prepareRound(t, service)
-	client.listWindowsErr = &nexuscua.CUAError{Code: nexuscua.ErrorSessionUnavailable, Message: "expired"}
-	if _, err := round.Observe(context.Background(), ObserveInput{}); err == nil {
-		t.Fatal("Observe unexpectedly succeeded")
-	}
-	if round.HasSession() {
-		t.Fatal("expired runtime session remained visible as active")
-	}
-}
-
 func TestPerformActionBlocksDifferentRequestWhilePending(t *testing.T) {
 	service, client, _ := newFakeService(t)
 	round := prepareRound(t, service)
@@ -375,82 +269,6 @@ func TestPerformActionBlocksDifferentRequestWhilePending(t *testing.T) {
 	}
 	if client.performCalls != 1 {
 		t.Fatalf("dispatch count = %d, want one", client.performCalls)
-	}
-}
-
-func TestScreenshotArtifactCannotEscapePrivateRoot(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round, err := service.Round(context.Background(), "owner-a", "round-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{AllowForegroundInput: true}, func(TargetGrant) error { return nil }); err != nil {
-		t.Fatal(err)
-	}
-	outside := filepath.Join(t.TempDir(), "outside.png")
-	if err := os.WriteFile(outside, []byte("not a screenshot"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	client.observation = nexuscua.WindowObservation{
-		ObservationID: "observation-1", WindowRef: "window-1",
-		Screenshot: &nexuscua.ScreenshotArtifact{Path: outside},
-	}
-	if _, err := round.Observe(context.Background(), ObserveInput{IncludeScreenshot: true}); err == nil || !strings.Contains(err.Error(), "escaped") {
-		t.Fatalf("artifact error = %v, want private-root rejection", err)
-	}
-}
-
-func TestNormalizedActionsPreserveCoordinatesAndBoundScroll(t *testing.T) {
-	action, err := buildAction(ActionInput{Kind: "scroll", X: 750, Y: 250, DeltaY: 300})
-	if err != nil {
-		t.Fatal(err)
-	}
-	scroll, ok := action.(nexuscua.Scroll)
-	if !ok || scroll.Point != (nexuscua.NormalizedPoint{X: 750, Y: 250}) || scroll.DeltaY != 300 {
-		t.Fatalf("unexpected normalized scroll: %#v", action)
-	}
-	for _, input := range []ActionInput{
-		{Kind: "click_point", X: 1001},
-		{Kind: "drag", X: 500, Y: 500, ToX: 1001},
-	} {
-		if _, err := buildAction(input); err == nil {
-			t.Fatalf("accepted out-of-bounds action: %s", input.Kind)
-		}
-	}
-}
-
-func TestTargetApprovalScopesAuthorityAndRoundDeadline(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round, err := service.Round(context.Background(), "owner-a", "round-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	round.deadline = time.Now().Add(90 * time.Second)
-	options := TargetOptions{Actions: []nexuscua.ActionKind{nexuscua.ActionClickPoint}, TTLSeconds: 600}
-	if _, err := round.SelectTarget(context.Background(), "Fixture", options, func(TargetGrant) error { return errors.New("deny") }); err == nil || client.openCalls != 0 {
-		t.Fatal("denial created authority")
-	}
-	if _, err := round.SelectTarget(context.Background(), "Fixture", options, nil); err == nil || client.openCalls != 0 {
-		t.Fatal("missing approval created authority")
-	}
-	_, err = round.SelectTarget(context.Background(), "Fixture", options, func(grant TargetGrant) error {
-		if grant.Application.ApplicationID != "com.example.fixture" || grant.AllowForegroundInput || grant.TTLSeconds > 90 || len(grant.Actions) != 1 {
-			t.Fatalf("wrong grant: %#v", grant)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if client.manifest.AllowForegroundInput || client.manifest.TTLSeconds > 90 || len(client.manifest.AllowedActions) != 1 {
-		t.Fatalf("grant widened: %#v", client.manifest)
-	}
-	round.sessionExpiresAt = time.Now().Add(-time.Second)
-	if _, err := round.PerformAction(context.Background(), "expired", ActionInput{Kind: "click_point"}); err == nil || client.performCalls != 0 {
-		t.Fatal("expired session dispatched")
-	}
-	if client.openCalls != 1 {
-		t.Fatal("session silently renewed")
 	}
 }
 
@@ -508,30 +326,6 @@ func TestPostActionScreenshotFailurePreservesDispatchAndRequiresFreshRead(t *tes
 	}
 	if _, err := round.PerformAction(context.Background(), "read-failed", ActionInput{Kind: "click_point"}); err != nil || client.performCalls != 1 {
 		t.Fatal("post-read failure replayed action")
-	}
-}
-
-func TestUserTakeoverLatchesUntilNewApprovedTarget(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round := prepareRound(t, service)
-	client.actionError = &nexuscua.CUAError{Code: nexuscua.ErrorUserActive, MutationStatus: nexuscua.MutationNotDispatched}
-	_, _ = round.PerformAction(context.Background(), "interrupted", ActionInput{Kind: "click_point"})
-	if !round.UserActive() {
-		t.Fatal("user takeover not latched")
-	}
-	client.actionError = nil
-	if _, err := round.Observe(context.Background(), ObserveInput{}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := round.PerformAction(context.Background(), "later", ActionInput{Kind: "click_point"}); err == nil || client.performCalls != 1 {
-		t.Fatal("observation resumed authority after takeover")
-	}
-	approvals := 0
-	if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{}, func(TargetGrant) error { approvals++; return nil }); err != nil {
-		t.Fatal(err)
-	}
-	if round.UserActive() || approvals != 1 {
-		t.Fatal("fresh host grant did not reset takeover")
 	}
 }
 

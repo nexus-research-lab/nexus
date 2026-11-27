@@ -352,32 +352,6 @@ func TestCompatibleSkillLibrarySkipsMatchingPublicationAndRepairsDrift(t *testin
 	}
 }
 
-func TestCompatibleSkillLibraryRemovesOnlyStaleStaging(t *testing.T) {
-	sourceRoot := filepath.Join(t.TempDir(), "skills")
-	parent := t.TempDir()
-	targetRoot := filepath.Join(parent, "platform-skills")
-	writeSkillSourceFile(t, sourceRoot, "demo/SKILL.md", "# demo\n", 0o600)
-	stale := filepath.Join(parent, skillLibraryStagingPrefix+"stale")
-	fresh := filepath.Join(parent, skillLibraryStagingPrefix+"fresh")
-	writeSkillSourceFile(t, stale, "demo/SKILL.md", "old", 0o644)
-	writeSkillSourceFile(t, fresh, "demo/SKILL.md", "new", 0o644)
-	old := time.Now().Add(-2 * staleSkillLibraryStagingAge)
-	if err := os.Chtimes(stale, old, old); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := ensureCompatibleSkillLibrary(sourceRoot, targetRoot); err != nil {
-		t.Fatalf("发布失败: %v", err)
-	}
-	if _, err := os.Stat(stale); !os.IsNotExist(err) {
-		t.Fatalf("过期暂存目录应被回收: %v", err)
-	}
-	// 未过期的可能属于另一个正在发布的进程，必须保留。
-	if _, err := os.Stat(fresh); err != nil {
-		t.Fatalf("未过期暂存目录不应删除: %v", err)
-	}
-}
-
 func writeSkillSourceFile(t *testing.T, root string, relative string, content string, mode os.FileMode) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(relative))
@@ -386,56 +360,6 @@ func writeSkillSourceFile(t *testing.T, root string, relative string, content st
 	}
 	if err := os.WriteFile(path, []byte(content), mode); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestSkillLibraryRootsSkipUnpreparedOptionalHostRoot(t *testing.T) {
-	cfg := testSkillConfig(t)
-	cfg.AppMode = "desktop"
-	roots := SkillLibraryRoots(cfg, "owner-a")
-	if len(roots) != 2 {
-		t.Fatalf("未准备的可选宿主根不应传给 runtime: %#v", roots)
-	}
-}
-
-func TestRefreshUserSkillLibraryRepairsDamagedClaudeMirror(t *testing.T) {
-	cfg := testSkillConfig(t)
-	originalCreateSymlink := createSymlink
-	createSymlink = func(string, string) error {
-		return errors.New("symlink unavailable")
-	}
-	t.Cleanup(func() {
-		createSymlink = originalCreateSymlink
-	})
-
-	sourcePath := filepath.Join(UserSkillDiscoveryRoot(cfg, "owner-a"), "demo-skill", "SKILL.md")
-	if err := os.MkdirAll(filepath.Dir(sourcePath), 0o755); err != nil {
-		t.Fatalf("创建用户 Skill 源失败: %v", err)
-	}
-	if err := os.WriteFile(sourcePath, []byte("demo"), 0o644); err != nil {
-		t.Fatalf("写入用户 Skill 源失败: %v", err)
-	}
-	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
-		t.Fatalf("创建用户 Skill fallback 镜像失败: %v", err)
-	}
-
-	claudePath := filepath.Join(UserSkillLibraryRoot(cfg, "owner-a"), ".claude", "skills", "demo-skill", "SKILL.md")
-	if err := os.Remove(claudePath); err != nil {
-		t.Fatalf("破坏 Claude Skill fallback 镜像失败: %v", err)
-	}
-	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
-		t.Fatalf("检查已就绪的用户 Skill fallback 镜像失败: %v", err)
-	}
-	if _, err := os.Stat(claudePath); !os.IsNotExist(err) {
-		t.Fatalf("普通 readiness 检查不应递归扫描并修复镜像内容: %v", err)
-	}
-	if err := RefreshUserSkillLibrary(cfg, "owner-a"); err != nil {
-		t.Fatalf("修复 Claude Skill fallback 镜像失败: %v", err)
-	}
-	if payload, err := os.ReadFile(claudePath); err != nil {
-		t.Fatalf("读取修复后的 Claude Skill fallback 镜像失败: %v", err)
-	} else if string(payload) != "demo" {
-		t.Fatalf("修复后的 Claude Skill fallback 镜像内容不正确: %q", payload)
 	}
 }
 

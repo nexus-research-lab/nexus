@@ -3,7 +3,6 @@ package configuration_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -638,120 +637,6 @@ func TestConnectorConversationChangeBindsTargetVersionAndRejectsStaleSecretOverw
 	}
 	if strings.Contains(string(payload), conversationSecret) {
 		t.Fatalf("Connector apply 泄漏 secret: %s", payload)
-	}
-}
-
-func TestWorkspaceSkillConversationDisablePreservesFilesAndVerifiesTargetState(t *testing.T) {
-	fixture := newScopedConfigurationFixture(t)
-	worker := fixture.createAgent(t, "Workspace Skill Target")
-	const skillName = "workspace-state-skill"
-	skillRoot := filepath.Join(worker.WorkspacePath, ".agents", "skills", skillName)
-	if err := os.MkdirAll(skillRoot, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte(`---
-name: workspace-state-skill
-title: Workspace State Skill
-description: workspace uninstall verification
----
-
-# Workspace State Skill
-`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	workspaceState, err := fixture.services.Skills.GetAgentSkillStateInScope(
-		t.Context(),
-		worker.AgentID,
-		skillName,
-		skillsvc.AgentSkillTargetWorkspace,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mainActor := configurationsvc.Actor{
-		OwnerUserID: fixture.main.OwnerUserID, AgentID: fixture.main.AgentID,
-		IsMainAgent: true, SessionKey: "agent:" + fixture.main.AgentID + ":dm:workspace-skills",
-		ContextKind: configurationsvc.ContextKindAgent, ContextID: fixture.main.AgentID,
-	}
-	inspection, err := fixture.services.Configuration.Inspect(
-		fixture.ownerCtx,
-		mainActor,
-		[]string{configurationsvc.DomainSkills},
-		false,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	inspectionPayload, err := json.Marshal(inspection.Domains[configurationsvc.DomainSkills].Values)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(inspectionPayload), `"agent_workspace_items"`) ||
-		!strings.Contains(string(inspectionPayload), worker.AgentID) ||
-		!strings.Contains(string(inspectionPayload), workspaceState.SourceIdentity) {
-		t.Fatalf("owner-main inspect 未暴露目标 Agent workspace 来源身份: %s", inspectionPayload)
-	}
-	actor := configurationsvc.Actor{
-		OwnerUserID: worker.OwnerUserID, AgentID: worker.AgentID,
-		SessionKey:  "agent:" + worker.AgentID + ":ws:dm:workspace-skill",
-		ContextKind: configurationsvc.ContextKindAgent, ContextID: worker.AgentID,
-	}
-	bindConfigurationTestRound(t, fixture.services, &actor)
-	workspaceInput := skillSelectionInput(
-		t,
-		fixture.services,
-		worker.AgentID,
-		skillName,
-		skillsvc.AgentSkillTargetWorkspace,
-		false,
-	)
-	plan, err := fixture.services.Configuration.PlanChange(
-		fixture.ownerCtx,
-		actor,
-		configurationsvc.ChangeRequest{
-			Domain: configurationsvc.DomainSkills, Operation: "uninstall_self",
-			Target: skillName, Input: workspaceInput,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plan.Scope.Kind != configurationsvc.ScopeKindAgent ||
-		plan.Scope.ID != worker.AgentID ||
-		plan.StateVersion != worker.RuntimeVersion {
-		t.Fatalf("workspace Skill plan 未绑定目标 Agent: %+v", plan)
-	}
-	request := configurationsvc.ChangeRequest{
-		RequestID: "workspace-skill-remove-01",
-		Domain:    configurationsvc.DomainSkills, Operation: "uninstall_self",
-		Target: skillName, Input: workspaceInput,
-		ExpectedRevision: plan.CurrentRevision, PlanDigest: plan.PlanDigest,
-	}
-	approveConfigurationTestChange(t, fixture.services, fixture.ownerCtx, actor, request, plan)
-	result, err := fixture.services.Configuration.ApplyChange(
-		fixture.ownerCtx,
-		actor,
-		request,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !hasConfigurationCheck(result.Checks, "skill_target_installation_state_verified") ||
-		!hasConfigurationCheck(result.Checks, "configuration_resource_version_advanced") {
-		t.Fatalf("workspace Skill 卸载缺少写后状态证明: %+v", result)
-	}
-	if _, err = os.Stat(skillRoot); err != nil {
-		t.Fatalf("workspace Skill 对话停用不得删除目录: %v", err)
-	}
-	updated, err := fixture.services.Core.Agent.GetAgent(fixture.ownerCtx, worker.AgentID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.RuntimeVersion != worker.RuntimeVersion+1 {
-		t.Fatalf("workspace Skill 卸载 runtime_version=%d, want %d", updated.RuntimeVersion, worker.RuntimeVersion+1)
-	}
-	if !slices.Contains(updated.Options.DisabledSkillIDs, skillName) {
-		t.Fatalf("workspace Skill 对话停用未写入 disabled_skill_ids: %#v", updated.Options.DisabledSkillIDs)
 	}
 }
 

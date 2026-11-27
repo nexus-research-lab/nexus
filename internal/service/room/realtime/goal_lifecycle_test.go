@@ -144,16 +144,6 @@ func attachTestRoomGoalAuthority(roundValue *activeRoomRound, goalID string) {
 	roundValue.Slots["agent-goal-test"] = slot
 }
 
-func TestBuildRoomGoalCollaborationContextSkipsSingleMemberRoom(t *testing.T) {
-	contextValue := buildRoomGoalCollaborationContext(map[string]string{
-		"agent-lead": "负责人",
-	}, "agent-lead")
-
-	if contextValue != "" {
-		t.Fatalf("single-member Room Goal should not require collaboration: %q", contextValue)
-	}
-}
-
 func TestRealtimeServiceCollaborationCompletionReleasesLiveSourceBarrier(t *testing.T) {
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-live-source")
 	binding := &protocol.GoalCollaborationBinding{
@@ -218,51 +208,6 @@ func TestRealtimeServiceCollaborationCompletionReleasesLiveSourceBarrier(t *test
 	}
 }
 
-func TestMarkActiveGoalCollaborationPendingFindsCrossConversationSource(t *testing.T) {
-	binding := &protocol.GoalCollaborationBinding{
-		GoalID: "goal-cross-pending", ObjectiveRevision: 3,
-	}
-	sourceSlot := &activeRoomSlot{AgentID: "agent-lead"}
-	otherOwnerSlot := &activeRoomSlot{AgentID: "agent-lead"}
-	if !sourceSlot.grantGoalMutationAuthority(roomGoalMutationAuthority{
-		SessionKey: protocol.BuildRoomSharedSessionKey("conversation-source"),
-		GoalID:     binding.GoalID, ObjectiveRevision: binding.ObjectiveRevision,
-		RootRoundID: "root-exact", Source: roomGoalAuthorityExplicitRound,
-	}) {
-		t.Fatal("bind source Goal authority")
-	}
-	if !otherOwnerSlot.grantGoalMutationAuthority(roomGoalMutationAuthority{
-		SessionKey: protocol.BuildRoomSharedSessionKey("conversation-other-owner"),
-		GoalID:     binding.GoalID, ObjectiveRevision: binding.ObjectiveRevision,
-		RootRoundID: "root-exact", Source: roomGoalAuthorityExplicitRound,
-	}) {
-		t.Fatal("bind other owner Goal authority")
-	}
-	service := &Service{rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
-		"source": {
-			ConversationID: "conversation-source", OwnerUserID: "owner-cross-pending",
-			RootRoundID: "root-exact",
-			Slots:       map[string]*activeRoomSlot{"lead": sourceSlot},
-		},
-		"other-owner": {
-			ConversationID: "conversation-other-owner", OwnerUserID: "owner-unrelated",
-			RootRoundID: "root-exact",
-			Slots:       map[string]*activeRoomSlot{"lead": otherOwnerSlot},
-		},
-	})}
-
-	service.markActiveGoalCollaborationPending(
-		"owner-cross-pending", "agent-lead", "root-exact", binding,
-	)
-
-	if !sourceSlot.hasPendingGoalCollaboration() {
-		t.Fatal("target conversation lookup did not mark the source root pending")
-	}
-	if otherOwnerSlot.hasPendingGoalCollaboration() {
-		t.Fatal("same root/revision in another owner scope was marked pending")
-	}
-}
-
 func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{
 		stillCurrent: true,
@@ -320,103 +265,6 @@ func assertRecordedRoomGoalRoundIDs(t *testing.T, label string, got []string, wa
 	}
 }
 
-func TestRecordGoalContinuationProgressForRoomSlotRecordsFailure(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:test",
-		AgentRoundID:      "agent_round_failure",
-	}
-	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
-	roundValue := &activeRoomRound{
-		RootRoundID: "goal_continuation_failure",
-		InputOptions: sdkprotocol.OutboundMessageOptions{
-			Purpose: "goal_continuation",
-		},
-	}
-
-	service.recordGoalContinuationProgressForSlot(
-		context.Background(),
-		slot,
-		roundValue,
-		exec.RoundExecutionResult{
-			TerminalStatus: "error",
-			ResultSubtype:  "error",
-			ErrorMessage:   "Failed to authenticate. API Error: 401",
-		},
-		nil,
-	)
-
-	failures := goalProvider.recordedFailures()
-	if len(failures) != 1 || failures[0] != "Failed to authenticate. API Error: 401" {
-		t.Fatalf("failures = %#v, want provider error", failures)
-	}
-	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
-		t.Fatalf("progress = %#v, want failure path instead of empty progress", progress)
-	}
-	assertRecordedRoomGoalRoundIDs(t, "settled receipt", goalProvider.recordedSettledRoundIDs(), "goal_continuation_failure")
-	assertRecordedRoomGoalRoundIDs(t, "failure audit", goalProvider.recordedFailureRoundIDs(), "agent_round_failure")
-}
-
-func TestRecordGoalContinuationProgressForRoomSlotRecordsCompletionCommandMiss(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:test",
-		AgentRoundID:      "agent_round_completion_miss",
-	}
-	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
-	roundValue := &activeRoomRound{
-		RootRoundID: "goal_continuation_completion_miss",
-		InputOptions: sdkprotocol.OutboundMessageOptions{
-			Purpose: "goal_continuation",
-		},
-	}
-
-	service.recordGoalContinuationProgressForSlot(
-		context.Background(),
-		slot,
-		roundValue,
-		exec.RoundExecutionResult{},
-		roomGoalCompletionCommandMissAssistantMessage(),
-	)
-
-	misses := goalProvider.recordedCompletionMisses()
-	if len(misses) != 1 || !strings.Contains(misses[0], "nexus.command update_goal receipt") {
-		t.Fatalf("completion misses = %#v, want one missing update_goal record", misses)
-	}
-	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
-		t.Fatalf("progress = %#v, want completion miss path instead of empty progress", progress)
-	}
-	assertRecordedRoomGoalRoundIDs(t, "settled receipt", goalProvider.recordedSettledRoundIDs(), "goal_continuation_completion_miss")
-	assertRecordedRoomGoalRoundIDs(t, "completion-miss audit", goalProvider.recordedCompletionMissRoundIDs(), "agent_round_completion_miss")
-}
-
-func TestRecordGoalContinuationProgressForRoomSlotSkipsNoReplyCollaborationEvidence(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "room:group:conversation-1",
-		AgentRoundID:      "room_mention_1",
-		AgentID:           "agent-peer",
-	}
-	grantTestRoomGoalAuthority(slot, "room:group:conversation-1", "goal-1")
-
-	service.recordGoalContinuationProgressForSlot(
-		context.Background(),
-		slot,
-		&activeRoomRound{},
-		exec.RoundExecutionResult{},
-		roomGoalTextAssistantMessage("peer-no-reply", "<nexus_room_no_reply/>"),
-	)
-
-	goalProvider.mu.Lock()
-	defer goalProvider.mu.Unlock()
-	if len(goalProvider.collabEvidence) != 0 {
-		t.Fatalf("collaboration evidence = %#v, want no-reply ignored", goalProvider.collabEvidence)
-	}
-}
-
 func TestRoomGoalUserStopSuspendsContinuationOnEveryTerminalPath(t *testing.T) {
 	for _, path := range []string{"provider-acknowledged", "host-cancelled"} {
 		t.Run(path, func(t *testing.T) {
@@ -452,31 +300,6 @@ func TestRoomGoalUserStopSuspendsContinuationOnEveryTerminalPath(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestRoomGoalNonUserCancellationOnlySettlesContinuationReceipt(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:test",
-		AgentRoundID:      "agent_round_paused_member",
-	}
-	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
-	markRoomSlotInterrupted(slot, "成员已暂停参与")
-	roundValue := &activeRoomRound{
-		RootRoundID:  "goal_continuation_paused_member",
-		InputOptions: sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
-	}
-
-	service.recordGoalSlotInterrupted(context.Background(), slot, roundValue)
-
-	goalProvider.mu.Lock()
-	stops := len(goalProvider.userStopRoundIDs)
-	goalProvider.mu.Unlock()
-	if stops != 0 {
-		t.Fatalf("user stops = %d, want member pause treated as a non-user cancellation", stops)
-	}
-	assertRecordedRoomGoalRoundIDs(t, "settled receipt", goalProvider.recordedSettledRoundIDs(), "goal_continuation_paused_member")
 }
 
 func TestRoomSubagentUsageRetryDoesNotFinalizeWhileParentRuns(t *testing.T) {

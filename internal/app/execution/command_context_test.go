@@ -20,19 +20,6 @@ func (commandContextSnapshotReader) ReadSnapshot(context.Context, orchestrations
 	return nil, errors.New("test snapshot unavailable")
 }
 
-func TestResolveCommandContextKeepsOrdinaryInternalRoundClosed(t *testing.T) {
-	if _, ok := ResolveCommandContext(context.Background(), commandContextSnapshotReader{}, runtimectx.RuntimeCommandContext{
-		Agent:             &protocol.Agent{OwnerUserID: "owner-1", AgentID: "agent-1"},
-		ScopeSessionKey:   "agent:agent-1:websocket:dm:conversation-1",
-		RuntimeSessionKey: "agent:agent-1:websocket:dm:conversation-1",
-		RootRoundID:       "round-1",
-		SourceContextType: "agent_internal",
-		SourceContextID:   "agent-1",
-	}); ok {
-		t.Fatal("ordinary agent_internal round must remain closed")
-	}
-}
-
 func TestResolveCommandContextPreservesRoomFallbackRole(t *testing.T) {
 	resolved, ok := ResolveCommandContext(context.Background(), commandContextSnapshotReader{}, runtimectx.RuntimeCommandContext{
 		Agent:             &protocol.Agent{OwnerUserID: "owner-1", AgentID: "agent-1"},

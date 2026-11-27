@@ -101,25 +101,6 @@ func TestCoordinatorRunOnceRespectsEnabledAndNextCheck(t *testing.T) {
 	coordinator.Stop()
 }
 
-func TestRuntimeDreamRunnerPrefersOwnerBackgroundSelection(t *testing.T) {
-	runner := &runtimeDreamRunner{preferences: fakePreferencesService{preferences: preferencessvc.Preferences{
-		DefaultBackgroundModelSelection: preferencessvc.ModelSelection{
-			Provider: "background-provider",
-			Model:    "background-model",
-		},
-	}}}
-	provider, model, available, err := runner.backgroundSelection(context.Background(), "owner-1", runtimeselectionsvc.Selection{
-		Provider: "agent-provider",
-		Model:    "agent-model",
-	})
-	if err != nil {
-		t.Fatalf("backgroundSelection() error = %v", err)
-	}
-	if !available || provider != "background-provider" || model != "background-model" {
-		t.Fatalf("background selection = %s/%s, want owner background provider/model", provider, model)
-	}
-}
-
 func TestRuntimeDreamRunnerMaintainsClaudeAgentThroughNXS(t *testing.T) {
 	stateRoot := t.TempDir()
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)

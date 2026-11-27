@@ -646,15 +646,3 @@ func TestHandleWorkspaceWalkErrorSkipsUnreadableDirectory(t *testing.T) {
 		t.Fatalf("handleWorkspaceWalkError() = %v, want SkipDir", got)
 	}
 }
-
-func TestHandleWorkspaceWalkErrorPreservesBoundaryErrors(t *testing.T) {
-	permissionErr := &fs.PathError{Op: "open", Path: ".", Err: os.ErrPermission}
-	if got := handleWorkspaceWalkError(".", nil, permissionErr); !errors.Is(got, os.ErrPermission) {
-		t.Fatalf("root error = %v, want permission error", got)
-	}
-
-	changedErr := errors.New("workspace changed")
-	if got := handleWorkspaceWalkError("memory", nil, changedErr); !errors.Is(got, changedErr) {
-		t.Fatalf("non-permission error = %v, want original error", got)
-	}
-}

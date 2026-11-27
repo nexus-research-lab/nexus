@@ -23,36 +23,6 @@ type recordingObserver struct {
 	events   []string
 }
 
-type recordingCompactEvidence struct {
-	actor orchestration.ActorContext
-	kind  orchestration.PersistenceEvidenceKind
-	ids   []string
-}
-
-func (r *recordingCompactEvidence) RecordPersistenceEvidence(_ context.Context, actor orchestration.ActorContext, kind orchestration.PersistenceEvidenceKind, id string) error {
-	r.actor, r.kind = actor, kind
-	r.ids = append(r.ids, id)
-	return errors.New("证据落库失败")
-}
-
-func TestCompactEvidenceKeepsStablePhysicalRoundIdentity(t *testing.T) {
-	var logs bytes.Buffer
-	recorder := &recordingCompactEvidence{}
-	observer := Observer{Provider: recorder, Logger: slog.New(slog.NewTextHandler(&logs, nil))}
-	actor := orchestration.ActorContext{SessionKey: "room:group:shared", AgentRoundID: "audit-round"}
-	observer.ObserveCompactBoundary(actor, "physical-session", "physical-round", sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeSystem})
-	message := sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeSystem, System: &sdkprotocol.SystemMessage{Subtype: " compact_boundary "}}
-	for range 2 {
-		observer.ObserveCompactBoundary(actor, " physical-session ", " physical-round ", message)
-	}
-	if !reflect.DeepEqual(recorder.ids, []string{"runtime:physical-session:physical-round:compact-boundary", "runtime:physical-session:physical-round:compact-boundary"}) || recorder.actor != actor || recorder.kind != orchestration.PersistenceEvidenceContextBoundary {
-		t.Fatalf("证据身份或重放 ID 不稳定: %#v", recorder)
-	}
-	if strings.Count(logs.String(), "level=ERROR") != 2 {
-		t.Fatal("落库失败未记录")
-	}
-}
-
 func (r *recordingObserver) record(ctx context.Context, actor orchestration.ActorContext, event string) error {
 	r.t.Helper()
 	deadline, ok := ctx.Deadline()

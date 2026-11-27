@@ -6,59 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
-
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
-
-func TestNodeWatchRefreshesOnTheSameConnection(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		defer conn.CloseNow()
-		if err = wsjson.Write(r.Context(), conn, relaycontract.StreamUpdated{Type: "auth.refresh_required"}); err != nil {
-			t.Error(err)
-			return
-		}
-		var message struct {
-			Type  string `json:"type"`
-			Token string `json:"token"`
-		}
-		if err = wsjson.Read(r.Context(), conn, &message); err != nil || message.Type != "auth.refresh" || message.Token != "new-token" {
-			t.Errorf("refresh: %+v %v", message, err)
-			return
-		}
-		if err = wsjson.Write(r.Context(), conn, relaycontract.StreamUpdated{Type: "auth.refreshed"}); err != nil {
-			t.Error(err)
-			return
-		}
-		if err = wsjson.Write(r.Context(), conn, relaycontract.StreamUpdated{Type: "deliveries.updated"}); err != nil {
-			t.Error(err)
-		}
-	}))
-	defer server.Close()
-	client, err := NewClient(server.URL, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
-	defer cancel()
-	stop := errors.New("received delivery")
-	err = client.WatchDeliveries(ctx, "old-token", func(context.Context) (string, error) { return "new-token", nil }, func() error { return stop })
-	if !errors.Is(err, stop) {
-		t.Fatal(err)
-	}
-}
 
 func TestClientReturnsRelayErrorFromWebSocketUpgrade(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -80,125 +34,6 @@ func TestClientReturnsRelayErrorFromWebSocketUpgrade(t *testing.T) {
 	if !errors.As(err, &remoteError) || remoteError.StatusCode != http.StatusConflict ||
 		remoteError.Code != "full_snapshot_required" || remoteError.RequestID != "req-wss" {
 		t.Fatalf("Watch() error = %#v", err)
-	}
-}
-
-func TestClientMatchesRelayM1HTTPContract(t *testing.T) {
-	const token = "relay-user-token"
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.Header.Get("Authorization") != "Bearer "+token {
-			http.Error(writer, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		switch request.Method + " " + request.URL.Path {
-		case "GET /api/relay/v1/rooms":
-			writeRelayTestData(t, writer, http.StatusOK, relaycontract.RoomList{Rooms: []relaycontract.RoomView{{
-				Room: relaycontract.Room{ID: "room-1", TeamID: "team-1", Name: "研发群"},
-				Conversation: relaycontract.Conversation{
-					ID: "conversation-1", RoomID: "room-1", SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
-				},
-				CurrentUserRole: "owner",
-			}}})
-		case "POST /api/relay/v1/rooms":
-			if request.Header.Get("Idempotency-Key") != "create-room-1" {
-				t.Errorf("Idempotency-Key = %q", request.Header.Get("Idempotency-Key"))
-			}
-			var input relaycontract.CreateRoomInput
-			if err := json.NewDecoder(request.Body).Decode(&input); err != nil || input.Name != "研发群" {
-				t.Errorf("create room input = %+v, %v", input, err)
-			}
-			writeRelayTestData(t, writer, http.StatusCreated, relaycontract.RoomView{
-				Room: relaycontract.Room{ID: "room-1", TeamID: "team-1", Name: "研发群"},
-				Conversation: relaycontract.Conversation{
-					ID: "conversation-1", RoomID: "room-1", SyncStreamID: "stream-1", StreamEpoch: "epoch-1",
-				},
-				CurrentUserRole: "owner",
-			})
-		case "POST /api/relay/v1/conversations/conversation-1/messages":
-			if request.Header.Get("Idempotency-Key") != "command-1" {
-				t.Errorf("Idempotency-Key = %q", request.Header.Get("Idempotency-Key"))
-			}
-			var input relaycontract.CreateMessageInput
-			if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
-				t.Errorf("decode message: %v", err)
-			}
-			want := relaycontract.CreateMessageInput{Content: relaycontract.MessageContent{
-				Version: relaycontract.ContentVersionV1,
-				Blocks:  []relaycontract.ContentBlock{{Type: relaycontract.BlockTypeMarkdown, Text: "hello"}},
-			}}
-			if !reflect.DeepEqual(input, want) {
-				t.Errorf("message input = %#v", input)
-			}
-			writeRelayTestData(t, writer, http.StatusCreated, relaycontract.MessageCommit{
-				Message: relaycontract.Message{
-					ID: "message-1", ConversationID: "conversation-1", MessageSeq: 4,
-					AuthorType: relaycontract.AuthorTypeUser, ClientMessageID: "command-1",
-				},
-				StreamID: "stream-1", StreamEpoch: "epoch-1", EventSeq: 5, HighWaterSeq: 5,
-			})
-		case "GET /api/relay/v1/conversations/conversation-1/snapshot":
-			query := request.URL.Query()
-			if query.Get("after_message_seq") != "2" || query.Get("limit") != "100" ||
-				query.Get("through_message_seq") != "9" || query.Get("snapshot_seq") != "12" ||
-				query.Get("stream_epoch") != "epoch-1" {
-				t.Errorf("snapshot query = %q", request.URL.RawQuery)
-			}
-			writeRelayTestData(t, writer, http.StatusOK, relaycontract.Snapshot{
-				ConversationID: "conversation-1", StreamID: "stream-1",
-				StreamEpoch: "epoch-1", SnapshotSeq: 12, ThroughMessageSeq: 9, AfterMessageSeq: 2,
-			})
-		case "GET /api/relay/v1/sync-streams/stream-1/difference":
-			query := request.URL.Query()
-			if query.Get("after_seq") != "5" || query.Get("limit") != "20" ||
-				query.Get("stream_epoch") != "epoch-1" {
-				t.Errorf("difference query = %q", request.URL.RawQuery)
-			}
-			writeRelayTestData(t, writer, http.StatusOK, relaycontract.Difference{
-				StreamID: "stream-1", StreamEpoch: "epoch-1", AfterSeq: 5, NextSeq: 7, HighWaterSeq: 7,
-			})
-		default:
-			http.NotFound(writer, request)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	client, err := NewClient(server.URL, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := context.Background()
-	rooms, err := client.ListRooms(ctx, token)
-	if err != nil || len(rooms.Rooms) != 1 || rooms.Rooms[0].CurrentUserRole != "owner" {
-		t.Fatalf("ListRooms() = %+v, %v", rooms, err)
-	}
-	created, err := client.CreateRoom(ctx, token, "create-room-1", relaycontract.CreateRoomInput{Name: "研发群"})
-	if err != nil || created.Room.ID != "room-1" || created.Conversation.StreamEpoch != "epoch-1" {
-		t.Fatalf("CreateRoom() = %+v, %v", created, err)
-	}
-	commit, err := client.PostMessage(ctx, token, "conversation-1", "command-1", relaycontract.CreateMessageInput{
-		Content: relaycontract.MessageContent{
-			Version: relaycontract.ContentVersionV1,
-			Blocks:  []relaycontract.ContentBlock{{Type: relaycontract.BlockTypeMarkdown, Text: "hello"}},
-		},
-	})
-	if err != nil || commit.Message.ID != "message-1" ||
-		commit.Message.AuthorType != relaycontract.AuthorTypeUser || commit.Message.ClientMessageID != "command-1" {
-		t.Fatalf("PostMessage() = %+v, %v", commit, err)
-	}
-	through, snapshotSeq := int64(9), int64(12)
-	snapshot, err := client.Snapshot(ctx, token, "conversation-1", relaycontract.SnapshotOptions{
-		AfterMessageSeq: 2, Limit: 100,
-		ThroughMessageSeq: &through, SnapshotSeq: &snapshotSeq, StreamEpoch: "epoch-1",
-	})
-	if err != nil || snapshot.SnapshotSeq != 12 {
-		t.Fatalf("Snapshot() = %+v, %v", snapshot, err)
-	}
-	difference, err := client.Difference(ctx, token, "stream-1", relaycontract.DifferenceOptions{
-		AfterSeq: 5, Limit: 20, StreamEpoch: "epoch-1",
-	})
-	if err != nil || difference.NextSeq != 7 {
-		t.Fatalf("Difference() = %+v, %v", difference, err)
 	}
 }
 

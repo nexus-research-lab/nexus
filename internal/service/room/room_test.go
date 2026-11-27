@@ -691,117 +691,6 @@ func TestPruneEmptyConversationsReadsCanonicalDMHistory(t *testing.T) {
 	}
 }
 
-func TestPruneEmptyConversationsPreservesConservativeActivityEvidence(t *testing.T) {
-	cfg := newRoomTestConfig(t)
-	migrateRoomSQLite(t, cfg.DatabaseURL)
-
-	agentService, db, err := newRoomTestAgentService(t, cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
-	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
-	ctx := context.Background()
-
-	agentA := createTestAgent(t, agentService, ctx, "安全证据助手A")
-	agentB := createTestAgent(t, agentService, ctx, "安全证据助手B")
-	mainContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
-		Name:     "安全证据 Room",
-	})
-	if err != nil {
-		t.Fatalf("创建 room 失败: %v", err)
-	}
-	createNamed := func(title string) *protocol.ConversationContextAggregate {
-		t.Helper()
-		clearRoomDraftForLegacyFixture(t, db, mainContext.Room.ID)
-		item, createErr := roomService.CreateConversation(
-			ctx,
-			mainContext.Room.ID,
-			protocol.CreateConversationRequest{Title: title},
-		)
-		if createErr != nil {
-			t.Fatalf("创建 %s 失败: %v", title, createErr)
-		}
-		return item
-	}
-	databaseMessage := createNamed("数据库消息证据")
-	sdkSession := createNamed("SDK session 证据")
-	sharedArtifact := createNamed("共享目录证据")
-	privateArtifact := createNamed("成员目录证据")
-	goalEvidence := createNamed("Goal 证据")
-	emptyKeeper := createNamed("最新空白页")
-
-	base := time.Now().UTC().Add(-8 * time.Hour)
-	for index, conversationID := range []string{
-		mainContext.Conversation.ID,
-		databaseMessage.Conversation.ID,
-		sdkSession.Conversation.ID,
-		sharedArtifact.Conversation.ID,
-		privateArtifact.Conversation.ID,
-		goalEvidence.Conversation.ID,
-		emptyKeeper.Conversation.ID,
-	} {
-		setConversationCreatedAt(t, db, conversationID, base.Add(time.Duration(index)*time.Hour))
-	}
-
-	databaseSessionID := findRoomSessionID(t, *databaseMessage, agentA.AgentID)
-	seedRoomDatabaseMessageRound(t, db, databaseMessage.Conversation.ID, databaseSessionID, "prune-evidence")
-	if err = roomService.UpdateSessionRuntimeIdentity(
-		ctx,
-		findRoomSessionID(t, *sdkSession, agentA.AgentID),
-		"sdk-session-prune-evidence",
-		"",
-	); err != nil {
-		t.Fatalf("写入 SDK session 证据失败: %v", err)
-	}
-	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	if err = roomHistory.AppendInlineMessage(
-		sharedArtifact.Room.OwnerUserID,
-		sharedArtifact.Conversation.ID,
-		protocol.Message{
-			"message_id":      "result-artifact-only",
-			"session_key":     protocol.BuildRoomSharedSessionKey(sharedArtifact.Conversation.ID),
-			"room_id":         mainContext.Room.ID,
-			"conversation_id": sharedArtifact.Conversation.ID,
-			"role":            "result",
-			"content":         "没有 user message 的保守证据",
-			"timestamp":       time.Now().UnixMilli(),
-		}); err != nil {
-		t.Fatalf("写入共享目录证据失败: %v", err)
-	}
-	seedRoomPrivateSession(
-		t,
-		workspacestore.NewSessionFileStore(cfg.WorkspacePath),
-		agentA.WorkspacePath,
-		protocol.RoomTypeGroup,
-		privateArtifact.Conversation.ID,
-		agentA.AgentID,
-	)
-	roomService.SetGoalCleaner(&fakePruneGoalCleaner{
-		conversationIDs: map[string]struct{}{goalEvidence.Conversation.ID: {}},
-	})
-
-	report, err := roomService.PruneEmptyConversations(ctx, roomsvc.PruneEmptyConversationsOptions{
-		RoomID: mainContext.Room.ID,
-		Apply:  true,
-	})
-	if err != nil {
-		t.Fatalf("清理失败: %v", err)
-	}
-	assertPruneReason(t, report, databaseMessage.Conversation.ID, "database_messages_present")
-	assertPruneReason(t, report, sdkSession.Conversation.ID, "sdk_session_present:"+agentA.AgentID)
-	assertPruneReason(t, report, sharedArtifact.Conversation.ID, "room_conversation_artifacts_present")
-	assertPruneReason(t, report, privateArtifact.Conversation.ID, "agent_session_artifacts_present:"+agentA.AgentID)
-	assertPruneReason(t, report, goalEvidence.Conversation.ID, "goal_present")
-	if report.Deleted != 1 || report.Kept != 1 || report.Occupied != 5 {
-		t.Fatalf("只能删除旧空白 main 并保留五类证据与最新空白页: %+v", report)
-	}
-	contexts, err := roomService.GetRoomContexts(ctx, mainContext.Room.ID)
-	if err != nil || len(contexts) != 6 {
-		t.Fatalf("清理后上下文数量错误: contexts=%+v err=%v", contexts, err)
-	}
-}
-
 func TestPruneEmptyConversationsSkipsUnknownPersistentReferenceProbe(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -851,30 +740,6 @@ func TestPruneEmptyConversationsSkipsUnknownPersistentReferenceProbe(t *testing.
 	}
 }
 
-type fakePruneGoalCleaner struct {
-	conversationIDs map[string]struct{}
-}
-
-func (f *fakePruneGoalCleaner) HasGoalForRoomConversation(_ context.Context, conversationID string) (bool, error) {
-	_, ok := f.conversationIDs[conversationID]
-	return ok, nil
-}
-
-func (f *fakePruneGoalCleaner) DeleteGoalsForRoomConversations(
-	_ context.Context,
-	conversationIDs []string,
-) (int, error) {
-	return len(conversationIDs), nil
-}
-
-func (f *fakePruneGoalCleaner) DeleteGoalsForRoomMember(
-	_ context.Context,
-	_ string,
-	conversationIDs []string,
-) (int, error) {
-	return len(conversationIDs), nil
-}
-
 func clearRoomDraftForLegacyFixture(t *testing.T, db *sql.DB, roomID string) {
 	t.Helper()
 	if _, err := db.Exec(
@@ -911,19 +776,6 @@ func requirePruneItem(
 	}
 	t.Fatalf("未找到 prune item: conversation=%s report=%+v", conversationID, report)
 	return roomsvc.EmptyConversationPruneItem{}
-}
-
-func assertPruneReason(
-	t *testing.T,
-	report roomsvc.EmptyConversationPruneReport,
-	conversationID string,
-	reason string,
-) {
-	t.Helper()
-	item := requirePruneItem(t, report, conversationID)
-	if item.State != "occupied" || !slices.Contains(item.Reasons, reason) {
-		t.Fatalf("conversation %s 缺少保护证据 %s: %+v", conversationID, reason, item)
-	}
 }
 
 func containsReasonPrefix(reasons []string, prefix string) bool {

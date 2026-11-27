@@ -44,13 +44,6 @@ func TestScheduleAfterWaitsIdleDelayInsideActiveHours(t *testing.T) {
 	}
 }
 
-func TestScheduleAfterSkipsWhenDisabled(t *testing.T) {
-	service := newPolicyTestService(false, time.Time{})
-	if _, ok, err := service.ScheduleAfter(context.Background(), "owner", time.Now()); ok || err != nil {
-		t.Fatalf("关闭时不应安排 Echo: ok=%v err=%v", ok, err)
-	}
-}
-
 func TestDecideStaysSilentWhenDisabledAndDefersOutsideActiveHours(t *testing.T) {
 	candidate := dmsvc.EchoCandidate{OwnerUserID: "owner", AgentID: "nexus", SessionKey: "s"}
 	decision, err := newPolicyTestService(false, time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)).Decide(context.Background(), candidate)

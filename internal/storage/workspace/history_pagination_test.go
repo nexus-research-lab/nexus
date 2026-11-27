@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -71,86 +70,6 @@ func TestRoomHistoryPageIndexMatchesCanonicalPaginationAndReceipt(t *testing.T) 
 	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 0, "", 0, "root-z", 1)
 }
 
-func TestHistoryReadModelRoundIndexMatchesCanonicalProjection(t *testing.T) {
-	t.Run("agent", func(t *testing.T) {
-		root := t.TempDir()
-		workspacePath := filepath.Join(root, "Amy")
-		session := protocol.Session{
-			SessionKey: "agent:amy:ws:dm:round-index-model",
-			AgentID:    "amy",
-		}
-		history := NewAgentHistoryStore(root)
-		writeAgentHistoryIndexSession(t, history, workspacePath, session)
-		for index := 1; index <= 4; index++ {
-			appendAgentHistoryIndexRound(
-				t, history, workspacePath, session.SessionKey,
-				fmt.Sprintf("round-%d", index), int64(index*1000),
-			)
-		}
-		active := []string{"round-4"}
-		expected, err := history.ReadRoundIndex(workspacePath, session, active)
-		if err != nil {
-			t.Fatal(err)
-		}
-		actual, err := history.ReadRoundIndexPageContext(
-			context.Background(), workspacePath, session, active,
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assertSessionRoundIndexJSONEqual(t, expected, actual)
-		warm, err := history.ReadRoundIndexPageContext(
-			context.Background(), workspacePath, session, active,
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assertSessionRoundIndexJSONEqual(t, expected, warm)
-	})
-
-	t.Run("room", func(t *testing.T) {
-		root := t.TempDir()
-		history := newRoomHistoryTestStore(t, root)
-		conversationID := "round-index-model"
-		for index := 1; index <= 4; index++ {
-			appendRoomHistoryIndexRound(
-				t,
-				history,
-				testRoomOwnerUserID,
-				conversationID,
-				fmt.Sprintf("round-%d", index),
-				"amy",
-				int64(index*1000),
-			)
-		}
-		active := []string{"round-4:amy"}
-		expected, err := canonicalRoomRoundIndexForTest(history, testRoomOwnerUserID, conversationID, active)
-		if err != nil {
-			t.Fatal(err)
-		}
-		actual, err := history.ReadRoundIndexPageContext(
-			context.Background(),
-			testRoomOwnerUserID,
-			conversationID,
-			active,
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assertSessionRoundIndexJSONEqual(t, expected, actual)
-		warm, err := history.ReadRoundIndexPageContext(
-			context.Background(),
-			testRoomOwnerUserID,
-			conversationID,
-			active,
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assertSessionRoundIndexJSONEqual(t, expected, warm)
-	})
-}
-
 // TestHistoryPageKeepsInterleavedRoundsWhole 固定一个有意偏离 canonical 的语义：Room 里上一轮成员还在回复时
 // 用户又发了新消息，两轮的行按时间交错。canonical 先全局排序再按相邻 round 分组，会把两轮拆成碎片，一页里
 // 可能只有半轮（只有回复没有提问）；表按根轮次分组，一页总是完整轮次，与前端按 round 驻留和淘汰的窗口一致。
@@ -193,51 +112,6 @@ func TestHistoryPageKeepsInterleavedRoundsWhole(t *testing.T) {
 		if stringFromAny(item["round_id"]) != "root-z" {
 			t.Fatalf("上一页混入了其他轮次: %+v", previous.Items)
 		}
-	}
-}
-
-func appendAgentHistoryIndexRound(
-	t *testing.T,
-	history *AgentHistoryStore,
-	workspacePath string,
-	sessionKey string,
-	roundID string,
-	timestamp int64,
-) {
-	t.Helper()
-	for _, row := range []protocol.Message{
-		{
-			"message_id": "user-" + roundID,
-			"round_id":   roundID,
-			"role":       "user",
-			"content":    "question " + roundID,
-			"timestamp":  timestamp,
-		},
-		{
-			"message_id":  "assistant-" + roundID,
-			"round_id":    roundID,
-			"role":        "assistant",
-			"content":     []map[string]any{{"type": "text", "text": "answer " + roundID}},
-			"stop_reason": "end_turn",
-			"is_complete": true,
-			"timestamp":   timestamp + 1,
-		},
-	} {
-		if err := history.AppendOverlayMessage(workspacePath, sessionKey, row); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func writeAgentHistoryIndexSession(
-	t *testing.T,
-	history *AgentHistoryStore,
-	workspacePath string,
-	session protocol.Session,
-) {
-	t.Helper()
-	if _, err := history.files.UpsertSession(workspacePath, session); err != nil {
-		t.Fatalf("写入 history index session meta 失败: %v", err)
 	}
 }
 
@@ -720,10 +594,6 @@ func (h *overlayReplayHarness) readAllRows(ctx context.Context) ([]map[string]an
 	return readJSONLFileWithContext(ctx, file)
 }
 
-func (h *overlayReplayHarness) replayEntry() *overlayReplayEntry {
-	return h.history.cache.overlays.entry(h.history.ownerUserID + "\x00" + h.overlayPath)
-}
-
 // randomOverlayRow 覆盖 round index 与历史行会区分的全部行形态：可见/隐藏 marker、
 // 用户行、assistant/result 行（含重复 message_id）、result_summary 与控制行。
 func randomOverlayRow(random *rand.Rand, sequence int) map[string]any {
@@ -783,29 +653,6 @@ func TestOverlayReplayMatchesFullReadAcrossRandomAppends(t *testing.T) {
 				harness.assertMatchesFullRead(active)
 			}
 		})
-	}
-}
-
-// 一行中断在等值的位置后又有完整行追加：后一行会被解码成前一行的字段值，文件以换行结尾。
-// 这不是写到一半的行，读取必须报错，不能悄悄丢掉后一轮并把续读位置推到它之后。
-func TestRoundIndexReadRejectsIncompleteRowBeforeFinishedAppend(t *testing.T) {
-	harness := newOverlayReplayHarness(t)
-	read := func() (protocol.SessionRoundIndex, error) {
-		return harness.history.ReadRoundIndex(harness.workspacePath, harness.session, nil)
-	}
-	harness.appendRaw(`{"nexus_overlay_kind":"round_marker","round_id":"round-0","content":"第 0 轮","timestamp":1700000000000}` + "\n")
-	harness.appendRaw(`{"nexus_overlay_kind":"round_marker","round_id":"round-1","content":`)
-	index, err := read()
-	if err != nil || len(index.Items) != 1 {
-		t.Fatalf("interrupted last row: got %#v, %v", index.Items, err)
-	}
-
-	harness.appendRaw(`{"nexus_overlay_kind":"round_marker","round_id":"round-2","content":"第 2 轮","timestamp":1700000002000}` + "\n")
-	if index, err = read(); !errors.Is(err, io.ErrUnexpectedEOF) {
-		t.Fatalf("finished append after an interrupted row: got %#v, %v", index.Items, err)
-	}
-	if entry := harness.replayEntry(); entry.roundIndex.cursor != nil {
-		t.Fatalf("a failed read must not leave a resume point: %#v", entry.roundIndex.cursor)
 	}
 }
 

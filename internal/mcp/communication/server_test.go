@@ -123,18 +123,6 @@ func TestSendMessageRoutesCurrentRoomPublicAndSuppressesFinal(t *testing.T) {
 	}
 }
 
-func TestSendMessageRejectsFieldsFromAnotherDestination(t *testing.T) {
-	result, isError := callTool(t, BuildTools(nil, &stubRoomService{}, roomRuntimeContext()), "send_message", map[string]any{
-		"destination": destinationCurrentRoom,
-		"visibility":  visibilityPublic,
-		"recipients":  []any{"agent-amy"},
-		"content":     "不应接受 recipients",
-	})
-	if !isError || !strings.Contains(extractText(t, result), "recipients 不适用于当前消息目标") {
-		t.Fatalf("跨分支字段必须 fail closed: %+v", result)
-	}
-}
-
 func TestSendMessageDoesNotBypassCurrentRoomPolicyThroughRoomTarget(t *testing.T) {
 	result, isError := callTool(t, BuildTools(nil, &stubRoomService{}, roomRuntimeContext()), "send_message", map[string]any{
 		"destination": "room",

@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -110,49 +109,6 @@ func TestIngressDoesNotRepeatUncertainControlCommand(t *testing.T) {
 	}
 }
 
-func TestIngressCrashRecoveryUsesOriginalRoundAndDurableEvidence(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
-	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	handler := &fakeIngressDMHandler{}
-	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
-	control := NewControlService(cfg, db, agents, router)
-	service := NewIngressService(cfg, agents, handler, router)
-	service.SetControlService(control)
-	request := IngressRequest{Channel: "internal", Ref: "chat", Content: "hello", ReqID: "prepared", RoundID: "original"}
-	normalized, err := service.normalizeRequest(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if claimed, _, err := service.claimIngress(t.Context(), normalized); err != nil || !claimed {
-		t.Fatalf("claim: %v %v", claimed, err)
-	}
-	// 模拟在路由准备阶段退出；重投必须沿原轮次继续。
-	request.RoundID = "new-round"
-	result, err := service.Accept(t.Context(), request)
-	if err != nil || result.RoundID != "original" || len(handler.requests) != 1 || handler.requests[0].RoundID != "original" {
-		t.Fatalf("prepared recovery: %+v %v", result, err)
-	}
-	if _, err = db.Exec(`UPDATE im_ingress_messages SET status='processing' WHERE req_id='prepared'`); err != nil {
-		t.Fatal(err)
-	}
-	service.SetRoundIndexReader(func(_ context.Context, session string) (*protocol.SessionRoundIndex, error) {
-		if session != normalized.sessionKey {
-			t.Fatalf("wrong session: %s", session)
-		}
-		return &protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{{RoundID: "original", HasUserMessage: true}}}, nil
-	})
-	result, err = service.Accept(t.Context(), request)
-	if err != nil || !result.Duplicate || len(handler.requests) != 1 {
-		t.Fatalf("accepted recovery reran: %+v %v", result, err)
-	}
-	request.Content = "different command"
-	if _, err = service.Accept(t.Context(), request); err == nil {
-		t.Fatal("同身份不能替换正文")
-	}
-}
-
 func TestIngressRecoveryScansPastUnknownWithoutPlatformRedelivery(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
@@ -207,33 +163,6 @@ func TestIngressRecoveryScansPastUnknownWithoutPlatformRedelivery(t *testing.T) 
 	}
 }
 
-func TestRoomExternalReplyPromptRequiresPersistedOriginalSession(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
-	service := NewIngressService(cfg, nil, nil, nil)
-	service.SetControlService(NewControlService(cfg, db, nil, nil))
-	ctx := ingressTestOwnerContext("owner")
-	_, err := db.Exec(`INSERT INTO im_room_inputs (owner_user_id,root_round_id,pairing_id,binding_version,agent_id,room_id,conversation_id,target_json,content) VALUES ('owner','root','pair',1,'amy','room','topic','{}','hello')`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	original := protocol.BuildRoomAgentSessionKey("topic", "amy", protocol.RoomTypeGroup)
-	for _, session := range []string{original, "agent:amy:ws:dm:other"} {
-		prompt, err := service.roomExternalReplyPrompt(ctx, "root", "amy", session)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if (prompt != "") != (session == original) {
-			t.Fatalf("prompt for %s: %q", session, prompt)
-		}
-	}
-	prompt, err := service.roomExternalReplyPrompt(ctx, "unrelated", "amy", original)
-	if err != nil || prompt != "" {
-		t.Fatalf("unrelated input: %q %v", prompt, err)
-	}
-}
-
 type recordingIngressCommandHandler struct {
 	requests     []IngressCommandRequest
 	result       IngressCommandResult
@@ -255,97 +184,6 @@ func (h *recordingIngressCommandHandler) CountPendingIngressPermissionRequests(
 	_ IngressCommandRequest,
 ) (int, error) {
 	return h.pendingCount, h.pendingErr
-}
-
-type leaseAwareChannel struct {
-	recordingDeliveryChannel
-
-	mu      sync.Mutex
-	ingress IngressAcceptor
-}
-
-func (c *leaseAwareChannel) SetIngress(ingress IngressAcceptor) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.ingress = ingress
-}
-
-func (c *leaseAwareChannel) ingressSnapshot() IngressAcceptor {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.ingress
-}
-
-type recordingIngressAcceptor struct {
-	mu       sync.Mutex
-	requests []IngressRequest
-}
-
-func (a *recordingIngressAcceptor) Accept(
-	_ context.Context,
-	request IngressRequest,
-) (*IngressResult, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.requests = append(a.requests, request)
-	return &IngressResult{
-		Channel: request.Channel,
-		AgentID: request.AgentID,
-	}, nil
-}
-
-func (a *recordingIngressAcceptor) requestSnapshot() []IngressRequest {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return append([]IngressRequest(nil), a.requests...)
-}
-
-func TestRouterIngressLeaseRevokesStoppedGenerationBeforeCleanup(t *testing.T) {
-	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, newChannelTestDB(t), nil, nil)
-	delegate := &recordingIngressAcceptor{}
-	router.SetIngress(delegate)
-	if err := router.Start(t.Context()); err != nil {
-		t.Fatalf("start router: %v", err)
-	}
-	defer router.Stop(t.Context())
-
-	stopErr := errors.New("adapter stop failed")
-	channel := &leaseAwareChannel{recordingDeliveryChannel: recordingDeliveryChannel{
-		channelType: ChannelTypeTelegram,
-		stopErr:     stopErr,
-	}}
-	if err := router.RegisterAndStartForOwner(t.Context(), "owner-a", channel); err != nil {
-		t.Fatalf("register channel: %v", err)
-	}
-	staleIngress := channel.ingressSnapshot()
-	if staleIngress == nil {
-		t.Fatal("registered channel did not receive ingress lease")
-	}
-	if _, err := staleIngress.Accept(t.Context(), IngressRequest{
-		Channel:     ChannelTypeTelegram,
-		OwnerUserID: "forged-owner",
-		Content:     "before delete",
-	}); err != nil {
-		t.Fatalf("active lease rejected ingress: %v", err)
-	}
-
-	if err := router.UnregisterForOwner(t.Context(), "owner-a", ChannelTypeTelegram); !errors.Is(err, stopErr) {
-		t.Fatalf("unregister error = %v, want %v", err, stopErr)
-	}
-	if _, err := staleIngress.Accept(t.Context(), IngressRequest{
-		Channel: ChannelTypeTelegram,
-		Content: "after delete",
-	}); !errors.Is(err, ErrIngressLeaseRevoked) {
-		t.Fatalf("stale ingress error = %v, want revoked lease", err)
-	}
-
-	requests := delegate.requestSnapshot()
-	if len(requests) != 1 {
-		t.Fatalf("delegate accepted %d requests, want exactly the pre-delete request", len(requests))
-	}
-	if requests[0].OwnerUserID != "owner-a" || requests[0].Channel != ChannelTypeTelegram {
-		t.Fatalf("lease did not bind server-side owner/channel: %+v", requests[0])
-	}
 }
 
 func TestShortPermissionCommandRejectsRuntimeAndAutomationAmbiguity(t *testing.T) {

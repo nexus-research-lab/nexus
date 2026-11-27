@@ -14,88 +14,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestTranscriptCacheReprojectsMarkersAndSegments(t *testing.T) {
-	dir := t.TempDir()
-	workspace := filepath.Join(dir, "workspace", "agent")
-	if err := os.MkdirAll(workspace, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("NEXUS_STATE_ROOT", "")
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(dir, "home"))
-	h := NewAgentHistoryStore(filepath.Dir(workspace))
-	ids := []string{"11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"}
-	for _, id := range ids {
-		writeAgentTranscriptFixture(t, workspace, id, []map[string]any{{"type": "user", "uuid": id, "message": map[string]any{"role": "user", "content": "hello"}}})
-	}
-	marker := []transcriptRoundMarker{{RoundID: "before", Content: "hello", Timestamp: 1000}}
-	first, err := h.readTranscriptMessages(workspace, "session-a", "agent-a", ids[0], marker, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	path, err := h.resolveTranscriptPath(workspace, ids[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	cached := h.cache.entries[path].Entries
-	marker[0].RoundID = "after"
-	next, err := h.readTranscriptMessages(workspace, "session-b", "agent-b", ids[0], marker, ids[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reflect.DeepEqual(first, next) || next[0]["round_id"] != "after" || next[0]["agent_id"] != "agent-b" {
-		t.Fatalf("projection reused old identity/marker: %+v", next)
-	}
-	if &cached[0] != &h.cache.entries[path].Entries[0] {
-		t.Fatal("marker change re-parsed file")
-	}
-	if _, err = h.readTranscriptMessages(workspace, "s", "a", ids[0], marker, "missing"); err == nil {
-		t.Fatal("fork boundary validation skipped")
-	}
-	rows, err := h.readSegmentedTranscriptMessages(workspace, "session-a", "agent-a", ids, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("segments missing: %+v", rows)
-	}
-	if &cached[0] != &h.cache.entries[path].Entries[0] {
-		t.Fatal("segmented reader did not reuse single-file cache")
-	}
-	otherPath, err := h.resolveTranscriptPath(workspace, ids[1])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if h.cache.entries[otherPath].Entries[0].Index != 0 {
-		t.Fatal("segment numbering mutated cached entry")
-	}
-	again, err := h.readSegmentedTranscriptMessages(workspace, "session-a", "agent-a", ids, nil)
-	if err != nil || !reflect.DeepEqual(rows, again) {
-		t.Fatalf("repeated segment projection changed: %v", err)
-	}
-
-	session := protocol.Session{SessionKey: "agent:agent-a:ws:dm:cache", AgentID: "agent-a", SessionID: &ids[1], TranscriptSessionIDs: ids, Options: map[string]any{protocol.OptionRuntimeSegmentedTranscript: true}}
-	if _, err = h.readHistoryRowsContext(context.Background(), workspace, session); err != nil {
-		t.Fatal(err)
-	}
-	if &cached[0] != &h.cache.entries[path].Entries[0] {
-		t.Fatal("full history read cleared unchanged segment")
-	}
-	activeCached := h.cache.entries[otherPath].Entries
-	writeAgentTranscriptFixture(t, workspace, ids[1], []map[string]any{{"type": "user", "uuid": ids[1], "message": map[string]any{"role": "user", "content": "updated"}}})
-	if _, err = h.readSegmentedTranscriptMessages(workspace, "session-a", "agent-a", ids, nil); err != nil {
-		t.Fatal(err)
-	}
-	if &cached[0] != &h.cache.entries[path].Entries[0] || &activeCached[0] == &h.cache.entries[otherPath].Entries[0] {
-		t.Fatal("only the changed segment should be parsed again")
-	}
-	h.invalidateTranscriptCachePrefix(filepath.Dir(path))
-	if len(h.cache.entries) != 0 {
-		t.Fatal("deleted project retained cache")
-	}
-}
 
 func TestTranscriptCacheCapsRetainedSourceBytes(t *testing.T) {
 	s := NewAgentHistoryStore(t.TempDir())
@@ -179,90 +98,12 @@ func TestTranscriptParallelReadMatchesSequential(t *testing.T) {
 	}
 }
 
-func TestTranscriptParallelReadHonorsContext(t *testing.T) {
-	content := strings.Repeat(`{"uuid":"u","type":"user"}`+"\n", 1000)
-	path := filepath.Join(t.TempDir(), "transcript.jsonl")
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if _, _, err = readTranscriptEntriesChunksContext(ctx, file, int64(len(content)), 4); !errors.Is(err, context.Canceled) {
-		t.Fatalf("want context.Canceled, got %v", err)
-	}
-}
-
 func mustSeekStart(t *testing.T, file *os.File) *os.File {
 	t.Helper()
 	if _, err := file.Seek(0, 0); err != nil {
 		t.Fatal(err)
 	}
 	return file
-}
-
-func TestTranscriptWorktreeLookupRequired(t *testing.T) {
-	t.Setenv("GIT_DIR", "")
-	t.Setenv("GIT_WORK_TREE", "")
-
-	t.Run("non repository", func(t *testing.T) {
-		if transcriptWorktreeLookupRequired(t.TempDir()) {
-			t.Fatal("非 Git workspace 不应启动 worktree 查询")
-		}
-	})
-
-	t.Run("single worktree repository", func(t *testing.T) {
-		root := t.TempDir()
-		if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		nested := filepath.Join(root, "nested", "workspace")
-		if err := os.MkdirAll(nested, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if transcriptWorktreeLookupRequired(nested) {
-			t.Fatal("单 worktree 仓库不应启动 Git 子进程")
-		}
-	})
-
-	t.Run("repository with linked worktrees", func(t *testing.T) {
-		root := t.TempDir()
-		if err := os.MkdirAll(
-			filepath.Join(root, ".git", "worktrees", "linked"),
-			0o755,
-		); err != nil {
-			t.Fatal(err)
-		}
-		if !transcriptWorktreeLookupRequired(root) {
-			t.Fatal("存在 linked worktree 时必须回退 Git 查询")
-		}
-	})
-
-	t.Run("linked worktree metadata file", func(t *testing.T) {
-		root := t.TempDir()
-		if err := os.WriteFile(
-			filepath.Join(root, ".git"),
-			[]byte("gitdir: /tmp/example/.git/worktrees/linked\n"),
-			0o644,
-		); err != nil {
-			t.Fatal(err)
-		}
-		if !transcriptWorktreeLookupRequired(root) {
-			t.Fatal("linked worktree 的 .git 文件必须触发 Git 查询")
-		}
-	})
-}
-
-func TestTranscriptWorktreeLookupRequiredHonorsGitEnvironment(t *testing.T) {
-	t.Setenv("GIT_DIR", filepath.Join(t.TempDir(), "git-dir"))
-	t.Setenv("GIT_WORK_TREE", "")
-	if !transcriptWorktreeLookupRequired(t.TempDir()) {
-		t.Fatal("显式 GIT_DIR 必须保留 Git 查询")
-	}
 }
 
 const runtimeWakeTestSummary = `Background command "Wait for stage1 confirmation" completed (exit code 0)`

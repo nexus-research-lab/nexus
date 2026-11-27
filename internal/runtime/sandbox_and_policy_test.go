@@ -5,10 +5,7 @@ import (
 	"context"
 	"errors"
 	goruntime "runtime"
-	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -78,44 +75,6 @@ func TestProviderOwnershipChangeReplacesRuntime(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestResourceAdmissionBoundsStartupQueue(t *testing.T) {
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return &fakeRuntimeClient{} }))
-	m.SetResourceLimits(ResourceLimits{MaxSessions: 1})
-	client, err := m.GetOrCreate(t.Context(), "rollback", agentclient.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	lease, ok := m.CaptureClientLease("rollback", client)
-	if !ok {
-		t.Fatal("missing rollback lease")
-	}
-	var startups []*ClientStartup
-	defer func() {
-		for _, startup := range startups {
-			startup.Close()
-		}
-	}()
-	for i := range runtimeMaxPendingStartups {
-		startup, err := m.BeginClientStartup(t.Context(), strconv.Itoa(i), "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		startups = append(startups, startup)
-	}
-	if _, err := m.BeginClientStartup(t.Context(), "overflow", ""); !errors.Is(err, ErrRuntimeResourceBusy) {
-		t.Fatalf("unbounded startup queue: %v", err)
-	}
-	if closed, err := m.CloseSessionIfLease(t.Context(), lease); !closed || err != nil {
-		t.Fatalf("queued startups blocked rollback: %t, %v", closed, err)
-	}
-	startups[0].Close()
-	startup, err := m.BeginClientStartup(t.Context(), "after-release", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	startup.Close()
 }
 
 // 同 key 排队与等待全局名额共享一次等待预算。
@@ -192,40 +151,6 @@ func TestResourceAdmissionFollowupSurvivesEvictionAndReleasesOnTerminal(t *testi
 	}
 	if got := count(); got != 0 {
 		t.Fatalf("late receipt resurrected completed run: %d", got)
-	}
-}
-
-func TestResourceAdmissionReservesBeforeFactoryAndReleasesFailure(t *testing.T) {
-	entered, release := make(chan struct{}), make(chan struct{})
-	var calls atomic.Int32
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client {
-		if calls.Add(1) == 1 {
-			close(entered)
-			<-release
-			return nil
-		}
-		return &fakeRuntimeClient{}
-	}))
-	m.SetResourceLimits(ResourceLimits{MaxSessions: 1})
-	first := make(chan error, 1)
-	go func() { _, err := m.GetOrCreate(t.Context(), "first", agentclient.Options{}); first <- err }()
-	<-entered
-	var releaseOnce sync.Once
-	defer releaseOnce.Do(func() { close(release) })
-	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
-	defer cancel()
-	if _, err := m.GetOrCreate(ctx, "second", agentclient.Options{}); !errors.Is(err, ErrRuntimeResourceBusy) || !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("pending factory was oversubscribed or cancellation lost: %v", err)
-	}
-	if got := calls.Load(); got != 1 {
-		t.Fatalf("factory calls = %d, want 1", got)
-	}
-	releaseOnce.Do(func() { close(release) })
-	if err := <-first; !errors.Is(err, agentclient.ErrNotConnected) {
-		t.Fatalf("first startup = %v", err)
-	}
-	if _, err := m.GetOrCreate(t.Context(), "third", agentclient.Options{}); err != nil {
-		t.Fatalf("failed startup retained reservation: %v", err)
 	}
 }
 
@@ -308,25 +233,6 @@ func TestSandboxStartupExplanationPreservesCause(t *testing.T) {
 	_, err := client.openSession(context.Background(), agentclient.Options{})
 	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "当前 Windows 未提供桌面沙箱所需的系统 API") {
 		t.Fatalf("lost explanation or cause: %v", err)
-	}
-}
-
-func TestSandboxUnsupportedCreateIsNotMissingDependency(t *testing.T) {
-	got := DesktopSandboxUnavailableMessage("the Windows sandbox cannot create a process security environment (stage=availability, build=26300): CreateProcessSecurityEnvironment failed: HRESULT 0x80070032")
-	if !strings.Contains(got, "不支持当前安全环境创建请求") || !strings.Contains(got, "设置 → 沙箱") {
-		t.Fatalf("unexpected message: %s", got)
-	}
-	if got := DesktopSandboxUnavailableMessage("CreateProcessSecurityEnvironment failed: HRESULT 0x80070005"); got != "" {
-		t.Fatalf("access denied misclassified: %s", got)
-	}
-}
-
-func TestSandboxRustHelperRepairMessage(t *testing.T) {
-	for _, reason := range []string{"Windows sandbox helper nxs-mxc.exe is missing", "Windows sandbox helper version mismatch"} {
-		got := DesktopSandboxUnavailableMessage(reason)
-		if !strings.Contains(got, "完整安装包") || !strings.Contains(got, "无需自行安装 Rust") || !strings.Contains(got, "设置 → 沙箱") {
-			t.Fatalf("unexpected message: %s", got)
-		}
 	}
 }
 

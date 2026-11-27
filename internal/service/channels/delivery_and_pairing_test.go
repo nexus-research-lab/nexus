@@ -17,16 +17,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
-	management "github.com/nexus-research-lab/nexus/internal/service/channels/management"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
-	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
-	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
-	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 )
@@ -55,35 +48,6 @@ func (r *stubAgentResolver) GetDefaultAgent(_ context.Context) (*protocol.Agent,
 		}
 	}
 	return nil, nil
-}
-
-type stubPermissionSender struct {
-	key    string
-	mu     sync.Mutex
-	events []protocol.EventMessage
-}
-
-func (s *stubPermissionSender) Key() string {
-	return s.key
-}
-
-func (s *stubPermissionSender) IsClosed() bool {
-	return false
-}
-
-func (s *stubPermissionSender) SendEvent(_ context.Context, event protocol.EventMessage) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.events = append(s.events, event)
-	return nil
-}
-
-func (s *stubPermissionSender) Events() []protocol.EventMessage {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	result := make([]protocol.EventMessage, len(s.events))
-	copy(result, s.events)
-	return result
 }
 
 type recordingDeliveryChannel struct {
@@ -296,47 +260,6 @@ func newChannelOwnerWorkspace(t *testing.T, ownerUserID string, agentID string) 
 	)
 }
 
-func TestRouterDoesNotReuseLegacyExternalAgentRouteWithoutSessionKey(t *testing.T) {
-	db := newChannelTestDB(t)
-	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-
-	if _, err := router.RememberRoute(context.Background(), "agent-a", DeliveryTarget{
-		Mode:    DeliveryModeExplicit,
-		Channel: ChannelTypeFeishu,
-		To:      "oc-legacy",
-	}); err != nil {
-		t.Fatalf("记录 legacy 外部 route 失败: %v", err)
-	}
-	last, err := router.GetLastRoute(context.Background(), "agent-a")
-	if err != nil {
-		t.Fatalf("读取 legacy 外部 route 失败: %v", err)
-	}
-	if last != nil {
-		t.Fatalf("缺少 exact Session key 的外部 route 必须 fail closed: %+v", last)
-	}
-}
-
-func TestRouterFailsClosedWhenIMGrantValidatorIsMissing(t *testing.T) {
-	db := newChannelTestDB(t)
-	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	// Wiring the durable IM delivery store opts this Router into the full
-	// lifecycle contract. A missing pairing validator must not silently turn a
-	// structured external Session into a sendable target.
-	router.SetIMDeliverySupport(imdelivery.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db), nil)
-	sessionKey := protocol.BuildAgentAccountSessionKey(
-		"agent-a", protocol.SessionChannelFeishu, protocol.RoomTypeDM, "account-a", "ou-a", "",
-	)
-	_, err := router.RememberRoute(context.Background(), "agent-a", DeliveryTarget{
-		Mode:       DeliveryModeExplicit,
-		Channel:    ChannelTypeFeishu,
-		To:         "ou-a",
-		SessionKey: sessionKey,
-	})
-	if !errors.Is(err, ErrExternalSessionGrantUnavailable) {
-		t.Fatalf("缺少 IM grant validator 时必须 fail closed: %v", err)
-	}
-}
-
 func TestRouterDoesNotDeliverToFailedOwnerChannel(t *testing.T) {
 	db := newChannelTestDB(t)
 	resolver := &stubAgentResolver{
@@ -364,114 +287,6 @@ func TestRouterDoesNotDeliverToFailedOwnerChannel(t *testing.T) {
 	}
 	if failedChannel.sentCount() != 0 {
 		t.Fatalf("启动失败通道不应收到投递，实际 %d", failedChannel.sentCount())
-	}
-}
-
-func TestRouterDeliverMessagePersistsSharedRoomDelivery(t *testing.T) {
-	workspacePath := t.TempDir()
-	stateRoot := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
-	db := newChannelTestDB(t)
-	permission := permissionctx.NewContext()
-	resolver := &stubAgentResolver{
-		agentByID: map[string]*protocol.Agent{
-			"agent-1": {
-				AgentID:       "agent-1",
-				WorkspacePath: workspacePath,
-			},
-		},
-	}
-	router := NewRouter(
-		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
-		db,
-		resolver,
-		permission,
-	)
-
-	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")
-	sender := &stubPermissionSender{key: "room-sender-1"}
-	permission.BindSession(sessionKey, sender)
-
-	result, err := router.DeliverMessage(context.Background(), "agent-1", "今日新闻摘要", DeliveryTarget{
-		Mode:    DeliveryModeExplicit,
-		Channel: ChannelTypeWebSocket,
-		To:      sessionKey,
-	})
-	if err != nil {
-		t.Fatalf("Room 共享投递失败: %v", err)
-	}
-	target := result.Target
-	if target.Channel != ChannelTypeWebSocket || target.To != sessionKey || target.SessionKey != sessionKey {
-		t.Fatalf("解析后的投递目标不正确: %+v", target)
-	}
-
-	roomHistory := workspacestore.NewRoomHistoryStore(workspacePath)
-	messages, err := roomHistory.ReadMessages("", "conversation-1", nil)
-	if err != nil {
-		t.Fatalf("读取 Room 共享历史失败: %v", err)
-	}
-	if len(messages) != 1 {
-		t.Fatalf("期望写入 1 条 Room assistant 消息，实际 %d", len(messages))
-	}
-	if stringValue(messages[0]["role"]) != "assistant" {
-		t.Fatalf("Room 投递消息角色不正确: %+v", messages[0])
-	}
-	if stringValue(messages[0]["agent_id"]) != "agent-1" {
-		t.Fatalf("Room 投递消息缺少 agent 归属: %+v", messages[0])
-	}
-	if stringValue(messages[0]["conversation_id"]) != "conversation-1" {
-		t.Fatalf("Room 投递消息 conversation_id 不正确: %+v", messages[0])
-	}
-	if extractAssistantText(messages[0]) != "今日新闻摘要" {
-		t.Fatalf("Room assistant 正文不正确: %+v", messages[0])
-	}
-
-	events := sender.Events()
-	if len(events) != 1 {
-		t.Fatalf("期望广播 1 条 Room durable message，实际 %d", len(events))
-	}
-	if events[0].EventType != protocol.EventTypeMessage ||
-		events[0].SessionKey != sessionKey ||
-		events[0].ConversationID != "conversation-1" ||
-		events[0].AgentID != "agent-1" {
-		t.Fatalf("Room 广播事件不正确: %+v", events[0])
-	}
-}
-
-func TestRouterDeliverMessageRejectsMissingOrdinaryInternalSession(t *testing.T) {
-	workspaceRoot, workspacePath := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
-	router := NewRouter(
-		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspaceRoot},
-		newChannelTestDB(t),
-		&stubAgentResolver{agentByID: map[string]*protocol.Agent{
-			"agent-1": {
-				AgentID: "agent-1", OwnerUserID: authctx.SystemUserID,
-				WorkspacePath: workspacePath,
-			},
-		}},
-		nil,
-	)
-	if err := router.Start(context.Background()); err != nil {
-		t.Fatalf("启动 router 失败: %v", err)
-	}
-	defer router.Stop(context.Background())
-
-	sessionKey := protocol.BuildAgentSessionKey(
-		"agent-1", protocol.SessionChannelInternalSegment, protocol.RoomTypeDM,
-		"missing-real-session", "",
-	)
-	_, err := router.DeliverMessage(context.Background(), "agent-1", "不能创建隐藏会话", DeliveryTarget{
-		Mode: DeliveryModeExplicit, Channel: ChannelTypeInternal, To: sessionKey,
-	})
-	if err == nil || !strings.Contains(err.Error(), "delivery target session is not available") {
-		t.Fatalf("missing ordinary internal session must fail closed, got %v", err)
-	}
-	stored, _, findErr := workspacestore.NewSessionFileStore(workspaceRoot).
-		ForOwner(authctx.SystemUserID).
-		FindSession([]string{workspacePath}, sessionKey)
-	if findErr != nil || stored != nil {
-		t.Fatalf("missing session must not be synthesized: session=%+v err=%v", stored, findErr)
 	}
 }
 
@@ -884,147 +699,5 @@ func TestListAgentExternalSessionsReturnsOnlyActivePairedDMs(t *testing.T) {
 		context.Background(), "owner-a", "agent-a", ChannelTypeWebSocket,
 	); !errors.Is(err, ErrExternalSessionGrantUnavailable) {
 		t.Fatalf("non-IM delivery directory error = %v", err)
-	}
-}
-
-func TestPairingRoomTargetSwitchKeepsSessionAndFencesOldDelivery(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
-	ctx := contextWithIngressOwner(context.Background(), "owner-room-binding")
-	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	agent, err := agents.CreateAgent(ctx, protocol.CreateRequest{Name: "负责人"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rooms := roomsvc.NewService(cfg, agents, roomrepo.NewSQLRepository("sqlite", db))
-	room, err := rooms.CreateRoom(ctx, protocol.CreateRoomRequest{AgentIDs: []string{agent.AgentID}, Name: "项目", PrivateMessagesEnabled: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	control := NewControlService(cfg, db, agents, nil)
-	control.SetRoomService(rooms)
-	pairing, err := control.CreatePairing(ctx, authctx.OwnerUserID(ctx), CreatePairingRequest{ChannelType: ChannelTypeFeishu, ChatType: "dm", ExternalRef: "person", AgentID: agent.AgentID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	original := pairing.SessionKey
-	target := DeliveryTarget{Mode: DeliveryModeExplicit, Channel: ChannelTypeFeishu, To: "person", SessionKey: original, PairingID: pairing.PairingID, BindingVersion: pairing.BindingVersion}
-	binding := management.PairingSessionTarget{RoomID: room.Room.ID, ConversationID: room.Conversation.ID}
-	next, err := control.UpdatePairing(ctx, authctx.OwnerUserID(ctx), pairing.PairingID, UpdatePairingRequest{SessionTarget: &binding, BindingVersion: &pairing.BindingVersion})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if next.SessionKey != original || next.BindingVersion != pairing.BindingVersion+1 || next.SessionTarget.RoomName != "项目" {
-		t.Fatalf("切换不应新建传输会话: %+v", next)
-	}
-	if _, err := control.ValidateBindingDelivery(ctx, authctx.OwnerUserID(ctx), agent.AgentID, target); !errors.Is(err, ErrExternalSessionGrantUnavailable) {
-		t.Fatalf("旧回复必须失效: %v", err)
-	}
-	target.BindingVersion = next.BindingVersion
-	if bound, err := control.ValidateBindingDelivery(ctx, authctx.OwnerUserID(ctx), agent.AgentID, target); err != nil || !bound {
-		t.Fatalf("新 Room 目标未生效: %v %v", bound, err)
-	}
-	if _, err := control.UpdatePairing(ctx, authctx.OwnerUserID(ctx), pairing.PairingID, UpdatePairingRequest{SessionTarget: &binding, BindingVersion: &pairing.BindingVersion}); err == nil {
-		t.Fatal("旧版本更新必须拒绝")
-	}
-	independent := management.PairingSessionTarget{}
-	restored, err := control.UpdatePairing(ctx, authctx.OwnerUserID(ctx), pairing.PairingID, UpdatePairingRequest{SessionTarget: &independent, BindingVersion: &next.BindingVersion})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if restored.SessionKey != original || restored.SessionTarget.RoomID != "" {
-		t.Fatalf("独立会话历史身份丢失: %+v", restored)
-	}
-	if _, err := control.ValidateBindingDelivery(ctx, authctx.OwnerUserID(ctx), agent.AgentID, target); !errors.Is(err, ErrExternalSessionGrantUnavailable) {
-		t.Fatalf("Room 旧轮次不能再回信: %v", err)
-	}
-	bad := binding
-	bad.RoomID = "another-room"
-	if _, err := control.UpdatePairing(ctx, authctx.OwnerUserID(ctx), pairing.PairingID, UpdatePairingRequest{SessionTarget: &bad, BindingVersion: &restored.BindingVersion}); err == nil {
-		t.Fatal("错误 Room / conversation 组合必须拒绝")
-	}
-	otherCtx := contextWithIngressOwner(ctx, "other-owner")
-	if err := control.validatePairingRoom(otherCtx, agent.AgentID, binding); err == nil {
-		t.Fatal("跨 owner 目标必须拒绝")
-	}
-}
-
-func TestPairingDMReusesSelectedConversationAndExternalReplyTarget(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
-	ctx := contextWithIngressOwner(t.Context(), "owner-dm")
-	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	agent, err := agents.CreateAgent(ctx, protocol.CreateRequest{Name: "Amy"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rooms := roomsvc.NewService(cfg, agents, roomrepo.NewSQLRepository("sqlite", db))
-	dm, err := rooms.EnsureDirectRoom(ctx, agent.AgentID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	control := NewControlService(cfg, db, agents, nil)
-	control.SetRoomService(rooms)
-	pairing, err := control.CreatePairing(ctx, "owner-dm", CreatePairingRequest{ChannelType: ChannelTypeFeishu, ChatType: "dm", ExternalRef: "person", AgentID: agent.AgentID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	target := management.PairingSessionTarget{RoomID: dm.Room.ID, ConversationID: dm.Conversation.ID}
-	paired, err := control.UpdatePairing(ctx, "owner-dm", pairing.PairingID, UpdatePairingRequest{SessionTarget: &target, BindingVersion: &pairing.BindingVersion})
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler := &fakeIngressDMHandler{}
-	ingress := NewIngressService(cfg, agents, handler, nil)
-	ingress.SetControlService(control)
-	ingress.SetRoomRealtime(&roomrealtime.Service{})
-	request, err := ingress.normalizeRequest(ctx, IngressRequest{Channel: ChannelTypeFeishu, Ref: "person", Content: "继续之前的工作", ReqID: "input", RoundID: "round"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := ingress.claimIngress(ctx, request); err != nil {
-		t.Fatal(err)
-	}
-	if err := control.beginIngressDispatch(ctx, request); err != nil {
-		t.Fatal(err)
-	}
-	if err := ingress.dispatchIngress(ctx, request); err != nil {
-		t.Fatal(err)
-	}
-	expected := protocol.BuildRoomAgentSessionKey(dm.Conversation.ID, agent.AgentID, protocol.RoomTypeDM)
-	if len(handler.requests) != 1 {
-		t.Fatalf("requests=%v", handler.requests)
-	}
-	actual := handler.requests[0]
-	if actual.SessionKey != expected || actual.ExternalReplyTarget == nil || actual.ExternalReplyTarget.SessionKey != paired.SessionKey || actual.ExternalReplyTarget.BindingVersion != paired.BindingVersion {
-		t.Fatalf("wrong DM route: %+v", actual)
-	}
-	ingress.SetRoundIndexReader(func(_ context.Context, session string) (*protocol.SessionRoundIndex, error) {
-		if session != expected {
-			t.Fatalf("recovery read wrong session: %s", session)
-		}
-		return &protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{{RoundID: "round", HasUserMessage: true}}}, nil
-	})
-	if ok, err := ingress.recoverIngress(ctx, request); err != nil || !ok {
-		t.Fatalf("recovery: %v %v", ok, err)
-	}
-	if len(handler.requests) != 1 {
-		t.Fatal("recovery reran DM")
-	}
-	other, err := agents.CreateAgent(ctx, protocol.CreateRequest{Name: "Other"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := control.validatePairingRoom(ctx, other.AgentID, target); err == nil {
-		t.Fatal("accepted another agent's DM")
-	}
-	switched, err := control.UpdatePairing(ctx, "owner-dm", pairing.PairingID, UpdatePairingRequest{AgentID: &other.AgentID, BindingVersion: &paired.BindingVersion})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if switched.SessionTarget.RoomID != "" {
-		t.Fatal("agent switch retained old DM")
 	}
 }

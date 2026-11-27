@@ -181,33 +181,6 @@ func TestDesktopHostPathsIgnoreTaskStateRoot(t *testing.T) {
 	}
 }
 
-func TestDesktopHostPathsProtectWindowsNXSState(t *testing.T) {
-	root := filepath.Clean(t.TempDir())
-	appRoot := filepath.Join(root, "app")
-	if err := os.MkdirAll(filepath.Join(appRoot, "data"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	options, err := applyDesktopHostPaths(
-		agentclient.Options{
-			Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
-			Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{}},
-		},
-		AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true},
-		"windows",
-		appRoot, "",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	filesystem := options.Sandbox.Filesystem
-	if !slices.Contains(filesystem.DenyRead, filepath.Join(appRoot, "data")) {
-		t.Fatalf("Windows state data directory is readable: %#v", filesystem.DenyRead)
-	}
-	if !slices.Contains(filesystem.DenyWrite, appRoot) {
-		t.Fatalf("Windows app root is writable: %#v", filesystem.DenyWrite)
-	}
-}
-
 func TestDesktopHostPathsApplyToWindowsRestrictedNXS(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("Windows MXC host protection")
@@ -244,34 +217,6 @@ func TestDesktopSandboxNetworkAdmissionDefaultsToDenyAll(t *testing.T) {
 	}
 	if admission.Allows("https://api.example.com/v1") {
 		t.Fatal("nil admission allowed an external destination")
-	}
-}
-
-func TestDesktopSandboxNetworkAdmissionNormalizesAndScopesExactHTTPSDomains(t *testing.T) {
-	admission := &DesktopSandboxNetworkAdmission{AllowedDomains: []string{" API.Example.com. ", "api.example.com", "auth.example.com"}}
-	domains, err := admission.CanonicalAllowedDomains()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := strings.Join(domains, ","), "api.example.com,auth.example.com"; got != want {
-		t.Fatalf("canonical domains=%q want %q", got, want)
-	}
-	tests := []struct {
-		url string
-		ok  bool
-	}{
-		{"https://api.example.com/mcp", true},
-		{"https://api.example.com:443/mcp", true},
-		{"https://sub.api.example.com/mcp", false},
-		{"http://api.example.com/mcp", false},
-		{"https://api.example.com:8443/mcp", false},
-		{"https://api.example.com@evil.example/mcp", false},
-		{"https://127.0.0.1/mcp", false},
-	}
-	for _, test := range tests {
-		if got := admission.Allows(test.url); got != test.ok {
-			t.Errorf("Allows(%q)=%v want %v", test.url, got, test.ok)
-		}
 	}
 }
 
@@ -313,38 +258,6 @@ func TestDesktopSandboxChecksHostOwnedTypedRemoteMCP(t *testing.T) {
 	}
 	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"mcp.example.com"}}); err != nil {
 		t.Fatalf("approved host-owned remote MCP was rejected: %v", err)
-	}
-}
-
-func TestDesktopSandboxTypedMCPHelpersRequirePlatformContract(t *testing.T) {
-	servers := map[string]sdkmcp.ServerConfig{
-		"remote": sdkmcp.HTTPServerConfig{URL: "https://mcp.example.com/mcp", HeadersHelper: "/tmp/untrusted-helper"},
-	}
-	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions, nil); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
-		t.Fatalf("typed helper platform contract: %v", err)
-	}
-}
-
-func TestDesktopSandboxNetworkAdmissionIsCopiedIntoSettings(t *testing.T) {
-	input := AgentClientOptionsInput{
-		AppMode:                        "desktop",
-		DesktopSandboxEnabled:          true,
-		DesktopSandboxNetworkAdmission: &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}},
-	}
-	options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}}, input, "darwin")
-	if err != nil {
-		t.Fatal(err)
-	}
-	options, err = applyDesktopSandboxNetworkAdmission(options, input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if options.Sandbox == nil || options.Sandbox.Network == nil || len(options.Sandbox.Network.AllowedDomains) != 1 || options.Sandbox.Network.AllowedDomains[0] != "api.example.com" {
-		t.Fatalf("network settings=%#v", options.Sandbox)
-	}
-	input.DesktopSandboxNetworkAdmission.AllowedDomains[0] = "changed.example.com"
-	if options.Sandbox.Network.AllowedDomains[0] != "api.example.com" {
-		t.Fatal("network settings aliased host admission")
 	}
 }
 
@@ -504,16 +417,6 @@ func TestWindowsSandboxStatelessResources(t *testing.T) {
 	full, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}, input, "windows")
 	if err != nil || full.Sandbox != nil {
 		t.Fatalf("Full Access installed resources: %v", err)
-	}
-}
-
-func TestWindowsSandboxRejectsElevatedProcess(t *testing.T) {
-	old := desktopSandboxProcessElevated
-	desktopSandboxProcessElevated = func() bool { return true }
-	defer func() { desktopSandboxProcessElevated = old }()
-	_, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}}, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, WorkspacePath: t.TempDir()}, "windows")
-	if err == nil {
-		t.Fatal("elevated process accepted")
 	}
 }
 

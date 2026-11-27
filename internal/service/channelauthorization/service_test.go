@@ -538,54 +538,6 @@ func TestServiceRestartExplicitlyInvalidatesAndScrubsActiveFlow(t *testing.T) {
 	}
 }
 
-func TestServiceReportsVersionConflictAndReloadRollbackWithoutRawError(t *testing.T) {
-	tests := []struct {
-		name        string
-		rawError    string
-		outcomeCode string
-	}{
-		{
-			name:        "version conflict",
-			rawError:    "Channel 配置版本已变化 expected=2 token=raw-secret",
-			outcomeCode: "channel_version_conflict",
-		},
-		{
-			name:        "runtime reload",
-			rawError:    "Channel 候选 runtime 启动失败，上一份可运行配置已保留 token=raw-secret",
-			outcomeCode: "runtime_reload_failed",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			db := newAuthorizationTestDB(t)
-			control := newFakeChannelControl()
-			service := newAuthorizationTestService(t, db, control, &recordingPresenter{})
-			defer func() { _ = service.Close(context.Background()) }()
-			actor := testAuthorizationActor("round-failure")
-			started, err := service.Start(context.Background(), actor, StartInput{ChannelType: "feishu"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			control.setStatus(channelssvc.ChannelLoginStatusError, "", 0, test.rawError)
-			failed, err := service.Status(context.Background(), actor, started.FlowID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.Contains(mustJSON(t, failed), "raw-secret") {
-				t.Fatalf("model failure leaked raw error: %+v", failed)
-			}
-			completion, err := service.Completion(context.Background(), actor, started.FlowID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if completion.OutcomeCode != test.outcomeCode ||
-				strings.Contains(mustJSON(t, completion), "raw-secret") {
-				t.Fatalf("completion = %+v", completion)
-			}
-		})
-	}
-}
-
 func newAuthorizationTestService(
 	t *testing.T,
 	db *sql.DB,

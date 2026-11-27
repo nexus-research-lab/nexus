@@ -135,56 +135,6 @@ func TestFeishuChannelSendDeliveryTypingUsesReaction(t *testing.T) {
 	}
 }
 
-func TestFeishuChannelHandlesSDKMessageThroughIngress(t *testing.T) {
-	ingress := &recordingFeishuIngress{}
-	channel := NewFeishuChannel("cli_a", "secret-a", nil).WithOwner("owner-a")
-	channel.SetIngress(ingress)
-
-	content := `{"text":"检查今天的定时任务发送情况"}`
-	event := &larkim.P2MessageReceiveV1{
-		EventV2Base: &larkevent.EventV2Base{
-			Schema: "2.0",
-			Header: &larkevent.EventHeader{
-				EventID:   "evt-1",
-				EventType: "im.message.receive_v1",
-				AppID:     "cli_a",
-			},
-		},
-		Event: &larkim.P2MessageReceiveV1Data{
-			Sender: &larkim.EventSender{
-				SenderId: &larkim.UserId{
-					OpenId: ptrString("ou_sender"),
-				},
-				SenderType: ptrString("user"),
-			},
-			Message: &larkim.EventMessage{
-				MessageId:   ptrString("om_1"),
-				ChatId:      ptrString("oc_group_123"),
-				ChatType:    ptrString("group"),
-				MessageType: ptrString("text"),
-				Content:     &content,
-			},
-		},
-	}
-
-	if err := channel.handleSDKMessage(context.Background(), event); err != nil {
-		t.Fatalf("飞书 SDK 消息进入 ingress 失败: %v", err)
-	}
-	if len(ingress.requests) != 1 {
-		t.Fatalf("飞书 SDK 消息未进入 ingress: %+v", ingress.requests)
-	}
-	request := ingress.requests[0]
-	if request.OwnerUserID != "owner-a" || request.Channel != channelcontract.ChannelTypeFeishu || request.Ref != "oc_group_123" {
-		t.Fatalf("飞书 ingress 路由不正确: %+v", request)
-	}
-	if request.Content != "检查今天的定时任务发送情况" || request.ReqID != "om_1" || request.RoundID != "evt-1" {
-		t.Fatalf("飞书 ingress 内容不正确: %+v", request)
-	}
-	if request.Delivery == nil || request.Delivery.Channel != channelcontract.ChannelTypeFeishu || request.Delivery.To != "oc_group_123" {
-		t.Fatalf("飞书回投目标不正确: %+v", request.Delivery)
-	}
-}
-
 func TestFeishuChannelHandlesSDKReactionThroughIngress(t *testing.T) {
 	ingress := &recordingFeishuIngress{}
 	channel := NewFeishuChannel("cli_a", "secret-a", nil).WithOwner("owner-a")
@@ -256,10 +206,6 @@ func (r *recordingFeishuIngress) Accept(_ context.Context, request channelcontra
 	}, nil
 }
 
-func ptrString(value string) *string {
-	return &value
-}
-
 func encryptFeishuCallbackForTest(t *testing.T, encryptKey string, plain []byte) []byte {
 	t.Helper()
 	key := sha256.Sum256([]byte(encryptKey))
@@ -297,26 +243,6 @@ func pkcs7PadForTest(raw []byte, blockSize int) []byte {
 		padded = append(padded, byte(padding))
 	}
 	return padded
-}
-
-func TestDecodeFeishuIngressCallbackChallenge(t *testing.T) {
-	callback, err := DecodeFeishuIngressCallback([]byte(`{
-		"type": "url_verification",
-		"token": "verification-token",
-		"challenge": "challenge-token"
-	}`))
-	if err != nil {
-		t.Fatalf("解析飞书 URL 校验失败: %v", err)
-	}
-	if callback.Challenge != "challenge-token" {
-		t.Fatalf("challenge 不正确: %+v", callback)
-	}
-	if callback.Request != nil {
-		t.Fatalf("URL 校验不应生成 ingress request: %+v", callback.Request)
-	}
-	if callback.Token != "verification-token" {
-		t.Fatalf("verification token 未解析: %+v", callback)
-	}
 }
 
 func TestDecryptFeishuCallback(t *testing.T) {

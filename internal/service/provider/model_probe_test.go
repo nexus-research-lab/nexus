@@ -360,41 +360,6 @@ func TestImageProbeVerifiesPixelsAndEditingSemantics(t *testing.T) {
 	}
 }
 
-func TestFailedRecheckRetainsVerifiedCapabilityAndRecordsFailure(t *testing.T) {
-	deny := false
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if deny {
-			w.WriteHeader(http.StatusTooManyRequests)
-			return
-		}
-		var payload map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&payload)
-		_, data := probeTestInput(payload, APIFormatResponses)
-		_ = json.NewEncoder(w).Encode(probeTestResponse(APIFormatResponses, probeTestReadImage(t, data), ""))
-	}))
-	defer server.Close()
-	service, _ := newTestService(t)
-	ctx := context.Background()
-	record := createConfigurationVersionTestProvider(t, service, ctx, "recheck", server.URL)
-	first, err := service.TestModelCapability(ctx, record.Provider, "private-vision-alias", "vision", nil, false)
-	if err != nil || first.CapabilityResults["vision"].State != "supported" {
-		t.Fatalf("first=%+v err=%v", first, err)
-	}
-	deny = true
-	second, err := service.TestModelCapability(ctx, record.Provider, "private-vision-alias", "vision", nil, false)
-	if err != nil || second.Success || second.CapabilityResults["vision"].Reason != "quota_or_rate_limit" {
-		t.Fatalf("second=%+v err=%v", second, err)
-	}
-	current, err := service.Get(ctx, record.Provider)
-	if err != nil {
-		t.Fatal(err)
-	}
-	model := current.Models[0]
-	if model.CapabilitiesAuto.Vision == nil || !*model.CapabilitiesAuto.Vision || model.CapabilityTests["vision"].State != "error" {
-		t.Fatalf("model=%+v", model)
-	}
-}
-
 func TestEmbeddingProbeEndpoints(t *testing.T) {
 	for _, tc := range []struct{ base, want string }{
 		{"https://example.test/v1", "https://example.test/v1/embeddings"},

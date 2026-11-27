@@ -428,54 +428,6 @@ func (f *fakeDeliveryRouter) OwnerUserIDs() []string {
 	return result
 }
 
-type sessionArtifactDeletionCall struct {
-	ownerUserID      string
-	workspacePath    string
-	sessionKey       string
-	cleanupSessionID string
-}
-
-type fakeSessionArtifactDeletionCoordinator struct {
-	mu       sync.Mutex
-	calls    []sessionArtifactDeletionCall
-	err      error
-	deleteFn func(context.Context, sessionArtifactDeletionCall) error
-}
-
-func (f *fakeSessionArtifactDeletionCoordinator) DeleteSessionArtifacts(
-	ctx context.Context,
-	ownerUserID string,
-	workspacePath string,
-	sessionKey string,
-	cleanupSessionID string,
-) error {
-	call := sessionArtifactDeletionCall{
-		ownerUserID:      ownerUserID,
-		workspacePath:    workspacePath,
-		sessionKey:       sessionKey,
-		cleanupSessionID: cleanupSessionID,
-	}
-	f.mu.Lock()
-	f.calls = append(f.calls, call)
-	deleteFn := f.deleteFn
-	err := f.err
-	f.mu.Unlock()
-	if deleteFn != nil {
-		if deleteErr := deleteFn(ctx, call); deleteErr != nil {
-			return deleteErr
-		}
-	}
-	return err
-}
-
-func (f *fakeSessionArtifactDeletionCoordinator) Calls() []sessionArtifactDeletionCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	result := make([]sessionArtifactDeletionCall, len(f.calls))
-	copy(result, f.calls)
-	return result
-}
-
 func newAutomationTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -1144,11 +1096,6 @@ func assertDeliveredAgentMessage(t *testing.T, workspacePath string, session pro
 	if textutil.FirstNonEmpty(stringFromMessage(summary, "subtype")) != "success" {
 		t.Fatalf("%s投递终态不正确: %+v", label, messages[0])
 	}
-}
-
-func assertRunDeliveredTo(t *testing.T, service *Service, jobID string, expectedDeliveryTo string) automationdomain.ScheduledTaskRun {
-	t.Helper()
-	return assertRunDeliveredToContext(t, context.Background(), service, jobID, expectedDeliveryTo)
 }
 
 func assertRunDeliveredToContext(t *testing.T, ctx context.Context, service *Service, jobID string, expectedDeliveryTo string) automationdomain.ScheduledTaskRun {

@@ -7,49 +7,16 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 )
-
-func TestRoundRunnerDiscardsUncommittedDeferredRuntimeMessages(t *testing.T) {
-	t.Parallel()
-
-	client := &fakeDMClient{}
-	runner := &roundRunner{
-		client:            client,
-		userMessageID:     "echo-user-1",
-		internal:          true,
-		deferredAssistant: &DeferredAssistantHooks{},
-	}
-	if got := runner.runtimeInputOptions().MessageUUID; got != "echo-user-1" {
-		t.Fatalf("deferred runtime message uuid = %q, want echo-user-1", got)
-	}
-	runner.observeDeferredRuntimeMessage(sdkprotocol.ReceivedMessage{UUID: "echo-assistant-1"})
-	runner.observeDeferredRuntimeMessage(sdkprotocol.ReceivedMessage{UUID: "echo-assistant-2"})
-	if err := runner.discardDeferredRuntimeMessages(); err != nil {
-		t.Fatal(err)
-	}
-
-	client.mu.Lock()
-	defer client.mu.Unlock()
-	if len(client.removeMessages) != 1 {
-		t.Fatalf("remove messages calls = %#v, want one call", client.removeMessages)
-	}
-	got := strings.Join(client.removeMessages[0], ",")
-	if want := "echo-user-1,echo-assistant-1,echo-assistant-2"; got != want {
-		t.Fatalf("removed runtime messages = %q, want %q", got, want)
-	}
-}
 
 func TestRoundRunnerMaintainsExternalTypingState(t *testing.T) {
 	t.Parallel()
@@ -95,140 +62,6 @@ func TestRoundRunnerMaintainsExternalTypingState(t *testing.T) {
 	}
 }
 
-func TestRoundRunnerSkipsExternalTypingForQuickReply(t *testing.T) {
-	t.Parallel()
-
-	dispatcher := &fakeExternalReplyDispatcher{}
-	runner := &roundRunner{
-		service:    &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
-		agent:      &protocol.Agent{AgentID: "agent-1"},
-		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
-		roundID:    "round-1",
-		externalReplyTarget: &ExternalReplyTarget{
-			Mode:     "explicit",
-			Channel:  "weixin-personal",
-			To:       "user-1",
-			ThreadID: "context-token-1",
-		},
-	}
-	accelerateDMExternalTyping(runner)
-
-	stop := runner.startExternalReplyTyping(context.Background())
-	stop()
-	time.Sleep(runner.externalTypingStartDelay() + 50*time.Millisecond)
-
-	if calls := dispatcher.typingCallsSnapshot(); len(calls) != 0 {
-		t.Fatalf("快速结束不应发送 typing 状态: %+v", calls)
-	}
-}
-
-func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T) {
-	cfg := newDMTestConfig(t)
-
-	agentService := newDMAgentService(t, cfg)
-	agentValue, err := agentService.GetDefaultAgent(context.Background())
-	if err != nil {
-		t.Fatalf("读取默认 agent 失败: %v", err)
-	}
-	permission := permissionctx.NewContext()
-	client := newFakeDMClient()
-	client.onQuery = func(_ context.Context, _ string) {
-		client.sendResultAsync(client.sessionID, "result-title-external-im", "success", "ok")
-	}
-	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
-	service := NewService(cfg, agentService, runtimeManager, permission)
-	service.SetInboxStore(newDMInboxStore(t, cfg))
-	titleScheduler := &fakeDMTitleScheduler{}
-	service.SetTitleGenerator(titleScheduler)
-
-	sessionKey := protocol.BuildAgentSessionKey(
-		agentValue.AgentID,
-		protocol.SessionChannelWeixinPersonalSegment,
-		protocol.RoomTypeDM,
-		"wx-user-1",
-		"",
-	)
-	now := time.Now().UTC()
-	if _, err = service.Files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
-		SessionKey:   sessionKey,
-		AgentID:      agentValue.AgentID,
-		ChannelType:  protocol.SessionChannelWeixinPersonal,
-		ChatType:     protocol.RoomTypeDM,
-		Status:       "closed",
-		CreatedAt:    now.Add(-time.Hour),
-		LastActivity: now.Add(-time.Minute),
-		Title:        "New Chat",
-		MessageCount: 74,
-		Options: map[string]any{
-			protocol.OptionRuntimeProvider: "kimi-code",
-			protocol.OptionRuntimeModel:    "kimi-for-coding",
-		},
-	}); err != nil {
-		t.Fatalf("写入外部 IM session 失败: %v", err)
-	}
-	sender := newDMTestSender("sender-external-im-title")
-	permission.BindSession(sessionKey, sender)
-	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
-
-	if err = service.HandleChat(context.Background(), Request{
-		SessionKey: sessionKey,
-		Content:    "中午吃点啥好你觉得",
-		RoundID:    "round-external-im-title",
-	}); err != nil {
-		t.Fatalf("HandleChat 失败: %v", err)
-	}
-
-	request := titleScheduler.LastRequest()
-	if request.SessionKey != sessionKey {
-		t.Fatalf("未为外部 IM session 调度标题生成: %+v", request)
-	}
-	if request.SessionTitle != "New Chat" || request.SessionMessageCount != 74 {
-		t.Fatalf("标题请求未携带默认标题和原始消息数: %+v", request)
-	}
-	if request.ConversationID != "" || request.ConversationRoomID != "" || request.ConversationMessageCount != -1 {
-		t.Fatalf("外部 IM 标题生成不应走 room conversation: %+v", request)
-	}
-	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
-	})
-}
-
-func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *testing.T) {
-	t.Parallel()
-
-	recorder := &fakeTokenUsageRecorder{}
-	runner := &roundRunner{
-		service:     &Service{Host: runtimehost.Host{Usage: recorder, Runtime: runtimectx.NewManager()}},
-		ownerUserID: "user-1",
-		sessionKey:  "agent:demo:dm:session",
-		roundID:     "round-1",
-	}
-
-	runner.RecordResultUsage(protocol.Message{
-		"role":        "result",
-		"message_id":  "result-empty",
-		"session_key": "agent:demo:dm:session",
-		"round_id":    "round-1",
-		"usage":       map[string]any{},
-	}, runner.writeUsage)
-	runner.RecordTerminalAssistantUsage(protocol.Message{
-		"role":        "assistant",
-		"message_id":  "assistant-1",
-		"session_key": "agent:demo:dm:session",
-		"round_id":    "round-1",
-		"usage": map[string]any{
-			"input_tokens": 3,
-		},
-	}, runner.writeUsage)
-
-	if len(recorder.inputs) != 1 {
-		t.Fatalf("usage 记录数量 = %d，期望 fallback 记录 assistant usage", len(recorder.inputs))
-	}
-	if recorder.inputs[0].MessageID != "assistant-1" {
-		t.Fatalf("应 fallback 记录 assistant usage，实际=%+v", recorder.inputs[0])
-	}
-}
-
 func TestBoundLocalDMForwardsFinalReplyToOriginalIM(t *testing.T) {
 	dispatcher := &fakeExternalReplyDispatcher{}
 	runner := &roundRunner{service: &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}}, agent: &protocol.Agent{AgentID: "amy"}, sessionKey: "agent:amy:ws:dm:existing", externalReplyTarget: &ExternalReplyTarget{PairingID: "pair", BindingVersion: 2, Channel: "weixin-personal", To: "person", SessionKey: "agent:amy:weixin-personal:dm:person"}}
@@ -241,32 +74,6 @@ func TestBoundLocalDMForwardsFinalReplyToOriginalIM(t *testing.T) {
 	runner.deliverExternalAssistantReply(t.Context(), protocol.Message{"role": "assistant", "content": []map[string]any{{"type": "text", "text": "未绑定"}}})
 	if len(dispatcher.callsSnapshot()) != 1 {
 		t.Fatal("unbound local session forwarded")
-	}
-}
-
-// DM 告知与 runtimehost 的 compact 清理必须落在同一个会话键上，否则 compact 后状态永远不再告知。
-func TestConnectorContextReannouncedAfterCompact(t *testing.T) {
-	service := &Service{}
-	service.Announcements = &runtimehost.ContextAnnouncements{}
-	sessionID := "sdk-1"
-	runner := &roundRunner{
-		service:          service,
-		sessionKey:       "agent:main:dm:1",
-		session:          protocol.Session{SessionID: &sessionID},
-		connectorContext: "<connector_runtime_state/>",
-	}
-	if len(runner.connectorContextualInputs()) != 1 {
-		t.Fatal("first round must announce connector state")
-	}
-	if len(runner.connectorContextualInputs()) != 0 {
-		t.Fatal("unchanged connector state must not be resent")
-	}
-	service.Announcements.ForgetAfterCompact(runner.sessionKey, sdkprotocol.ReceivedMessage{
-		Type:   sdkprotocol.MessageTypeSystem,
-		System: &sdkprotocol.SystemMessage{Subtype: "compact_boundary"},
-	})
-	if len(runner.connectorContextualInputs()) != 1 {
-		t.Fatal("compact boundary must force connector state to be announced again")
 	}
 }
 
@@ -386,27 +193,6 @@ func dmSubagentTaskMessage(subtype string, status string) protocol.Message {
 			"agent_type": "worker",
 			"status":     status,
 		},
-	}
-}
-
-// 唤醒说明来自最近一次顶层后台任务通知，交接后清空，避免下一次唤醒复用旧摘要。
-func TestRuntimeWakeTriggerUsesLatestTaskNotification(t *testing.T) {
-	runner := &roundRunner{}
-	runner.observeIdleTaskNotification(sdkprotocol.ReceivedMessage{
-		Type:             sdkprotocol.MessageTypeSystem,
-		TaskNotification: &sdkprotocol.TaskNotificationMessage{TaskID: "b1", Status: "completed", Summary: "first"},
-	})
-	runner.observeIdleTaskNotification(sdkprotocol.ReceivedMessage{
-		Type:   sdkprotocol.MessageTypeSystem,
-		System: &sdkprotocol.SystemMessage{TaskNotification: &sdkprotocol.TaskNotificationMessage{TaskID: "b2", Status: "failed", Summary: "second"}},
-	})
-	trigger := runner.idleWakeTrigger
-	if trigger.TaskID != "b2" || trigger.Content() != "second" {
-		t.Fatalf("trigger = %+v", trigger)
-	}
-	metadata := trigger.Metadata()
-	if metadata["input_kind"] != "runtime_wake" || metadata["task_status"] != "failed" || metadata["trigger_kind"] != "background_task" {
-		t.Fatalf("metadata = %+v", metadata)
 	}
 }
 

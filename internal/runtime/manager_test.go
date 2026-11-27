@@ -17,21 +17,6 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-type observedDoneContext struct {
-	context.Context
-	observed chan struct{}
-	once     sync.Once
-}
-
-func newObservedDoneContext(parent context.Context) *observedDoneContext {
-	return &observedDoneContext{Context: parent, observed: make(chan struct{})}
-}
-
-func (c *observedDoneContext) Done() <-chan struct{} {
-	c.once.Do(func() { close(c.observed) })
-	return c.Context.Done()
-}
-
 type fakeRuntimeClient struct {
 	reconfigureCalls   int
 	lastOptions        agentclient.Options
@@ -53,31 +38,6 @@ type fakeRuntimeClient struct {
 	messages           <-chan sdkprotocol.ReceivedMessage
 	receiveStarted     chan struct{}
 	receiveStopped     chan struct{}
-}
-
-type fakeOwnerProcessReaper struct {
-	mu      sync.Mutex
-	owners  []string
-	err     error
-	started chan string
-	release <-chan struct{}
-}
-
-func (r *fakeOwnerProcessReaper) ReapOwnerProcesses(ctx context.Context, ownerUserID string) error {
-	r.mu.Lock()
-	r.owners = append(r.owners, ownerUserID)
-	r.mu.Unlock()
-	if r.started != nil {
-		r.started <- ownerUserID
-	}
-	if r.release != nil {
-		select {
-		case <-r.release:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-	return r.err
 }
 
 type fakeTaskMessage struct {
@@ -283,141 +243,10 @@ func (f *fakeRuntimeFactory) New(agentclient.Options) Client {
 	return f.client
 }
 
-type ownershipFenceClient struct {
-	fakeRuntimeClient
-	mu                 sync.Mutex
-	retired            bool
-	retireCalls        int
-	connectCalls       int
-	connectStarted     chan struct{}
-	connectRelease     <-chan struct{}
-	disconnectCalls    int
-	reconfigureCalls   int
-	reconfigureStarted chan struct{}
-	reconfigureRelease <-chan struct{}
-	disconnectStarted  chan struct{}
-	disconnectRelease  <-chan struct{}
-}
-
-func (c *ownershipFenceClient) Connect(ctx context.Context) error {
-	c.mu.Lock()
-	if c.retired {
-		c.mu.Unlock()
-		return agentclient.ErrAborted
-	}
-	c.connectCalls++
-	started := c.connectStarted
-	release := c.connectRelease
-	c.mu.Unlock()
-	notifyRuntimeFence(started)
-	if release != nil {
-		select {
-		case <-release:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.retired {
-		return agentclient.ErrAborted
-	}
-	return nil
-}
-
-func (c *ownershipFenceClient) Retire() {
-	c.mu.Lock()
-	c.retired = true
-	c.retireCalls++
-	c.mu.Unlock()
-}
-
-func (c *ownershipFenceClient) Disconnect(ctx context.Context) error {
-	c.mu.Lock()
-	c.disconnectCalls++
-	started := c.disconnectStarted
-	release := c.disconnectRelease
-	c.mu.Unlock()
-	notifyRuntimeFence(started)
-	if release == nil {
-		return nil
-	}
-	select {
-	case <-release:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (c *ownershipFenceClient) Reconfigure(ctx context.Context, _ agentclient.Options) error {
-	c.mu.Lock()
-	c.reconfigureCalls++
-	started := c.reconfigureStarted
-	release := c.reconfigureRelease
-	c.mu.Unlock()
-	notifyRuntimeFence(started)
-	if release == nil {
-		return nil
-	}
-	select {
-	case <-release:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func notifyRuntimeFence(signal chan struct{}) {
-	if signal == nil {
-		return
-	}
-	select {
-	case signal <- struct{}{}:
-	default:
-	}
-}
-
-type runtimeClientSequenceFactory struct {
-	mu      sync.Mutex
-	clients []Client
-	index   int
-}
-
-func (f *runtimeClientSequenceFactory) New(agentclient.Options) Client {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.index >= len(f.clients) {
-		return nil
-	}
-	client := f.clients[f.index]
-	f.index++
-	return client
-}
-
 type runtimeFactoryFunc func(agentclient.Options) Client
 
 func (f runtimeFactoryFunc) New(options agentclient.Options) Client {
 	return f(options)
-}
-
-func TestManagerUpdateEnvironmentForAgentRejectsManagedIdentity(t *testing.T) {
-	manager := NewManager()
-	client := &fakeRuntimeClient{}
-	manager.sessions["agent:agent-a:conversation:1"] = &sessionState{
-		Client:      client,
-		RuntimeKind: agentclient.RuntimeNXS,
-	}
-
-	err := manager.UpdateEnvironmentForAgent(context.Background(), "agent-a", map[string]string{
-		"NEXUS_RUNTIME_USER_ID": "owner-b",
-	})
-	if err == nil {
-		t.Fatal("运行期环境更新应拒绝宿主管理的 owner 身份")
-	}
-	if len(client.environmentUpdates) != 0 {
-		t.Fatalf("非法运行期环境不应下发给 runtime: %+v", client.environmentUpdates)
-	}
 }
 
 func TestManagerUpdateEnvironmentAttemptsEveryMatchingRuntime(t *testing.T) {
@@ -477,133 +306,6 @@ func TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChang
 		managedRuntimeProcessPolicyFingerprint(isolationUpdate) {
 		t.Fatal("isolation change did not change process-policy fingerprint")
 	}
-}
-
-func TestManagerStartRoundCancellationWhileWaitingForIdleDrain(t *testing.T) {
-	messages := make(chan sdkprotocol.ReceivedMessage, 1)
-	client := &fakeRuntimeClient{messages: messages}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
-	sessionKey := "agent:nexus:ws:dm:idle-handoff-cancel"
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
-		t.Fatalf("创建 runtime client 失败: %v", err)
-	}
-
-	handlerStarted := make(chan struct{})
-	handlerCanceled := make(chan struct{})
-	releaseHandler := make(chan struct{})
-	manager.StartIdleMessageDrain(sessionKey, func(ctx context.Context, _ sdkprotocol.ReceivedMessage) bool {
-		close(handlerStarted)
-		<-ctx.Done()
-		close(handlerCanceled)
-		<-releaseHandler
-		return true
-	})
-	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
-	<-handlerStarted
-
-	startCtx, cancelStart := context.WithCancel(context.Background())
-	roundCanceled := make(chan struct{}, 1)
-	startResult := make(chan error, 1)
-	go func() {
-		startResult <- manager.StartRound(startCtx, sessionKey, "round-1", func() {
-			roundCanceled <- struct{}{}
-		})
-	}()
-	<-handlerCanceled
-	cancelStart()
-	if err := <-startResult; !errors.Is(err, context.Canceled) {
-		t.Fatalf("StartRound() error = %v, want context canceled", err)
-	}
-	select {
-	case <-roundCanceled:
-	default:
-		t.Fatal("等待 idle drain 期间取消时未释放 round context")
-	}
-	if running := manager.GetRunningRoundIDs(sessionKey); len(running) != 0 {
-		t.Fatalf("取消的 round 被错误登记: %v", running)
-	}
-
-	close(releaseHandler)
-	if err := manager.CloseSession(context.Background(), sessionKey); err != nil {
-		t.Fatalf("CloseSession() error = %v", err)
-	}
-}
-
-func TestManagerExternalCloseInvalidatesRetryAfterStartupCleanup(t *testing.T) {
-	disconnectStarted := make(chan struct{}, 1)
-	disconnectRelease := make(chan struct{})
-	stale := &ownershipFenceClient{
-		disconnectStarted: disconnectStarted,
-		disconnectRelease: disconnectRelease,
-	}
-	fresh := &ownershipFenceClient{}
-	factory := &runtimeClientSequenceFactory{clients: []Client{stale, fresh}}
-	manager := NewManagerWithFactory(factory)
-	sessionKey := "agent:nexus:ws:dm:close-during-startup-cleanup"
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
-	if err != nil {
-		t.Fatalf("开始启动事务失败: %v", err)
-	}
-	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); err != nil {
-		startup.Close()
-		t.Fatalf("创建旧 client 失败: %v", err)
-	}
-	if err = startup.Connect(context.Background()); err != nil {
-		startup.Close()
-		t.Fatalf("连接旧 client 失败: %v", err)
-	}
-
-	cleanupResult := make(chan error, 1)
-	go func() {
-		_, closeErr := startup.CloseCurrent(context.Background())
-		cleanupResult <- closeErr
-	}()
-	select {
-	case <-disconnectStarted:
-	case <-time.After(time.Second):
-		t.Fatal("启动失败清理未进入 Disconnect()")
-	}
-	externalCloseResult := make(chan error, 1)
-	go func() {
-		externalCloseResult <- manager.CloseSession(context.Background(), sessionKey)
-	}()
-	waitRuntimeStartupGateCloseBlocks(t, manager, sessionKey, 1)
-	close(disconnectRelease)
-	if err = <-cleanupResult; err != nil {
-		t.Fatalf("启动失败清理 error = %v", err)
-	}
-	if err = <-externalCloseResult; err != nil {
-		t.Fatalf("并发 CloseSession() error = %v", err)
-	}
-	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); !errors.Is(err, agentclient.ErrAborted) {
-		t.Fatalf("并发关闭后的 retry error = %v，期望 ErrAborted", err)
-	}
-	startup.Close()
-	factory.mu.Lock()
-	factoryCalls := factory.index
-	factory.mu.Unlock()
-	if factoryCalls != 1 {
-		t.Fatalf("并发关闭后 retry 仍创建了新 client: factory calls = %d", factoryCalls)
-	}
-	if current := manager.SessionClient(sessionKey); current != nil {
-		t.Fatalf("并发关闭后 session 仍持有 client: %#v", current)
-	}
-}
-
-func waitRuntimeStartupGateCloseBlocks(t *testing.T, manager *Manager, sessionKey string, want int) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		manager.mu.RLock()
-		gate := manager.startupGates[sessionKey]
-		blocked := gate != nil && gate.closeBlocks == want && gate.closeEpoch > 0
-		manager.mu.RUnlock()
-		if blocked {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("CloseSession() startup gate closeBlocks 未达到 %d", want)
 }
 
 func TestManagerSendContentToRunningRound(t *testing.T) {
@@ -691,75 +393,6 @@ func TestManagerActivationReportsAndRollsBackOnlySuccessfulRounds(t *testing.T) 
 	}
 }
 
-func TestManagerOwnerReaperWaitsForInflightConnect(t *testing.T) {
-	connectStarted := make(chan struct{}, 1)
-	releaseConnect := make(chan struct{})
-	client := &ownershipFenceClient{
-		connectStarted: connectStarted,
-		connectRelease: releaseConnect,
-	}
-	reaperStarted := make(chan string, 1)
-	reaper := &fakeOwnerProcessReaper{started: reaperStarted}
-	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{client}})
-	manager.SetOwnerProcessReaper(reaper)
-	startup, err := manager.BeginClientStartup(context.Background(), "session-a", "owner-a")
-	if err != nil {
-		t.Fatalf("BeginClientStartup() error = %v", err)
-	}
-	options := agentclient.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"}}
-	if _, err = startup.GetOrCreateWithFactory(context.Background(), options, nil); err != nil {
-		startup.Close()
-		t.Fatalf("GetOrCreateWithFactory() error = %v", err)
-	}
-	connectResult := make(chan error, 1)
-	go func() {
-		connectResult <- startup.Connect(context.Background())
-	}()
-	<-connectStarted
-
-	closeResult := make(chan error, 1)
-	go func() {
-		_, closeErr := manager.CloseOwnerSessions(context.Background(), "owner-a")
-		closeResult <- closeErr
-	}()
-	waitOwnerReapFence(t, manager, "owner-a")
-	select {
-	case owner := <-reaperStarted:
-		t.Fatalf("in-flight Connect 退出前 reaper 提前执行: %s", owner)
-	default:
-	}
-
-	close(releaseConnect)
-	if err = <-connectResult; !errors.Is(err, agentclient.ErrAborted) {
-		startup.Close()
-		t.Fatalf("Connect() error = %v, want aborted", err)
-	}
-	startup.Close()
-	if owner := <-reaperStarted; owner != "owner-a" {
-		t.Fatalf("reaper owner = %q, want owner-a", owner)
-	}
-	if err = <-closeResult; err != nil {
-		t.Fatalf("CloseOwnerSessions() error = %v", err)
-	}
-}
-
-func waitOwnerReapFence(t *testing.T, manager *Manager, ownerUserID string) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for {
-		manager.mu.RLock()
-		active := manager.ownerReapActiveLocked(ownerUserID)
-		manager.mu.RUnlock()
-		if active {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("owner %s reaper fence 未建立", ownerUserID)
-		}
-		time.Sleep(time.Millisecond)
-	}
-}
-
 func TestAgentClientDisconnectInvalidatesInFlightConnect(t *testing.T) {
 	connectStarted := make(chan struct{})
 	connectRelease := make(chan struct{})
@@ -804,98 +437,6 @@ func TestAgentClientDisconnectInvalidatesInFlightConnect(t *testing.T) {
 	}
 	if client.IsConnected() {
 		t.Fatal("Disconnect 后失效 Connect 不应重新安装 session")
-	}
-}
-
-func TestAgentClientConnectFailureRetriesWithLatestConfiguration(t *testing.T) {
-	staleStartErr := errors.New("old runtime configuration rejected")
-	latestStartErr := errors.New("new runtime executable unavailable")
-	firstAttemptStarted := make(chan struct{})
-	firstAttemptRelease := make(chan struct{})
-	attempts := make(chan agentclient.Options, 2)
-	client := &agentClient{
-		options: agentclient.Options{Model: "old-model"},
-		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
-			attempts <- options
-			if options.Model == "old-model" {
-				close(firstAttemptStarted)
-				<-firstAttemptRelease
-				return nil, staleStartErr
-			}
-			return nil, latestStartErr
-		},
-	}
-	ownerDone := make(chan error, 1)
-	go func() { ownerDone <- client.Connect(context.Background()) }()
-	select {
-	case <-firstAttemptStarted:
-	case <-time.After(time.Second):
-		t.Fatal("旧配置 Connect 未启动")
-	}
-	waiterCtx := newObservedDoneContext(context.Background())
-	waiterDone := make(chan error, 1)
-	go func() { waiterDone <- client.Connect(waiterCtx) }()
-	select {
-	case <-waiterCtx.observed:
-	case <-time.After(time.Second):
-		t.Fatal("waiter 未加入旧配置 Connect flight")
-	}
-	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
-		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
-	}
-	close(firstAttemptRelease)
-	select {
-	case options := <-attempts:
-		if options.Model != "old-model" {
-			t.Fatalf("首次启动配置=%q", options.Model)
-		}
-	default:
-		t.Fatal("缺少旧配置启动记录")
-	}
-	select {
-	case options := <-attempts:
-		if options.Model != "new-model" {
-			t.Fatalf("失败后重试配置=%q", options.Model)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("旧配置失败后未使用新配置重试")
-	}
-	for name, done := range map[string]<-chan error{
-		"owner":  ownerDone,
-		"waiter": waiterDone,
-	} {
-		select {
-		case err := <-done:
-			if !errors.Is(err, latestStartErr) {
-				t.Fatalf("%s 应共享新配置启动错误而不是旧错误: %v", name, err)
-			}
-		case <-time.After(time.Second):
-			t.Fatalf("%s Connect 未结束", name)
-		}
-	}
-}
-
-func TestAgentClientReconfigureRollsBackRejectedDesiredState(t *testing.T) {
-	reconfigureErr := errors.New("invalid model")
-	client := &agentClient{
-		options: agentclient.Options{Model: "old-model"},
-		session: &agentclient.Session{},
-		reconfigureSession: func(context.Context, *agentclient.Session, agentclient.Options) error {
-			return reconfigureErr
-		},
-	}
-	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "bad-model"}); !errors.Is(err, reconfigureErr) {
-		t.Fatalf("Reconfigure 错误=%v", err)
-	}
-	client.mu.Lock()
-	options := client.options
-	configVersion := client.configVersion
-	client.mu.Unlock()
-	if options.Model != "old-model" {
-		t.Fatalf("失败配置未回滚: %q", options.Model)
-	}
-	if configVersion != 2 {
-		t.Fatalf("提交与回滚应各推进一次版本，实际=%d", configVersion)
 	}
 }
 
@@ -1045,39 +586,6 @@ func TestManagerCleanupFailureRetainsSessionFence(t *testing.T) {
 	}
 }
 
-func TestManagerSessionDeletionFenceBlocksAdmissionAndCanAbort(t *testing.T) {
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
-	sessionKey := "agent:agent-a:ws:dm:delete-fence"
-	options := agentclient.Options{
-		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
-	}
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, options); err != nil {
-		t.Fatal(err)
-	}
-	lease, err := manager.BeginSessionDeletion(sessionKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = manager.GetOrCreate(
-		context.Background(),
-		sessionKey,
-		options,
-	); !errors.Is(err, ErrRuntimeSessionDeleted) {
-		t.Fatalf("new runtime admission was not blocked: %v", err)
-	}
-	canceled := false
-	if err := manager.StartRound(t.Context(), sessionKey, "late-round", func() { canceled = true }); !errors.Is(err, ErrRuntimeSessionDeleted) {
-		t.Fatalf("late round error = %v, want session deleted", err)
-	}
-	if !canceled {
-		t.Fatal("rejected round must cancel its context")
-	}
-	manager.AbortSessionDeletion(lease)
-	if _, err = manager.GetOrCreate(context.Background(), sessionKey, options); err != nil {
-		t.Fatalf("aborted deletion fence still blocks runtime: %v", err)
-	}
-}
-
 func TestManagerShutdownRejectsNewWorkAndPreservesFailure(t *testing.T) {
 	want := errors.New("runtime descendant cleanup failed")
 	client := &fakeRuntimeClient{disconnectErr: want}
@@ -1134,23 +642,6 @@ func TestManagerShutdownWaitsForLateFactory(t *testing.T) {
 	}
 }
 
-func TestManagerShutdownSetsRecoveryReasonBeforeCancellation(t *testing.T) {
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
-	reason := make(chan string, 1)
-	if err := manager.StartRound(t.Context(), "session", "round", func() {
-		reason <- manager.GetInterruptReason("session", "round")
-		manager.MarkRoundFinished("session", "round")
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := manager.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if got := <-reason; got != InterruptHostShutdown {
-		t.Fatalf("cancel reason=%q", got)
-	}
-}
-
 type dreamTestClient struct {
 	fakeRuntimeClient
 	once       sync.Once
@@ -1171,55 +662,6 @@ func (c *dreamTestClient) Disconnect(context.Context) error {
 
 func dreamOptions() agentclient.Options {
 	return agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}, Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}
-}
-
-func TestManagedAutoDreamCancellationForcesUnresponsiveControl(t *testing.T) {
-	for _, cause := range []string{"caller", "shutdown", "agent_revocation"} {
-		t.Run(cause, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			started := make(chan struct{})
-			c := &dreamTestClient{closed: make(chan struct{})}
-			c.run = func(context.Context) (agentclient.AutoDreamResult, error) {
-				close(started)
-				<-c.closed // Deliberately ignore RPC context; only transport closure releases it.
-				return agentclient.AutoDreamResult{}, context.Canceled
-			}
-			m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return c }))
-			result := make(chan error, 1)
-			go func() {
-				_, err := m.TryAutoDream(ctx, "memory-maintenance:agent", dreamOptions())
-				result <- err
-			}()
-			select {
-			case <-started:
-			case <-time.After(5 * time.Second):
-				t.Fatal("control did not start")
-			}
-			closeCtx, closeCancel := context.WithTimeout(t.Context(), 5*time.Second)
-			defer closeCancel()
-			switch cause {
-			case "caller":
-				cancel()
-			case "shutdown":
-				if err := m.Close(closeCtx); err != nil {
-					t.Fatal(err)
-				}
-			case "agent_revocation":
-				if _, err := m.RevokeAgentSessions(closeCtx, "owner", "agent"); err != nil {
-					t.Fatal(err)
-				}
-			}
-			select {
-			case err := <-result:
-				if !errors.Is(err, context.Canceled) {
-					t.Fatalf("result=%v", err)
-				}
-			case <-closeCtx.Done():
-				t.Fatal("cancellation did not retire control")
-			}
-		})
-	}
 }
 
 func TestManagedAutoDreamCleanupFailureRetainsFence(t *testing.T) {

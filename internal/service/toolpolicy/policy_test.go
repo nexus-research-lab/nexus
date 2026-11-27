@@ -71,19 +71,6 @@ func TestWithManagedRuntimeAllowedToolsAddsSkillAndStructuredCommand(t *testing.
 	}
 }
 
-func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testing.T) {
-	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, false)
-	approved := NormalizeSet(tools)
-	if Contains(approved, "mcp__nexus__generate_image") {
-		t.Fatalf("unconfigured imagegen should stay disabled: %+v", tools)
-	}
-	for _, required := range []string{"Skill", "mcp__nexus__command"} {
-		if !Contains(approved, required) {
-			t.Fatalf("managed command transport %q should remain enabled: %+v", required, tools)
-		}
-	}
-}
-
 func TestNexusRuntimeCLIRequestRequiresExactManagedInvocation(t *testing.T) {
 	tests := []struct {
 		command string

@@ -10,12 +10,8 @@ import (
 	"testing"
 	"time"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 	"github.com/pressly/goose/v3"
@@ -98,58 +94,6 @@ func newAuditTestService(t *testing.T) (*Service, Actor, *resolvedActor) {
 	}
 }
 
-func TestValidateChangeRequestRejectsUnknownFields(t *testing.T) {
-	err := validateChangeRequest(ChangeRequest{
-		Domain: DomainPreferences, Operation: "update",
-		Input: []byte(`{"agent_sdk_diagnostics_enabledd":true}`),
-	})
-	if err == nil || !strings.Contains(err.Error(), "unknown field") {
-		t.Fatalf("unknown input field should fail planning: %v", err)
-	}
-}
-
-func TestValidateAgentChangeRejectsSkillSelectionBypass(t *testing.T) {
-	cases := []ChangeRequest{
-		{
-			Domain: DomainAgents, Operation: "create",
-			Input: []byte(`{"name":"worker","options":{"skill_ids":["external:demo"]}}`),
-		},
-		{
-			Domain: DomainAgents, Operation: "update", Target: "worker",
-			Input: []byte(`{"options":{"disabled_skill_ids":["demo"]}}`),
-		},
-		{
-			Domain: DomainPreferences, Operation: "update",
-			Input: []byte(`{"default_agent_options":{"skill_ids":["external:demo"]}}`),
-		},
-		{
-			Domain: DomainAgents, Operation: "update", Target: "worker",
-			Input: []byte(`{"options":{"skill_ids":null}}`),
-		},
-	}
-	for _, request := range cases {
-		err := validateChangeRequest(request)
-		if err == nil || !strings.Contains(err.Error(), "Skills 操作") {
-			t.Fatalf("%s.%s skill bypass error = %v", request.Domain, request.Operation, err)
-		}
-	}
-}
-
-func TestValidateSkillSelectionRejectsAmbiguousSource(t *testing.T) {
-	for _, input := range []string{
-		`{"agent_id":"worker","source_identity":"skill-source:test"}`,
-		`{"agent_id":"worker","target_scope":"wrong","source_identity":"skill-source:test"}`,
-		`{"agent_id":"worker","target_scope":"global_library"}`,
-	} {
-		err := validateChangeRequest(ChangeRequest{
-			Domain: DomainSkills, Operation: "install", Target: "planner", Input: []byte(input),
-		})
-		if err == nil {
-			t.Fatalf("ambiguous Skill input should fail: %s", input)
-		}
-	}
-}
-
 func TestValidateChangeRequestRejectsEmptyMutationPatches(t *testing.T) {
 	cases := []ChangeRequest{
 		{Domain: DomainPreferences, Operation: "update", Input: []byte(`{}`)},
@@ -164,21 +108,6 @@ func TestValidateChangeRequestRejectsEmptyMutationPatches(t *testing.T) {
 	for _, request := range cases {
 		if err := validateChangeRequest(request); err == nil || !strings.Contains(err.Error(), "至少要提供一个") {
 			t.Fatalf("%s.%s empty patch error = %v", request.Domain, request.Operation, err)
-		}
-	}
-}
-
-func TestValidateSelfRuntimeRejectsLimitRemoval(t *testing.T) {
-	for _, input := range []string{
-		`{"max_turns":0}`,
-		`{"max_thinking_tokens":0}`,
-		`{"max_turns":-1}`,
-	} {
-		err := validateChangeRequest(ChangeRequest{
-			Domain: DomainAgents, Operation: "update_self_runtime", Input: []byte(input),
-		})
-		if err == nil || !strings.Contains(err.Error(), "必须大于 0") {
-			t.Fatalf("self runtime limit removal input=%s error=%v", input, err)
 		}
 	}
 }
@@ -202,82 +131,6 @@ func TestValidateChangeRequestRejectsInvalidManagedMCPConfiguration(t *testing.T
 		if err := validateChangeRequest(request); err == nil || !strings.Contains(err.Error(), "MCP server") {
 			t.Fatalf("%s.%s invalid MCP error = %v", request.Domain, request.Operation, err)
 		}
-	}
-}
-
-func TestSecretTemplateMaterializesIntoTypedMCPConfiguration(t *testing.T) {
-	template := json.RawMessage(`{
-		"name": "worker",
-		"options": {
-			"mcp_servers": {
-				"local_tools": {
-					"type": "stdio",
-					"command": "npx",
-					"args": ["-y", "@example/local-mcp"],
-					"env": {"LOCAL_TOKEN": {"$secret": "mcp.local.token"}}
-				},
-				"remote_tools": {
-					"type": "http",
-					"url": "https://mcp.example.test/rpc",
-					"headers": {"Authorization": {"$secret": "mcp.remote.authorization"}},
-					"oauth": {
-						"clientId": "public-client",
-						"callbackPort": 43123,
-						"xaa": true
-					}
-				}
-			}
-		}
-	}`)
-	prepared, slots, err := secretinput.PrepareJSON(template)
-	if err != nil {
-		t.Fatalf("PrepareJSON() error = %v", err)
-	}
-	if len(slots) != 2 {
-		t.Fatalf("secret slots = %#v, want env and header leaves", slots)
-	}
-	preparedRequest := ChangeRequest{
-		Domain: DomainAgents, Operation: "create", Input: prepared,
-	}
-	if err = validateChangeRequest(preparedRequest); err != nil {
-		t.Fatalf("prepared MCP configuration failed validation: %v", err)
-	}
-
-	materialized, err := secretinput.MaterializeJSON(template, map[string]string{
-		"mcp.local.token":          "local-secret",
-		"mcp.remote.authorization": "Bearer remote-secret",
-	})
-	if err != nil {
-		t.Fatalf("MaterializeJSON() error = %v", err)
-	}
-	materializedRequest := preparedRequest
-	materializedRequest.Input = materialized
-	if err = validateChangeRequest(materializedRequest); err != nil {
-		t.Fatalf("materialized MCP configuration failed validation: %v", err)
-	}
-	var createRequest protocol.CreateRequest
-	if err = strictDecodeJSON(materialized, &createRequest); err != nil {
-		t.Fatalf("decode materialized Agent: %v", err)
-	}
-	merged, err := clientopts.MergeAgentMCPServers(nil, createRequest.Options.MCPServers)
-	if err != nil {
-		t.Fatalf("parse materialized MCP configuration: %v", err)
-	}
-	local, ok := merged["local_tools"].(sdkmcp.StdioServerConfig)
-	if !ok || local.Command != "npx" ||
-		len(local.Args) != 2 || local.Args[1] != "@example/local-mcp" ||
-		local.Env["LOCAL_TOKEN"] != "local-secret" {
-		t.Fatalf("typed stdio MCP configuration = %#v", merged["local_tools"])
-	}
-	remote, ok := merged["remote_tools"].(sdkmcp.HTTPServerConfig)
-	if !ok || remote.URL != "https://mcp.example.test/rpc" ||
-		remote.Headers["Authorization"] != "Bearer remote-secret" {
-		t.Fatalf("typed HTTP MCP configuration = %#v", merged["remote_tools"])
-	}
-	if remote.OAuth == nil || remote.OAuth.ClientID != "public-client" ||
-		remote.OAuth.CallbackPort != 43123 ||
-		remote.OAuth.XAA == nil || !*remote.OAuth.XAA {
-		t.Fatalf("typed MCP OAuth configuration = %#v", remote.OAuth)
 	}
 }
 

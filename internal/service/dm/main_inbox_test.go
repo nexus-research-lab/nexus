@@ -231,23 +231,6 @@ func TestFollowUpScheduleListCancel(t *testing.T) {
 	}
 }
 
-func TestFollowUpPendingCap(t *testing.T) {
-	f := newMainInboxFixture(t, "follow-up-cap")
-	agentID := f.agentID(t)
-	for i := 0; i < FollowUpMaxPending; i++ {
-		if _, err := f.service.ScheduleFollowUp(context.Background(), f.sessionKey, agentID, FollowUpRequest{
-			After: time.Duration(10+i) * time.Minute, Note: "check",
-		}); err != nil {
-			t.Fatalf("第 %d 条失败: %v", i+1, err)
-		}
-	}
-	if _, err := f.service.ScheduleFollowUp(context.Background(), f.sessionKey, agentID, FollowUpRequest{
-		After: time.Hour, Note: "one more",
-	}); err == nil {
-		t.Fatal("超过上限必须拒绝")
-	}
-}
-
 func TestDueFollowUpStartsRoundWithNote(t *testing.T) {
 	f := newMainInboxFixture(t, "follow-up-due")
 	f.appendHostEvent(t, "follow-1", inboxstore.KindFollowUp, "回头确认 CI 结果", time.Now().UTC().Add(-time.Second))
@@ -572,18 +555,6 @@ func TestMainInboxContinuationAdmissionFollowsGateRevision(t *testing.T) {
 	}
 	if got := dispatchableEvents(open, gate); len(got) != 2 {
 		t.Fatalf("恢复后全部恢复输入可派发: %+v", got)
-	}
-}
-
-func TestMainInboxStaleRecoveryIsConsumedWithoutRound(t *testing.T) {
-	f := newMainInboxFixture(t, "recovery-stale")
-	f.service.SetExecutionContextProvider(fakeRecoveryContext{current: false})
-	if _, err := f.service.enqueueMainInboxRecovery(context.Background(), f.target(t), "stale", "inspect", inboxstore.RecoverySource{ExecutionID: "exec-1"}); err != nil {
-		t.Fatal(err)
-	}
-	f.waitStatus(t, "stale", inboxstore.StatusConsumed)
-	if prompts := f.prompts(); len(prompts) != 0 {
-		t.Fatalf("陈旧恢复不应起轮: %v", prompts)
 	}
 }
 

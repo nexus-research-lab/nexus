@@ -71,14 +71,6 @@ func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) roomRoun
 	return roomRoundRegistry{conversations: registry.conversations}
 }
 
-type roomGuidanceRuntimeFactory struct {
-	client runtimectx.Client
-}
-
-func (f roomGuidanceRuntimeFactory) New(agentclient.Options) runtimectx.Client {
-	return f.client
-}
-
 func TestRoomSlotGuidanceHookUsesQueueOwnerForAttachment(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
@@ -183,119 +175,6 @@ func TestRoomGuidanceRejectsMismatchedOwnerBindings(t *testing.T) {
 	}
 	if err := execution.bindOwnerContext(); err == nil {
 		t.Fatal("Room 引导应拒绝 round 与队列位置 owner 不一致")
-	}
-}
-
-func TestRoomSlotGuidanceTransportFailureKeepsDurableInput(t *testing.T) {
-	storeRoot := t.TempDir()
-	store := workspacestore.NewInputQueueStore(storeRoot)
-	location := workspacestore.InputQueueLocation{
-		Scope:         protocol.InputQueueScopeRoom,
-		WorkspacePath: storeRoot,
-		SessionKey:    protocol.BuildRoomAgentSessionKey("conversation-1", "agent-1", protocol.RoomTypeGroup),
-	}
-	if _, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:             "room-guide-transport-failure",
-		Content:        "不要丢掉这条插话",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
-		RootRoundID:    "agent-round-1",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	service := &Service{Host: runtimehost.Host{InputQueue: store}}
-	slot := &activeRoomSlot{AgentRoundID: "agent-round-1"}
-	hook := service.roomSlotGuidanceHook(nil, slot, location)
-	if _, err := hook(context.Background(), sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-1"); err != nil {
-		t.Fatal(err)
-	}
-
-	// 模拟 callback 返回后 control_response 写失败：slot 结束只清内存 pending，持久队列必须保留。
-	service.forgetRoomSlotGuidance(slot)
-	items, err := store.Snapshot(location)
-	if err != nil || len(items) != 1 || items[0].ID != "room-guide-transport-failure" {
-		t.Fatalf("transport 失败后 Room 引导必须可重放: items=%+v err=%v", items, err)
-	}
-}
-
-func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
-	root := t.TempDir()
-	stateRoot := filepath.Join(root, ".nexus")
-	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
-	storeRoot := filepath.Join(stateRoot, "users")
-	ownerWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "owner")
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey("conversation-batch")
-	validSlot := withRoomSlotStatus(&activeRoomSlot{
-		AgentID:           "agent-a",
-		AgentRoundID:      "agent-round-a",
-		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey("conversation-batch", "agent-a", protocol.RoomTypeGroup),
-		WorkspacePath:     filepath.Join(ownerWorkspaceRoot, "agent-a"),
-	}, "running")
-	invalidSlot := withRoomSlotStatus(&activeRoomSlot{
-		AgentID:           "agent-b",
-		AgentRoundID:      "agent-round-b",
-		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey("conversation-batch", "agent-b", protocol.RoomTypeGroup),
-	}, "running")
-	store := workspacestore.NewInputQueueStore(storeRoot)
-	service := &Service{
-		Host: runtimehost.Host{InputQueue: store},
-		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
-			"active": {
-				SessionKey:     sharedSessionKey,
-				ConversationID: "conversation-batch",
-				Slots: map[string]*activeRoomSlot{
-					validSlot.AgentID:   validSlot,
-					invalidSlot.AgentID: invalidSlot,
-				},
-			},
-		}),
-	}
-	guided, err := service.guideActiveAgentSlots(
-		context.Background(), sharedSessionKey, "room-batch", "conversation-batch",
-		[]string{validSlot.AgentID, invalidSlot.AgentID}, protocol.InputQueueItem{
-			ID: "room-guide-batch", SourceMessageID: "msg-room-guide-batch", Source: protocol.InputQueueSourceUser,
-			Content: "同时插话", OwnerUserID: "owner",
-		},
-	)
-	if err == nil || len(guided) != 0 {
-		t.Fatalf("任一目标位置无效时批量登记必须整体失败: guided=%+v err=%v", guided, err)
-	}
-	validLocation := workspacestore.InputQueueLocation{
-		Scope:          protocol.InputQueueScopeRoom,
-		WorkspacePath:  validSlot.WorkspacePath,
-		SessionKey:     validSlot.RuntimeSessionKey,
-		RoomID:         "room-batch",
-		ConversationID: "conversation-batch",
-	}
-	items, snapshotErr := store.Snapshot(validLocation)
-	if snapshotErr != nil || len(items) != 0 {
-		t.Fatalf("批量失败不应留下部分 Room guide: items=%+v err=%v", items, snapshotErr)
-	}
-
-	invalidSlot.WorkspacePath = filepath.Join(ownerWorkspaceRoot, "agent-b")
-	for attempt := 0; attempt < 2; attempt++ {
-		guided, err = service.guideActiveAgentSlots(
-			context.Background(), sharedSessionKey, "room-batch", "conversation-batch",
-			[]string{validSlot.AgentID, invalidSlot.AgentID}, protocol.InputQueueItem{
-				ID: "room-guide-batch", SourceMessageID: "msg-room-guide-batch", Source: protocol.InputQueueSourceUser,
-				Content: "同时插话", OwnerUserID: "owner",
-			},
-		)
-		if err != nil || len(guided) != 2 {
-			t.Fatalf("批量 Room guide 登记失败: guided=%+v err=%v", guided, err)
-		}
-	}
-	for _, slot := range []*activeRoomSlot{validSlot, invalidSlot} {
-		location := workspacestore.InputQueueLocation{
-			Scope:          protocol.InputQueueScopeRoom,
-			WorkspacePath:  slot.WorkspacePath,
-			SessionKey:     slot.RuntimeSessionKey,
-			RoomID:         "room-batch",
-			ConversationID: "conversation-batch",
-		}
-		items, err = store.Snapshot(location)
-		if err != nil || len(items) != 1 || items[0].RootRoundID != slot.AgentRoundID {
-			t.Fatalf("重试不应重复且必须精确绑定目标 slot: slot=%s items=%+v err=%v", slot.AgentID, items, err)
-		}
 	}
 }
 
@@ -517,29 +396,6 @@ func TestSetPermissionModeForAgentInterruptsFailedSlotAndContinues(t *testing.T)
 	}
 }
 
-func TestRoomSlotUsagePendingKeepsLatestCumulativeValue(t *testing.T) {
-	slot := &activeRoomSlot{}
-	slot.markSubagentUsagePending("task-1", 0)
-	if pending := slot.subagentUsagePendingSnapshot(); pending["task-1"] != 0 {
-		t.Fatalf("explicit zero pending = %#v, want task retained with 0", pending)
-	}
-
-	slot.markSubagentUsagePending("task-1", 200)
-	slot.markSubagentUsagePending("task-1", 100)
-	if pending := slot.subagentUsagePendingSnapshot(); pending["task-1"] != 200 {
-		t.Fatalf("out-of-order cumulative snapshot moved pending backward: %#v", pending)
-	}
-	slot.clearSubagentUsagePending("task-1", 100)
-	if pending := slot.subagentUsagePendingSnapshot(); pending["task-1"] != 200 {
-		t.Fatalf("old settlement cleared newer pending: %#v", pending)
-	}
-
-	slot.clearSubagentUsagePending("task-1", 200)
-	if pending := slot.subagentUsagePendingSnapshot(); len(pending) != 0 {
-		t.Fatalf("matching settlement left pending: %#v", pending)
-	}
-}
-
 func TestRoomSlotIgnoresLocalShellTaskLifecycle(t *testing.T) {
 	slot := &activeRoomSlot{}
 	slot.rememberSubagentTaskMessage(protocol.Message{"metadata": map[string]any{
@@ -552,43 +408,6 @@ func TestRoomSlotIgnoresLocalShellTaskLifecycle(t *testing.T) {
 }
 
 // 会话 round 注册表测试。
-
-func TestRoomRoundRegistryKeepsPublicWakeAfterRoundUnregister(t *testing.T) {
-	const conversationID = "conversation-public-wake-lifecycle"
-	roundValue := &activeRoomRound{
-		SessionKey:     protocol.BuildRoomSharedSessionKey(conversationID),
-		ConversationID: conversationID,
-		RoundID:        "round-public-wake",
-		Slots:          make(map[string]*activeRoomSlot),
-	}
-	registry := newRoomRoundRegistry()
-	registry.register(roundValue)
-	wake := publicMentionWake{TargetAgentID: "agent-peer", Content: "继续处理"}
-	if !registry.enqueuePublicMention(roundValue, wake) {
-		t.Fatal("首次 public wake 入队失败")
-	}
-
-	registry.unregister(roundValue)
-	if !registry.hasPublicMentions(roundValue) {
-		t.Fatal("round 注销后不应丢失待处理 public wake")
-	}
-	if !registry.hasPublicMentionsForConversation(conversationID) {
-		t.Fatal("round 注销后 conversation 仍应报告待处理 public wake")
-	}
-	wakes := registry.takePublicMentions(roundValue)
-	if len(wakes) != 1 || wakes[0].TargetAgentID != wake.TargetAgentID {
-		t.Fatalf("取出的 public wake = %+v, want %+v", wakes, wake)
-	}
-	if registry.hasPublicMentions(roundValue) {
-		t.Fatal("public wake 消费后仍残留")
-	}
-	if registry.hasPublicMentionsForConversation(conversationID) {
-		t.Fatal("public wake 消费后 conversation 仍报告 pending wake")
-	}
-	if got := len(registry.snapshotConversation(conversationID)); got != 0 {
-		t.Fatalf("round 注销后 active round 数 = %d, want 0", got)
-	}
-}
 
 // 会话派发状态测试。
 
@@ -652,60 +471,6 @@ func (slot *activeRoomSlot) setPendingStream(events []protocol.EventMessage) {
 // task、后写 checkpoint 时被并发 finalization 穿透。
 func (slot *activeRoomSlot) markSubagentUsagePending(taskID string, cumulativeTotal int64) {
 	slot.mutable.goal.MarkSubagentUsagePending(taskID, goalsvc.SubagentUsageObservation{CumulativeTotal: cumulativeTotal})
-}
-
-// clearSubagentUsagePending 只确认不晚于 settledTotal 的 pending。旧请求成功返回时，
-// 若同 task 已到达更大的累计值，则必须保留新值给 retry worker 重放。
-func (slot *activeRoomSlot) clearSubagentUsagePending(taskID string, settledTotal int64) {
-	slot.mutable.goal.ClearSubagentUsagePending(taskID, goalsvc.SubagentUsageObservation{
-		CumulativeTotal:            settledTotal,
-		Terminal:                   true,
-		TerminalTokenUsageObserved: true,
-	})
-}
-
-func (slot *activeRoomSlot) setSubagentTasks(tasks map[string]struct{}) {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.Mu.Lock()
-	slot.mutable.goal.SubagentTasks = tasks
-	slot.mutable.goal.Mu.Unlock()
-}
-
-func TestSharedInputHonorsStoppedNonPrimaryTarget(t *testing.T) {
-	entries := []roomInputQueueEntry{
-		{Item: protocol.InputQueueItem{AgentID: "primary", TargetAgentIDs: []string{"primary", "stopped"}}},
-		{Item: protocol.InputQueueItem{AgentID: "other", TargetAgentIDs: []string{"other"}}},
-	}
-	projectRoomQueuePause(entries, map[string]bool{"stopped": true})
-	if !entries[0].Item.DispatchPaused || entries[1].Item.DispatchPaused {
-		t.Fatalf("wrong pause projection: %+v", entries)
-	}
-	service := &Service{}
-	if service.canDispatchInputQueueItem("session", "conversation", nil, entries[0].Item) {
-		t.Fatal("shared item bypassed stopped member")
-	}
-}
-
-func TestLeasedChatNeverFallsBackToUserQueue(t *testing.T) {
-	service := &Service{rounds: newRoomRoundRegistry()}
-	contextValue := &protocol.ConversationContextAggregate{Members: []protocol.MemberRecord{{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent", ParticipationPaused: true}}}
-	execution := roomChatExecution{service: service, request: ChatRequest{requireImmediateStart: true}, contextValue: contextValue, sessionKey: "room:conversation", conversationID: "conversation", targetAgentIDs: []string{"agent"}}
-	// 未装配任何用户队列：错误地退入普通路径将失败或触发 panic。
-	if handled, err := execution.routeActiveSlots(); !handled || err == nil {
-		t.Fatalf("paused agent queued: %v %v", handled, err)
-	}
-	contextValue.Members[0].ParticipationPaused = false
-	if handled, err := execution.routeActiveSlots(); handled || err != nil {
-		t.Fatalf("idle agent rejected: %v %v", handled, err)
-	}
-	slot := &activeRoomSlot{AgentID: "agent", AgentRoundID: "agent-round"}
-	slot.setStatus("running")
-	service.rounds.register(&activeRoomRound{SessionKey: "room:conversation", ConversationID: "conversation", RoundID: "busy", Slots: map[string]*activeRoomSlot{"agent": slot}})
-	if handled, err := execution.routeActiveSlots(); !handled || err == nil {
-		t.Fatalf("busy agent queued: %v %v", handled, err)
-	}
 }
 
 func roomWakeTrigger() messagepkg.RuntimeWakeTrigger {

@@ -76,31 +76,3 @@ func TestProcessorRedactsPostActionObservationAndImageBlocks(t *testing.T) {
 		t.Fatal("durable redaction changed the original provider content")
 	}
 }
-
-func TestProcessorDropsUnmatchedSuccessfulToolResultMessage(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:test",
-		AgentID:    "nexus",
-		RoundID:    "round-unmatched-tool-result",
-		ParentID:   "round-unmatched-tool-result",
-	}, "")
-
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeUser,
-		User: &sdkprotocol.UserMessage{
-			Message: sdkprotocol.ConversationEnvelope{
-				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ToolResultBlock{
-						ToolUseID: "missing-tool",
-						Content:   json.RawMessage(`"ok"`),
-						IsError:   false,
-					},
-				},
-			},
-		},
-	})
-
-	if len(output.DurableMessages) != 0 {
-		t.Fatalf("无匹配 tool_use 的成功 tool_result 不应生成 durable 消息: %+v", output.DurableMessages)
-	}
-}

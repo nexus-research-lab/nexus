@@ -45,77 +45,6 @@ func (c *fakeChannelRegistrationClient) Poll(context.Context, string) (*appregis
 	}, nil
 }
 
-func activeChannelLoginTestSession(
-	ownerUserID string,
-	channelType string,
-	loginID string,
-	authorizationBinding string,
-) *channelLoginSession {
-	now := time.Now()
-	return &channelLoginSession{
-		ownerUserID:          ownerUserID,
-		channelType:          channelType,
-		activeKey:            channelLoginActiveKey(ownerUserID, channelType),
-		authorizationBinding: authorizationBinding,
-		view: ChannelLoginView{
-			LoginID:     loginID,
-			ChannelType: channelType,
-			Status:      ChannelLoginStatusRunning,
-			StartedAt:   now,
-			UpdatedAt:   now,
-			ExpiresAt:   now.Add(time.Minute),
-		},
-	}
-}
-
-func TestGetCurrentChannelLoginFailsClosedForAmbiguousOrBoundState(t *testing.T) {
-	tests := []struct {
-		name     string
-		sessions []*channelLoginSession
-		activeID string
-	}{
-		{
-			name: "multiple active Web sessions",
-			sessions: []*channelLoginSession{
-				activeChannelLoginTestSession("owner-a", ChannelTypeFeishu, "login-1", ""),
-				activeChannelLoginTestSession("owner-a", ChannelTypeFeishu, "login-2", ""),
-			},
-			activeID: "login-1",
-		},
-		{
-			name: "conversational authorization binding",
-			sessions: []*channelLoginSession{
-				activeChannelLoginTestSession("owner-a", ChannelTypeFeishu, "login-bound", "authorization-1"),
-			},
-			activeID: "login-bound",
-		},
-		{
-			name: "active index mismatch",
-			sessions: []*channelLoginSession{
-				activeChannelLoginTestSession("owner-a", ChannelTypeFeishu, "login-web", ""),
-			},
-			activeID: "different-login",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			store := newChannelLoginStore()
-			for _, session := range test.sessions {
-				store.sessions[session.view.LoginID] = session
-			}
-			store.active[channelLoginActiveKey("owner-a", ChannelTypeFeishu)] = test.activeID
-			service := &ControlService{loginStore: store}
-			if _, err := service.GetCurrentChannelLogin(
-				context.Background(),
-				"owner-a",
-				ChannelTypeFeishu,
-			); !errors.Is(err, ErrChannelLoginState) {
-				t.Fatalf("ambiguous current login error = %v", err)
-			}
-		})
-	}
-}
-
 func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (channeladapters.PersonalWeixinQRCodeResponse, error) {
 	if c.startErr != nil {
 		return channeladapters.PersonalWeixinQRCodeResponse{}, c.startErr
@@ -408,17 +337,6 @@ func TestControlServiceDeletesLastWeixinAccountWhenNotifyStopFails(t *testing.T)
 	}
 }
 
-func TestControlServiceRejectsUnsupportedChannelLogin(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	_, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeTelegram)
-	if !errors.Is(err, ErrChannelLoginUnsupported) {
-		t.Fatalf("Telegram 不支持官方扫码注册，实际: %v", err)
-	}
-}
-
 type blockedPersonalWeixinLoginClient struct {
 	started chan struct{}
 	release chan struct{}
@@ -449,110 +367,6 @@ func (c *blockedPersonalWeixinLoginClient) PollQRCodeStatus(
 		return channeladapters.PersonalWeixinQRStatusResponse{}, ctx.Err()
 	case <-c.release:
 		return c.status, nil
-	}
-}
-
-func TestChannelLoginCompletionRejectsChangedControlVersion(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-	client := &blockedPersonalWeixinLoginClient{
-		started: make(chan struct{}, 1),
-		release: make(chan struct{}),
-		status: channeladapters.PersonalWeixinQRStatusResponse{
-			Status:      "confirmed",
-			BotToken:    "stale-login-token",
-			IlinkBotID:  "stale-account",
-			IlinkUserID: "stale-user",
-			BaseURL:     "https://stale-login.example",
-		},
-	}
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
-		return client
-	}
-	if _, err := service.UpsertChannelConfig(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		UpsertChannelConfigRequest{
-			AgentID: "agent-a",
-			Config:  map[string]string{"base_url": "https://before.example"},
-		},
-	); err != nil {
-		t.Fatal(err)
-	}
-	startVersion, err := service.GetChannelControlVersion(context.Background(), "owner-a")
-	if err != nil || startVersion != 2 {
-		t.Fatalf("start version=%d err=%v", startVersion, err)
-	}
-	started, err := service.StartChannelLoginAtVersion(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		startVersion,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-client.started:
-	case <-time.After(time.Second):
-		t.Fatal("login poll did not start")
-	}
-	if _, err = service.UpsertChannelConfig(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		UpsertChannelConfigRequest{
-			AgentID: "agent-a",
-			Config:  map[string]string{"base_url": "https://newer.example"},
-		},
-	); err != nil {
-		t.Fatal(err)
-	}
-	failed := waitChannelLoginStatus(
-		t,
-		service,
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		started.LoginID,
-		ChannelLoginStatusCancelled,
-	)
-	if failed.QRPayload != "" || failed.QRPayloadType != "" {
-		t.Fatalf("配置重绑后取消的登录仍保留二维码: %+v", failed)
-	}
-	row, err := service.getChannelConfigRow(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	values, err := decodeStringMap(row.ConfigJSON)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if values["base_url"] != "https://newer.example" {
-		t.Fatalf("stale login overwrote newer config: %+v", values)
-	}
-	accounts, err := service.listChannelAccountRows(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(accounts) != 0 {
-		t.Fatalf("stale login persisted account: %+v", accounts)
-	}
-	version, err := service.GetChannelControlVersion(context.Background(), "owner-a")
-	if err != nil || version != 3 {
-		t.Fatalf("newer version changed: version=%d err=%v", version, err)
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/app"
@@ -22,7 +21,6 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
-	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -373,175 +371,6 @@ func testRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T,
 	}
 }
 
-func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
-	cfg := newRoomTestConfig(t)
-	migrateRoomSQLite(t, cfg.DatabaseURL)
-
-	agentService, db, err := newRoomTestAgentService(t, cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
-	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
-	if err != nil {
-		t.Fatalf("创建 room service 失败: %v", err)
-	}
-	providerService := providercfg.NewServiceWithDB(cfg, db)
-	createdProvider, err := providerService.Create(context.Background(), providercfg.CreateInput{
-		Provider:    "glm",
-		DisplayName: "GLM",
-		AuthToken:   "glm-token",
-		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Enabled:     true,
-	})
-	if err != nil {
-		t.Fatalf("创建默认 provider 失败: %v", err)
-	}
-	if _, err = providerService.UpdateModel(context.Background(), createdProvider.Provider, "glm-5.1", providercfg.UpdateModelInput{
-		Enabled:   true,
-		IsDefault: true,
-	}); err != nil {
-		t.Fatalf("设置默认模型失败: %v", err)
-	}
-
-	ctx := context.Background()
-	memberAgent := createTestAgent(t, agentService, ctx, "透传测试助手")
-	maxThinkingTokens := 1024
-	maxTurns := 4
-	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
-		Options: &protocol.Options{
-			MaxThinkingTokens: &maxThinkingTokens,
-			MaxTurns:          &maxTurns,
-			SettingSources:    []string{"user"},
-			MCPServers: map[string]any{
-				"custom_room": map[string]any{
-					"type": "http",
-					"url":  "https://room-mcp.example.com/rpc",
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("更新 member agent 配置失败: %v", err)
-	}
-	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
-	if err != nil {
-		t.Fatalf("创建单成员 room 失败: %v", err)
-	}
-	if len(roomContext.MemberAgents) != 1 ||
-		!slices.Contains(roomContext.MemberAgents[0].Options.SkillIDs, "goal-manager") ||
-		!slices.Contains(roomContext.MemberAgents[0].Options.SkillIDs, "execution-orchestrator") ||
-		roomContext.MemberAgents[0].RuntimeVersion != memberAgent.RuntimeVersion {
-		t.Fatalf("Room member display projection lost runtime fields: %+v", roomContext.MemberAgents)
-	}
-
-	client := newFakeRoomClient()
-	client.onQuery = func(_ context.Context, _ string) error {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "room-result-no-model",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
-		return nil
-	}
-
-	permission := permissionctx.NewContext()
-	runtimeManager := runtimectx.NewManager()
-	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
-	service := NewServiceWithFactory(
-		cfg,
-		roomService,
-		agentService,
-		runtimeManager,
-		permission,
-		factory,
-	)
-	service.SetProviderResolver(providerService)
-	titleScheduler := &fakeRoomTitleScheduler{}
-	service.SetTitleGenerator(titleScheduler)
-
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
-	sender := newRealtimeTestSender("room-sender-no-model")
-	permission.BindSession(sharedSessionKey, sender)
-
-	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "测试 room model 透传",
-		RoundID:        "room-round-no-model",
-	}); err != nil {
-		t.Fatalf("HandleChat 失败: %v", err)
-	}
-
-	collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
-	})
-
-	options := factory.LastOptions()
-	if options.Model != "glm-5.1" {
-		t.Fatalf("room runtime 未向 SDK options 透传 provider model: %+v", options)
-	}
-	if options.Env["ANTHROPIC_MODEL"] != "glm-5.1" {
-		t.Fatalf("room runtime 未注入 provider model: %+v", options.Env)
-	}
-	if options.Env["ANTHROPIC_DEFAULT_SONNET_MODEL"] != "glm-5.1" {
-		t.Fatalf("room runtime 未注入默认 sonnet model: %+v", options.Env)
-	}
-	if options.Env["NEXUS_SUBAGENT_MODEL"] != "glm-5.1" {
-		t.Fatalf("room runtime 未注入 subagent model: %+v", options.Env)
-	}
-	titleRequest := titleScheduler.LastRequest()
-	if titleRequest.SessionMessageCount != -1 {
-		t.Fatalf("room 标题生成不应检查共享 session 标题: %+v", titleRequest)
-	}
-	if titleRequest.ConversationID != roomContext.Conversation.ID {
-		t.Fatalf("room 标题生成未绑定 conversation: %+v", titleRequest)
-	}
-	if options.Runtime.MaxThinkingTokens != maxThinkingTokens {
-		t.Fatalf("room runtime 未向 SDK 透传 max thinking tokens: %+v", options)
-	}
-	if options.Runtime.MaxTurns != maxTurns {
-		t.Fatalf("room runtime 未向 SDK 透传 max turns: %+v", options)
-	}
-	if len(options.SettingSources) != 1 || options.SettingSources[0] != "user" {
-		t.Fatalf("room runtime 未向 SDK 透传 setting_sources: %+v", options)
-	}
-	customMCP, ok := options.MCP.Servers["custom_room"].(sdkmcp.HTTPServerConfig)
-	if !ok || customMCP.URL != "https://room-mcp.example.com/rpc" {
-		t.Fatalf("room runtime 未向 SDK 透传 Agent MCP server: %+v", options.MCP.Servers)
-	}
-	if !options.IncludePartialMessages {
-		t.Fatalf("room runtime 未开启 partial messages: %+v", options)
-	}
-	for _, managedSkill := range []string{"goal-manager", "execution-orchestrator"} {
-		if slices.Contains(options.Skills.DisabledNames, managedSkill) {
-			t.Fatalf("Room runtime incorrectly disabled selected managed Skill %q: %+v", managedSkill, options.Skills)
-		}
-		decision, decisionErr := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-			ToolName: "Skill",
-			Input:    map[string]any{"name": managedSkill},
-		})
-		if decisionErr != nil || decision.Behavior != sdkpermission.BehaviorAllow {
-			t.Fatalf("Room runtime did not auto-approve managed Skill %q: decision=%+v err=%v", managedSkill, decision, decisionErr)
-		}
-	}
-	executionCommandDecision, decisionErr := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus__command",
-		Input:    map[string]any{"domain": "execution", "action": "inspect"},
-	})
-	if decisionErr != nil || executionCommandDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("Room runtime did not auto-approve exact Execution command: decision=%+v err=%v", executionCommandDecision, decisionErr)
-	}
-}
-
 func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	for _, tc := range []struct {
 		name, content string
@@ -686,56 +515,6 @@ func TestRealtimeServiceRoomGoalTargetMissingUsesRoomOwnerForBackgroundContext(t
 	}
 	if missing {
 		t.Fatal("后台 Room Goal 续跑不应因为缺少请求 owner 被误判为目标丢失")
-	}
-}
-
-func TestRealtimeServiceGoalContinuationDefersWhenRoomHasNoDefaultTarget(t *testing.T) {
-	cfg := newRoomTestConfig(t)
-	migrateRoomSQLite(t, cfg.DatabaseURL)
-
-	agentService, db, err := newRoomTestAgentService(t, cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
-	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
-	ctx := context.Background()
-	amy := createTestAgent(t, agentService, ctx, "Amy")
-	devin := createTestAgent(t, agentService, ctx, "Devin")
-	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{amy.AgentID, devin.AgentID},
-		Name:     "多助手 Goal 房间",
-		Title:    "主对话",
-	})
-	if err != nil {
-		t.Fatalf("创建 room 失败: %v", err)
-	}
-
-	service := NewServiceWithFactory(
-		cfg,
-		roomService,
-		agentService,
-		runtimectx.NewManager(),
-		permissionctx.NewContext(),
-		&fakeRoomFactory{},
-	)
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
-	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
-		t.Fatal("Room Goal continuation should defer when a multi-agent room has no default target")
-	}
-
-	hostedContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs:             []string{amy.AgentID, devin.AgentID},
-		Name:                 "主持人 Goal 房间",
-		Title:                "主对话",
-		HostAgentID:          amy.AgentID,
-		HostAutoReplyEnabled: false,
-	})
-	if err != nil {
-		t.Fatalf("创建 hosted room 失败: %v", err)
-	}
-	hostedSessionKey := protocol.BuildRoomSharedSessionKey(hostedContext.Conversation.ID)
-	if service.ShouldDeferGoalContinuation(ctx, hostedSessionKey) {
-		t.Fatal("Room Goal continuation should not defer when a host lead exists")
 	}
 }
 

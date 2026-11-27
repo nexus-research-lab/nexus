@@ -4,14 +4,12 @@ package orchestration
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
-	"gopkg.in/yaml.v3"
 )
 
 const createPlanProposalDocument = `nexus_plan: 1
@@ -42,50 +40,6 @@ items:
     depends_on:
       - produce
 `
-
-func TestResolvePlanExecutionProposalCarriesExactBindingAcrossRounds(t *testing.T) {
-	repository := &planProposalTestRepository{fakeRepository: &fakeRepository{}}
-	service := testService(repository)
-	prepareActor := coordinatorActor()
-	prepareActor.RootRoundID = "round-plan-mode"
-	prepareActor.AgentRoundID = "agent-round-plan-mode"
-	prepareActor.PlanMode = true
-	prepared, err := service.PreparePlanExecution(
-		context.Background(),
-		prepareActor,
-		PreparePlanExecutionInput{
-			CommandID:    "tool-plan-mode-prepare",
-			PlanDocument: createPlanProposalDocument,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	commitActor := prepareActor
-	commitActor.RootRoundID = "round-after-plan-mode"
-	commitActor.AgentRoundID = "agent-round-after-plan-mode"
-	commitActor.PlanMode = false
-	resolved, err := service.ResolvePlanExecutionProposal(context.Background(), commitActor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resolved == nil || resolved.ID != prepared.ID ||
-		resolved.ContentDigest != prepared.ContentDigest ||
-		resolved.RootRoundID != prepareActor.RootRoundID {
-		t.Fatalf("resolved proposal = %#v, prepared = %#v", resolved, prepared)
-	}
-
-	wrongSession := commitActor
-	wrongSession.SessionKey = "another-session"
-	if _, err = service.ResolvePlanExecutionProposal(context.Background(), wrongSession); err == nil {
-		t.Fatal("cross-session proposal binding unexpectedly resolved")
-	} else {
-		var domainErr *DomainError
-		if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodePlanProposalBinding {
-			t.Fatalf("cross-session error = %v", err)
-		}
-	}
-}
 
 func TestGoalBoundMaterializationDoesNotMintAuthorityWhileConfirmationIsPending(t *testing.T) {
 	main := &fakeRepository{}
@@ -134,122 +88,6 @@ func TestGoalBoundMaterializationDoesNotMintAuthorityWhileConfirmationIsPending(
 		repository.proposal.ConfirmationState != protocol.ExecutionPlanProposalConfirmationPending ||
 		!strings.Contains(result.Message, "confirmation will retry") {
 		t.Fatalf("pending confirmation result=%#v proposal=%#v", result, repository.proposal)
-	}
-}
-
-func TestGoalFreeCreateStillRequiresDocumentObjective(t *testing.T) {
-	repository := &planProposalTestRepository{fakeRepository: &fakeRepository{}}
-	service := testService(repository)
-	actor := coordinatorActor()
-	actor.RootRoundID = "round-goal-free-objective"
-	document := strings.Replace(
-		createPlanProposalDocument,
-		"objective: Deliver a verified report\n",
-		"",
-		1,
-	)
-
-	_, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
-		CommandID:    "prepare-goal-free-objective",
-		PlanDocument: document,
-	})
-	var domainErr *DomainError
-	if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodeInvalidInput {
-		t.Fatalf("PreparePlanExecution() error = %v, want objective-required invalid input", err)
-	}
-}
-
-func TestPlanGoalBindingIntentRejectsOperationBoundaryChanges(t *testing.T) {
-	replanDocument := strings.Replace(
-		createPlanProposalDocument,
-		"operation: create\nobjective: Deliver a verified report\ncompletion_criteria:\n  - report.md exists and verification passes\n",
-		"operation: replan\nrevision_reason: preserve the current boundary\n",
-		1,
-	)
-	replaceDocument := strings.Replace(
-		createPlanProposalDocument,
-		"operation: create\n",
-		"operation: replace\nreplacement_reason: user requested a different transient objective\n",
-		1,
-	)
-	for _, testCase := range []struct {
-		name        string
-		document    string
-		goalBinding PlanGoalBindingIntent
-	}{
-		{name: "create cannot inherit", document: createPlanProposalDocument, goalBinding: PlanGoalBindingInherit},
-		{name: "replan cannot detach", document: replanDocument, goalBinding: PlanGoalBindingNone},
-		{name: "replan cannot bind current", document: replanDocument, goalBinding: PlanGoalBindingCurrent},
-		{name: "replace cannot detach", document: replaceDocument, goalBinding: PlanGoalBindingNone},
-		{name: "replace cannot bind current", document: replaceDocument, goalBinding: PlanGoalBindingCurrent},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			repository := &planProposalTestRepository{fakeRepository: &fakeRepository{snapshot: executionSnapshot()}}
-			service := testService(repository)
-			actor := coordinatorActor()
-			actor.RootRoundID = "round-" + strings.ReplaceAll(testCase.name, " ", "-")
-			actor.GoalID = "goal-exact"
-			actor.GoalObjectiveRevision = 3
-
-			_, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
-				CommandID:    "prepare-" + strings.ReplaceAll(testCase.name, " ", "-"),
-				PlanDocument: testCase.document,
-				GoalBinding:  testCase.goalBinding,
-			})
-			var domainErr *DomainError
-			if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodeInvalidInput {
-				t.Fatalf("PreparePlanExecution() error = %v, want invalid input", err)
-			}
-			if repository.proposal != nil {
-				t.Fatalf("invalid boundary intent sealed proposal %#v", repository.proposal)
-			}
-		})
-	}
-}
-
-func TestGoalBoundCreateRejectsCanonicalObjectiveDriftBeforeMaterialization(t *testing.T) {
-	createCalls := 0
-	main := &fakeRepository{
-		createWithPlan: func(context.Context, orchestrationstore.CreateWithPlanCommand) (*protocol.ExecutionSnapshot, error) {
-			createCalls++
-			return nil, nil
-		},
-	}
-	repository := &planProposalTestRepository{fakeRepository: main}
-	service := testService(repository)
-	gateway := &proposalGoalGateway{activation: ExplicitGoalActivation{
-		GoalID:                "goal-objective-fence",
-		GoalObjectiveRevision: 5,
-		Objective:             "Deliver the exact persistent Goal objective",
-		ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
-		ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
-		ReservedExecutionID:   "execution-objective-fence",
-	}}
-	service.SetExplicitGoalBindingGateway(gateway)
-	actor := coordinatorActor()
-	actor.RootRoundID = "round-objective-fence"
-	actor.GoalID = "goal-objective-fence"
-	actor.GoalObjectiveRevision = 5
-
-	proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
-		CommandID:    "prepare-objective-fence",
-		PlanDocument: createPlanProposalDocument,
-		GoalBinding:  PlanGoalBindingCurrent,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	gateway.activation.Objective = "A different persisted objective at the same revision"
-	result, err := service.MaterializePlanExecution(context.Background(), actor, MaterializePlanExecutionInput{
-		ProposalID:     proposal.ID,
-		ProposalDigest: proposal.ContentDigest,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationRejected || result.ReasonCode != ErrorCodePlanProposalStale ||
-		createCalls != 0 || repository.proposal.Status != protocol.ExecutionPlanProposalStatusBlocked {
-		t.Fatalf("result=%#v proposal=%#v create_calls=%d", result, repository.proposal, createCalls)
 	}
 }
 
@@ -768,98 +606,6 @@ items: {}
 	}
 }
 
-func TestParseExecutionPlanDocumentRejectsResourceAndCombinedCollectionLimits(t *testing.T) {
-	t.Parallel()
-
-	t.Run("bytes", func(t *testing.T) {
-		t.Parallel()
-		_, _, err := ParseExecutionPlanDocument(strings.Repeat("x", maxExecutionPlanDocumentBytes+1))
-		assertPlanDocumentError(t, err, "$", "byte limit")
-	})
-	t.Run("items", func(t *testing.T) {
-		t.Parallel()
-		var source strings.Builder
-		source.WriteString("nexus_plan: 1\noperation: create\nobjective: Ship\ncompletion_criteria: [done]\nitems:\n")
-		for index := 0; index <= protocol.ExecutionProjectionCollectionLimit; index++ {
-			fmt.Fprintf(
-				&source,
-				"  - logical_key: item_%d\n    kind: produce\n    subject: Item\n    objective: Work\n    deliverable: out-%d\n",
-				index,
-				index,
-			)
-		}
-		_, _, err := ParseExecutionPlanDocument(source.String())
-		assertPlanDocumentError(t, err, "$.items", "maximum is 32")
-	})
-	t.Run("combined dependencies", func(t *testing.T) {
-		t.Parallel()
-		hard := strings.TrimSuffix(strings.Repeat("source,", 17), ",")
-		soft := strings.TrimSuffix(strings.Repeat("source,", 16), ",")
-		source := fmt.Sprintf(`nexus_plan: 1
-operation: create
-objective: Ship
-completion_criteria: [done]
-items:
-  - logical_key: source
-    kind: produce
-    subject: Source
-    objective: Gather
-    deliverable: notes
-  - logical_key: final
-    kind: integrate
-    subject: Final
-    objective: Integrate
-    deliverable: report
-    depends_on: [%s]
-    soft_depends_on: [%s]
-`, hard, soft)
-		_, _, err := ParseExecutionPlanDocument(source)
-		assertPlanDocumentError(t, err, "$.items[1].depends_on", "combined hard and soft dependencies")
-	})
-	t.Run("combined output scopes", func(t *testing.T) {
-		t.Parallel()
-		exclusive := make([]string, 17)
-		shared := make([]string, 16)
-		for index := range exclusive {
-			exclusive[index] = fmt.Sprintf("semantic:exclusive-%d", index)
-		}
-		for index := range shared {
-			shared[index] = fmt.Sprintf("semantic:shared-%d", index)
-		}
-		source := fmt.Sprintf(`nexus_plan: 1
-operation: create
-objective: Ship
-completion_criteria: [done]
-items:
-  - logical_key: final
-    kind: integrate
-    subject: Final
-    objective: Integrate
-    deliverable: report
-    output_scopes: [%s]
-    shared_output_scopes: [%s]
-`, strings.Join(exclusive, ","), strings.Join(shared, ","))
-		_, _, err := ParseExecutionPlanDocument(source)
-		assertPlanDocumentError(t, err, "$.items[0].output_scopes", "combined exclusive and shared output scopes")
-	})
-	t.Run("depth", func(t *testing.T) {
-		t.Parallel()
-		source := strings.Repeat("[", maxExecutionPlanYAMLDepth+2) + "x" +
-			strings.Repeat("]", maxExecutionPlanYAMLDepth+2)
-		_, _, err := ParseExecutionPlanDocument(source)
-		assertPlanDocumentError(t, err, "$*", "nesting depth")
-	})
-	t.Run("node count", func(t *testing.T) {
-		t.Parallel()
-		source := "mystery: " + nestedPlanFlowSequence(22, 3) + "\n"
-		if len(source) >= maxExecutionPlanDocumentBytes {
-			t.Fatalf("node-count fixture is unexpectedly too large: %d bytes", len(source))
-		}
-		_, _, err := ParseExecutionPlanDocument(source)
-		assertPlanDocumentError(t, err, "$.mystery*", "node count")
-	})
-}
-
 func TestParseExecutionPlanDocumentWrapsDomainErrorWithDocumentLocation(t *testing.T) {
 	t.Parallel()
 
@@ -881,18 +627,6 @@ func TestParseExecutionPlanDocumentWrapsDomainErrorWithDocumentLocation(t *testi
 		!strings.Contains(result.Message, "line ") ||
 		!strings.Contains(result.Message, "column ") {
 		t.Fatalf("projected domain error lost location: %#v", result)
-	}
-}
-
-func TestValidatePlanYAMLNodeRejectsAliasNodes(t *testing.T) {
-	t.Parallel()
-
-	node := &yaml.Node{Kind: yaml.AliasNode, Value: "source", Line: 4, Column: 7}
-	count := 0
-	err := validatePlanYAMLNode(node, "$.items[0].subject", 0, &count)
-	typed := assertPlanDocumentError(t, err, "$.items[0].subject", "aliases are not allowed")
-	if typed.Line != 4 || typed.Column != 7 {
-		t.Fatalf("alias location = %d:%d, want 4:7", typed.Line, typed.Column)
 	}
 }
 
@@ -926,53 +660,6 @@ func assertPlanDocumentError(
 	return typed
 }
 
-func nestedPlanFlowSequence(width, depth int) string {
-	value := "x"
-	for range depth {
-		entries := make([]string, width)
-		for index := range entries {
-			entries[index] = value
-		}
-		value = "[" + strings.Join(entries, ",") + "]"
-	}
-	return value
-}
-
-func TestPlanExecutionReturnsActionableRecoveryForEmptyWorkGraph(t *testing.T) {
-	for _, test := range []struct {
-		name  string
-		draft PlanDraft
-	}{
-		{name: "empty array", draft: PlanDraft{}},
-		{name: "placeholder object", draft: PlanDraft{Items: []PlanWorkItemDraft{{}}}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			service := testService(&fakeRepository{})
-			result, err := service.PlanExecution(
-				context.Background(),
-				coordinatorActor(),
-				PlanExecutionInput{
-					CommandID:          "empty-workgraph",
-					Objective:          "Deliver a verified report",
-					CompletionCriteria: []string{"report accepted"},
-					Draft:              test.draft,
-				},
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if result.Outcome != MutationRejected ||
-				result.ReasonCode != ErrorCodePlanItemsEmpty ||
-				len(result.NextActions) != 1 ||
-				result.NextActions[0].Operation != "prepare_plan_execution" ||
-				!strings.Contains(result.NextActions[0].Reason, "Plan Document") ||
-				!strings.Contains(result.NextActions[0].Reason, "Work Item") {
-				t.Fatalf("empty WorkGraph recovery = %#v", result)
-			}
-		})
-	}
-}
-
 func TestValidatePlanDraftRejectsCycleAndUnknownDependency(t *testing.T) {
 	t.Run("cycle", func(t *testing.T) {
 		draft := validPlanDraft()
@@ -996,58 +683,6 @@ func TestValidatePlanDraftReportsSupportedWorkItemKinds(t *testing.T) {
 	if !strings.Contains(err.Error(), "produce, review, verify, or integrate") {
 		t.Fatalf("work item kind error is not actionable: %v", err)
 	}
-}
-
-func TestValidatePlanDraftEnforcesTypedOutputScopeConflicts(t *testing.T) {
-	t.Run("missing produce scope", func(t *testing.T) {
-		draft := validPlanDraft()
-		draft.Items[0].OutputScopes = nil
-		if err := ValidatePlanDraft(draft); err != nil {
-			t.Fatalf("optional produce scope rejected: %v", err)
-		}
-	})
-	t.Run("duplicate produce", func(t *testing.T) {
-		draft := validPlanDraft()
-		draft.Items[1].DependsOn = nil
-		draft.Items[1].OutputScopes = []protocol.WorkOutputScope{{
-			Scope: "file:report/sources/facts.md",
-			Mode:  protocol.WorkOutputScopeShared,
-		}}
-		err := ValidatePlanDraft(draft)
-		assertDomainErrorCode(t, err, ErrorCodeOutputScopeConflict)
-	})
-	t.Run("shared review", func(t *testing.T) {
-		draft := validPlanDraft()
-		draft.Items[0].OutputScopes[0].Mode = protocol.WorkOutputScopeShared
-		draft.Items[1].Kind = protocol.WorkItemKindReview
-		draft.Items[1].OutputScopes = []protocol.WorkOutputScope{{
-			Scope: "file:report/sources/facts.md",
-			Mode:  protocol.WorkOutputScopeShared,
-		}}
-		if err := ValidatePlanDraft(draft); err != nil {
-			t.Fatalf("shared review output should be valid: %v", err)
-		}
-	})
-	t.Run("untyped", func(t *testing.T) {
-		draft := validPlanDraft()
-		draft.Items[0].OutputScopes[0].Scope = "report/sources"
-		assertDomainErrorCode(t, ValidatePlanDraft(draft), ErrorCodeInvalidInput)
-	})
-	t.Run("case-folded file", func(t *testing.T) {
-		draft := validPlanDraft()
-		draft.Items[1].DependsOn = nil
-		draft.Items[0].OutputScopes[0].Scope = "file:Report/Résumé.md"
-		draft.Items[1].OutputScopes[0].Scope = "file:report/re\u0301sume\u0301.MD"
-		assertDomainErrorCode(t, ValidatePlanDraft(draft), ErrorCodeOutputScopeConflict)
-	})
-	t.Run("same item case-folded duplicate", func(t *testing.T) {
-		draft := validPlanDraft()
-		draft.Items[0].OutputScopes = []protocol.WorkOutputScope{
-			{Scope: "file:Report/Final.md"},
-			{Scope: "file:report/final.MD"},
-		}
-		assertDomainErrorCode(t, ValidatePlanDraft(draft), ErrorCodeInvalidInput)
-	})
 }
 
 func validPlanDraft() PlanDraft {

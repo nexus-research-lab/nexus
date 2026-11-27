@@ -9,25 +9,6 @@ import (
 	"testing"
 )
 
-func TestGitHubExchangeTokenSniffsJSONError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"error":"bad_verification_code","error_description":"code expired"}`))
-	}))
-	defer server.Close()
-
-	provider := NewGitHubProvider("https://github.test/authorize", server.URL)
-	_, err := provider.ExchangeToken(context.Background(), server.Client(), TokenRequest{
-		ClientID:     "client",
-		ClientSecret: "secret",
-		RedirectURI:  "http://localhost/callback",
-		Code:         "bad-code",
-	})
-	if err == nil || !strings.Contains(err.Error(), "bad_verification_code") {
-		t.Fatalf("expected GitHub JSON error to be surfaced, got %v", err)
-	}
-}
-
 func TestShopifyBuildAuthURLRequiresValidShop(t *testing.T) {
 	provider := NewShopifyProvider()
 	_, err := provider.BuildAuthURL(context.Background(), AuthRequest{

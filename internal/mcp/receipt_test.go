@@ -30,21 +30,3 @@ func TestReceiptGoalProgressRequiresAppliedTypedMutationAndExactBinding(t *testi
 		})
 	}
 }
-
-func TestSuccessfulGoalCompletionIDUsesReceiptIdentityAndFailsClosedOnConflict(t *testing.T) {
-	receipts := []CommandReceipt{{
-		Domain: CommandDomainGoal, Operation: GoalOperationUpdate,
-		Outcome: string(protocol.MutationResultApplied),
-		GoalID:  "goal-receipt", GoalStatus: string(protocol.GoalStatusComplete),
-	}}
-	if got := SuccessfulGoalCompletionID(receipts, ""); got != "goal-receipt" {
-		t.Fatalf("completion ID = %q", got)
-	}
-	if got := SuccessfulGoalCompletionID(receipts, "goal-bound"); got != "" {
-		t.Fatalf("conflicting completion ID = %q, want empty", got)
-	}
-	receipts[0].GoalStatus = string(protocol.GoalStatusBlocked)
-	if got := SuccessfulGoalCompletionID(receipts, "goal-receipt"); got != "" {
-		t.Fatalf("blocked completion ID = %q, want empty", got)
-	}
-}

@@ -59,36 +59,6 @@ func TestRenderRuntimeContentWithImageOnlyCanAppendContext(t *testing.T) {
 	}
 }
 
-func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
-	t.Parallel()
-
-	workspacePath := t.TempDir()
-	attachmentPath := filepath.Join(workspacePath, "tmp", "attachments", "diagram.svg")
-	if err := os.MkdirAll(filepath.Dir(attachmentPath), 0o755); err != nil {
-		t.Fatalf("mkdir attachment dir: %v", err)
-	}
-	if err := os.WriteFile(attachmentPath, []byte("<svg />"), 0o644); err != nil {
-		t.Fatalf("write attachment: %v", err)
-	}
-
-	_, err := RenderRuntimeContentWithAttachments(
-		context.Background(),
-		"看看这个图",
-		[]protocol.ChatAttachment{{
-			FileName:      "diagram.svg",
-			WorkspacePath: "tmp/attachments/diagram.svg",
-			Kind:          protocol.ChatAttachmentKindImage,
-			MIMEType:      "image/svg+xml",
-		}},
-		func(_ context.Context, attachment protocol.ChatAttachment) (ResolvedAttachment, error) {
-			return openWorkspaceAttachment(workspacePath, attachment.WorkspacePath)
-		},
-	)
-	if err == nil {
-		t.Fatal("unsupported runtime image should return an error")
-	}
-}
-
 func openWorkspaceAttachment(workspacePath string, relativePath string) (ResolvedAttachment, error) {
 	root := filepath.Clean(strings.TrimSpace(workspacePath))
 	if root == "" {

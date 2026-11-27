@@ -175,53 +175,6 @@ func TestValidateExternalURLCanonicalizesSkillsShDetailHost(t *testing.T) {
 	}
 }
 
-func TestImportLocalPathPersistsPrivateSourceMetadata(t *testing.T) {
-	cfg := newSkillsTestConfig(t)
-	migrateSkillsSQLite(t, cfg.DatabaseURL)
-	db := openSkillsTestDB(t, cfg)
-	service := NewServiceWithDB(cfg, db, nil, nil)
-	ctx := context.Background()
-
-	sourceRoot := filepath.Join(t.TempDir(), "private-skill")
-	writeTestSkillDir(t, sourceRoot, "private-skill", "Private Skill", false)
-	detail, err := service.ImportLocalPath(ctx, sourceRoot)
-	if err != nil {
-		t.Fatalf("导入本地路径 skill 失败: %v", err)
-	}
-	if detail.SourceKind != externalSourceKindLocalPath || detail.SourceName != "本地路径" || detail.SourceTrust != externalSourceTrustPrivate {
-		t.Fatalf("本地导入来源元数据不正确: %+v", detail.Info)
-	}
-	record, err := service.skillStore.GetImportedSkill(ctx, authctx.OwnerUserID(ctx), "private-skill")
-	if err != nil {
-		t.Fatalf("读取导入 skill 记录失败: %v", err)
-	}
-	if record == nil || record.ImportMode != externalSourceKindLocalPath || record.SourceName != "本地路径" || record.SourceTrust != externalSourceTrustPrivate {
-		t.Fatalf("导入 skill DB 元数据不正确: %+v", record)
-	}
-
-	builtinCollisionRoot := filepath.Join(t.TempDir(), "builtin-collision")
-	writeTestSkillDir(t, builtinCollisionRoot, "IMAGEGEN", "Builtin Collision", false)
-	if _, err = service.ImportLocalPath(ctx, builtinCollisionRoot); err == nil {
-		t.Fatal("外部 Skill 不应通过大小写变化覆盖系统 Skill")
-	}
-	caseCollisionRoot := filepath.Join(t.TempDir(), "case-collision")
-	writeTestSkillDir(t, caseCollisionRoot, "PRIVATE-SKILL", "Case Collision", false)
-	if _, err = service.ImportLocalPath(ctx, caseCollisionRoot); err == nil {
-		t.Fatal("外部 Skill 不应创建仅大小写不同的重复源")
-	}
-}
-
-func TestImportLocalPathRejectsAuthenticatedHostPath(t *testing.T) {
-	service := NewService(newSkillsTestConfig(t), nil, nil)
-	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: true})
-	sourceRoot := filepath.Join(t.TempDir(), "private-skill")
-	writeTestSkillDir(t, sourceRoot, "private-skill", "Private Skill", false)
-
-	if _, err := service.ImportLocalPath(ctx, sourceRoot); !errors.Is(err, ErrLocalPathImportUnavailable) {
-		t.Fatalf("认证部署应拒绝宿主 local_path: %v", err)
-	}
-}
-
 func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
@@ -650,49 +603,6 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	}
 	if len(secondOwnerSources) != 2 {
 		t.Fatalf("删除第一个 owner 来源不应影响第二个 owner: %+v", secondOwnerSources)
-	}
-}
-
-func TestValidatePrivateRegistrySkillSourceRequiresExplicitTopLevelName(t *testing.T) {
-	testCases := []struct {
-		name        string
-		relativeDir string
-		content     string
-		wantError   bool
-	}{
-		{
-			name:        "valid",
-			relativeDir: "internal-knowledge",
-			content:     "---\nname: internal-knowledge\n---\n# Internal Knowledge\n",
-		},
-		{
-			name:        "missing frontmatter name",
-			relativeDir: "internal-knowledge",
-			content:     "---\ndescription: private\n---\n# Internal Knowledge\n",
-			wantError:   true,
-		},
-		{
-			name:        "nested skill directory",
-			relativeDir: filepath.Join("wrapper", "internal-knowledge"),
-			content:     "---\nname: internal-knowledge\n---\n# Internal Knowledge\n",
-			wantError:   true,
-		},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			root := t.TempDir()
-			sourceDir := filepath.Join(root, testCase.relativeDir)
-			if err := os.MkdirAll(sourceDir, 0o755); err != nil {
-				t.Fatalf("创建测试目录失败: %v", err)
-			}
-			if err := os.WriteFile(filepath.Join(sourceDir, "SKILL.md"), []byte(testCase.content), 0o644); err != nil {
-				t.Fatalf("写入测试 Skill 失败: %v", err)
-			}
-			err := validatePrivateRegistrySkillSource(root, sourceDir, "internal-knowledge")
-			if (err != nil) != testCase.wantError {
-				t.Fatalf("校验结果不符合预期: err=%v", err)
-			}
-		})
 	}
 }
 

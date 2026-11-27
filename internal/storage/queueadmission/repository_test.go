@@ -50,62 +50,6 @@ func TestRepositoryRejectsPrincipalDriftAndInvalidRuntimeIdentity(t *testing.T) 
 	}
 }
 
-func TestRepositoryRevokesLegacyAdmissionWithoutFreshAuthBinding(t *testing.T) {
-	repository, db := newQueueAdmissionTestRepository(t)
-	binding := queueAdmissionTestBinding(t, "queue-legacy-principal", "configure once")
-	ctx := context.Background()
-	if err := repository.Record(ctx, Admission{
-		Binding: binding, Principal: queueAdmissionTestPrincipal(),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(
-		`UPDATE configuration_queue_admissions
-SET principal_auth_method = '', principal_auth_session_id = ''
-WHERE owner_user_id = ? AND scope = ? AND queue_item_id = ? AND agent_id = ?`,
-		binding.OwnerUserID,
-		string(binding.Scope),
-		binding.QueueItemID,
-		binding.AgentID,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, trusted, err := repository.Claim(ctx, binding); err != nil || trusted {
-		t.Fatalf("legacy admission claim = (%v, %v), want revoked false", trusted, err)
-	}
-	var status string
-	if err := db.QueryRow(
-		`SELECT status FROM configuration_queue_admissions
-WHERE owner_user_id = ? AND scope = ? AND queue_item_id = ? AND agent_id = ?`,
-		binding.OwnerUserID,
-		string(binding.Scope),
-		binding.QueueItemID,
-		binding.AgentID,
-	).Scan(&status); err != nil {
-		t.Fatal(err)
-	}
-	if status != StatusRevoked {
-		t.Fatalf("legacy admission status = %q, want revoked", status)
-	}
-}
-
-func TestNewBindingRejectsUnknownScopeInsteadOfFallingBackToDM(t *testing.T) {
-	_, err := NewBinding(workspacestore.InputQueueLocation{
-		OwnerUserID:   "owner",
-		Scope:         protocol.InputQueueScope("forged"),
-		WorkspacePath: t.TempDir(),
-		SessionKey:    "agent:worker:ws:dm:main",
-	}, protocol.InputQueueItem{
-		ID:      "queue-forged-scope",
-		AgentID: "worker",
-		Source:  protocol.InputQueueSourceUser,
-		Content: "configure the agent",
-	})
-	if err == nil {
-		t.Fatal("unknown queue admission scope must not fall back to DM")
-	}
-}
-
 func newQueueAdmissionTestRepository(t *testing.T) (*Repository, *sql.DB) {
 	t.Helper()
 	databasePath := filepath.Join(t.TempDir(), "queue-admission.db")

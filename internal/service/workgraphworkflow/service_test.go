@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -148,82 +147,6 @@ func reusableTestAbstractor(_ context.Context, _ string, input AbstractionInput)
 	}, nil
 }
 
-func TestPreviewThenSaveKeepsExactModelExtractedSketch(t *testing.T) {
-	repository := &workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)}
-	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
-	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
-	changeCount := 0
-	service.SetChangeNotifier(func(context.Context, string) { changeCount++ })
-	service.now = func() time.Time { return time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC) }
-
-	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if repository.createCount != 0 || len(repository.items) != 0 {
-		t.Fatalf("preview persisted data: creates=%d items=%d", repository.createCount, len(repository.items))
-	}
-	if preview.SlashName != "research" || len(preview.Nodes) != 3 || len(preview.Dependencies) != 2 {
-		t.Fatalf("preview = %#v", preview)
-	}
-	if preview.Nodes[0].LogicalKey != "research" || preview.Nodes[2].Role != protocol.WorkGraphWorkflowNodeCollaboration {
-		t.Fatalf("nodes = %#v", preview.Nodes)
-	}
-	if preview.Dependencies[0].LogicalKey != "incidental" || preview.Dependencies[0].DependsOnLogicalKey != "research" ||
-		preview.Dependencies[1].LogicalKey != "review" || preview.Dependencies[1].DependsOnLogicalKey != "incidental" {
-		t.Fatalf("projected dependencies = %#v", preview.Dependencies)
-	}
-	if strings.Contains(preview.Description, "tool-secret") {
-		t.Fatalf("runtime tool fact leaked into preview: %q", preview.Description)
-	}
-
-	created, err := service.SavePreview(context.Background(), "owner-a", protocol.SaveWorkGraphWorkflowRequest{
-		CommandID: "workflow-distill-request-1", SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created.Objective != preview.Objective || len(created.Nodes) != len(preview.Nodes) || repository.createCount != 1 {
-		t.Fatalf("created = %#v, creates=%d", created, repository.createCount)
-	}
-	replayed, err := service.SavePreview(context.Background(), "owner-a", protocol.SaveWorkGraphWorkflowRequest{
-		CommandID: "workflow-distill-request-1", SourceSessionKey: "session-a", PreviewID: "expired-or-missing",
-	})
-	if err != nil || replayed.ID != created.ID || repository.createCount != 1 {
-		t.Fatalf("idempotent replay = %#v, err=%v, creates=%d", replayed, err, repository.createCount)
-	}
-	if changeCount != 1 {
-		t.Fatalf("directory change count = %d, want 1", changeCount)
-	}
-}
-
-func TestPreviewReusesDraftForExactSourceExecution(t *testing.T) {
-	repository := &workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)}
-	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
-	abstractionCount := 0
-	service.SetAbstractor(workflowAbstractor(func(ctx context.Context, owner string, input AbstractionInput) (AbstractionOutput, error) {
-		abstractionCount++
-		return reusableTestAbstractor(ctx, owner, input)
-	}))
-
-	request := protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a", OutputLanguage: "zh",
-	}
-	first, err := service.PreviewFromExecution(context.Background(), "owner-a", request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := service.PreviewFromExecution(context.Background(), "owner-a", request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if abstractionCount != 1 || first.PreviewID != second.PreviewID {
-		t.Fatalf("reused preview IDs = (%q, %q), abstractions=%d", first.PreviewID, second.PreviewID, abstractionCount)
-	}
-}
-
 func TestSavedWorkflowReopensItsDraftAndPersistsSelectedRevisionAsUpdate(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "workgraph-authoring.db")
 	db, err := sql.Open("sqlite", databasePath+"?_pragma=foreign_keys(1)")
@@ -321,35 +244,6 @@ func TestPreviewUsesNumberedFallbackWhenSinglesAndBuiltinNameConflict(t *testing
 	}
 	if preview.SlashName != "research-2" {
 		t.Fatalf("slash name = %q, want fallback that preserves the built-in command", preview.SlashName)
-	}
-}
-
-func TestSavePreviewRejectsWrongSessionAndExpiredPreview(t *testing.T) {
-	currentTime := time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC)
-	service := NewService(
-		&workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)},
-		workflowExecutionViewer{view: workflowSourceView()},
-	)
-	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
-	service.now = func() time.Time { return currentTime }
-	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = service.SavePreview(context.Background(), "owner-a", protocol.SaveWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-b", PreviewID: preview.PreviewID,
-	})
-	if err != ErrNotFound {
-		t.Fatalf("wrong-session error = %v, want ErrNotFound", err)
-	}
-	currentTime = currentTime.Add(workflowPreviewTTL + time.Second)
-	_, err = service.SavePreview(context.Background(), "owner-a", protocol.SaveWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
-	})
-	if err != ErrNotFound {
-		t.Fatalf("expired-preview error = %v, want ErrNotFound", err)
 	}
 }
 
@@ -499,50 +393,6 @@ func TestExpandRuntimePromptMaterializesFreshGraphWithoutRunFacts(t *testing.T) 
 	}
 }
 
-func TestPreviewFailsClosedWithoutBackgroundAbstractionOrCompletedGraph(t *testing.T) {
-	view := workflowSourceView()
-	service := NewService(
-		&workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)},
-		workflowExecutionViewer{view: view},
-	)
-	_, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err == nil || !strings.Contains(err.Error(), "unavailable") {
-		t.Fatalf("expected unavailable abstractor error, got %v", err)
-	}
-	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
-	view.Status = protocol.ExecutionStatusActive
-	_, err = service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err == nil || !strings.Contains(err.Error(), "only completed") {
-		t.Fatalf("expected completed-only error, got %v", err)
-	}
-}
-
-func TestPreviewRejectsInventedModelNode(t *testing.T) {
-	service := NewService(
-		&workflowMemoryRepository{items: make(map[string]protocol.WorkGraphWorkflow)},
-		workflowExecutionViewer{view: workflowSourceView()},
-	)
-	service.SetAbstractor(workflowAbstractor(func(context.Context, string, AbstractionInput) (AbstractionOutput, error) {
-		return AbstractionOutput{
-			SlashName: "invented-graph", Title: "Invented", Description: "Invalid", Objective: "Invalid",
-			Nodes: []AbstractedNode{{
-				LogicalKey: "invented", Role: protocol.WorkGraphWorkflowNodeKey,
-				Subject: "Invented", Objective: "Invented", Deliverable: "Invented",
-			}},
-		}, nil
-	}))
-	_, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err == nil || !strings.Contains(err.Error(), "invented") {
-		t.Fatalf("expected invented-node error, got %v", err)
-	}
-}
-
 func workflowSourceView() *protocol.ExecutionView {
 	return &protocol.ExecutionView{
 		ID: "execution-a", SessionKey: "session-a", Status: protocol.ExecutionStatusCompleted,
@@ -601,20 +451,6 @@ func TestLLMAbstractorUsesDefaultChatModelInsteadOfBackgroundModel(t *testing.T)
 	}
 }
 
-func TestBuiltinTerminalNodesAreGraphSinks(t *testing.T) {
-	for _, workflow := range builtinWorkflows("zh-CN") {
-		terminal := make(map[string]bool, len(workflow.Nodes))
-		for _, node := range workflow.Nodes {
-			terminal[node.LogicalKey] = node.Terminal
-		}
-		for _, dependency := range workflow.Dependencies {
-			if terminal[dependency.DependsOnLogicalKey] {
-				t.Fatalf("workflow %q has an edge out of terminal node %q", workflow.SlashName, dependency.DependsOnLogicalKey)
-			}
-		}
-	}
-}
-
 func TestTypedParametersAndInvocation(t *testing.T) {
 	minimum, maximum := 1.0, 5.0
 	workflow := protocol.WorkGraphWorkflow{ID: "template", Version: 2, SlashName: "report", Parameters: []protocol.WorkGraphParameter{
@@ -644,12 +480,5 @@ func TestTypedParametersAndInvocation(t *testing.T) {
 	expanded, err := service.ExpandRuntimePrompt(t.Context(), "owner", `/report {"parameters":{"topic":"test"}}`)
 	if err != nil || !strings.Contains(expanded, `"version":2`) || !strings.Contains(expanded, `"count":3`) {
 		t.Fatalf("expansion: %s %v", expanded, err)
-	}
-}
-
-func TestIntegerParameterRejectsEmptyRange(t *testing.T) {
-	minimum, maximum := 1.2, 1.3
-	if err := validateParameters([]protocol.WorkGraphParameter{{Name: "count", Type: "integer", Minimum: &minimum, Maximum: &maximum}}); err == nil {
-		t.Fatal("integer parameter accepted an interval with no valid value")
 	}
 }

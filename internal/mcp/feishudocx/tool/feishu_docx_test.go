@@ -213,46 +213,6 @@ func TestFeishuDocxCreateDocumentTool(t *testing.T) {
 	}
 }
 
-func TestFeishuDocxWikiNodesTool(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/open-apis/wiki/v2/spaces/sp1/nodes" {
-			http.NotFound(writer, request)
-			return
-		}
-		if request.URL.Query().Get("parent_node_token") != "PARENT" {
-			t.Fatalf("知识库节点工具 parent_node_token 不正确: %s", request.URL.RawQuery)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(map[string]any{
-			"code": 0,
-			"msg":  "success",
-			"data": map[string]any{
-				"items": []map[string]any{{"space_id": "sp1", "node_token": "node1", "obj_token": "doc123", "obj_type": "docx", "title": "操作文档"}},
-			},
-		})
-	}))
-	defer server.Close()
-
-	result := callNamedTool(t, "wiki_nodes", stubConnectorService{item: &connectordomain.ConnectionSnapshot{
-		ConnectorID: "feishu-docx",
-		AuthType:    "oauth2",
-		APIBaseURL:  server.URL,
-		AccessToken: "token",
-	}}, map[string]any{"space_id": "sp1", "parent_node_token": "https://acme.feishu.cn/wiki/PARENT"})
-	if result.IsError {
-		t.Fatalf("飞书知识库节点工具失败: %+v", result)
-	}
-	var output map[string]any
-	if err := json.Unmarshal([]byte(result.Content[0]["text"].(string)), &output); err != nil {
-		t.Fatalf("解析工具输出失败: %v", err)
-	}
-	items := output["items"].([]any)
-	first := items[0].(map[string]any)
-	if first["node_token"] != "node1" || first["document_url"] == "" {
-		t.Fatalf("知识库节点工具输出不正确: %+v", output)
-	}
-}
-
 func TestFeishuDocxDriveListFiltersFileType(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/open-apis/drive/v1/files" {

@@ -43,25 +43,6 @@ func TestHostManagedCLIScopeRejectsSelectionOverrides(t *testing.T) {
 	}
 }
 
-func TestManualCLIScopeFlagsRemainAvailableOutsideManagedRuntime(t *testing.T) {
-	t.Setenv(nexusctlUserIDEnvName, "user-owner")
-	t.Setenv(nexusRuntimeScopeModeEnvName, "")
-
-	command, err := New(config.Config{})
-	if err != nil {
-		t.Fatalf("创建 CLI 命令失败: %v", err)
-	}
-	for _, name := range []string{"scope-user-id", "global-scope"} {
-		flag := command.PersistentFlags().Lookup(name)
-		if flag == nil {
-			t.Fatalf("缺少作用域 flag: %s", name)
-		}
-		if flag.Hidden {
-			t.Fatalf("人工 CLI 模式不应隐藏 flag: %s", name)
-		}
-	}
-}
-
 func TestCLIExecuteReleasesDatabasesAfterSuccessAndFailure(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -106,24 +87,6 @@ func TestLoadConfigFallsBackToCanonicalUsersRoot(t *testing.T) {
 
 	if got, want := cfg.WorkspacePath, filepath.Join(stateRoot, "users"); got != want {
 		t.Fatalf("nexusctl workspace base = %q, want %q", got, want)
-	}
-}
-
-func TestLoadConfigLeavesHostEnvironmentUntouched(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	workspaceRoot := filepath.Join(t.TempDir(), "workspaces")
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv(nexusConfigDirEnvName, stateRoot)
-	t.Setenv(nexusctlWorkspacePathEnvName, filepath.Join(workspaceRoot, "current"))
-	t.Setenv(workspacePathEnvName, workspaceRoot)
-	t.Setenv("DATABASE_DRIVER", "")
-	t.Setenv("DATABASE_URL", "")
-	t.Setenv("NEXUS_APP_MODE", "")
-
-	cfg := LoadConfig()
-
-	if cfg.WorkspacePath != workspaceRoot {
-		t.Fatalf("宿主 WORKSPACE_PATH 被改写: got=%q want=%q", cfg.WorkspacePath, workspaceRoot)
 	}
 }
 

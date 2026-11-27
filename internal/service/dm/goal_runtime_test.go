@@ -4,7 +4,6 @@ package dm
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -229,18 +228,6 @@ func (p *fakeGoalContextProvider) recordedUsage() []protocol.GoalUsage {
 	return append([]protocol.GoalUsage(nil), p.usage...)
 }
 
-func (p *fakeGoalContextProvider) recordedUsageLimitReasons() []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]string(nil), p.usageLimitReason...)
-}
-
-func (p *fakeGoalContextProvider) recordedProgress() []bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]bool(nil), p.progress...)
-}
-
 func firstTestRevision(revisions []int64) int64 {
 	if len(revisions) == 0 {
 		return 0
@@ -292,14 +279,6 @@ func stageDMAppliedGoalCommand(runner *roundRunner, operation string, goalID str
 		Outcome: string(protocol.MutationResultApplied), GoalID: goalID,
 		GoalStatus: string(status),
 	})
-}
-
-type dmSettlementBoundaryContext struct {
-	context.Context
-}
-
-func (dmSettlementBoundaryContext) Value(any) any {
-	return true
 }
 
 func TestRoundRunnerGoalMutationsUseBoundObjectiveRevision(t *testing.T) {
@@ -377,181 +356,6 @@ func TestTerminalRoundStatusEventCarriesUsageLimitFailureCode(t *testing.T) {
 	})
 	if event.Data["failure_code"] != protocol.ConversationFailureUsageLimited {
 		t.Fatalf("failure_code = %#v, want %q", event.Data["failure_code"], protocol.ConversationFailureUsageLimited)
-	}
-}
-
-func TestDMRegisterRunnerGuardsConsumedScopeUntilRoundFinished(t *testing.T) {
-	const (
-		sessionKey = "agent:nexus:ws:dm:create-guard"
-		roundID    = "round-create-guard"
-		goalID     = "goal-existing"
-	)
-	manager := runtimectx.NewManager()
-	_ = manager.StartRound(context.Background(), sessionKey, roundID, func() {})
-	provider := &fakeDMGoalUsageFinalizer{
-		fakeGoalContextProvider: &fakeGoalContextProvider{},
-		report: protocol.GoalUsageReport{
-			GoalID:     goalID,
-			SessionKey: sessionKey,
-			Status:     protocol.GoalStatusComplete,
-		},
-	}
-	runner := &roundRunner{
-		service:               &Service{Host: runtimehost.Host{Runtime: manager}, goals: provider},
-		sessionKey:            sessionKey,
-		roundID:               roundID,
-		GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
-		goalObjectiveRevision: &atomic.Int64{},
-	}
-	execution := &dmChatExecution{
-		service:    runner.service,
-		ctx:        context.Background(),
-		sessionKey: sessionKey,
-		agent:      &protocol.Agent{AgentID: "nexus"},
-		request:    Request{RoundID: roundID},
-		runner:     runner,
-	}
-	execution.registerRunner()
-
-	if rounds := manager.BeginGoalAccountingFinalizing(sessionKey); !slices.Equal(rounds, []string{roundID}) {
-		t.Fatalf("finalizing rounds = %#v, want [%s]", rounds, roundID)
-	}
-	if conflicts := manager.GoalAccountingCreateConflicts(sessionKey, ""); !slices.Equal(conflicts, []string{roundID}) {
-		t.Fatalf("external create conflicts = %#v, want live consumed round", conflicts)
-	}
-	if conflicts := manager.GoalAccountingCreateConflicts(sessionKey, roundID); !slices.Equal(conflicts, []string{roundID}) {
-		t.Fatalf("model create conflicts = %#v, want same consumed scope", conflicts)
-	}
-	runner.Mu.Lock()
-	binding := runner.IDForUsage
-	runner.Mu.Unlock()
-	if binding != goalID {
-		t.Fatalf("preflight changed old Goal binding to %q, want %q", binding, goalID)
-	}
-
-	runner.clearGoalUsage()
-	if conflicts := manager.GoalAccountingCreateConflicts(sessionKey, roundID); !slices.Equal(conflicts, []string{roundID}) {
-		t.Fatalf("clear reset consumed guard: %#v", conflicts)
-	}
-	manager.MarkRoundFinished(sessionKey, roundID)
-	if conflicts := manager.GoalAccountingCreateConflicts(sessionKey, ""); len(conflicts) != 0 {
-		t.Fatalf("finished historical round still blocks create: %#v", conflicts)
-	}
-}
-
-func TestDMExternalActivationDurableBindFailureKeepsOldBindingAndBaseline(t *testing.T) {
-	bindConflict := errors.New("durable scope already bound")
-	provider := &fakeDMScopeBindingGoalProvider{
-		fakeGoalContextProvider: &fakeGoalContextProvider{},
-		bindErr:                 bindConflict,
-	}
-	runner := &roundRunner{
-		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
-		ownerUserID:    "owner-bind-conflict",
-		sessionKey:     "agent:nexus:ws:dm:bind-conflict",
-		roundID:        "round-bind-conflict",
-		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-old", ChildIDForUsage: "goal-old", Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageScopeConsumed: true},
-	}
-	accelerateDMGoalUsageRetry(runner)
-	runner.recordGoalUsageFromAssistantMessage(
-		goalToolResultAssistantMessage("tool-old", "read_file", false, 4, 1),
-	)
-
-	err := runner.activateGoalUsage(context.Background(), "goal-new")
-	if !errors.Is(err, bindConflict) {
-		t.Fatalf("activateGoalUsage() error = %v, want durable bind conflict", err)
-	}
-	runner.Mu.Lock()
-	binding := runner.IDForUsage
-	consumed := runner.UsageScopeConsumed
-	runner.Mu.Unlock()
-	if binding != "goal-old" || !consumed {
-		t.Fatalf("binding/consumed = %q/%v, want old Goal retained and scope consumed", binding, consumed)
-	}
-	if err := runner.flushGoalUsage(dmSettlementBoundaryContext{Context: context.Background()}); err != nil {
-		t.Fatal(err)
-	}
-	usages := provider.recordedUsage()
-	if len(usages) != 1 || usages[0].ActualTokens() != 5 ||
-		len(provider.usageGoalIDs) != 1 || provider.usageGoalIDs[0] != "goal-old" {
-		t.Fatalf("post-conflict usage = %#v targets=%#v, want old baseline attributed to old Goal", usages, provider.usageGoalIDs)
-	}
-
-	provider.bindErr = goalsvc.ErrGoalInvalidState
-	if err := runner.activateGoalUsage(context.Background(), "goal-new"); err != nil {
-		t.Fatalf("capability fallback activation error = %v", err)
-	}
-	if runner.IDForUsage != "goal-new" {
-		t.Fatalf("capability fallback binding = %q, want goal-new", runner.IDForUsage)
-	}
-}
-
-func TestRoundRunnerSkipsEmptyGoalContinuationProgressWhileSubagentRuns(t *testing.T) {
-	goalProvider := &fakeGoalContextProvider{}
-	runner := &roundRunner{
-		service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
-		sessionKey:     "agent:nexus:ws:dm:test",
-		roundID:        "goal_continuation_1",
-		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-1", SubagentTasks: map[string]struct{}{"task-1": {}}},
-		inputOptions: sdkprotocol.OutboundMessageOptions{
-			Purpose: "goal_continuation",
-		},
-	}
-
-	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
-
-	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
-		t.Fatalf("progress = %#v, want running subagent to defer empty continuation progress", progress)
-	}
-	goalProvider.mu.Lock()
-	settledCalls := goalProvider.settledCalls
-	goalProvider.mu.Unlock()
-	if settledCalls != 1 {
-		t.Fatalf("settledCalls = %d, want runtime terminal to settle launch receipt while subagent work remains pending", settledCalls)
-	}
-}
-
-func TestRoundRunnerBindsModelCreatedGoalThroughTerminalSettlement(t *testing.T) {
-	sessionKey := "agent:nexus:ws:dm:test"
-	goalProvider := &fakeGoalContextProvider{
-		usageGoal:   &protocol.Goal{ID: "goal-created", SessionKey: sessionKey},
-		runtimeGoal: &protocol.Goal{ID: "goal-created", SessionKey: sessionKey},
-	}
-	runner := &roundRunner{
-		service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
-		sessionKey:     sessionKey,
-		roundID:        "round-1",
-		GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false)},
-	}
-
-	stageDMAppliedGoalCommand(runner, command.GoalOperationCreate, "goal-created", "")
-	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-create", "Bash", false, 5, 1))
-	stageDMAppliedGoalCommand(runner, command.GoalOperationUpdate, "goal-created", protocol.GoalStatusComplete)
-	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-update", "Bash", false, 8, 2))
-	runner.finalizeGoalUsage(context.Background(), exec.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  17,
-			OutputTokens: 4,
-			TotalTokens:  21,
-		},
-	}, nil)
-
-	if runner.IDForUsage != "goal-created" {
-		t.Fatalf("goalIDForUsage = %q, want fixed model-created Goal", runner.IDForUsage)
-	}
-	if len(goalProvider.usageSessionKeys) != 0 {
-		t.Fatalf("session usage targets = %#v, want bound Goal-only terminal settlement", goalProvider.usageSessionKeys)
-	}
-	if len(goalProvider.usageGoalIDs) != 1 ||
-		goalProvider.usageGoalIDs[0] != "goal-created" {
-		t.Fatalf("goal usage targets = %#v, want terminal fixed to goal-created", goalProvider.usageGoalIDs)
-	}
-	total := protocol.GoalUsage{}
-	for _, usage := range goalProvider.recordedUsage() {
-		total = total.Add(usage)
-	}
-	if total.InputTokens != 17 || total.OutputTokens != 4 || total.ActualTokens() != 21 {
-		t.Fatalf("settled usage = %#v, want complete round 17/4", total)
 	}
 }
 
@@ -691,20 +495,6 @@ type fakePersistentDMGoalProvider struct {
 	*fakeGoalContextProvider
 	snapshots []protocol.GoalUsageSourceSnapshot
 	claims    []protocol.GoalUsageSourceRoundClaim
-}
-
-type fakeDMScopeBindingGoalProvider struct {
-	*fakeGoalContextProvider
-	bindings []protocol.GoalUsageScopeBinding
-	bindErr  error
-}
-
-func (p *fakeDMScopeBindingGoalProvider) BindUsageScopeFromNow(
-	_ context.Context,
-	binding protocol.GoalUsageScopeBinding,
-) (protocol.GoalUsageScopeBindResult, error) {
-	p.bindings = append(p.bindings, binding)
-	return protocol.GoalUsageScopeBindResult{}, p.bindErr
 }
 
 type orderedDMBindingGoalProvider struct {

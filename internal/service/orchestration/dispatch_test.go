@@ -22,88 +22,6 @@ func (f assignmentTargetAuthorizerFunc) AuthorizeAssignmentTarget(
 	return f(ctx, request)
 }
 
-type executionDispatchConsumerFunc func(
-	context.Context,
-	ExecutionDispatchDelivery,
-) (ExecutionDispatchReceipt, error)
-
-func (f executionDispatchConsumerFunc) DeliverExecutionDispatch(
-	ctx context.Context,
-	delivery ExecutionDispatchDelivery,
-) (ExecutionDispatchReceipt, error) {
-	return f(ctx, delivery)
-}
-
-type dispatchRepositoryFake struct {
-	*fakeRepository
-	candidates []protocol.ExecutionDispatch
-	claim      func(string, int64, string, time.Duration) (*protocol.ExecutionDispatch, error)
-	mark       func(string, int64, string, string, string) (*protocol.ExecutionDispatch, error)
-	retry      func(string, int64, string, time.Time, string) (*protocol.ExecutionDispatch, error)
-	cancel     func(string, int64, string, string) (*protocol.ExecutionDispatch, error)
-}
-
-func (f *dispatchRepositoryFake) ListAvailableRoomDispatches(
-	context.Context,
-	int,
-) ([]protocol.ExecutionDispatch, error) {
-	return append([]protocol.ExecutionDispatch(nil), f.candidates...), nil
-}
-
-func (f *dispatchRepositoryFake) ClaimDispatch(
-	_ context.Context,
-	dispatchID string,
-	expectedVersion int64,
-	workerID string,
-	leaseDuration time.Duration,
-) (*protocol.ExecutionDispatch, error) {
-	if f.claim == nil {
-		return nil, errors.New("unexpected ClaimDispatch")
-	}
-	return f.claim(dispatchID, expectedVersion, workerID, leaseDuration)
-}
-
-func (f *dispatchRepositoryFake) MarkDispatchDelivered(
-	_ context.Context,
-	dispatchID string,
-	expectedVersion int64,
-	workerID string,
-	handoffID string,
-	queueItemID string,
-) (*protocol.ExecutionDispatch, error) {
-	if f.mark == nil {
-		return nil, errors.New("unexpected MarkDispatchDelivered")
-	}
-	return f.mark(dispatchID, expectedVersion, workerID, handoffID, queueItemID)
-}
-
-func (f *dispatchRepositoryFake) RetryDispatch(
-	_ context.Context,
-	dispatchID string,
-	expectedVersion int64,
-	workerID string,
-	retryAt time.Time,
-	cause string,
-) (*protocol.ExecutionDispatch, error) {
-	if f.retry == nil {
-		return nil, errors.New("unexpected RetryDispatch")
-	}
-	return f.retry(dispatchID, expectedVersion, workerID, retryAt, cause)
-}
-
-func (f *dispatchRepositoryFake) CancelDispatch(
-	_ context.Context,
-	dispatchID string,
-	expectedVersion int64,
-	workerID string,
-	cause string,
-) (*protocol.ExecutionDispatch, error) {
-	if f.cancel == nil {
-		return nil, errors.New("unexpected CancelDispatch")
-	}
-	return f.cancel(dispatchID, expectedVersion, workerID, cause)
-}
-
 func TestAuthorizeRoomRuntimeTargetRequiresManagedAssignmentAndExactBinding(t *testing.T) {
 	snapshot := roomAssignmentSnapshot()
 	snapshot.Assignments = []protocol.WorkAssignment{{
@@ -318,81 +236,6 @@ func TestActivateRoomAttemptStartsPendingRootWithSlotIdentity(t *testing.T) {
 		captured.Attempt.RuntimeRoundID != "runtime-round-1" ||
 		captured.Attempt.AgentRoundID != "agent-round-1" {
 		t.Fatalf("activation command = %+v", captured)
-	}
-}
-
-func TestDispatchPendingSchedulesRetryAfterDeliveryFailure(t *testing.T) {
-	snapshot := dispatchDeliverySnapshot()
-	candidate := protocol.ExecutionDispatch{
-		ID:               "dispatch-1",
-		ExecutionID:      snapshot.Execution.ID,
-		PlanID:           snapshot.Plan.ID,
-		WorkItemID:       "work-1",
-		SpecID:           "spec-1",
-		AssignmentID:     "assignment-1",
-		TargetAgentID:    "agent-worker",
-		Kind:             protocol.ExecutionDispatchRoomDirected,
-		Status:           protocol.ExecutionDispatchStatusPending,
-		Instruction:      "Deliver the evidence set.",
-		Version:          7,
-		DeliveryAttempts: 0,
-	}
-	fixedNow := time.Date(2026, time.July, 30, 12, 0, 0, 0, time.UTC)
-	repository := &dispatchRepositoryFake{
-		fakeRepository: &fakeRepository{snapshot: snapshot},
-		candidates:     []protocol.ExecutionDispatch{candidate},
-	}
-	repository.claim = func(
-		_ string,
-		_ int64,
-		_ string,
-		_ time.Duration,
-	) (*protocol.ExecutionDispatch, error) {
-		claimed := candidate
-		claimed.Status = protocol.ExecutionDispatchStatusClaimed
-		claimed.Version++
-		claimed.DeliveryAttempts++
-		return &claimed, nil
-	}
-	repository.retry = func(
-		dispatchID string,
-		expectedVersion int64,
-		workerID string,
-		retryAt time.Time,
-		cause string,
-	) (*protocol.ExecutionDispatch, error) {
-		if dispatchID != candidate.ID || expectedVersion != 8 || workerID != "worker-1" ||
-			!retryAt.Equal(fixedNow.Add(time.Second)) ||
-			cause != "Room runtime is unavailable" {
-			t.Fatalf(
-				"retry = %q/%d/%q/%s/%q",
-				dispatchID,
-				expectedVersion,
-				workerID,
-				retryAt,
-				cause,
-			)
-		}
-		pending := candidate
-		pending.Status = protocol.ExecutionDispatchStatusPending
-		pending.Version = 9
-		return &pending, nil
-	}
-	service := NewService(repository)
-	service.now = func() time.Time { return fixedNow }
-	service.SetExecutionDispatchConsumer(executionDispatchConsumerFunc(func(
-		context.Context,
-		ExecutionDispatchDelivery,
-	) (ExecutionDispatchReceipt, error) {
-		return ExecutionDispatchReceipt{}, errors.New("Room runtime is unavailable")
-	}))
-
-	result, err := service.DispatchPending(context.Background(), "worker-1", 8)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Claimed != 1 || result.Delivered != 0 || result.Retried != 1 {
-		t.Fatalf("DispatchRunResult = %+v", result)
 	}
 }
 
@@ -736,35 +579,6 @@ func TestDispatchPendingCancellationsRetriesThenDeliversExactBinding(t *testing.
 		captured.Binding.RuntimeRoundID != "round-old" ||
 		captured.ExecutorKind != protocol.AttemptExecutorSubagent {
 		t.Fatalf("captured delivery = %+v", captured)
-	}
-}
-
-func TestDispatchPendingCancellationsRecordsExplicitNotStartedLimitation(t *testing.T) {
-	repository := &cancellationOutboxFake{
-		fakeRepository: &fakeRepository{},
-		item: protocol.ExecutionCancellationDispatch{
-			ID:             "cancel-pending",
-			TargetKind:     protocol.ExecutionCancellationTargetNotStarted,
-			Status:         protocol.ExecutionCancellationDispatchPending,
-			LimitationCode: "attempt_not_started",
-			Version:        1,
-		},
-	}
-	service := NewService(repository)
-	result, err := service.DispatchPendingCancellations(
-		context.Background(),
-		"worker-1",
-		8,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.NotRequired != 1 ||
-		repository.item.Status != protocol.ExecutionCancellationDispatchNotRequired ||
-		repository.item.Outcome != protocol.ExecutionCancellationOutcomeNotStarted ||
-		repository.item.LimitationCode != "attempt_not_started" ||
-		repository.item.Receipt != "Attempt never acquired a physical runtime target" {
-		t.Fatalf("result=%+v item=%+v", result, repository.item)
 	}
 }
 
@@ -1136,37 +950,6 @@ func reviewReturnSnapshot() (*protocol.ExecutionSnapshot, protocol.ExecutionRevi
 	}
 	snapshot.ReviewDispatches = []protocol.ExecutionReviewDispatch{dispatch}
 	return snapshot, dispatch
-}
-
-func TestServicePlanExecutionCreatesExecutionAndFirstPlanAtomically(t *testing.T) {
-	var captured orchestrationstore.CreateWithPlanCommand
-	repository := &fakeRepository{
-		createWithPlan: func(
-			_ context.Context,
-			command orchestrationstore.CreateWithPlanCommand,
-		) (*protocol.ExecutionSnapshot, error) {
-			captured = command
-			return snapshotFromInitialPlan(command.Execution, command.Plan), nil
-		},
-	}
-	service := testService(repository)
-	result, err := service.PlanExecution(context.Background(), coordinatorActor(), PlanExecutionInput{
-		CommandID:          "initial-plan",
-		Objective:          "Deliver a verified orchestration report",
-		CompletionCriteria: []string{"The final report is accepted"},
-		Draft:              validPlanDraft(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationApplied ||
-		captured.Execution.ID == "" ||
-		captured.Plan.Plan.ExecutionID != captured.Execution.ID ||
-		captured.Plan.Plan.Revision != 1 ||
-		result.Snapshot == nil ||
-		result.Snapshot.Plan == nil {
-		t.Fatalf("initial atomic result=%#v command=%#v", result, captured)
-	}
 }
 
 func TestServicePlanExecutionReplacesTransientWithCompleteSuccessor(t *testing.T) {

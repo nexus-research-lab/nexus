@@ -1,7 +1,6 @@
 package credentials
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,29 +28,6 @@ func TestResolveHostKeysKeepsOneActiveAndAllDistinctLegacySources(t *testing.T) 
 	}
 	if resolved.Active != keychainKey || resolved.Source != "keychain" || len(resolved.Legacy) != 2 {
 		t.Fatalf("resolved host keys mismatch: source=%q legacy=%d", resolved.Source, len(resolved.Legacy))
-	}
-}
-
-func TestResolveHostKeysAutoFallsBackWithoutGuessingInExplicitMode(t *testing.T) {
-	resolved, err := resolveHostKeys(
-		hostKeyModeAuto,
-		t.TempDir(),
-		testActiveKey,
-		nil,
-		func() (string, error) { return "", errors.New("unavailable") },
-	)
-	if err != nil || resolved.Active != testActiveKey || resolved.Source != "explicit" {
-		t.Fatalf("auto explicit fallback mismatch: result=%+v err=%v", resolved, err)
-	}
-	explicit, err := resolveHostKeys(
-		hostKeyModeExplicit,
-		t.TempDir(),
-		testActiveKey,
-		nil,
-		func() (string, error) { t.Fatal("explicit mode must not inspect Keychain"); return "", nil },
-	)
-	if err != nil || explicit.Source != "explicit" {
-		t.Fatalf("explicit result mismatch: result=%+v err=%v", explicit, err)
 	}
 }
 

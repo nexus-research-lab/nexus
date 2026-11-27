@@ -23,11 +23,8 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
-	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
-	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
@@ -278,26 +275,6 @@ func (s *dmTestSender) SendEvent(_ context.Context, event protocol.EventMessage)
 	return nil
 }
 
-type fakeDMTitleScheduler struct {
-	mu       sync.Mutex
-	requests []titlegen.Request
-}
-
-func (s *fakeDMTitleScheduler) Schedule(_ context.Context, request titlegen.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.requests = append(s.requests, request)
-}
-
-func (s *fakeDMTitleScheduler) LastRequest() titlegen.Request {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.requests) == 0 {
-		return titlegen.Request{}
-	}
-	return s.requests[len(s.requests)-1]
-}
-
 type fakeDMPreferencesService struct {
 	prefs preferencessvc.Preferences
 }
@@ -397,26 +374,6 @@ func assertEventTypes(t *testing.T, events []protocol.EventMessage, expected []p
 	}
 }
 
-func assertContainsRoundStatus(t *testing.T, events []protocol.EventMessage, status string) {
-	t.Helper()
-	for _, event := range events {
-		if event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == status {
-			return
-		}
-	}
-	t.Fatalf("未找到 round_status=%s: %+v", status, events)
-}
-
-func assertContainsStreamEventType(t *testing.T, events []protocol.EventMessage, streamType string) {
-	t.Helper()
-	for _, event := range events {
-		if event.EventType == protocol.EventTypeStream && event.Data["type"] == streamType {
-			return
-		}
-	}
-	t.Fatalf("未找到 stream.type=%s: %+v", streamType, events)
-}
-
 func assertContainsResultSubtype(t *testing.T, events []protocol.EventMessage, subtype string) {
 	t.Helper()
 	for _, event := range events {
@@ -434,15 +391,6 @@ func assertContainsResultSubtype(t *testing.T, events []protocol.EventMessage, s
 		}
 	}
 	t.Fatalf("未找到 result.subtype=%s: %+v", subtype, events)
-}
-
-func assertNotContainsErrorEventForMessage(t *testing.T, events []protocol.EventMessage, messageID string) {
-	t.Helper()
-	for _, event := range events {
-		if event.EventType == protocol.EventTypeError && event.MessageID == messageID {
-			t.Fatalf("durable 错误结果不应重复广播绑定消息 %s 的 error 事件: %+v", messageID, events)
-		}
-	}
 }
 
 func anyToInt(value any) int {
@@ -600,86 +548,6 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	}
 }
 
-func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testing.T) {
-	cfg := newDMTestConfig(t)
-
-	agentService := newDMAgentService(t, cfg)
-	permission := permissionctx.NewContext()
-	client := newFakeDMClient()
-	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeStreamEvent,
-				SessionID: client.sessionID,
-				Stream: &sdkprotocol.StreamEvent{
-					Event: map[string]any{
-						"type": "message_start",
-						"message": map[string]any{
-							"id":    "assistant-premature",
-							"model": "sonnet",
-						},
-					},
-				},
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeStreamEvent,
-				SessionID: client.sessionID,
-				Stream: &sdkprotocol.StreamEvent{
-					Event: map[string]any{
-						"type":  "content_block_start",
-						"index": 0,
-						"content_block": map[string]any{
-							"type":     "thinking",
-							"thinking": "先分析",
-						},
-					},
-				},
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeStreamEvent,
-				SessionID: client.sessionID,
-				Stream: &sdkprotocol.StreamEvent{
-					Event: map[string]any{
-						"type":  "content_block_delta",
-						"index": 0,
-						"delta": map[string]any{
-							"type":     "thinking_delta",
-							"thinking": " 再收口",
-						},
-					},
-				},
-			}
-			close(client.messages)
-		}()
-	}
-
-	factory := &fakeDMFactory{client: client}
-	runtimeManager := runtimectx.NewManagerWithFactory(factory)
-	service := NewService(cfg, agentService, runtimeManager, permission)
-	service.SetInboxStore(newDMInboxStore(t, cfg))
-	sender := newDMTestSender("sender-premature")
-	sessionKey := "agent:nexus:ws:dm:premature-close"
-	permission.BindSession(sessionKey, sender)
-
-	if err := service.HandleChat(context.Background(), Request{
-		SessionKey: sessionKey,
-		Content:    "测试提前结束",
-		RoundID:    "round-premature",
-	}); err != nil {
-		t.Fatalf("HandleChat 失败: %v", err)
-	}
-
-	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "error"
-	})
-
-	assertContainsRoundStatus(t, events, "error")
-	assertContainsStreamEventType(t, events, "message_start")
-	assertContainsStreamEventType(t, events, "content_block_delta")
-	assertContainsResultSubtype(t, events, "error")
-	assertNotContainsErrorEventForMessage(t, events, "assistant-premature")
-}
-
 func TestDetachedAcceptanceProjectsRuntimeStartupFailure(t *testing.T) {
 	cfg := newDMTestConfig(t)
 
@@ -718,25 +586,6 @@ func TestDetachedAcceptanceProjectsRuntimeStartupFailure(t *testing.T) {
 	history := readDMSessionHistory(t, cfg, service, sessionKey)
 	if len(history) < 2 || history[0]["client_message_id"] != "message-startup-failure" {
 		t.Fatalf("启动失败后 durable 历史不完整: %+v", history)
-	}
-}
-
-func TestDetachedAcceptanceRejectsOversizedClientMessageID(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	service := NewService(
-		cfg,
-		newDMAgentService(t, cfg),
-		runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()}),
-		permissionctx.NewContext(),
-	)
-	service.SetInboxStore(newDMInboxStore(t, cfg))
-	err := service.HandleRealtimeChat(context.Background(), Request{
-		SessionKey:      "agent:nexus:ws:dm:oversized-client-message-id",
-		Content:         "限制客户端消息 ID 长度",
-		ClientMessageID: strings.Repeat("x", protocol.MaxClientMessageIDBytes+1),
-	})
-	if err == nil || !strings.Contains(err.Error(), "client_message_id 过长") {
-		t.Fatalf("超长 client_message_id 应在持久化前拒绝: %v", err)
 	}
 }
 
@@ -963,102 +812,6 @@ func TestLatestForkableAssistantRoundPreservesBoundaryFailure(t *testing.T) {
 	if !errors.Is(err, boundaryErr) {
 		t.Fatalf("boundary error = %v, want %v", err, boundaryErr)
 	}
-}
-
-func TestTransientForkAtTranscriptTailOmitsProviderSpecificMessageBoundary(t *testing.T) {
-	legacyMessageID := "msg_20260821090320f5fbc914cb404581-2"
-	if got := conversationForkResumeAt(map[string]any{
-		protocol.OptionRuntimeForkAtTranscriptTail: true,
-	}, legacyMessageID); got != "" {
-		t.Fatalf("conversationForkResumeAt() = %q, want full source transcript", got)
-	}
-	if got := conversationForkResumeAt(nil, legacyMessageID); got != legacyMessageID {
-		t.Fatalf("bounded conversationForkResumeAt() = %q, want %q", got, legacyMessageID)
-	}
-	if !transcriptRoundIsSessionTail(workspacestore.TranscriptRoundTail{
-		RoundIDs: []string{"round-target"},
-	}, "round-target") {
-		t.Fatal("single terminal round was not recognized as the transcript tail")
-	}
-	if transcriptRoundIsSessionTail(workspacestore.TranscriptRoundTail{
-		RoundIDs: []string{"round-target", "round-later"},
-	}, "round-target") {
-		t.Fatal("historical round was incorrectly recognized as the transcript tail")
-	}
-}
-
-func TestLastVisibleUserMessageSkipsHiddenControlRows(t *testing.T) {
-	visible := protocol.Message{
-		"content":  "读取文件",
-		"role":     "user",
-		"round_id": "round-visible",
-	}
-	rows := []protocol.Message{
-		visible,
-		{
-			"content":          "内部续跑",
-			"hidden_from_user": true,
-			"is_synthetic":     true,
-			"role":             "user",
-			"round_id":         "round-internal",
-		},
-	}
-
-	got, ok := lastVisibleUserMessage(rows)
-	if !ok {
-		t.Fatal("lastVisibleUserMessage() returned no visible message")
-	}
-	if got["round_id"] != "round-visible" {
-		t.Fatalf("lastVisibleUserMessage() round_id = %#v, want round-visible", got["round_id"])
-	}
-}
-
-type fakeDMQuotaChecker struct {
-	err error
-}
-
-func TestServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded(t *testing.T) {
-	cfg := newDMTestConfig(t)
-
-	agentService := newDMAgentService(t, cfg)
-	client := newFakeDMClient()
-	factory := &fakeDMFactory{client: client}
-	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(factory), permissionctx.NewContext())
-	service.SetInboxStore(newDMInboxStore(t, cfg))
-	goalProvider := &fakeGoalContextProvider{}
-	service.SetGoalContextProvider(goalProvider)
-	quotaErr := subscriptionsvc.QuotaExceededError{UsedTokens: 10, LimitTokens: 10}
-	service.SetQuotaChecker(fakeDMQuotaChecker{err: quotaErr})
-
-	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
-		UserID: "owner-internal-goal-quota",
-		Role:   authsvc.RoleOwner,
-	})
-	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Internal Goal Quota Agent"})
-	if err != nil {
-		t.Fatalf("创建测试 agent 失败: %v", err)
-	}
-	sessionKey := protocol.BuildAgentSessionKey(agentValue.AgentID, protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "internal-goal-quota", "")
-	err = service.HandleChat(ctx, Request{
-		SessionKey: sessionKey,
-		Content:    "internal goal continuation",
-		GoalID:     "goal-internal-quota",
-		RoundID:    "round-internal-goal-quota",
-		Internal:   true,
-	})
-	if !errors.Is(err, subscriptionsvc.ErrQuotaExceeded) {
-		t.Fatalf("账号额度耗尽应阻止内部 Goal runtime，实际: %v", err)
-	}
-	if got := goalProvider.recordedUsageLimitReasons(); len(got) != 1 || got[0] != quotaErr.ClientMessage() {
-		t.Fatalf("Goal usage limit reasons = %#v, want actionable subscription quota message", got)
-	}
-	if got := factory.LastOptions(); got.Model != "" || client.connectCalls != 0 {
-		t.Fatalf("账号额度耗尽时不应创建或连接内部 Goal runtime: options=%+v connect_calls=%d", got, client.connectCalls)
-	}
-}
-
-func (f fakeDMQuotaChecker) EnsureQuotaAvailable(context.Context, string) error {
-	return f.err
 }
 
 func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {

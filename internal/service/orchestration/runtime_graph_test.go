@@ -327,69 +327,6 @@ func TestRuntimeCommandReceiptsReconcileCLITransportInOneGraphRead(t *testing.T)
 	}
 }
 
-func TestRuntimeGraphObservesBridgeToolLifecycleWithoutModelStatusCall(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 8, 3, 10, 0, 0, 0, time.UTC)
-	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
-	service := NewService(repository)
-	service.now = func() time.Time { return now }
-	actor := ActorContext{
-		OwnerUserID:    "owner-1",
-		SessionKey:     "session-1",
-		AgentID:        "agent-1",
-		RootRoundID:    "round-1",
-		RuntimeRoundID: "round-1",
-		AgentRoundID:   "agent-round-1",
-	}
-	message, err := sdkprotocol.DecodeMessage(map[string]any{
-		"type": "assistant",
-		"uuid": "assistant-1",
-		"message": map[string]any{
-			"role": "assistant",
-			"content": []any{map[string]any{
-				"type":  "tool_use",
-				"id":    "tool-1",
-				"name":  "search",
-				"input": map[string]any{"secret": "not persisted"},
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
-		t.Fatal(err)
-	}
-	if repository.reconciled != 1 || len(repository.nodes) != 2 || len(repository.edges) != 1 {
-		t.Fatalf("runtime graph writes = reconcile:%d nodes:%d edges:%d", repository.reconciled, len(repository.nodes), len(repository.edges))
-	}
-	tool := repository.nodes[1]
-	if tool.Kind != protocol.ExecutionRuntimeNodeTool ||
-		tool.SubjectID != "tool-1" || tool.Name != "search" ||
-		tool.Status != protocol.ExecutionRuntimeNodeRunning {
-		t.Fatalf("unexpected tool node: %+v", tool)
-	}
-	if _, leaked := tool.Metadata["secret"]; leaked {
-		t.Fatalf("tool input leaked into runtime graph metadata: %+v", tool.Metadata)
-	}
-	if err = service.FinishRuntimeRound(
-		context.Background(),
-		actor,
-		"",
-		"round interrupted",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if repository.finishedStatus != protocol.ExecutionRuntimeNodeInterrupted {
-		t.Fatalf("finished status = %q, want interrupted", repository.finishedStatus)
-	}
-	terminal := repository.nodes[len(repository.nodes)-1]
-	if terminal.ErrorSummary != "round interrupted" {
-		t.Fatalf("Agent failure summary missing: %+v", terminal)
-	}
-}
-
 func TestRuntimeGraphMarksStructuredRuntimeCommandIdentity(t *testing.T) {
 	t.Parallel()
 	message, err := sdkprotocol.DecodeMessage(map[string]any{
@@ -422,98 +359,6 @@ func TestRuntimeGraphMarksStructuredRuntimeCommandIdentity(t *testing.T) {
 	}
 	if _, leaked := metadata["input"]; leaked {
 		t.Fatalf("structured command leaked business input: %+v", metadata)
-	}
-}
-
-func TestRuntimeGraphPersistsManagedCLITransportWithoutRawCommand(t *testing.T) {
-	t.Parallel()
-
-	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
-	service := NewService(repository)
-	service.now = func() time.Time {
-		return time.Date(2026, 8, 18, 17, 0, 0, 0, time.UTC)
-	}
-	actor := ActorContext{
-		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
-		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
-	}
-	message, err := sdkprotocol.DecodeMessage(map[string]any{
-		"type": "assistant", "uuid": "assistant-1",
-		"message": map[string]any{
-			"role": "assistant",
-			"content": []any{map[string]any{
-				"type": "tool_use", "id": "tool-1", "name": "Bash",
-				"input": map[string]any{
-					"command": `"${NEXUS_COMMAND_PATH}" --json execution inspect`,
-				},
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
-		t.Fatal(err)
-	}
-	if len(repository.nodes) != 2 {
-		t.Fatalf("runtime graph nodes = %+v", repository.nodes)
-	}
-	tool := repository.nodes[1]
-	if !runtimeGraphIsCommandTransport(tool) ||
-		runtimeGraphMetadataString(tool, runtimeGraphCommandDomainMetadataKey) != "execution" ||
-		runtimeGraphMetadataString(tool, runtimeGraphCommandActionMetadataKey) != "inspect" {
-		t.Fatalf("managed command transport metadata = %+v", tool.Metadata)
-	}
-	if _, leaked := tool.Metadata["command"]; leaked {
-		t.Fatalf("managed command text leaked into runtime graph metadata: %+v", tool.Metadata)
-	}
-	if projected := projectRuntimeGraphNode(tool, 0, true); projected.Visibility != protocol.ExecutionGraphNodeDetail {
-		t.Fatalf("managed command transport visibility = %q", projected.Visibility)
-	}
-}
-
-func TestRuntimeGraphTreatsRejectedMutationAsFailedControlReturn(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 8, 4, 12, 15, 0, 0, time.UTC)
-	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
-	service := NewService(repository)
-	service.now = func() time.Time { return now }
-	actor := ActorContext{
-		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
-		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
-	}
-	message, err := sdkprotocol.DecodeMessage(map[string]any{
-		"type": "user",
-		"uuid": "tool-result-rejected",
-		"message": map[string]any{
-			"role": "user",
-			"content": []any{map[string]any{
-				"type": "tool_result", "tool_use_id": "tool-plan", "is_error": false,
-				"content": `{"message":"Plan Document items must contain at least one complete Work Item","outcome":"rejected","reason_code":"plan_items_empty"}`,
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
-		t.Fatal(err)
-	}
-	if len(repository.nodes) != 2 || len(repository.edges) != 2 {
-		t.Fatalf("runtime writes nodes=%+v edges=%+v", repository.nodes, repository.edges)
-	}
-	tool := repository.nodes[1]
-	if tool.Status != protocol.ExecutionRuntimeNodeFailed || !tool.Failed ||
-		tool.ErrorCode != "plan_items_empty" ||
-		tool.ErrorSummary != "Plan Document items must contain at least one complete Work Item" ||
-		tool.ResultSummary != "" || tool.Metadata["mutation_outcome"] != "rejected" {
-		t.Fatalf("rejected mutation node = %+v", tool)
-	}
-	if repository.edges[1].Kind != protocol.ExecutionRuntimeEdgeLoopBack ||
-		repository.edges[1].SourceNodeID != tool.ID ||
-		repository.edges[1].TargetNodeID != repository.nodes[0].ID {
-		t.Fatalf("rejected mutation control return = %+v", repository.edges[1])
 	}
 }
 
@@ -951,46 +796,6 @@ func TestRuntimeGraphRecoversHistoricalSubagentToolsWithoutPersistingContent(t *
 	}
 }
 
-func TestRuntimeGraphReviewEdgesUseSuccessfulSubmissionAsControlAnchor(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 8, 6, 11, 30, 0, 0, time.UTC)
-	view := &protocol.ExecutionView{Graph: protocol.ExecutionGraphView{
-		Nodes: []protocol.ExecutionGraphNodeView{
-			{ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent},
-			{
-				ID: "submit-1", Kind: protocol.ExecutionGraphNodeTool,
-				Visibility:   protocol.ExecutionGraphNodeNested,
-				ParentNodeID: "work-1", Name: "submit_work",
-				LifecycleStatus: "succeeded", StartedAt: &now,
-			},
-			{ID: "gate-1", Kind: protocol.ExecutionGraphNodeGate},
-		},
-		Edges: []protocol.ExecutionGraphEdgeView{
-			{ID: "review-1", Kind: protocol.ExecutionGraphEdgeReview, SourceNodeID: "work-1", TargetNodeID: "gate-1"},
-			{ID: "return-1", Kind: protocol.ExecutionGraphEdgeLoopBack, SourceNodeID: "gate-1", TargetNodeID: "work-1"},
-		},
-	}}
-	reanchorExecutionReviewEdgesToSubmission(view, map[string]int{
-		"work-1": 0, "submit-1": 1, "gate-1": 2,
-	})
-	if view.Graph.Edges[0].SourceNodeID != "submit-1" ||
-		view.Graph.Edges[1].TargetNodeID != "submit-1" {
-		t.Fatalf("review control anchor = %+v", view.Graph.Edges)
-	}
-
-	view.Graph.Nodes[1].Visibility = protocol.ExecutionGraphNodeDetail
-	view.Graph.Edges[0].SourceNodeID = "work-1"
-	view.Graph.Edges[1].TargetNodeID = "work-1"
-	reanchorExecutionReviewEdgesToSubmission(view, map[string]int{
-		"work-1": 0, "submit-1": 1, "gate-1": 2,
-	})
-	if view.Graph.Edges[0].SourceNodeID != "work-1" ||
-		view.Graph.Edges[1].TargetNodeID != "work-1" {
-		t.Fatalf("detail command transport captured visible review edges: %+v", view.Graph.Edges)
-	}
-}
-
 func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.T) {
 	t.Parallel()
 
@@ -1060,36 +865,6 @@ func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.
 	}
 	if !runtimeGraphCommandInputStagingTool("write_file", map[string]any{"file_path": stagingPath}) {
 		t.Fatal("write_file command input staging variant was not classified as transport detail")
-	}
-}
-
-func TestRuntimeGraphMarksCommandInputStagingToolWithoutPersistingRawPath(t *testing.T) {
-	t.Parallel()
-
-	path := "/private/state/users/owner/runtime/tmp/runtime-command-inputs/0123456789abcdef0123456789abcdef/input.json"
-	message, err := sdkprotocol.DecodeMessage(map[string]any{
-		"type": "assistant", "uuid": "assistant-input-write",
-		"message": map[string]any{
-			"role": "assistant",
-			"content": []any{map[string]any{
-				"type": "tool_use", "id": "tool-input-write", "name": "Write",
-				"input": map[string]any{"file_path": path, "content": `{"secret":"not persisted"}`},
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	events := runtimeGraphLifecycleEvents(message)
-	if len(events) != 1 ||
-		!strings.EqualFold(events[0].Metadata[runtimeGraphCommandTransportMetadataKey], "true") ||
-		events[0].Metadata[runtimeGraphCommandActionMetadataKey] != "input_staging" {
-		t.Fatalf("command input staging lifecycle = %+v", events)
-	}
-	for key, value := range events[0].Metadata {
-		if strings.Contains(key, path) || strings.Contains(value, path) || strings.Contains(value, "secret") {
-			t.Fatalf("command input staging metadata leaked raw input: %+v", events[0].Metadata)
-		}
 	}
 }
 

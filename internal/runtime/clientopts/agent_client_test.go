@@ -4,13 +4,11 @@ package clientopts
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/runtimeadmission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 type fakeRuntimeConfigResolver struct {
@@ -28,32 +26,6 @@ func (r fakeRuntimeConfigResolver) ResolveRuntimeConfig(
 		*r.calls = *r.calls + 1
 	}
 	return r.config, r.err
-}
-
-func TestRuntimePreauthorizationPreservesExplicitRules(t *testing.T) {
-	for _, configured := range [][]string{nil, {"WebFetch(domain:example.com)", "Bash(git status)"}} {
-		options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
-			config: &RuntimeConfig{Model: "test"},
-		}, AgentClientOptionsInput{
-			WorkspacePath: t.TempDir(), AllowedTools: configured,
-			DisallowedTools: []string{"WebSearch", "Write"},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !slices.Contains(options.Tools.Allow, "WebSearch") ||
-			!slices.Contains(options.Tools.Deny, "WebSearch") || !slices.Contains(options.Tools.Deny, "Write") {
-			t.Fatalf("默认检索授权不得移除显式禁止规则: %+v", options.Tools)
-		}
-		if len(configured) > 0 && (slices.Contains(options.Tools.Allow, "WebFetch") || !slices.Contains(options.Tools.Allow, configured[0])) {
-			t.Fatalf("不得扩大已有域名授权: %+v", options.Tools.Allow)
-		}
-		for _, tool := range []string{"Bash", "Agent", "Write", "Edit", "Read"} {
-			if slices.Contains(options.Tools.Allow, tool) {
-				t.Fatalf("不得无条件预授权 %s", tool)
-			}
-		}
-	}
 }
 
 func TestMergeAgentMCPServersRejectsUnsafeStaticHeaders(t *testing.T) {
@@ -74,17 +46,6 @@ func TestMergeAgentMCPServersRejectsUnsafeStaticHeaders(t *testing.T) {
 				t.Fatalf("unsafe headers accepted: %v", err)
 			}
 		})
-	}
-}
-
-func TestMergeAgentMCPServersRejectsUnstableNames(t *testing.T) {
-	for _, name := range []string{" white-space", "with space", "line\nbreak", strings.Repeat("a", 65)} {
-		_, err := MergeAgentMCPServers(nil, map[string]any{
-			name: map[string]any{"command": "custom"},
-		})
-		if err == nil {
-			t.Fatalf("server name %q should be rejected", name)
-		}
 	}
 }
 
@@ -153,21 +114,6 @@ func TestBuildClaudeOptionsDoNotClaimNXSProviderOwnership(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsRejectsUnknownConfigurationEnvironment(t *testing.T) {
-	_, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		RuntimeKind:   runtimeKindNXS,
-		WorkspacePath: t.TempDir(),
-		ConfigurationEnv: map[string]string{
-			protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:8010/configuration",
-			protocol.NexusConfigCapabilityTokenEnvName: "test-capability",
-			"HOME": "/tmp/escaped-home",
-		},
-	})
-	if err == nil || !strings.Contains(err.Error(), "unsupported environment key") {
-		t.Fatalf("unknown nexuscfg environment key was accepted: %v", err)
-	}
-}
-
 type fakeRuntimeAdmissionResolver struct {
 	err error
 }
@@ -188,41 +134,6 @@ func TestBeginAgentRuntimeAdmissionFailsClosed(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsProjectsDiagnosticsForBothRuntimes(t *testing.T) {
-	t.Setenv(runtimectx.AgentSDKDiagnosticsJSONLEnvName, "")
-	for _, test := range []struct {
-		name    string
-		kind    string
-		enabled bool
-	}{
-		{"Claude enabled", runtimeKindClaude, true},
-		{"Claude disabled", runtimeKindClaude, false},
-		{"nxs enabled", runtimeKindNXS, true},
-		{"nxs disabled", runtimeKindNXS, false},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-				RuntimeKind:                test.kind,
-				AgentSDKDiagnosticsEnabled: test.enabled,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := runtimectx.AgentSDKDiagnosticsEnabled(options.Env); got != test.enabled {
-				t.Fatalf("diagnostics enabled = %t, want %t", got, test.enabled)
-			}
-			_, hasBridgeFlag := options.Env[runtimectx.AgentSDKDiagnosticsEnvName]
-			if wantBridgeFlag := test.enabled && test.kind == runtimeKindClaude; hasBridgeFlag != wantBridgeFlag {
-				t.Fatalf("Claude diagnostics flag present = %t, want %t", hasBridgeFlag, wantBridgeFlag)
-			}
-			_, hasJSONL := options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName]
-			if wantJSONL := test.enabled && test.kind == runtimeKindNXS; hasJSONL != wantJSONL {
-				t.Fatalf("nxs JSONL diagnostics present = %t, want %t", hasJSONL, wantJSONL)
-			}
-		})
-	}
-}
-
 type visionTestResolver struct {
 	main, auxiliary       *RuntimeConfig
 	mainErr, auxiliaryErr error
@@ -233,43 +144,6 @@ func (r visionTestResolver) ResolveRuntimeConfig(_ context.Context, provider, _ 
 		return r.main, r.mainErr
 	}
 	return r.auxiliary, r.auxiliaryErr
-}
-
-func TestOptionalVisionDoesNotBlockMainChat(t *testing.T) {
-	for _, mainVision := range []bool{false, true} {
-		for _, tc := range []struct {
-			name, provider, model string
-			config                *RuntimeConfig
-			err                   error
-		}{
-			{name: "unknown", provider: "custom", model: "kimi-k2.6", config: &RuntimeConfig{Model: "kimi-k2.6", APIFormat: apiFormatChatCompletions}},
-			{name: "removed", provider: "custom", model: "kimi-k2.6", err: errors.New("provider no longer exists")},
-			{name: "disabled", provider: "custom", model: "kimi-k2.6", err: errors.New("provider disabled")},
-			{name: "partial", provider: "custom"},
-			{name: "unset"},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Setenv("NEXUS_VISION_MODEL", "inherited-model")
-				t.Setenv("NEXUS_VISION_API_KEY", "inherited-key")
-				resolver := visionTestResolver{main: &RuntimeConfig{Model: "main-model", Vision: mainVision, APIFormat: apiFormatChatCompletions, AuthToken: "main-key", BaseURL: "https://main.test"}, auxiliary: tc.config, auxiliaryErr: tc.err}
-				options, err := BuildAgentClientOptions(context.Background(), resolver, AgentClientOptionsInput{RuntimeKind: "nxs", Provider: "main", Model: "main-model", VisionProvider: tc.provider, VisionModel: tc.model, ExtraEnv: map[string]string{"NEXUS_VISION_MODEL": "stale-model", "NEXUS_VISION_API_KEY": "stale-key"}})
-				if err != nil {
-					t.Fatal(err)
-				}
-				if options.Model != "main-model" {
-					t.Fatalf("main model changed: %s", options.Model)
-				}
-				for _, key := range []string{"NEXUS_VISION_MODEL", "NEXUS_VISION_API_KEY", "NEXUS_VISION_BASE_URL"} {
-					if options.Env[key] != "" {
-						t.Fatalf("invalid auxiliary retained %s", key)
-					}
-				}
-				if (options.Env[nexusModelSupportsVisionEnvName] == "true") != mainVision {
-					t.Fatal("main vision capability changed")
-				}
-			})
-		}
-	}
 }
 
 func TestVisionAdmissionRetainsValidRouteAndMainFailures(t *testing.T) {

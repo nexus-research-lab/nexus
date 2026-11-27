@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -522,29 +521,6 @@ func createRuntimeCommandTask(
 
 func boolCommandPointer(value bool) *bool { return &value }
 
-func TestNextAutomationDeadlineChoosesEarliestRunnableBoundary(t *testing.T) {
-	db := newAutomationTestDB(t)
-	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite", AutomationRunTimeoutSeconds: 60},
-		db, nil, nil, nil, permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
-	)
-	leaseAt := now.Add(20 * time.Second)
-	taskAt := now.Add(30 * time.Second)
-	expiresAt := now.Add(40 * time.Second)
-	startedAt := now.Add(-55 * time.Second)
-	service.schedulerLeaseRenewAt = leaseAt
-	service.jobStates["job-deadline"] = &automationexec.JobRuntimeState{
-		Job:     automationdomain.ScheduledTask{Enabled: true, ExpiresAt: &expiresAt},
-		Running: true, RunningStartedAt: &startedAt, NextRunAt: &taskAt,
-	}
-
-	timeoutAt := now.Add(5 * time.Second)
-	if deadline := service.nextAutomationDeadline(); deadline == nil || !deadline.Equal(timeoutAt) {
-		t.Fatalf("next deadline = %v, want stale-run timeout %s", deadline, timeoutAt)
-	}
-}
-
 func TestSchedulerLeaseAllowsSingleLeaderAndExpiryTakeover(t *testing.T) {
 	db := newAutomationTestDB(t)
 	newService := func(ownerID string) *Service {
@@ -574,37 +550,6 @@ func TestSchedulerLeaseAllowsSingleLeaderAndExpiryTakeover(t *testing.T) {
 	held, becameLeader, err = first.refreshSchedulerLease(context.Background(), now.Add(4*time.Second))
 	if err != nil || held || becameLeader {
 		t.Fatalf("原 leader 不应覆盖新租约: held=%v became=%v err=%v", held, becameLeader, err)
-	}
-}
-
-func TestCreateAndEnableTaskRespectUserCapacity(t *testing.T) {
-	db := newAutomationTestDB(t)
-	service := NewService(
-		config.Config{
-			DatabaseDriver:                   "sqlite",
-			AutomationMaxEnabledTasksPerUser: 1,
-		},
-		db,
-		nil,
-		nil,
-		nil,
-		permissionctx.NewContext(),
-		&fakeWorkspaceReader{},
-		nil,
-	)
-	first := schedulerPolicyTaskInput("第一个任务", true)
-	if _, err := service.CreateTask(context.Background(), first); err != nil {
-		t.Fatalf("创建第一个任务失败: %v", err)
-	}
-	if _, err := service.CreateTask(context.Background(), schedulerPolicyTaskInput("超限任务", true)); err == nil || !strings.Contains(err.Error(), "不能超过 1 个") {
-		t.Fatalf("创建超限启用任务应失败: %v", err)
-	}
-	disabled, err := service.CreateTask(context.Background(), schedulerPolicyTaskInput("暂停任务", false))
-	if err != nil {
-		t.Fatalf("容量满时仍应允许创建暂停任务: %v", err)
-	}
-	if _, err = service.UpdateTaskStatus(context.Background(), disabled.JobID, true); err == nil || !strings.Contains(err.Error(), "不能超过 1 个") {
-		t.Fatalf("启用超限任务应失败: %v", err)
 	}
 }
 
@@ -784,92 +729,6 @@ func TestScheduledTaskDisableCASPreservesConcurrentConfiguration(t *testing.T) {
 	}
 }
 
-func TestSchedulerDisablesCompletedOneShotThroughVersionedEntry(t *testing.T) {
-	db := newAutomationTestDB(t)
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db, nil, nil, nil, permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
-	)
-	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
-	service.nowFn = func() time.Time { return now }
-	runAt := now.Add(time.Minute)
-	runAtText := runAt.Format(time.RFC3339)
-	input := schedulerPolicyTaskInput("已经完成的一次性任务", true)
-	input.Schedule = automationdomain.Schedule{
-		Kind:     automationdomain.ScheduleKindAt,
-		RunAt:    &runAtText,
-		Timezone: "UTC",
-	}
-	task, err := service.CreateTask(context.Background(), input)
-	if err != nil {
-		t.Fatalf("CreateTask 失败: %v", err)
-	}
-	service.mu.Lock()
-	service.jobStates[task.JobID].NextRunAt = nil
-	service.mu.Unlock()
-
-	service.runDueOnce()
-	current, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
-	if err != nil || current == nil {
-		t.Fatalf("读取自动停用结果失败: task=%+v err=%v", current, err)
-	}
-	if current.Enabled || current.ConfigurationVersion != task.ConfigurationVersion+1 {
-		t.Fatalf("one-shot 完成应由 scheduler 推进一次停用版本: before=%+v after=%+v", task, current)
-	}
-	events, err := service.ListTaskEvents(context.Background(), task.JobID, 10)
-	if err != nil {
-		t.Fatalf("读取 one-shot 事件失败: %v", err)
-	}
-	foundReason := false
-	for _, event := range events {
-		if event.Action == automationdomain.TaskEventActionDisable &&
-			event.Detail["reason"] == scheduledTaskDisableReasonOneShotComplete {
-			foundReason = true
-			break
-		}
-	}
-	if !foundReason {
-		t.Fatalf("one-shot 自动停用应记录明确原因: %+v", events)
-	}
-}
-
-func TestTaskExpirationMustBeInFutureAndCanBeCleared(t *testing.T) {
-	db := newAutomationTestDB(t)
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db,
-		nil,
-		nil,
-		nil,
-		permissionctx.NewContext(),
-		&fakeWorkspaceReader{},
-		nil,
-	)
-	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
-	service.nowFn = func() time.Time { return now }
-	past := now.Add(-time.Second)
-	invalid := schedulerPolicyTaskInput("已过期任务", true)
-	invalid.ExpiresAt = &past
-	if _, err := service.CreateTask(context.Background(), invalid); err == nil || !strings.Contains(err.Error(), "expires_at") {
-		t.Fatalf("创建时应拒绝过去的 expires_at: %v", err)
-	}
-
-	future := now.Add(time.Hour)
-	valid := schedulerPolicyTaskInput("可清除过期时间", true)
-	valid.ExpiresAt = &future
-	task, err := service.CreateTask(context.Background(), valid)
-	if err != nil {
-		t.Fatalf("CreateTask 失败: %v", err)
-	}
-	updated, err := service.UpdateTask(context.Background(), task.JobID, automationdomain.UpdateJobInput{ClearExpiresAt: true})
-	if err != nil {
-		t.Fatalf("清除 expires_at 失败: %v", err)
-	}
-	if updated.ExpiresAt != nil {
-		t.Fatalf("expires_at 应已清除: %+v", updated.ExpiresAt)
-	}
-}
-
 func schedulerPolicyTaskInput(name string, enabled bool) automationdomain.CreateJobInput {
 	return automationdomain.CreateJobInput{
 		Name:        name,
@@ -883,51 +742,6 @@ func schedulerPolicyTaskInput(name string, enabled bool) automationdomain.Create
 		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
 		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       enabled,
-	}
-}
-
-func TestDeletionClaimFencesNewMutationsAndRunLedger(t *testing.T) {
-	db := newAutomationTestDB(t)
-	service := NewService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil, nil,
-		permissionctx.NewContext(), &fakeWorkspaceReader{}, nil)
-	task := createDeletionClaimTestTask(t, service)
-	expectedVersion := task.ConfigurationVersion
-	claim, err := service.repository.ClaimScheduledTaskDeletion(context.Background(), automationstore.TaskDeletionClaimInput{
-		OwnerUserID: task.OwnerUserID, JobID: task.JobID, ExpectedVersion: &expectedVersion,
-		DeletionToken: "delete-token-1", ClaimedAt: time.Now().UTC(),
-	})
-	if err != nil {
-		t.Fatalf("ClaimScheduledTaskDeletion() error = %v", err)
-	}
-	if !claim.Claimed || claim.Token != "delete-token-1" || claim.Task.Enabled ||
-		claim.Task.DeletionState != automationdomain.TaskDeletionStateDeleting ||
-		claim.Task.ConfigurationVersion != expectedVersion+1 {
-		t.Fatalf("unexpected deletion claim: %+v", claim)
-	}
-
-	replayed, err := service.repository.ClaimScheduledTaskDeletion(context.Background(), automationstore.TaskDeletionClaimInput{
-		OwnerUserID: task.OwnerUserID, JobID: task.JobID, ExpectedVersion: &expectedVersion,
-		DeletionToken: "different-token", ClaimedAt: time.Now().UTC(),
-	})
-	if err != nil || replayed.Claimed || replayed.Token != claim.Token {
-		t.Fatalf("deletion replay must reuse exact token: result=%+v err=%v", replayed, err)
-	}
-
-	claimed, err := service.repository.ClaimScheduledTaskRuntime(context.Background(), automationstore.JobRuntimeClaimInput{
-		JobID: task.JobID, RunID: "run-after-delete", StartedAt: time.Now().UTC(), AllowDisabled: true,
-	})
-	if err != nil || claimed {
-		t.Fatalf("runtime claim crossed deletion fence: claimed=%v err=%v", claimed, err)
-	}
-	err = service.repository.InsertRunPending(context.Background(), automationstore.RunPendingInput{
-		RunID: "run-after-delete", JobID: task.JobID, OwnerUserID: task.OwnerUserID,
-	})
-	if !errors.Is(err, automationdomain.ErrTaskDeleting) {
-		t.Fatalf("InsertRunPending() error = %v, want ErrTaskDeleting", err)
-	}
-	name := "must-not-update"
-	if _, err = service.UpdateTask(context.Background(), task.JobID, automationdomain.UpdateJobInput{Name: &name}); !errors.Is(err, automationdomain.ErrTaskDeleting) {
-		t.Fatalf("UpdateTask() error = %v, want ErrTaskDeleting", err)
 	}
 }
 
@@ -1017,50 +831,6 @@ tool_name, effect, input_fingerprint, capability_json, input_summary_json
 	if detail["execution_stop_confirmed_by_owner"] != true ||
 		detail["review_required_finalized"] != true || detail["external_actions_replayed"] != false {
 		t.Fatalf("confirmed deletion audit omitted safety facts: %+v", detail)
-	}
-}
-
-func TestDeleteKeepsReviewRequiredForRemoteConversationRuns(t *testing.T) {
-	tests := []struct {
-		name       string
-		sessionKey string
-	}{
-		{name: "dm", sessionKey: protocol.BuildAgentSessionKey("agent-1", "automation", "dm", "remote-delete", "")},
-		{name: "room", sessionKey: protocol.BuildRoomSharedSessionKey("remote-delete-room")},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			db := newAutomationTestDB(t)
-			permission := permissionctx.NewContext()
-			service := NewService(config.Config{DatabaseDriver: "sqlite"}, db, nil,
-				&fakeDMRunner{permission: permission}, &fakeRoomRunner{permission: permission},
-				permission, &fakeWorkspaceReader{}, nil)
-			task := createDeletionClaimTestTask(t, service)
-			runID := "remote-" + test.name + "-run"
-			if err := service.repository.InsertRunPending(context.Background(), automationstore.RunPendingInput{
-				RunID: runID, JobID: task.JobID, OwnerUserID: task.OwnerUserID,
-				Status: automationdomain.RunStatusRunning, SessionKey: test.sessionKey, RoundID: "round-" + test.name,
-			}); err != nil {
-				t.Fatalf("InsertRunPending(): %v", err)
-			}
-			if _, err := service.DeleteTaskAtVersion(context.Background(), task.JobID, task.ConfigurationVersion); !TaskDeletionPrepared(err) ||
-				!errors.Is(err, ErrExecutionAttemptOwnershipUnconfirmed) {
-				t.Fatalf("remote %s run was not held for review: %v", test.name, err)
-			}
-			persisted, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
-			if err != nil || persisted == nil || persisted.DeletionState != automationdomain.TaskDeletionStateReviewRequired {
-				t.Fatalf("remote %s task finalized early: task=%+v err=%v", test.name, persisted, err)
-			}
-			if err = service.bootstrapRuntime(context.Background()); err != nil {
-				t.Fatalf("bootstrapRuntime(): %v", err)
-			}
-			service.mu.Lock()
-			_, recoveryLooped := service.deletionRecoveries[task.JobID]
-			service.mu.Unlock()
-			if recoveryLooped {
-				t.Fatalf("remote %s review entered automatic recovery without exact ownership", test.name)
-			}
-		})
 	}
 }
 

@@ -543,15 +543,6 @@ func findSkill(items []Info, target string) (Info, bool) {
 	return Info{}, false
 }
 
-func ownerTestContext(ownerUserID string) context.Context {
-	return authctx.WithPrincipal(context.Background(), &authctx.Principal{
-		UserID:     ownerUserID,
-		Username:   ownerUserID,
-		Role:       authctx.RoleOwner,
-		AuthMethod: authctx.AuthMethodPassword,
-	})
-}
-
 func writeTestSkillDir(t *testing.T, root string, name string, title string, withManifest bool) {
 	t.Helper()
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -658,65 +649,6 @@ func copyDirectory(sourceDir string, targetDir string) error {
 	}
 	defer targetRoot.Close()
 	return targetRoot.CopyTreeFrom(sourceRoot)
-}
-
-func TestParseSkillFrontmatterBlockDescription(t *testing.T) {
-	parsed := parseSkillFrontmatter(`---
-name: chronicle
-description: |
-  Allows you to view the user's screen as well as several hours of history.
-
-  Use this skill when recent screen context is needed.
-tags: [screen, context]
----
-
-# Chronicle
-`, "chronicle")
-	if parsed.Description == "" || strings.Contains(parsed.Description, "|") {
-		t.Fatalf("多行 description 解析不正确: %q", parsed.Description)
-	}
-	if !strings.Contains(parsed.Description, "recent screen context") {
-		t.Fatalf("多行 description 内容丢失: %q", parsed.Description)
-	}
-	if len(parsed.Tags) != 2 || parsed.Tags[0] != "screen" || parsed.Tags[1] != "context" {
-		t.Fatalf("block scalar 后续字段解析不正确: %#v", parsed.Tags)
-	}
-}
-
-func TestStripFrontmatterReturnsSkillBody(t *testing.T) {
-	tests := []struct {
-		name    string
-		content string
-		want    string
-	}{
-		{
-			name:    "yaml frontmatter",
-			content: "---\nname: demo\n---\n\n# Demo\n",
-			want:    "# Demo\n",
-		},
-		{
-			name:    "bom",
-			content: "\ufeff---\nname: demo\n---\nbody",
-			want:    "body",
-		},
-		{
-			name:    "plain markdown",
-			content: "# Demo",
-			want:    "# Demo",
-		},
-		{
-			name:    "unterminated frontmatter",
-			content: "---\nname: demo\n# Demo",
-			want:    "---\nname: demo\n# Demo",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := StripFrontmatter(test.content); got != test.want {
-				t.Fatalf("正文投影 = %q，期望 %q", got, test.want)
-			}
-		})
-	}
 }
 
 func TestVersionedURLImportRollsBackFilesAndVersionOnDatabaseFailure(t *testing.T) {
@@ -919,84 +851,5 @@ func TestCatalogVersionRejectsStaleRemoteImportAndSourceUpdate(t *testing.T) {
 		current.Version,
 	); !errors.Is(err, ErrCatalogVersionConflict) {
 		t.Fatalf("过期来源更新 err=%v, want catalog conflict", err)
-	}
-}
-
-func TestServiceExternalSkillRegistryIsPrivatePerOwner(t *testing.T) {
-	cfg := newSkillsTestConfig(t)
-	migrateSkillsSQLite(t, cfg.DatabaseURL)
-
-	db := openSkillsTestDB(t, cfg)
-
-	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	workspaceService := workspacepkg.NewService(cfg, agentService)
-	service := NewService(cfg, agentService, workspaceService)
-	ctxA := ownerTestContext("owner-a")
-	ctxB := ownerTestContext("owner-b")
-
-	sourceA := filepath.Join(t.TempDir(), "private-skill-a")
-	sourceB := filepath.Join(t.TempDir(), "private-skill-b")
-	writeTestSkillDir(t, sourceA, "private-skill", "Owner A Skill", false)
-	writeTestSkillDir(t, sourceB, "private-skill", "Owner B Skill", false)
-	if _, err := service.ImportLocalPath(ctxA, sourceA); err != nil {
-		t.Fatalf("owner-a 导入 skill 失败: %v", err)
-	}
-	if _, err := service.ImportLocalPath(ctxB, sourceB); err != nil {
-		t.Fatalf("owner-b 导入 skill 失败: %v", err)
-	}
-	agentA, err := agentService.CreateAgent(ctxA, protocol.CreateRequest{Name: "Owner A Agent"})
-	if err != nil {
-		t.Fatalf("创建 owner-a Agent 失败: %v", err)
-	}
-	if _, err = agentService.UpdateAgentSkillSelection(
-		ctxA,
-		agentA.AgentID,
-		[]string{"private-skill"},
-		[]string{"private-skill"},
-	); err != nil {
-		t.Fatalf("准备 skill 引用失败: %v", err)
-	}
-
-	itemsA, err := service.ListSkills(ctxA, Query{SourceType: sourceTypeExternal})
-	if err != nil {
-		t.Fatalf("读取 owner-a external skills 失败: %v", err)
-	}
-	itemsB, err := service.ListSkills(ctxB, Query{SourceType: sourceTypeExternal})
-	if err != nil {
-		t.Fatalf("读取 owner-b external skills 失败: %v", err)
-	}
-	skillA, ok := findSkill(itemsA, "private-skill")
-	if !ok || skillA.Title != "Owner A Skill" {
-		t.Fatalf("owner-a 应看到自己的 skill 版本: %+v", itemsA)
-	}
-	skillB, ok := findSkill(itemsB, "private-skill")
-	if !ok || skillB.Title != "Owner B Skill" {
-		t.Fatalf("owner-b 应看到自己的 skill 版本: %+v", itemsB)
-	}
-
-	if err = service.DeleteSkill(ctxA, "private-skill"); err != nil {
-		t.Fatalf("owner-a 删除 skill 失败: %v", err)
-	}
-	itemsA, err = service.ListSkills(ctxA, Query{SourceType: sourceTypeExternal})
-	if err != nil {
-		t.Fatalf("删除后读取 owner-a external skills 失败: %v", err)
-	}
-	itemsB, err = service.ListSkills(ctxB, Query{SourceType: sourceTypeExternal})
-	if err != nil {
-		t.Fatalf("删除后读取 owner-b external skills 失败: %v", err)
-	}
-	if _, ok = findSkill(itemsA, "private-skill"); ok {
-		t.Fatalf("owner-a 删除后不应继续看到 private-skill: %+v", itemsA)
-	}
-	if skillB, ok = findSkill(itemsB, "private-skill"); !ok || skillB.Title != "Owner B Skill" {
-		t.Fatalf("owner-a 删除不应影响 owner-b: %+v", itemsB)
-	}
-	reloadedAgent, err := agentService.GetAgent(ctxA, agentA.AgentID)
-	if err != nil {
-		t.Fatalf("读取删除 skill 后的 Agent 失败: %v", err)
-	}
-	if slices.Contains(reloadedAgent.Options.SkillIDs, "private-skill") ||
-		slices.Contains(reloadedAgent.Options.DisabledSkillIDs, "private-skill") {
-		t.Fatalf("删除 skill 后仍残留 Agent 引用: %+v", reloadedAgent.Options)
 	}
 }

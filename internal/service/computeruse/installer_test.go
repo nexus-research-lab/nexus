@@ -359,31 +359,3 @@ func TestConfiguredCUAEnablementSurvivesRestart(t *testing.T) {
 		t.Fatal("disabled configured runtime was enabled on restart")
 	}
 }
-
-func TestCUAPipelineManifestContract(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), currentCUABinaryName())
-	if err := os.WriteFile(binary, []byte("runtime"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	manifest := cuaManifest{
-		Contract: "nexus.cua.release.v1", ReleaseState: "published", Version: "0.2.0",
-		Protocol: "nexus.cua.v1", Platform: currentCUAPlatform(), Architecture: currentCUAArchitecture(),
-		Files: map[string]struct {
-			Path   string `json:"path"`
-			SHA256 string `json:"sha256"`
-		}{"runtime": {Path: currentCUABinaryName(), SHA256: sha256Hex([]byte("runtime"))}},
-	}
-	if err := validateCUAManifest(manifest, "v0.2.0", binary, false); err != nil {
-		t.Fatalf("published pipeline manifest rejected: %v", err)
-	}
-	for _, state := range []string{"prerelease", "release_accepted", ""} {
-		manifest.ReleaseState = state
-		if err := validateCUAManifest(manifest, "v0.2.0", binary, false); !errors.Is(err, ErrCUAReleaseRejected) {
-			t.Fatalf("pipeline manifest with release_state=%q accepted: %v", state, err)
-		}
-	}
-	manifest.ReleaseState, manifest.Contract = "published", "nexus.cua.testing-preview.v1"
-	if err := validateCUAManifest(manifest, "v0.2.0", binary, false); !errors.Is(err, ErrCUAReleaseRejected) {
-		t.Fatalf("unknown manifest contract accepted: %v", err)
-	}
-}

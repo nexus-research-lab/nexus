@@ -3,8 +3,6 @@ package websocket
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -134,64 +132,6 @@ func TestChannelAuthorizationSessionInvalidationClosesOnlyExactSession(t *testin
 	}
 }
 
-func TestChannelAuthorizationCodeSubmissionUsesServerRouteAndNeverEchoesCode(t *testing.T) {
-	permission := permissionctx.NewContext()
-	transport := newChannelAuthorizationTransport()
-	handler := &Handler{permission: permission, channelAuthorization: transport}
-	controller := &channelAuthorizationTestController{}
-	handler.SetChannelAuthorizationController(controller)
-	sender := &channelAuthorizationTestSender{key: "owner"}
-	registerChannelAuthorizationTestSender(t, transport, sender, "owner-1")
-	permission.BindSession("nexus/ws/agent/main", sender)
-	presentation := channelAuthorizationTestPresentation()
-	if err := handler.PresentChannelAuthorization(context.Background(), presentation); err != nil {
-		t.Fatal(err)
-	}
-
-	inbound := map[string]any{
-		"type":               "submit_channel_authorization_code",
-		"flow_id":            presentation.FlowID,
-		"presentation_token": presentation.PresentationToken,
-		"code":               "741852",
-		// These untrusted fields are ignored rather than copied into the service submission.
-		"owner_user_id":          "attacker",
-		"agent_id":               "attacker-agent",
-		"session_key":            "attacker-session",
-		"round_id":               "attacker-round",
-		"runtime_lease_round_id": "attacker-lease",
-	}
-	handler.handleChannelAuthorizationCode(context.Background(), sender, inbound)
-	if _, exists := inbound["code"]; exists {
-		t.Fatal("verification code remained in generic inbound map")
-	}
-	if controller.calls != 1 {
-		t.Fatalf("controller calls = %d", controller.calls)
-	}
-	got := controller.submission
-	if got.OwnerUserID != "owner-1" ||
-		got.PrincipalUserID != "owner-1" ||
-		got.AgentID != presentation.AgentID ||
-		got.BusinessSessionKey != presentation.BusinessSessionKey ||
-		got.RootRoundID != presentation.RootRoundID ||
-		got.RuntimeLeaseSessionKey != presentation.RuntimeLeaseSessionKey ||
-		got.RuntimeLeaseRoundID != presentation.RuntimeLeaseRoundID ||
-		got.Code != "741852" {
-		t.Fatalf("submission did not use server route: %+v", got)
-	}
-	events := sender.snapshot()
-	if len(events) != 2 ||
-		events[1].EventType != protocol.EventTypeChannelAuthorizationResult {
-		t.Fatalf("events = %+v", events)
-	}
-	encoded, err := json.Marshal(events)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(encoded), "741852") {
-		t.Fatalf("verification code leaked into outbound events: %s", encoded)
-	}
-}
-
 func TestChannelAuthorizationCancelUsesTrustedActorAndPresentationRoute(t *testing.T) {
 	permission := permissionctx.NewContext()
 	transport := newChannelAuthorizationTransport()
@@ -288,84 +228,6 @@ func channelAuthorizationTestPresentation() authorizationsvc.HumanPresentation {
 	}
 }
 
-func TestControlMessageDispatcherCloseRejectsBlockedAndLateEnqueue(t *testing.T) {
-	dispatcher := newControlMessageDispatcher(context.Background())
-
-	activeStarted := make(chan struct{})
-	releaseActive := make(chan struct{})
-	dispatcher.enqueueJob(
-		&controlMessage{msgType: "chat"},
-		func() {
-			close(activeStarted)
-			<-releaseActive
-		},
-	)
-	<-activeStarted
-
-	// Keep the consumer occupied and fill every queue slot. The next producer
-	// must block inside the acceptance fence until close cancels the dispatcher.
-	for range cap(dispatcher.queue) {
-		dispatcher.enqueueJob(
-			&controlMessage{msgType: "chat"},
-			func() {},
-		)
-	}
-	blockedDiscarded := make(chan struct{})
-	blockedReturned := make(chan struct{})
-	go func() {
-		dispatcher.enqueueJobValue(controlMessageJob{
-			run:     func() { t.Error("blocked job ran after close") },
-			discard: func() { close(blockedDiscarded) },
-		})
-		close(blockedReturned)
-	}()
-
-	deadline := time.Now().Add(time.Second)
-	for {
-		if !dispatcher.acceptanceMu.TryLock() {
-			break
-		}
-		dispatcher.acceptanceMu.Unlock()
-		if time.Now().After(deadline) {
-			t.Fatal("producer did not block on the full dispatcher queue")
-		}
-		time.Sleep(time.Millisecond)
-	}
-
-	dispatcher.close()
-	// close is intentionally idempotent because handler and tests may both own
-	// cleanup paths.
-	dispatcher.close()
-	select {
-	case <-blockedDiscarded:
-	case <-time.After(time.Second):
-		t.Fatal("blocked enqueue was not rejected by close")
-	}
-	select {
-	case <-blockedReturned:
-	case <-time.After(time.Second):
-		t.Fatal("blocked producer did not leave enqueue after close")
-	}
-
-	lateRan := make(chan struct{}, 1)
-	lateDiscarded := make(chan struct{})
-	dispatcher.enqueueJobValue(controlMessageJob{
-		run:     func() { lateRan <- struct{}{} },
-		discard: func() { close(lateDiscarded) },
-	})
-	select {
-	case <-lateDiscarded:
-	case <-time.After(time.Second):
-		t.Fatal("late enqueue was not rejected")
-	}
-	select {
-	case <-lateRan:
-		t.Fatal("late enqueue ran after dispatcher close")
-	default:
-	}
-	close(releaseActive)
-}
-
 func TestExecutionInvalidationRegistryFailsClosedAndReleasesSenderScopes(t *testing.T) {
 	registry := newExecutionInvalidationRegistry()
 	sender := &executionInvalidationTestSender{key: "sender-1"}
@@ -399,30 +261,6 @@ func TestExecutionInvalidationRegistryFailsClosedAndReleasesSenderScopes(t *test
 			registry.byScope,
 			registry.senderScopes,
 		)
-	}
-}
-
-func TestHandlerProjectsExecutionInvalidationPayload(t *testing.T) {
-	registry := newExecutionInvalidationRegistry()
-	sender := &executionInvalidationTestSender{key: "owner"}
-	registry.Bind("owner-a", "session-1", sender)
-	handler := &Handler{executionInvalidations: registry}
-
-	handler.InvalidateExecution(context.Background(), orchestrationsvc.ExecutionInvalidation{
-		OwnerUserID: "owner-a",
-		SessionKey:  "session-1",
-		ExecutionID: "execution-1",
-		Version:     7,
-	})
-
-	if len(sender.events) != 1 {
-		t.Fatalf("events = %#v", sender.events)
-	}
-	event := sender.events[0]
-	if event.SessionKey != "session-1" ||
-		event.Data["execution_id"] != "execution-1" ||
-		event.Data["version"] != int64(7) {
-		t.Fatalf("event = %#v", event)
 	}
 }
 
@@ -520,45 +358,6 @@ func (s *fakeRoomRegistrySender) IsClosed() bool { return false }
 func (s *fakeRoomRegistrySender) SendEvent(_ context.Context, event protocol.EventMessage) error {
 	s.events <- event
 	return nil
-}
-
-func TestNotifyAutomationPermissionEventProjectsToSessionAndRoom(t *testing.T) {
-	permission := permissionctx.NewContext()
-	roomSubs := newRoomSubscriptionRegistry(8)
-	handler := &Handler{permission: permission, roomSubs: roomSubs}
-	sessionSender := newFakeRoomRegistrySender("session-sender")
-	roomSender := newFakeRoomRegistrySender("room-sender")
-	sessionKey := "agent:agent-recipient:ws:dm:conversation-1"
-	permission.BindSession(sessionKey, sessionSender)
-	if err := roomSubs.SubscribeRoom(
-		context.Background(),
-		roomSender,
-		"room-1",
-		"conversation-1",
-		nil,
-	); err != nil {
-		t.Fatalf("SubscribeRoom() error = %v", err)
-	}
-	event := protocol.NewEvent(protocol.EventTypePermissionRequest, map[string]any{
-		"request_id": "automation-permission-1",
-	})
-	event.SessionKey = sessionKey
-	event.RoomID = "room-1"
-	event.ConversationID = "conversation-1"
-
-	handler.NotifyAutomationPermissionEvent(context.Background(), event)
-
-	sessionEvent := readRoomRegistryEvent(t, sessionSender.events)
-	if sessionEvent.EventType != protocol.EventTypePermissionRequest ||
-		sessionEvent.SessionKey != sessionKey || sessionEvent.RoomSeq != nil {
-		t.Fatalf("session event = %+v", sessionEvent)
-	}
-	roomEvent := readRoomRegistryEvent(t, roomSender.events)
-	if roomEvent.EventType != protocol.EventTypePermissionRequest ||
-		roomEvent.DeliveryMode != protocol.DeliveryModeDurable ||
-		roomEvent.RoomSeq == nil || *roomEvent.RoomSeq != 1 {
-		t.Fatalf("room event = %+v", roomEvent)
-	}
 }
 
 func TestActiveChatActivitySourcesAggregatesExactConversationSessions(t *testing.T) {

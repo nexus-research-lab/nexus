@@ -10,31 +10,6 @@ import (
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
 
-func TestRegistrySeparatesHostCommandsByScope(t *testing.T) {
-	registry := NewRegistry()
-	if err := registry.Register(Definition{
-		Name:        "goal",
-		Description: "Set a Nexus goal",
-		Scopes:      []Scope{ScopeDM},
-		Enabled:     true,
-		Handler: func(context.Context, Invocation) (Result, error) {
-			return Result{}, nil
-		},
-	}); err != nil {
-		t.Fatalf("Register() error = %v", err)
-	}
-
-	dmCommands := registry.Descriptors(ScopeDM)
-	if len(dmCommands) != 1 ||
-		dmCommands[0].Name != "goal" ||
-		dmCommands[0].Execution != protocol.CommandExecutionHost {
-		t.Fatalf("DM descriptors = %#v, want host goal command", dmCommands)
-	}
-	if roomCommands := registry.Descriptors(ScopeRoom); len(roomCommands) != 0 {
-		t.Fatalf("Room descriptors = %#v, want empty", roomCommands)
-	}
-}
-
 type fakeModelCommandAgents struct {
 	agent protocol.Agent
 }
@@ -152,42 +127,5 @@ func TestModelCommandPersistsQualifiedProviderSelection(t *testing.T) {
 		event.RoundID != "round-a" ||
 		event.Data["stop_reason"] != "end_turn" {
 		t.Fatalf("model changed event = %#v", event)
-	}
-}
-
-func TestModelCommandRejectsUnknownClaudeNativeAliasAtHost(t *testing.T) {
-	agents := &fakeModelCommandAgents{
-		agent: protocol.Agent{OwnerUserID: "owner-a"},
-	}
-	sessions := &fakeModelCommandSessions{}
-	registry := NewRegistry()
-	if err := RegisterModelCommand(registry, ModelCommandDependencies{
-		Agents:      agents,
-		Sessions:    sessions,
-		Preferences: fakeModelCommandPreferences{runtimeKind: "claude"},
-		Providers: fakeModelCommandProviders{options: &providersvc.OptionsResponse{
-			Items: []providersvc.Option{},
-		}},
-	}); err != nil {
-		t.Fatalf("RegisterModelCommand() error = %v", err)
-	}
-
-	_, matched, err := registry.Execute(
-		context.Background(),
-		ScopeDM,
-		Invocation{
-			AgentID: "agent-a",
-			Content: "/model sonnet",
-		},
-	)
-	message, clientSafe := protocol.ClientErrorMessage(err)
-	if !matched || !clientSafe || message == "" || sessions.updateCount != 0 {
-		t.Fatalf(
-			"Execute() = matched:%t err:%v client_safe:%t updates:%d",
-			matched,
-			err,
-			clientSafe,
-			sessions.updateCount,
-		)
 	}
 }

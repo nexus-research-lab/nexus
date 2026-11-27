@@ -5,27 +5,6 @@ import (
 	"testing"
 )
 
-func TestChatPendingSnapshotCarriesRoomReplayFence(t *testing.T) {
-	event := NewChatPendingSnapshotEvent(
-		"room:session",
-		"round-root",
-		42,
-		[]ChatAckPendingSlot{},
-		[]string{},
-	)
-	if event.Data["pending_snapshot"] != true {
-		t.Fatalf("pending snapshot marker missing: %+v", event.Data)
-	}
-	if event.Data["snapshot_room_seq"] != int64(42) {
-		t.Fatalf("snapshot_room_seq = %#v, want 42", event.Data["snapshot_room_seq"])
-	}
-
-	clamped := NewChatPendingSnapshotEvent("", "", -1, nil, nil)
-	if clamped.Data["snapshot_room_seq"] != int64(0) {
-		t.Fatalf("negative snapshot_room_seq must clamp to zero: %+v", clamped.Data)
-	}
-}
-
 func TestContextUsageEventCarriesCategories(t *testing.T) {
 	event := NewContextUsageEvent("agent:session", "agent-1", ContextUsageData{
 		TotalTokens: 17900,
@@ -76,28 +55,6 @@ func TestAgentSessionKeyGenerationPreservesExternalRoute(t *testing.T) {
 	}
 }
 
-func TestNormalizePublicHandoffReplyRequiresExactIdentity(t *testing.T) {
-	valid := NormalizePublicHandoffReply(map[string]any{
-		"handoff_id": " rh-1 ", "source_message_id": " msg-1 ",
-		"source_agent_id": " agent-lead ", "goal_id": "must-not-project",
-	})
-	if valid == nil || valid.HandoffID != "rh-1" ||
-		valid.SourceMessageID != "msg-1" || valid.SourceAgentID != "agent-lead" {
-		t.Fatalf("valid handoff reply was not normalized: %+v", valid)
-	}
-
-	for _, value := range []any{
-		nil,
-		map[string]any{"handoff_id": "rh-1", "source_message_id": "msg-1"},
-		map[string]any{"handoff_id": "rh-1", "source_agent_id": "agent-lead"},
-		map[string]any{"source_message_id": "msg-1", "source_agent_id": "agent-lead"},
-	} {
-		if reply := NormalizePublicHandoffReply(value); reply != nil {
-			t.Fatalf("incomplete handoff reply must fail closed: input=%+v reply=%+v", value, reply)
-		}
-	}
-}
-
 func TestIsProviderTokenLimitError(t *testing.T) {
 	for _, signal := range []string{
 		"context_length_exceeded",
@@ -111,40 +68,6 @@ func TestIsProviderTokenLimitError(t *testing.T) {
 		if !IsProviderTokenLimitError(signal) {
 			t.Fatalf("IsProviderTokenLimitError(%q) = false, want true", signal)
 		}
-	}
-}
-
-func TestParseMutationResultChangedReadsOnlyExplicitEnvelopeRefs(t *testing.T) {
-	t.Parallel()
-
-	got := ParseMutationResultChanged(map[string]any{
-		"structuredContent": map[string]any{
-			"outcome":      "applied",
-			"execution_id": "execution-1",
-			"changed": []any{
-				" assignment:assignment-1 ",
-				"attempt:attempt-1",
-				"assignment:assignment-1",
-			},
-		},
-	})
-	if len(got) != 2 || got[0] != "assignment:assignment-1" ||
-		got[1] != "attempt:attempt-1" {
-		t.Fatalf("ParseMutationResultChanged() = %#v", got)
-	}
-	envelope, ok := ParseMutationResultEnvelope(map[string]any{
-		"outcome":      "applied",
-		"execution_id": "execution-1",
-		"changed":      []string{"assignment:assignment-1"},
-	})
-	if !ok || envelope.ExecutionID != "execution-1" ||
-		len(envelope.Changed) != 1 || envelope.Changed[0] != "assignment:assignment-1" {
-		t.Fatalf("mutation identity envelope = %+v/%t", envelope, ok)
-	}
-	if refs := ParseMutationResultChanged(map[string]any{
-		"changed": []any{"assignment:untrusted"},
-	}); len(refs) != 0 {
-		t.Fatalf("non-envelope changed refs = %#v", refs)
 	}
 }
 

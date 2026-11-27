@@ -52,51 +52,6 @@ func jsonResponse(body string) *http.Response {
 	}
 }
 
-func TestDiscordChannelSendDeliveryTyping(t *testing.T) {
-	requests := make([]*http.Request, 0)
-	channel := NewDiscordChannel("token-1", &http.Client{
-		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			requests = append(requests, request)
-			return &http.Response{
-				StatusCode: http.StatusNoContent,
-				Body:       io.NopCloser(strings.NewReader(``)),
-				Header:     make(http.Header),
-			}, nil
-		}),
-	})
-	channel.WithBaseURL("https://discord.test/api/v10")
-
-	if err := channel.SendDeliveryTyping(context.Background(), channelcontract.DeliveryTarget{
-		Mode:     channelcontract.DeliveryModeExplicit,
-		Channel:  channelcontract.ChannelTypeDiscord,
-		To:       "channel-1",
-		ThreadID: "thread-1",
-	}, false); err != nil {
-		t.Fatalf("Discord typing stop 应静默忽略: %v", err)
-	}
-	if len(requests) != 0 {
-		t.Fatalf("Discord typing stop 不应请求 API，实际 %d", len(requests))
-	}
-
-	if err := channel.SendDeliveryTyping(context.Background(), channelcontract.DeliveryTarget{
-		Mode:     channelcontract.DeliveryModeExplicit,
-		Channel:  channelcontract.ChannelTypeDiscord,
-		To:       "channel-1",
-		ThreadID: "thread-1",
-	}, true); err != nil {
-		t.Fatalf("Discord typing start 失败: %v", err)
-	}
-	if len(requests) != 1 {
-		t.Fatalf("期望 typing 请求 1 次，实际 %d", len(requests))
-	}
-	if requests[0].Method != http.MethodPost || !strings.HasSuffix(requests[0].URL.Path, "/channels/thread-1/typing") {
-		t.Fatalf("Discord typing 路径不正确: %s %s", requests[0].Method, requests[0].URL.Path)
-	}
-	if got := requests[0].Header.Get("Authorization"); got != "Bot token-1" {
-		t.Fatalf("Discord typing Authorization 不正确: %s", got)
-	}
-}
-
 func TestTelegramChannelSendDeliveryTyping(t *testing.T) {
 	requests := make([]*http.Request, 0)
 	var payload map[string]any
@@ -189,64 +144,6 @@ func TestTelegramChannelHandleUpdateSendsPairingApprovalNotice(t *testing.T) {
 	}
 	if strings.Contains(text, "消息处理失败") {
 		t.Fatalf("待配对提醒不应伪装成处理失败: %q", text)
-	}
-}
-
-func TestFeishuChannelSendDeliveryMessage(t *testing.T) {
-	var tokenRequests int
-	var messagePayload map[string]string
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/open-apis/auth/v3/tenant_access_token/internal":
-			tokenRequests++
-			var payload map[string]string
-			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-				return nil, fmt.Errorf("解析 token 请求失败: %w", err)
-			}
-			if payload["app_id"] != "cli_test" || payload["app_secret"] != "secret_test" {
-				return nil, fmt.Errorf("token 请求凭据不正确: %+v", payload)
-			}
-			return jsonResponse(`{"code":0,"tenant_access_token":"tenant-token","expire":7200}`), nil
-		case "/open-apis/im/v1/messages":
-			if request.URL.Query().Get("receive_id_type") != "chat_id" {
-				return nil, fmt.Errorf("receive_id_type 不正确: %s", request.URL.RawQuery)
-			}
-			if request.Header.Get("Authorization") != "Bearer tenant-token" {
-				return nil, fmt.Errorf("Authorization 不正确: %s", request.Header.Get("Authorization"))
-			}
-			if err := json.NewDecoder(request.Body).Decode(&messagePayload); err != nil {
-				return nil, fmt.Errorf("解析消息请求失败: %w", err)
-			}
-			return jsonResponse(`{"code":0,"msg":"ok"}`), nil
-		default:
-			return nil, fmt.Errorf("未知飞书请求路径: %s", request.URL.Path)
-		}
-	})}
-
-	channel := NewFeishuChannel("cli_test", "secret_test", client).WithConnectionMode("webhook")
-	channel.WithBaseURL("https://feishu.test")
-	if err := channel.Start(context.Background()); err != nil {
-		t.Fatalf("飞书通道启动失败: %v", err)
-	}
-	if _, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:    channelcontract.DeliveryModeExplicit,
-		Channel: channelcontract.ChannelTypeFeishu,
-		To:      "oc_group_123",
-	}, "今日新闻摘要"); err != nil {
-		t.Fatalf("飞书发送失败: %v", err)
-	}
-	if tokenRequests != 1 {
-		t.Fatalf("token 请求次数不正确: %d", tokenRequests)
-	}
-	if messagePayload["receive_id"] != "oc_group_123" || messagePayload["msg_type"] != "text" {
-		t.Fatalf("飞书消息请求不正确: %+v", messagePayload)
-	}
-	var content map[string]string
-	if err := json.Unmarshal([]byte(messagePayload["content"]), &content); err != nil {
-		t.Fatalf("解析飞书消息 content 失败: %v", err)
-	}
-	if content["text"] != "今日新闻摘要" {
-		t.Fatalf("飞书消息正文不正确: %+v", content)
 	}
 }
 

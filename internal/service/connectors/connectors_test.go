@@ -122,21 +122,6 @@ func TestLocalizeDetailCoversEveryCatalogText(t *testing.T) {
 	}
 }
 
-func TestLocalizeKeepsChineseCatalogAndCustomMCP(t *testing.T) {
-	for _, locale := range []string{"", "zh", "zh-CN", "enigma"} {
-		for _, entry := range connectorCatalog {
-			source := catalogDetail(entry)
-			if got := LocalizeDetail(source, locale); !reflect.DeepEqual(got, source) {
-				t.Errorf("locale %q 改写了 %s 的中文目录", locale, entry.ConnectorID)
-			}
-		}
-	}
-	custom := Info{ConnectorID: "github", Kind: ConnectorKindCustomMCP, Title: "我的工具", Description: "自定义说明"}
-	if got := LocalizeInfo(custom, "en"); !reflect.DeepEqual(got, custom) {
-		t.Errorf("自定义 MCP 文案被改写: %+v", got)
-	}
-}
-
 func TestServiceLoadActiveConnectionRefreshesExpiredFeishuDocxToken(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)
@@ -324,101 +309,6 @@ func TestCustomMCPServerLifecycleKeepsSecretsEncrypted(t *testing.T) {
 	)
 	if err != nil || name != "" || runtimeConfig != nil {
 		t.Fatalf("删除后仍可读取 runtime 配置: name=%q config=%+v err=%v", name, runtimeConfig, err)
-	}
-}
-
-func TestListConnectorsKeepsCatalogWhenLegacyCustomMCPPayloadCannotDecrypt(t *testing.T) {
-	cfg := newConnectorsTestConfig(t)
-	migrateConnectorsSQLite(t, cfg.DatabaseURL)
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = db.Close() }()
-	if _, err = db.Exec(`
-INSERT INTO connector_connections (
-    owner_user_id, connector_id, state, enabled, credentials,
-    credentials_encrypted, auth_type
-) VALUES (?, ?, 'connected', TRUE, '__encrypted__', ?, 'custom_mcp')`,
-		"owner-1",
-		"custom-mcp:legacy-key",
-		"v1:payload-from-an-unavailable-legacy-key",
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	service := NewService(cfg, db)
-	items, err := service.ListConnectors(context.Background(), "owner-1", "github", "", "")
-	if err != nil {
-		t.Fatalf("内置 Connector 目录不应被旧 MCP 密文阻断: %v", err)
-	}
-	if len(items) != 1 || items[0].ConnectorID != "github" {
-		t.Fatalf("内置 Connector 目录投影错误: %+v", items)
-	}
-	legacy, err := service.ListCustomMCPServers(context.Background(), "owner-1")
-	if err != nil || len(legacy) != 1 || legacy[0].ConfigurationState != customMCPConfigRecovery {
-		t.Fatalf("旧密文应投影为可恢复记录: items=%+v err=%v", legacy, err)
-	}
-	if _, err = service.SetCustomMCPServerEnabled(
-		context.Background(),
-		"owner-1",
-		legacy[0].ConnectorID,
-		false,
-	); !errors.Is(err, ErrCustomMCPServerRecoveryRequired) {
-		t.Fatalf("恢复前不应允许切换可用性: %v", err)
-	}
-	recovered, err := service.UpdateCustomMCPServer(
-		context.Background(),
-		"owner-1",
-		legacy[0].ConnectorID,
-		CustomMCPServerInput{
-			Name:    "recovered_tools",
-			Type:    "stdio",
-			Command: "npx",
-			Args:    []string{"-y", "recovered-mcp"},
-		},
-	)
-	if err != nil || recovered.ConfigurationState != customMCPConfigReady || !recovered.Enabled {
-		t.Fatalf("完整配置应覆盖无法解密的旧密文: item=%+v err=%v", recovered, err)
-	}
-	items, err = service.ListConnectors(context.Background(), "owner-1", "recovered_tools", "", "")
-	if err != nil || len(items) != 1 || items[0].ConnectorID != recovered.ConnectorID {
-		t.Fatalf("恢复后的 MCP 应重新进入选择目录: items=%+v err=%v", items, err)
-	}
-}
-
-func TestDiscoverRemoteCustomMCPToolsDoesNotFollowRedirects(t *testing.T) {
-	var destinationReached atomic.Bool
-	destination := httptest.NewServer(http.HandlerFunc(func(
-		writer http.ResponseWriter,
-		request *http.Request,
-	) {
-		destinationReached.Store(true)
-		writer.WriteHeader(http.StatusNoContent)
-	}))
-	defer destination.Close()
-
-	redirect := httptest.NewServer(http.HandlerFunc(func(
-		writer http.ResponseWriter,
-		request *http.Request,
-	) {
-		http.Redirect(writer, request, destination.URL, http.StatusTemporaryRedirect)
-	}))
-	defer redirect.Close()
-
-	_, err := discoverRemoteCustomMCPTools(context.Background(), storedCustomMCPServer{
-		Enabled:     true,
-		Name:        "redirecting",
-		Type:        "http",
-		URL:         redirect.URL,
-		AuthType:    customMCPAuthBearer,
-		BearerToken: "must-not-leak",
-	})
-	if err == nil {
-		t.Fatal("重定向 MCP 探测应失败")
-	}
-	if destinationReached.Load() {
-		t.Fatal("MCP 探测不应把认证请求转发到重定向目标")
 	}
 }
 

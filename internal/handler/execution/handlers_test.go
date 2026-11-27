@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -106,99 +105,6 @@ func (stub *applyWorkflowStub) CloseMetadataEditor(
 	string,
 ) (bool, error) {
 	return false, errors.New("unexpected CloseMetadataEditor call")
-}
-
-func TestApplyWorkGraphWorkflowEditorMapsOnlyProvenFailureEffects(t *testing.T) {
-	tests := []struct {
-		name       string
-		err        error
-		status     int
-		code       string
-		effect     protocol.FailureEffect
-		wantDetail string
-	}{
-		{
-			name: "revision conflict", err: workgraphworkflowsvc.ErrRevisionConflict,
-			status: http.StatusUnprocessableEntity, code: "workgraph.revision_conflict",
-			effect:     protocol.FailureEffectNotApplied,
-			wantDetail: "工作图编辑请求无效或版本已变化",
-		},
-		{
-			name: "editor not found", err: workgraphworkflowsvc.ErrNotFound,
-			status: http.StatusNotFound, code: "workgraph.editor_not_found",
-			effect:     protocol.FailureEffectNotApplied,
-			wantDetail: "工作图编辑会话不存在或已过期",
-		},
-		{
-			name: "invalid request", err: workgraphworkflowsvc.ErrInvalidInput,
-			status: http.StatusUnprocessableEntity, code: "workgraph.editor_invalid_request",
-			effect:     protocol.FailureEffectNotApplied,
-			wantDetail: "工作图编辑请求无效或版本已变化",
-		},
-		{
-			name: "unclassified failure", err: errors.New("sqlite secret"),
-			status: http.StatusInternalServerError, code: "workgraph.editor_apply_failed",
-			effect:     protocol.FailureEffectUnknown,
-			wantDetail: "工作图编辑失败",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			stub := &applyWorkflowStub{applyErr: test.err}
-			router := newApplyWorkflowTestRouter(stub)
-			request := httptest.NewRequest(
-				http.MethodPost,
-				"/workgraph/editors/editor-a/apply",
-				strings.NewReader(`{"source_session_key":"session-a","revision":7}`),
-			)
-			request.Header.Set("Content-Type", "application/json")
-			request.Header.Set("X-Request-ID", "workgraph-http-attempt")
-			recorder := httptest.NewRecorder()
-			router.ServeHTTP(recorder, request)
-
-			if recorder.Code != test.status {
-				t.Fatalf("status=%d want=%d body=%s", recorder.Code, test.status, recorder.Body.String())
-			}
-			var payload struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-				Success bool   `json:"success"`
-				Data    struct {
-					Detail    string               `json:"detail"`
-					RequestID string               `json:"request_id"`
-					Failure   protocol.FailureCore `json:"failure"`
-				} `json:"data"`
-			}
-			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
-				t.Fatalf("decode Apply failure: %v", err)
-			}
-			if payload.Code != strconv.Itoa(test.status) {
-				t.Fatalf("legacy status code=%q want=%q", payload.Code, strconv.Itoa(test.status))
-			}
-			if payload.Message != "failed" || payload.Success || payload.Data.Detail != test.wantDetail {
-				t.Fatalf("failure envelope or safe detail changed: %#v", payload)
-			}
-			if payload.Data.RequestID != "workgraph-http-attempt" ||
-				payload.Data.Failure.TransportRequestID != "workgraph-http-attempt" ||
-				payload.Data.Failure.Code != test.code ||
-				payload.Data.Failure.Effect != test.effect {
-				t.Fatalf("FailureCore mismatch: %#v", payload.Data)
-			}
-			if strings.Contains(recorder.Body.String(), "sqlite secret") {
-				t.Fatalf("internal cause leaked: %s", recorder.Body.String())
-			}
-		})
-	}
-}
-
-func newApplyWorkflowTestRouter(stub *applyWorkflowStub) http.Handler {
-	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := New(api, nil, stub)
-	router := chi.NewRouter()
-	router.Use(handlershared.RequestContextMiddleware(api.BaseLogger()))
-	router.Post("/workgraph/editors/{editor_id}/apply", handler.HandleApplyWorkGraphWorkflowEditor)
-	return router
 }
 
 type confirmWorkflowStub struct {

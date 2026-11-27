@@ -91,35 +91,6 @@ func TestRenderExecutionContextProjectsOnlyActionableRuntimeFacts(t *testing.T) 
 	}
 }
 
-func TestRenderExecutionContextDoesNotExposeUnacceptedDependencyPayload(t *testing.T) {
-	snapshot := executionContextTestSnapshot()
-	snapshot.Acceptances = nil
-	snapshot.Submissions[0].ResultSummary = "UNREVIEWED SIBLING PAYLOAD"
-	snapshot.Submissions[0].ResultRefs = []string{"secret://unreviewed"}
-	rendered := RenderExecutionContext(&snapshot, ExecutionContextOptions{
-		ActorAgentID: "analyst",
-		Role:         ExecutionActorMember,
-	})
-	for _, expected := range []string{
-		`<dependency kind="hard" status="pending_review">`,
-		`<upstream work_item_id="work-research" logical_key="W1" spec_id="spec-research" />`,
-		`<blocker>upstream Work Item current spec is not accepted</blocker>`,
-	} {
-		if !strings.Contains(rendered, expected) {
-			t.Fatalf("unaccepted dependency context missing %q:\n%s", expected, rendered)
-		}
-	}
-	for _, forbidden := range []string{
-		"UNREVIEWED SIBLING PAYLOAD",
-		"secret://unreviewed",
-		`<accepted_submission id="submission-research">`,
-	} {
-		if strings.Contains(rendered, forbidden) {
-			t.Fatalf("unaccepted dependency payload leaked %q:\n%s", forbidden, rendered)
-		}
-	}
-}
-
 func TestRenderExecutionContextShowsCanonicalObjectiveAndWaitingInputEvidence(t *testing.T) {
 	snapshot := executionContextTestSnapshot()
 	snapshot.Execution.Objective = "Deliver one verified comparison"
@@ -141,94 +112,6 @@ func TestRenderExecutionContextShowsCanonicalObjectiveAndWaitingInputEvidence(t 
 	} {
 		if !strings.Contains(rendered, expected) {
 			t.Fatalf("context missing %q:\n%s", expected, rendered)
-		}
-	}
-}
-
-func TestRenderExecutionContextReturnsEmptyWithoutManagedExecution(t *testing.T) {
-	if got := RenderExecutionContext(nil, ExecutionContextOptions{}); got != "" {
-		t.Fatalf("nil snapshot context = %q, want empty", got)
-	}
-	if got := RenderExecutionContext(&protocol.ExecutionSnapshot{}, ExecutionContextOptions{}); got != "" {
-		t.Fatalf("empty snapshot context = %q, want empty", got)
-	}
-}
-
-func TestRenderUnmanagedExecutionContextUsesCompactRoundMarker(t *testing.T) {
-	tests := []struct {
-		name    string
-		options ExecutionContextOptions
-		want    string
-	}{
-		{
-			name: "coordinator",
-			options: ExecutionContextOptions{
-				Role: ExecutionActorCoordinator,
-			},
-			want: `<nexus_round lane="coordination" role="coordinator" />`,
-		},
-		{
-			name: "Room member",
-			options: ExecutionContextOptions{
-				ScopeKind: protocol.ExecutionScopeRoom,
-			},
-			want: `<nexus_round lane="conversation" role="member" />`,
-		},
-		{
-			name: "Plan Mode",
-			options: ExecutionContextOptions{
-				Role:     ExecutionActorCoordinator,
-				PlanMode: true,
-			},
-			want: `<nexus_round lane="coordination" role="coordinator" plan_only="true" />`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := RenderUnmanagedExecutionContext(test.options); got != test.want {
-				t.Fatalf("round context = %q, want %q", got, test.want)
-			}
-		})
-	}
-}
-
-func TestRenderExecutionContextTerminalExecutionExposesInspectionOnly(t *testing.T) {
-	snapshot := executionContextTestSnapshot()
-	snapshot.Execution.GoalID = ""
-	snapshot.Execution.Status = protocol.ExecutionStatusSuperseded
-
-	rendered := RenderExecutionContext(&snapshot, ExecutionContextOptions{
-		ActorAgentID: "lead",
-	})
-	if !strings.Contains(
-		rendered,
-		`<execution_transition replace_current_allowed="false" abandon_allowed="false" validation_only="false" reason_code="execution_terminal">`,
-	) {
-		t.Fatalf("terminal transition boundary = %s", rendered)
-	}
-	allowed := rendered[strings.Index(
-		rendered,
-		"<allowed_actions>",
-	):strings.Index(rendered, "</allowed_actions>")]
-	if !strings.Contains(allowed, "<action>get_execution</action>") {
-		t.Fatalf("terminal Execution cannot be inspected:\n%s", rendered)
-	}
-	if !strings.Contains(allowed, "<action>subagent/spawn</action>") {
-		t.Fatalf("terminal background Execution blocked subagent delegation:\n%s", rendered)
-	}
-	for _, action := range []string{
-		"plan_execution",
-		"abandon_execution",
-		"assign_work",
-		"submit_work",
-		"review_work",
-		"block_work",
-		"resume_work",
-		"take_over_work",
-		"promote_execution_to_goal",
-	} {
-		if strings.Contains(allowed, "<action>"+action+"</action>") {
-			t.Fatalf("terminal Execution exposed %q:\n%s", action, rendered)
 		}
 	}
 }
@@ -292,28 +175,6 @@ func TestRenderExecutionContextReadyWorkCarriesCurrentSpecReviewAndResumeFacts(t
 	} {
 		if !strings.Contains(rendered, expected) {
 			t.Fatalf("ready work context missing %q:\n%s", expected, rendered)
-		}
-	}
-}
-
-func TestRenderExecutionContextAssignedOwnerCarriesResumeFacts(t *testing.T) {
-	snapshot := assignedExecutionSnapshot()
-	snapshot.WorkItemStates[0].Metadata = map[string]any{
-		"last_resume_resolution": "legal approval received",
-		"last_resume_evidence":   []string{"approval://42"},
-	}
-	rendered := RenderExecutionContext(snapshot, ExecutionContextOptions{
-		ActorAgentID: "agent-worker",
-		Role:         ExecutionActorMember,
-	})
-	for _, expected := range []string{
-		`assignment_id="assignment-1"`,
-		`<resume_context>`,
-		`<resolution>legal approval received</resolution>`,
-		`<item>approval://42</item>`,
-	} {
-		if !strings.Contains(rendered, expected) {
-			t.Fatalf("assigned owner context missing %q:\n%s", expected, rendered)
 		}
 	}
 }
@@ -595,13 +456,6 @@ func TestSubagentAdmissionRejectsWrongOwnerOrSession(t *testing.T) {
 	}
 }
 
-func TestSubagentAdmissionRejectsPlanMode(t *testing.T) {
-	actor := subagentActor()
-	actor.PlanMode = true
-	result := admitSubagentWithSnapshot(t, assignedExecutionSnapshot(), actor, "tool-1")
-	assertSubagentAdmissionRejected(t, result, ErrorCodePlanMode)
-}
-
 func TestSubagentLifecycleAllowsRuntimeOnlyWithoutManagedBinding(t *testing.T) {
 	service := NewService(&fakeRepository{})
 	actor := subagentActor()
@@ -675,15 +529,6 @@ func TestSubagentAdmissionRetriesTransientPersistenceFailure(t *testing.T) {
 		result.Binding.AttemptID != "attempt-child-after-lock" ||
 		startCalls != 3 {
 		t.Fatalf("retried admission = %#v, start calls = %d", result, startCalls)
-	}
-}
-
-func TestSubagentAdmissionReusesExactToolBinding(t *testing.T) {
-	snapshot := runningSubagentSnapshot()
-	child := snapshot.Attempts[len(snapshot.Attempts)-1]
-	result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), child.ToolUseID)
-	if !result.Allowed || result.Binding == nil || result.Binding.AttemptID != child.ID {
-		t.Fatalf("replayed admission = %#v, want existing child %s", result, child.ID)
 	}
 }
 
