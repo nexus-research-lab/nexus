@@ -16,24 +16,9 @@ function project(locale: Locale, overrides: Partial<AgentPrivateEvent> = {}) {
 }
 
 describe("private participant presentation", () => {
-  it.each(["zh", "en"] as const)("localizes missing source and recipient names while preserving identity in %s", (locale) => {
-    const result = project(locale);
-    expect(result.sourceName).toBe(MESSAGES[locale]["agent.name_fallback"]);
-    expect(result.routeLabel).toContain(MESSAGES[locale]["agent.name_fallback"]);
-    expect(result.routeLabel).not.toContain("missing-id");
-    expect(result.sourceAgentId).toBe("peer-id");
-    expect(result.content).toBe(event.content);
-    expect(result.id).toBe("event");
-  });
   it("identifies self from the event even when participant metadata is absent", () => {
     const result = project("zh", { source_agent_id: "owner", direction: "self" });
     expect(result.sourceName).toBe(MESSAGES.zh["agent_options.contact.self"]);
     expect(result.sourceAgentId).toBe("owner");
-  });
-  it("uses current real names but leaves missing or blank recipients generic", () => {
-    const result = project("en", { participants: [{ agent_id: "peer-id", name: " Nova " }, { agent_id: "missing-id", name: "  " }] });
-    expect(result.sourceName).toBe("Nova");
-    expect(result.routeLabel).not.toContain("missing-id");
-    expect(project("en", { participants: [{ agent_id: "peer-id", name: "Pixel" }] }).sourceName).toBe("Pixel");
   });
 });

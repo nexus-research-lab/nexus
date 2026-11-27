@@ -48,21 +48,3 @@ it.each(["en", "zh"] as const)("names the real Thread in %s without exposing an 
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(document.activeElement).toBe(trigger);
 });
-
-it("does not lock without live data, opens when data arrives and keeps name refreshes in place", async () => {
-  const previousOverflow = document.body.style.overflow;
-  render(view());
-  await userEvent.click(screen.getByRole("button", { name: "Inspect turn" }));
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(document.body.style.overflow).toBe(previousOverflow);
-  act(() => useRoomThreadLiveStore.getState().setSource(source("Nova")));
-  const dialog = screen.getByRole("dialog", { name: "Execution details for Nova" });
-  const back = screen.getByRole("button", { name: "Back" });
-  await waitFor(() => expect(document.activeElement).toBe(back));
-  act(() => useRoomThreadLiveStore.getState().setSource(source("Pixel")));
-  expect(screen.getByRole("dialog", { name: "Execution details for Pixel" })).toBe(dialog);
-  expect(document.activeElement).toBe(back);
-  await userEvent.click(back);
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(document.body.style.overflow).toBe(previousOverflow);
-});

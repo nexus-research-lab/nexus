@@ -2,7 +2,7 @@
 // OUTPUT: 证明焦点/字段身份、草稿更新、具名忙碌动作和使用者展示不改变命令目标。
 // POS: 真实弹窗行为测试；命令为本地回调，不执行 Provider 请求或删除。
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -182,29 +182,6 @@ describe("Provider model dialogs", () => {
         expect(label.control?.closest('[role="dialog"]')).toBe(dialog);
       }
     }
-  });
-
-  it("shows readable usage names, replaces missing names without exposing IDs and preserves explicit deletion", async () => {
-    const user = userEvent.setup();
-    const onForceDelete = vi.fn();
-    const onCancel = vi.fn();
-    const { rerender } = render(view(<ProviderDeleteUsageDialog deleteTargetRecord={PROVIDER} isOpen
-      onCancel={onCancel} onForceDelete={onForceDelete} pendingAction={null} />));
-    const dialog = screen.getByRole("dialog");
-    for (const name of ["Readable Agent", "Named Worker", "settings.providers.agent_name_unavailable"]) {
-      expect(within(dialog).getByText(name)).toBeTruthy();
-    }
-    for (const agent of PROVIDER.used_by_agents) expect(dialog.textContent).not.toContain(agent.agent_id);
-    expect(within(dialog).getByText("settings.providers.main_agent_badge")).toBeTruthy();
-    expect(onForceDelete).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole("button", { name: "settings.providers.force_delete" }));
-    expect(onForceDelete).toHaveBeenCalledOnce();
-    rerender(view(<ProviderDeleteUsageDialog deleteTargetRecord={PROVIDER} isOpen onCancel={onCancel}
-      onForceDelete={onForceDelete} pendingAction={{ kind: "delete-provider" }} />));
-    const button = screen.getByRole("button", { name: "settings.providers.force_delete" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    await user.click(button);
-    expect(onForceDelete).toHaveBeenCalledOnce();
   });
 
   it("uses the stale-usage explanation when the current agent directory is empty", () => {

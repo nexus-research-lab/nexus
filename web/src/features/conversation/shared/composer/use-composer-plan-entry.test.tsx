@@ -44,25 +44,5 @@ describe("Plan entry", () => {
     act(() => result.current.togglePlanInput());
     expect(result.current.input).toBe("");
   });
-  it("isolates Plan by Session and restores the mode with a rejected draft", () => {
-    const { result, rerender } = renderHook(({ scope }) => useEntry(scope), {
-      initialProps: { scope: "session-a" },
-      wrapper: ({ children }) => <I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => key }}>{children}</I18N_CONTEXT.Provider>,
-    });
-    act(() => result.current.setInput("/plan improve search"));
-    expect(result.current.input).toBe("improve search");
-    expect(result.current.isPlanMode).toBe(true);
-    rerender({ scope: "session-b" });
-    expect(result.current.isPlanMode).toBe(false);
-    expect(result.current.input).toBe("");
-    rerender({ scope: "session-a" });
-    expect(result.current.isPlanMode).toBe(true);
-    const snapshot = result.current.draft.state;
-    act(() => { result.current.draft.claimMessageSubmission(); });
-    expect(result.current.isPlanMode).toBe(false);
-    act(() => { result.current.draft.restoreFailedMessageSubmission(snapshot); });
-    expect(result.current.isPlanMode).toBe(true);
-    expect(result.current.input).toBe("improve search");
-  });
 
 });

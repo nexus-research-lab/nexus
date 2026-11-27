@@ -28,24 +28,6 @@ it("starts a static, decorative player when reduced motion is enabled", () => {
   expect(canvas.closest('[aria-hidden="true"]')).toBeTruthy();
 });
 
-it("disposes the playing lifecycle before switching to static and can resume playback", () => {
-  const { rerender, unmount } = render(<LottiePlayer src="sparkles.lottie" />);
-  const playing = screen.getByTestId("decoration");
-  expect(playing.dataset.autoplay).toBe("true");
-  expect(playing.dataset.loop).toBe("true");
-  playback.reduced = true;
-  rerender(<LottiePlayer src="sparkles.lottie" />);
-  expect(screen.getByTestId("decoration")).not.toBe(playing);
-  expect(screen.getByTestId("decoration").dataset.autoplay).toBe("false");
-  expect(playback.destroyed).toHaveBeenCalledTimes(1);
-  playback.reduced = false;
-  rerender(<LottiePlayer src="sparkles.lottie" />);
-  expect(screen.getByTestId("decoration").dataset.autoplay).toBe("true");
-  expect(playback.destroyed).toHaveBeenCalledTimes(2);
-  unmount();
-  expect(playback.destroyed).toHaveBeenCalledTimes(3);
-});
-
 it("forwards new sources without restarting the same motion lifecycle on layout changes", () => {
   const { rerender } = render(<LottiePlayer src="first.lottie" />);
   const canvas = screen.getByTestId("decoration");

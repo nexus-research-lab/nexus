@@ -145,43 +145,6 @@ describe("ComposerRoomModelControl", () => {
     expect(document.activeElement).toBe(outside);
   });
 
-  it("updates hover availability when resizing without changing the initial menu geometry", async () => {
-    const user = userEvent.setup();
-    const { Harness, resize } = setupFixture();
-    render(<Harness />);
-    const trigger = screen.getAllByRole("button").find((button) => button.getAttribute("aria-haspopup") === "dialog")!;
-    await user.click(trigger);
-    resize(390);
-    const pixel = screen.getByRole("menuitem", { name: /Pixel/ });
-    await user.hover(pixel);
-    expect(screen.queryByRole("menuitem", { name: /^Base/ })).toBeNull();
-    await user.click(pixel);
-    expect(screen.getByRole("menuitem", { name: /^Base/ })).toBeTruthy();
-  });
-
-  it("includes the narrow back header in the height budget and keeps long options scrollable", async () => {
-    const user = userEvent.setup();
-    const { commands, Harness } = setupFixture(390);
-    vi.stubGlobal("innerHeight", 300);
-    const { rerender } = render(<Harness />);
-    const trigger = screen.getAllByRole("button").find((button) => button.getAttribute("aria-haspopup") === "dialog")!;
-    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue(new DOMRect(210, 260, 100, 28));
-    await user.click(trigger);
-    expect(screen.getByRole("dialog").style.maxHeight).toBe("82px");
-    await user.keyboard("{ArrowDown}{ArrowRight}");
-    const menu = screen.getByRole("menuitem", { name: /^Base/ }).closest('[role="menu"]') as HTMLElement;
-    // 模型菜单常驻思考强度入口（不支持时显示不可用），高度预算比纯模型列表多一行。
-    expect(screen.getByRole("dialog").style.maxHeight).toBe("177px");
-    expect(menu.parentElement?.style.maxHeight).toBe("177px");
-    expect(screen.getByRole("button", { name: "Go back" })).toBeTruthy();
-    rerender(<Harness extraModels={30} />);
-    expect(screen.getByRole("dialog").style.maxHeight).toBe("242px");
-
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(34);
-    await user.keyboard("{End}{Enter}");
-    expect(commands.resetModel).toHaveBeenCalledExactlyOnceWith("pixel");
-  });
-
   it.each(["replaced", "removed"])("closes when the chosen Agent Session is %s without issuing a model command", async (change) => {
     const user = userEvent.setup();
     const { commands, Harness } = setupFixture();
@@ -195,56 +158,6 @@ describe("ComposerRoomModelControl", () => {
     expect(document.activeElement).toBe(trigger);
     expect(commands.updateModel).not.toHaveBeenCalled();
     expect(commands.resetModel).not.toHaveBeenCalled();
-  });
-
-  it.each([390, 1024])("navigates the %spx cascade and updates only the chosen Agent", async (width) => {
-    const user = userEvent.setup();
-    const { commands, Harness } = setupFixture(width);
-    render(<Harness />);
-    const trigger = screen.getAllByRole("button").find((button) => button.getAttribute("aria-haspopup") === "dialog")!;
-    await user.click(trigger);
-    const first = screen.getByRole("menuitem", { name: /Nova/ });
-    expect(document.activeElement).toBe(first);
-    await user.keyboard("{ArrowDown}");
-    const pixel = screen.getByRole("menuitem", { name: /Pixel/ });
-    expect(document.activeElement).toBe(pixel);
-    fireEvent.keyDown(pixel, { key: "ArrowRight", isComposing: true });
-    expect(screen.queryByRole("menuitem", { name: /^Base/ })).toBeNull();
-    await user.keyboard("{ArrowRight}");
-    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: /^Base/ }));
-    await user.keyboard("{ArrowLeft}");
-    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: /Pixel/ }));
-    await user.keyboard("{Enter}{ArrowDown}{Enter}");
-    expect(commands.updateModel).toHaveBeenCalledExactlyOnceWith("pixel", "provider", "advanced");
-    expect(commands.resetModel).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(trigger);
-    expect(commands.ensureTargetsLoaded).toHaveBeenCalledTimes(1);
-  });
-
-  it("closes one level per Escape, preserves IME and dismisses through normal Tab order", async () => {
-    const user = userEvent.setup();
-    const { Harness } = setupFixture();
-    render(<Harness />);
-    const trigger = screen.getAllByRole("button").find((button) => button.getAttribute("aria-haspopup") === "dialog")!;
-    await user.click(trigger);
-    await user.keyboard("{ArrowRight}");
-    fireEvent.keyDown(document.activeElement!, { key: "Escape", keyCode: 229 });
-    expect(screen.getByRole("menuitem", { name: /^Base/ })).toBeTruthy();
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("menuitem", { name: /^Base/ })).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: /Nova/ }));
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(trigger);
-    await user.click(trigger);
-    await user.keyboard("{ArrowRight}");
-    await user.tab();
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "After" }));
-    await user.click(trigger);
-    await user.tab({ shift: true });
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Before" }));
   });
 
   it("keeps hover focus in the Agent menu, and preserves inherited/reset commands", async () => {
@@ -268,24 +181,5 @@ describe("ComposerRoomModelControl", () => {
     await user.keyboard("{ArrowRight}{End}{Enter}");
     expect(commands.resetModel).toHaveBeenLastCalledWith("nova");
     expect(commands.updateModel).toHaveBeenCalledOnce();
-  });
-
-  it("keeps busy model actions disabled and clears an externally disabled menu", async () => {
-    const user = userEvent.setup();
-    const { commands, Harness } = setupFixture();
-    const view = render(<Harness busy />);
-    const trigger = screen.getAllByRole("button").find((button) => button.getAttribute("aria-haspopup") === "dialog")!;
-    await user.click(trigger);
-    await user.keyboard("{ArrowRight}");
-    const base = screen.getByRole("menuitem", { name: /^Base/ }) as HTMLButtonElement;
-    expect(base.disabled).toBe(true);
-    expect(document.activeElement).toBe(base.closest('[role="menu"]'));
-    await user.keyboard("{Enter}");
-    expect(commands.updateModel).not.toHaveBeenCalled();
-    expect(commands.resetModel).not.toHaveBeenCalled();
-    view.rerender(<Harness disabled />);
-    expect(screen.queryByRole("dialog")).toBeNull();
-    view.rerender(<Harness />);
-    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

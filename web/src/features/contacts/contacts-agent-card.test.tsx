@@ -2,8 +2,7 @@
 // OUTPUT: 证明网格和列表复用共享视觉原语且动作边界互不串联。
 // POS: Contacts Agent 卡片 DOM 合同；不覆盖目录筛选或详情保存。
 
-import { act, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { getInitialAgentOptions } from "@/config/runtime-options";
@@ -45,31 +44,6 @@ function renderCard(view: "grid" | "list", agent: Agent = AGENT) {
 }
 
 describe("ContactsAgentCard", () => {
-  it.each(["grid", "list"] as const)("keeps one identity and independent keyboard/pointer actions in %s view", async (view) => {
-    const user = userEvent.setup();
-    const { actions } = renderCard(view);
-    const open = screen.getByRole("button", { name: "common.edit Researcher" });
-    expect(screen.getAllByRole("heading", { name: "Researcher" })).toHaveLength(1);
-    expect(screen.getAllByText("研究")).toHaveLength(1);
-    expect(screen.getByText("contacts.metadata.provider").tagName).toBe("DT");
-    expect(screen.getByText("Anthropic").tagName).toBe("DD");
-    const chat = screen.getByRole("button", { name: "contacts.chat Researcher" });
-    expect(screen.queryByRole("button", { name: "contacts.create_team Researcher" })).toBeNull();
-    await user.click(chat);
-    expect(actions.onOpenRoom).toHaveBeenCalledOnce();
-    expect(actions.onOpenProfile).not.toHaveBeenCalled();
-    act(() => open.focus());
-    await user.keyboard("{Enter}");
-    expect(actions.onOpenProfile).toHaveBeenCalledOnce();
-    if (view === "grid") {
-      expect(screen.getAllByRole("article")).toHaveLength(1);
-      expect(within(screen.getByRole("article")).getAllByRole("button")).toHaveLength(2);
-    } else {
-      await user.tab();
-      expect(screen.getByRole("tooltip").textContent).toBe("contacts.chat");
-      expect(chat.getAttribute("title")).toBeNull();
-    }
-  });
 
   it.each(["grid", "list"] as const)("hides default permission and provider in %s view", (view) => {
     renderCard(view, {

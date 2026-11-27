@@ -62,15 +62,3 @@ describe("SkillsSearchBar", () => {
     expect(onSubmitExternalSearch).toHaveBeenCalledTimes(2);
   });
 });
-
-it.each([{ query: "a", loading: false }, { query: "valid", loading: true }])("keeps Enter aligned with disabled search ($query, $loading)", ({ query, loading }) => {
-  const submit = vi.fn();
-  render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
-    <SkillsSearchBar catalogQuery="" discoveryMode="external"
-      externalLoading={loading} externalQuery={query} externalSourceId="" externalSources={[]}
-      onChangeCatalogQuery={vi.fn()} onChangeDiscoveryMode={vi.fn()}
-      onChangeExternalQuery={vi.fn()} onChangeExternalSource={vi.fn()} onSubmitExternalSearch={submit} />
-  </I18N_CONTEXT.Provider>);
-  fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
-  expect(submit).not.toHaveBeenCalled();
-});

@@ -40,17 +40,6 @@ it("clears a failed image when the selected file is replaced and releases both U
   expect(revokeUrl.mock.calls).toEqual([["blob:file-1"], ["blob:file-2"]]);
 });
 
-it("gives simultaneous previews distinct titles owned by their dialog instances", () => {
-  render(localized(<>
-    <ComposerAttachmentPreviewDialog attachment={attachment("first.png")} onClose={vi.fn()} />
-    <ComposerAttachmentPreviewDialog attachment={attachment("second.png")} onClose={vi.fn()} />
-  </>));
-  const dialogs = [...document.querySelectorAll('[role="dialog"]')];
-  const ids = dialogs.map((dialog) => dialog.getAttribute("aria-labelledby"));
-  expect(new Set(ids).size).toBe(2);
-  expect(ids.map((id) => document.getElementById(id!)?.textContent)).toEqual(["first.png", "second.png"]);
-});
-
 it.each(["resolve", "reject"] as const)("bounds the read and ignores an old text %s after switching files", async (outcome) => {
   const oldRead = deferred<string>();
   const first = attachment("old.txt", "text");

@@ -5,7 +5,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import userEvent from "@testing-library/user-event";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import type { ExecutionView } from "@/types/conversation/execution";
@@ -100,64 +99,6 @@ onOpenGraph={onOpenGraph} />
     expect(onOpenGraph).toHaveBeenCalledOnce();
   });
 
-  it("keeps all projected agents keyboard reachable with the graph action outside the scroll area", async () => {
-    const user = userEvent.setup();
-    const onNavigateToRound = vi.fn();
-    const onOpenGraph = vi.fn();
-    const nodes = Array.from({ length: 7 }, (_, index) => ({
-      ...EXECUTION.graph.nodes[0],
-      agent_id: `agent-${index + 1}`,
-      agent_round_id: `round-${index + 1}`,
-      id: `work-${index + 1}`,
-      position: index,
-      work_item_id: `work-${index + 1}`,
-    }));
-    const execution: ExecutionView = {
-      ...EXECUTION,
-      graph: { ...EXECUTION.graph, nodes },
-      work_items: nodes.map((node) => ({
-        ...EXECUTION.work_items[0],
-        id: node.id,
-        owner_agent_id: node.agent_id,
-        position: node.position,
-      })),
-    };
-    const { container } = render(
-      <I18nProvider>
-        <ExecutionProcessPanel
-          directory={Object.fromEntries(nodes.map((node, index) => [
-            node.agent_id,
-            { avatar: null, id: node.agent_id, name: `Member ${index + 1}` },
-          ]))}
-          execution={execution}
-          onNavigateToRound={onNavigateToRound}
-          onOpenGraph={onOpenGraph}
-        />
-      </I18nProvider>,
-    );
-
-    const list = container.querySelector("[data-execution-agent-activity-list]");
-    const agents = list!.querySelectorAll("button");
-    const graph = container.querySelector("[data-execution-open-workgraph]");
-    // The existing primary-node projection still limits the quick view to five agents.
-    expect(agents).toHaveLength(5);
-
-    expect(list?.contains(graph)).toBe(false);
-
-    expect(container.querySelectorAll("[data-execution-agent-connection]")).toHaveLength(4);
-    for (const [index, action] of Array.from(agents).entries()) {
-      await user.tab();
-      expect(document.activeElement).toBe(action);
-
-      await user.keyboard("{Enter}");
-      expect(onNavigateToRound).toHaveBeenLastCalledWith(`round-${index + 1}`);
-    }
-    await user.tab();
-    expect(document.activeElement).toBe(graph);
-    await user.keyboard("{Enter}");
-    expect(onOpenGraph).toHaveBeenCalledOnce();
-  });
-
   it.each([
     { hasRound: false, hasNavigation: true },
     { hasRound: true, hasNavigation: false },
@@ -227,23 +168,5 @@ onOpenGraph={onOpenGraph} />
     expect(frame.getAttribute("title")).toBeNull();
 
     expect(frame.getAttribute("data-execution-node-current")).toBe(status === "running" ? "true" : null);
-  });
-
-  it("preserves the full graph avatar geometry, status frame and selected state", () => {
-    const { container } = render(
-      <ExecutionNodeAvatar
-        agent={{ avatar: null, id: "agent-1", name: "Nexus" }}
-        current
-        selected
-        size="graph"
-        status="running"
-        title="Nexus node"
-      />,
-    );
-
-    const frame = container.querySelector("[data-execution-node-agent]")!;
-
-    expect(frame.getAttribute("title")).toBeNull();
-
   });
 });

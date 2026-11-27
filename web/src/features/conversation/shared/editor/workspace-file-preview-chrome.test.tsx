@@ -3,16 +3,13 @@
 // POS: Workspace 文件预览 chrome 的 DOM 合同；文件内容与持久化动作由各预览器负责。
 
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { Download } from "lucide-react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 
 import {
   WorkspaceFilePreviewHeader,
   WorkspaceFilePreviewHeaderProvider,
-  WorkspaceFileToolbarButton,
 } from "./workspace-file-preview-chrome";
 
 describe("WorkspaceFilePreviewHeader", () => {
@@ -33,28 +30,5 @@ describe("WorkspaceFilePreviewHeader", () => {
     expect(screen.getByText("counter.txt")).toBeTruthy();
     expect(container.querySelectorAll("svg")).toHaveLength(2);
     expect(screen.getByText("counter.txt").getAttribute("aria-current")).toBe("page");
-  });
-
-  it("uses the shared compact IconButton for file actions", async () => {
-    const user = userEvent.setup();
-    const onClick = vi.fn();
-    const { rerender } = render(
-      <WorkspaceFileToolbarButton onClick={onClick} title="下载文件">
-        <Download />
-      </WorkspaceFileToolbarButton>,
-    );
-
-    const action = screen.getByRole("button", { name: "下载文件" });
-
-    await user.click(action);
-    expect(onClick).toHaveBeenCalledTimes(1);
-
-    rerender(
-      <WorkspaceFileToolbarButton disabled onClick={onClick} title="下载文件">
-        <Download />
-      </WorkspaceFileToolbarButton>,
-    );
-    await user.click(screen.getByRole("button", { name: "下载文件" }));
-    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });

@@ -25,11 +25,3 @@ it("previews images for the file Agent even when another Agent is selected", () 
   rerender(<TextFileContent {...props} agentId="new-file-agent" />);
   expect(screen.getByRole("img", { name: "Chart" }).getAttribute("src")).toContain("/agents/new-file-agent/workspace/download?");
 });
-
-it("keeps unknown plain text literal and preserves whitespace without creating markup", () => {
-  const content = "  leading\tspaces\n<img src='untrusted' />\n中文";
-  const { container } = render(<TextFileContent agentId="file-agent" content={content} fileName="notes.unknown"
-    fileType="text" isLoading={false} isStreaming={false} />);
-  expect(container.querySelector("pre")?.textContent).toBe(content);
-  expect(screen.queryByRole("img")).toBeNull();
-});

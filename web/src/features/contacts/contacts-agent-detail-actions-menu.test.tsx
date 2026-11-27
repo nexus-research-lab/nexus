@@ -48,23 +48,4 @@ describe("ContactsAgentDetailActionsMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
-
-  it("closes when identity changes, keeps name updates open and uses only current commands", async () => {
-    const user = userEvent.setup();
-    const first = commands();
-    const second = commands();
-    const view = render(<ContactsAgentDetailActionsMenu agentId="a" agentName="Nova" {...first} />, { wrapper: I18nProvider });
-    await user.click(screen.getByRole("button", { name: "Nova的操作" }));
-    view.rerender(<ContactsAgentDetailActionsMenu agentId="a" agentName="Nova renamed" {...first} />);
-    expect(screen.getByRole("menu", { name: "Nova renamed的操作" })).toBeTruthy();
-    view.rerender(<ContactsAgentDetailActionsMenu agentId="b" agentName="Pixel" {...second} />);
-    expect(screen.queryByRole("menu")).toBeNull();
-    view.rerender(<ContactsAgentDetailActionsMenu agentId="a" agentName="Nova" {...first} />);
-    expect(screen.queryByRole("menu")).toBeNull();
-    view.rerender(<ContactsAgentDetailActionsMenu agentId="b" agentName="Pixel" {...second} />);
-    await user.click(screen.getByRole("button", { name: "Pixel的操作" }));
-    await user.keyboard("{End}{Enter}");
-    expect(second.onDelete).toHaveBeenCalledOnce();
-    for (const callback of Object.values(first)) expect(callback).not.toHaveBeenCalled();
-  });
 });

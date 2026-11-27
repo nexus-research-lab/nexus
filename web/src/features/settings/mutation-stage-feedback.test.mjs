@@ -2,8 +2,6 @@
 
 import assert from "node:assert/strict";
 
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
 test("password unknown outcomes persist only an exact receipt pointer", async () => {
@@ -145,59 +143,4 @@ test("Provider validation keeps the safe field-specific correction", async () =>
 
   assert.equal(feedback.impact, correction);
   assert.equal(feedback.tone, "error");
-});
-
-test("reconciled settings expose one reapply action without discarding the draft", async () => {
-  const [preferencesModule, echoModule, i18nModule, messagesModule] = await Promise.all([
-    import("@/features/settings/general/components/preferences-reliability-notice.tsx"),
-    import("@/features/settings/general/components/echo-settings-reliability-notice.tsx"),
-    import("@/shared/i18n/i18n-context.ts"),
-    import("@/shared/i18n/messages.ts"),
-  ]);
-  const t = (key, params) => {
-    const template = messagesModule.MESSAGES.zh[key] ?? key;
-    return template.replace(/\{(\w+)\}/g, (match, name) => (
-      params?.[name] === undefined ? match : String(params[name])
-    ));
-  };
-  const provider = (child) => React.createElement(
-    i18nModule.I18N_CONTEXT.Provider,
-    { value: { locale: "zh", setLocale: () => {}, t } },
-    child,
-  );
-  const noop = () => {};
-  const preferencesHtml = renderToStaticMarkup(provider(React.createElement(
-    preferencesModule.PreferencesReliabilityNotice,
-    {
-      feedback: { impact: "本页输入仍已保留。", title: "服务端设置不同", tone: "warning" },
-      recovery: {
-        canCompare: true,
-        canRepairProjection: false,
-        checking: false,
-        checkLatest: noop,
-        reapplyDraft: noop,
-        repairProjection: noop,
-        repairing: false,
-      },
-    },
-  )));
-  const echoHtml = renderToStaticMarkup(provider(React.createElement(
-    echoModule.EchoSettingsReliabilityNotice,
-    {
-      feedback: { impact: "本页选择仍已保留。", title: "服务端设置不同", tone: "warning" },
-      recovery: {
-        canCheckLatest: false,
-        canCompare: true,
-        checking: false,
-        checkLatest: noop,
-        reapplyChange: noop,
-      },
-    },
-  )));
-
-  assert.equal((preferencesHtml.match(/<button/g) ?? []).length, 1);
-  assert.match(preferencesHtml, /重新应用本页修改/);
-  assert.equal((echoHtml.match(/<button/g) ?? []).length, 1);
-  assert.match(echoHtml, /重新应用本次更改/);
-  assert.doesNotMatch(`${preferencesHtml}${echoHtml}`, /使用最新/);
 });

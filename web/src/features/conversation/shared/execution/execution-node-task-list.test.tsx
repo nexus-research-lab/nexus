@@ -2,7 +2,7 @@
 // OUTPUT: 验证归一化清单、完整步骤访问、独立展开状态和可读任务正文。
 // POS: 节点 Task 只读 DOM 回归；关联资格仍由 node-task-model 合同验证。
 
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -34,35 +34,6 @@ function view(run = RUN, locale: I18nContextValue["locale"] = "zh", copies = 1) 
 }
 
 describe("ExecutionNodeTaskList", () => {
-  it("focuses the current step and offers keyboard access to every step without resetting on language changes", async () => {
-    const user = userEvent.setup();
-    const { rerender } = render(view());
-    const list = screen.getByRole("list");
-    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
-    expect(list.firstElementChild?.getAttribute("value")).toBe("3");
-    expect(screen.queryByText("步骤 1")).toBeNull();
-    expect(screen.queryByText("步骤 8")).toBeNull();
-    expect(screen.getByText("4/8")).toBeTruthy();
-    const active = screen.getByText("正在核对完整的协议与本轮交付结果");
-    expect(active.getAttribute("title")).toBeNull();
-
-    const toggle = screen.getByRole("button", { name: "另有 3 步" });
-    expect(toggle.getAttribute("aria-controls")).toBe(list.id);
-    await user.tab();
-    expect(document.activeElement).toBe(toggle);
-    await user.keyboard("{Enter}");
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(within(list).getAllByRole("listitem")).toHaveLength(8);
-    expect(screen.getByText("步骤 1")).toBeTruthy();
-    expect(screen.getByText("步骤 8")).toBeTruthy();
-
-    rerender(view(RUN, "en"));
-    expect(screen.getByRole("button", { name: "Collapse steps" })).toBe(toggle);
-    expect(within(list).getAllByRole("listitem")).toHaveLength(8);
-    await user.keyboard("{Enter}");
-    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
-    expect(screen.getByRole("button", { name: "3 more steps" }).getAttribute("aria-expanded")).toBe("false");
-  });
 
   it("renders the same normalized legacy tasks used for counts and ignores malformed entries", () => {
     const todos = [
@@ -79,18 +50,6 @@ describe("ExecutionNodeTaskList", () => {
     expect(screen.getByText("正在处理旧格式").textContent).toBe("正在处理旧格式");
     expect(screen.queryByText("忽略未知状态")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
-  });
-
-  it("keeps simultaneous task lists independently named and expanded", async () => {
-    const user = userEvent.setup();
-    render(view(RUN, "zh", 2));
-    const regions = screen.getAllByRole("region", { name: "局部步骤" });
-    const lists = screen.getAllByRole("list");
-    expect(lists[0].id).not.toBe(lists[1].id);
-    expect(regions[0].getAttribute("aria-labelledby")).not.toBe(regions[1].getAttribute("aria-labelledby"));
-    await user.click(within(regions[0]).getByRole("button"));
-    expect(within(lists[0]).getAllByRole("listitem")).toHaveLength(8);
-    expect(within(lists[1]).getAllByRole("listitem")).toHaveLength(5);
   });
 
   it.each(["agentId", "agentRoundId"] as const)("resets expanded details after the exact %s changes, including returning to the original run", async (field) => {

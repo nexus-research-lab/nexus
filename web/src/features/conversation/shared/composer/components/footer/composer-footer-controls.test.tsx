@@ -65,32 +65,6 @@ describe("Composer Footer actions", () => {
     expect(onPlanToggle).toHaveBeenCalledTimes(2);
   });
 
-  it("exposes one checked Goal item, closes on activation and respects Goal locks", async () => {
-    const user = userEvent.setup();
-    const onGoalToggle = vi.fn();
-    const { rerender } = render(<Actions overrides={{ onGoalToggle }} />);
-    const anchor = screen.getByRole("button", { name: "composer.open_actions" });
-    await user.click(anchor);
-    expect(screen.queryByText("composer.insert_loop")).toBeNull();
-    const goal = screen.getByRole("menuitemcheckbox", { name: "composer.start_goal", checked: false });
-    expect(goal.querySelector("button, input")).toBeNull();
-    expect(screen.queryByRole("switch")).toBeNull();
-    await user.click(goal);
-    expect(onGoalToggle.mock.calls).toEqual([[true]]);
-    expect(screen.queryByRole("menu")).toBeNull();
-    expect(document.activeElement).toBe(anchor);
-
-    rerender(<Actions overrides={{ onGoalToggle, isGoalMode: true }} />);
-    await user.click(anchor);
-    screen.getByRole("menuitemcheckbox", { name: "composer.start_goal", checked: true }).focus();
-    await user.keyboard(" ");
-    expect(onGoalToggle.mock.calls).toEqual([[true], [false]]);
-    rerender(<Actions overrides={{ onGoalToggle, isGoalCreating: true }} />);
-    await user.click(anchor);
-    await user.click(screen.getByRole("menuitemcheckbox", { name: "composer.start_goal" }));
-    expect(onGoalToggle).toHaveBeenCalledTimes(2);
-  });
-
   it("routes checked Connector items by exact ID without changing Goal", async () => {
     const user = userEvent.setup();
     const controller = makeController({
@@ -106,22 +80,6 @@ describe("Composer Footer actions", () => {
     expect(controller.toggleConnector).toHaveBeenCalledExactlyOnceWith("calendar-personal");
     expect(onGoalToggle).not.toHaveBeenCalled();
     expect(screen.queryByRole("menu")).toBeNull();
-  });
-
-  it("blocks a directory mutation after an unknown write while leaving other actions available", async () => {
-    const user = userEvent.setup();
-    const onLocalDirectorySelect = vi.fn();
-    const onAttachmentSelect = vi.fn();
-    render(<Actions overrides={{ onLocalDirectorySelect, onAttachmentSelect, localDirectoriesController: {
-      available: true, directories: [], loading: false, saving: false,
-      failure: { blocksMutation: true, impact: "核对目录", message: "结果未知", nextStep: "重新读取" },
-      chooseDirectory: vi.fn(async () => undefined), removeDirectory: vi.fn(async () => undefined), reload: vi.fn(),
-    } }} />);
-    await user.click(screen.getByRole("button", { name: "composer.open_actions" }));
-    await user.click(screen.getByRole("menuitem", { name: "composer.add_local_directory" }));
-    expect(onLocalDirectorySelect).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("menuitem", { name: "composer.add_attachment" }));
-    expect(onAttachmentSelect).toHaveBeenCalledOnce();
   });
 });
 

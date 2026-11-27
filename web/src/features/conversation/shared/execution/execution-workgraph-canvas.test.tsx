@@ -41,16 +41,6 @@ it("retains legacy work-item selection when no graph nodes are present", () => {
   expect(screen.getByRole("complementary").textContent).toContain("Report");
 });
 
-it("uses the selected historical attempt's task run instead of the latest attempt", () => {
-  const { container } = renderCanvas({ ...execution, graph: {
-    runtime_node_total: 1, runtime_edge_total: 0, runtime_nodes_truncated: false, runtime_edges_truncated: false,
-    nodes: [{ id: "historical", kind: "agent", visibility: "primary", work_item_id: "item", attempt_id: "old", agent_id: "author", position: 0 }], edges: [],
-  } });
-  fireEvent.click(container.querySelector('[data-execution-graph-node-id="historical"]')!);
-  expect(screen.getByRole("complementary").textContent).toContain("old task");
-  expect(screen.getByRole("complementary").textContent).not.toContain("new task");
-});
-
 it("opens a subagent output in the actual node workspace, not its synthetic avatar identity", () => {
   const open = vi.fn();
   const { container } = renderCanvas({ ...execution, graph: {

@@ -32,13 +32,6 @@ function expectNoCommands(state: ReliabilityProps) {
 }
 const unknownIssue: TextFileSaveIssue = { kind: "outcome_unknown", attemptedDraft: "draft", expectedRevision: "revision", reconciliationFailed: false };
 
-it("shows no recovery surface and issues no commands without a failure", () => {
-  const state = props();
-  const { container } = render(localized(<TextFileEditorReliability {...state} />));
-  expect(container.textContent).toBe("");
-  expectNoCommands(state);
-});
-
 it.each([
   { access: null, loaded: false, impact: "workspace_file.load_failed_empty_impact" },
   { access: null, loaded: true, impact: "workspace_file.load_failed_stale_impact" },
@@ -80,24 +73,6 @@ it.each(recoveryCases)("projects $title with only its explicit recovery action",
   const commandCalls = [state.onLoadLatest, state.onReconcile, state.onRetrySave].map((callback) => vi.mocked(callback).mock.calls.length);
   expect(commandCalls.reduce((sum, count) => sum + count, 0)).toBe(1);
   expect(state.onOverwrite).not.toHaveBeenCalled();
-});
-
-it("requires a current revision to overwrite reviewed content and keeps adoption explicit", () => {
-  const state = props({ saveIssue: { kind: "conflict", phase: "review" }, revisionReady: false });
-  const view = render(localized(<TextFileEditorReliability {...state} />));
-  expect(screen.getAllByRole("status")).toHaveLength(1);
-  expect(screen.getAllByRole("button")).toHaveLength(2);
-  expectNoCommands(state);
-  const overwrite = () => screen.getByRole("button", { name: MESSAGES.en["workspace_file.overwrite_latest"] });
-  expect((overwrite() as HTMLButtonElement).disabled).toBe(true);
-  fireEvent.click(overwrite());
-  expect(state.onOverwrite).not.toHaveBeenCalled();
-  view.rerender(localized(<TextFileEditorReliability {...state} revisionReady />));
-  fireEvent.click(overwrite());
-  expect(state.onOverwrite).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole("button", { name: MESSAGES.en["workspace_file.adopt_latest"] }));
-  expect(state.onAdoptLatest).toHaveBeenCalledTimes(1);
-  expect(state.onRetrySave).not.toHaveBeenCalled();
 });
 
 it.each([

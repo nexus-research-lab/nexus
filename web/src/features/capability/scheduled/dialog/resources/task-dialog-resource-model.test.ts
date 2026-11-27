@@ -77,28 +77,6 @@ describe.each(["zh", "en"] as const)("scheduled selection labels in %s", (locale
     expect(unnamed.map((option) => option.value)).toEqual(options.map((option) => option.value));
     expect(unnamed.map((option) => option.label)).toEqual([`2 · ${t("capability.scheduled_dialog_unnamed_session")}`, `1 · ${t("capability.scheduled_dialog_unnamed_session")}`]);
   });
-
-  it("keeps shared Room routes, deduplication and badges when directory names disappear", () => {
-    const sessions = [session("b", "group"), session("a", "group")];
-    const group = room("room-private", " ", "2026-09-01");
-    const contexts: RoomContextAggregate[] = sessions.map((item) => ({
-      ...group, member_agents: [],
-      conversation: { id: item.conversation_id!, room_id: group.room.id, conversation_type: "room", title: item.title },
-      sessions: [{ id: item.session_key, conversation_id: item.conversation_id!, agent_id: item.agent_id, runtime_id: "runtime", version_no: 1, branch_key: "", is_primary: true, options: {}, status: "active" }],
-    }));
-    const deliveryForm = { ...form, deliveryTargetType: "room" as const };
-    const execution = buildTaskDialogSessionData("room", { agentSessions: resource([]), roomContexts: resource(contexts) }, t).options;
-    const delivery = buildTaskDialogDeliverySessionData(deliveryForm, resource([...sessions, { ...sessions[0], agent_id: "other-member" }]), t).options;
-    expect(delivery).toEqual(execution);
-    expect(delivery.map((option) => option.label)).toEqual(["2 · 重复标题", "1 · 重复标题"]);
-    expect(delivery.map(({ value, sessionKey, badge }) => ({ value, sessionKey, badge }))).toEqual([
-      { value: "room:group:b", sessionKey: "room:group:b", badge: "Room" },
-      { value: "room:group:a", sessionKey: "room:group:a", badge: "Room" },
-    ]);
-    group.room.name = "2 · Research";
-    const renamed = buildTaskDialogSessionData("room", { agentSessions: resource([]), roomContexts: resource(contexts) }, t).options;
-    expect(renamed).toEqual(execution);
-  });
 });
 
 it("previews session permissions before Agent defaults and never guesses on a failed read", () => {

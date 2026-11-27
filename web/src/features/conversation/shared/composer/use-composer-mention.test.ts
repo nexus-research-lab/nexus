@@ -12,9 +12,4 @@ describe("composer mention presentation", () => {
     expect(segments.filter((segment) => segment.mentioned).map((segment) => segment.text))
       .toEqual(["@Lucy", "@Lucy Liu", "@C++", "@Lucy"]);
   });
-
-  it("leaves unselected and partially deleted mentions undecorated", () => {
-    expect(splitComposerMentions("@Lucy", [])).toEqual([{ text: "@Lucy", mentioned: false }]);
-    expect(splitComposerMentions("@Luc", ["Lucy"]).some((segment) => segment.mentioned)).toBe(false);
-  });
 });

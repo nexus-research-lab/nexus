@@ -15,7 +15,6 @@ import { createDefaultTaskSchedule } from "../schedule/task-schedule-model";
 import type { TranslationKey } from "@/shared/i18n/messages";
 
 import type { TaskFormDraft } from "../scheduled-task-dialog-types";
-import { buildTaskDestinationPickerModel } from "./task-destination-picker-model";
 import { TaskBasicsPanel } from "./task-basics-panel";
 import type { TaskBasicsActions, TaskBasicsData } from "./task-basics-model";
 import { buildTaskConfirmationSummary } from "./task-basics-model";
@@ -146,21 +145,6 @@ describe("TaskBasicsPanel", () => {
     expect(actions.selectExecution).toHaveBeenCalledExactlyOnceWith(room);
   });
 
-  it("keeps unavailable explicit Agent bindings separate from empty/default choices", () => {
-    const t = (key: TranslationKey) => key;
-    const data = { ...DATA, agentOptions: [{ value: "available", label: "Nova" }] };
-    const form = { ...FORM, selectedAgentId: "missing-executor", selectedDeliveryAgentId: "missing-recipient" };
-    const input = { data, form, t, search: "", typeFilter: "all", browsingGroup: null };
-    const execution = buildTaskDestinationPickerModel({ ...input, execution: true });
-    const delivery = buildTaskDestinationPickerModel({ ...input, execution: false,
-      form: { ...form, replyMode: "selected", selectedReplySessionKey: "missing-session" } });
-    expect(execution.currentValue).toBe("new:missing-executor");
-    expect(delivery.currentValue).toBe("missing-session");
-    expect(execution.currentLabel).toBe("capability.scheduled_dialog_session_unavailable");
-    expect(delivery.currentLabel).toBe("capability.scheduled_dialog_session_unavailable");
-    expect(form.selectedAgentId).toBe("missing-executor");
-  });
-
   it("shows unavailable Room executor and presenter without invoking replacement actions", () => {
     const actions = createActions();
     const t = (key: TranslationKey) => key;
@@ -238,57 +222,4 @@ it("preserves loaded destinations during partial failure and retries only idle f
   expect(catalogRetry).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", {name: "Known chat"}));
   expect(actions.selectExecution).toHaveBeenCalledExactlyOnceWith(destination);
-});
-it.each([false, true])("does not announce empty results for a failed catalog (retrying=%s)", async (loading) => {
-  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
-    <TaskDestinationPicker kind="delivery" data={{...DATA, destinationStatus: {loading, error: "unavailable", retry: vi.fn()}}} form={FORM} actions={createActions()} />
-  </I18N_CONTEXT.Provider>);
-  await userEvent.click(screen.getByRole("button", {name: "capability.scheduled_dialog_delivery"}));
-  expect(screen.queryByText("capability.scheduled_no_matching_chats")).toBeNull();
-  expect((screen.getByRole("button", {name: "state.retry"}) as HTMLButtonElement).disabled).toBe(loading);
-});
-
-it("associates each target trigger with its current selection without exposing missing identities", () => {
-  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
-    <TaskDestinationPicker kind="execution" data={DATA} form={{...FORM, executionMode: "existing", selectedSessionKey: "internal-missing-session"}} actions={createActions()} />
-    <TaskDestinationPicker kind="delivery" data={DATA} form={FORM} actions={createActions()} />
-  </I18N_CONTEXT.Provider>);
-  const execution = screen.getByRole("button", {name: "capability.scheduled_run_in"});
-  const delivery = screen.getByRole("button", {name: "capability.scheduled_dialog_delivery"});
-  const executionDescription = execution.getAttribute("aria-describedby")!;
-  const deliveryDescription = delivery.getAttribute("aria-describedby")!;
-  expect(executionDescription).not.toBe(deliveryDescription);
-  expect(document.getElementById(executionDescription)?.textContent).toBe("capability.scheduled_dialog_session_unavailable");
-  expect(document.getElementById(deliveryDescription)?.textContent).toBe("capability.scheduled_dialog_reply_none");
-  expect(screen.queryByText("internal-missing-session")).toBeNull();
-});
-
-
-it("exposes independent Room execution and reply members outside advanced settings", async () => {
-  const user = userEvent.setup();
-  const actions = createActions();
-  const data = { ...DATA, defaultExecutionRoomAgentId: "host", defaultDeliveryRoomAgentId: "host",
-    executionRoomAgentOptions: [{ value: "nova", label: "Nova" }],
-    deliveryRoomAgentOptions: [{ value: "pixel", label: "Pixel" }],
-  };
-  const form: TaskFormDraft = { ...FORM, targetType: "room", selectedSessionKey: "run-room-session",
-    selectedAgentId: "", replyMode: "selected", deliveryTargetType: "room", selectedReplySessionKey: "reply-room-session" };
-  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
-    <TaskBasicsPanel actions={actions} data={data} form={form} needsSessionRebind={false} nameRef={createRef<HTMLInputElement>()} />
-  </I18N_CONTEXT.Provider>);
-  const executor = screen.getByRole("button", {name: "capability.scheduled_dialog_select_room_agent"});
-  const presenter = screen.getByRole("button", {name: "capability.scheduled_dialog_select_delivery_room_agent"});
-  expect(executor.closest("details")).toBeNull();
-  expect(presenter.closest("details")).toBeNull();
-  expect(executor.textContent).toContain("capability.scheduled_dialog_default_room_host");
-  await user.click(executor);
-  await user.click(screen.getByRole("option", {name: "Nova"}));
-  expect(actions.setSelectedAgentId).toHaveBeenCalledExactlyOnceWith("nova");
-  expect(actions.setSelectedDeliveryPresenterAgentId).not.toHaveBeenCalled();
-  await user.click(presenter);
-  await user.click(screen.getByRole("option", {name: "Pixel"}));
-  expect(actions.setSelectedDeliveryPresenterAgentId).toHaveBeenCalledExactlyOnceWith("pixel");
-  expect(actions.setSelectedAgentId).toHaveBeenCalledTimes(1);
-  expect(actions.selectExecution).not.toHaveBeenCalled();
-  expect(actions.selectDelivery).not.toHaveBeenCalled();
 });

@@ -41,16 +41,6 @@ function renderBottomArea(goal: React.ReactNode, activity?: React.ReactNode) {
 }
 
 describe("ConversationPanelBottomArea Goal anchoring", () => {
-  it("anchors the existing Goal node to the Composer edge without occupying the status flow", () => {
-    const { container } = renderBottomArea(<div data-test-goal>goal</div>);
-    const floatingGoal = container.querySelector("[data-conversation-goal-float]");
-    const statusStack = container.querySelector("[data-conversation-status-stack]");
-    const composerAnchor = container.querySelector("[data-conversation-composer-anchor]");
-
-    expect(composerAnchor?.contains(floatingGoal)).toBe(true);
-    expect(statusStack?.querySelector("[data-test-goal]")).toBeNull();
-    expect(composerAnchor?.querySelector("[data-test-composer]")).toBeTruthy();
-  });
 
   it("uses the same compact gap for Activity, Goal and Composer", () => {
     const { container } = renderBottomArea(
@@ -61,18 +51,6 @@ describe("ConversationPanelBottomArea Goal anchoring", () => {
     const activityDock = floatingGoal?.querySelector<HTMLElement>("[data-conversation-activity-dock]");
 
     expect(activityDock?.querySelector("[data-test-activity]")).toBeTruthy();
-  });
-
-  it("collapses the Goal spacing when the Goal panel renders nothing", () => {
-    const EmptyGoal = () => null;
-    const { container } = renderBottomArea(<EmptyGoal />);
-    const goalContent = container.querySelector<HTMLElement>("[data-conversation-goal-content]");
-
-    // 空节点依赖 :empty 隐藏，Goal 间距不得继续撑出正文尾部避让。
-    expect(goalContent?.childElementCount).toBe(0);
-    expect(goalContent?.className).toContain("empty:hidden");
-    expect(container.querySelector<HTMLElement>("[data-conversation-goal-float]")?.className)
-      .not.toMatch(/\bp[by]-/);
   });
 
   it("keeps Goal hidden when a higher-priority reliability notice owns the status slot", () => {

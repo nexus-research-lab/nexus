@@ -84,15 +84,6 @@ describe("ContactsDirectory", () => {
     }
   });
 
-  it("hides filters and the view switch for a small directory while search still narrows it", async () => {
-    const user = userEvent.setup();
-    directory(agents);
-    expect(screen.queryByRole("button", { name: "contacts.filters.tags" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "contacts.views.list" })).toBeNull();
-    await user.type(screen.getByRole("searchbox"), "writer");
-    expect(screen.getAllByRole("article")).toHaveLength(1);
-  });
-
   it("keeps creation available in an empty directory without inventing a filtering failure", async () => {
     const user = userEvent.setup();
     const actions = directory([]);

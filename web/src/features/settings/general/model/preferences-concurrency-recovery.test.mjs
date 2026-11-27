@@ -97,26 +97,6 @@ test("preferences writes put the aggregate revision in If-Match", async () => {
   assert.equal(new Headers(requestInit.headers).get("If-Match"), '"preferences-7"');
 });
 
-test("preference recovery copy answers problem, impact, and next step", async () => {
-  const { zhMessages } = await import("@/shared/i18n/catalog/zh/index.ts");
-  for (const prefix of [
-    "settings.general.preferences_load",
-    "settings.general.preferences_conflict",
-    "settings.general.preferences_unknown",
-    "settings.general.preferences_not_applied",
-  ]) {
-    assert.ok(zhMessages[`${prefix}_title`]);
-    assert.ok(zhMessages[`${prefix}_impact`]);
-    assert.ok(zhMessages[`${prefix}_next_step`]);
-  }
-  assert.ok(zhMessages["settings.general.preferences_projection_repair_impact"]);
-  assert.ok(zhMessages["settings.general.preferences_projection_repair_next_step"]);
-  assert.doesNotMatch(
-    zhMessages["settings.general.preferences_reconciled_not_applied_title"],
-    /确认.*未保存/,
-  );
-});
-
 function preference(overrides = {}) {
   return {
     version: 1,

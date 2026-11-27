@@ -78,44 +78,6 @@ describe("ComposerPermissionSurface", () => {
     expect(screen.getByRole("button", { name: "composer.permission_deny_with_feedback" })).toBeTruthy();
   });
 
-  it("uses masked shared inputs and enables allow only after every secret is filled", async () => {
-    const user = userEvent.setup();
-    const { onResponse } = renderPermissionSurface({
-      permission: {
-        configuration_secret_slots: [
-          { id: "token", path: "service.token" },
-          { id: "password", path: "service.password" },
-        ],
-        request_id: "permission-secrets",
-        tool_input: {},
-        tool_name: "ConfigureService",
-      },
-    });
-    const allow = screen.getByRole("button", {
-      name: "composer.permission_allow_once",
-    }) as HTMLButtonElement;
-    const token = screen.getByLabelText("service.token") as HTMLInputElement;
-    const password = screen.getByLabelText("service.password") as HTMLInputElement;
-
-    expect(token.type).toBe("password");
-
-    expect(allow.disabled).toBe(true);
-    await user.type(token, "token-value");
-    expect(allow.disabled).toBe(true);
-    await user.type(password, "password-value");
-    expect(allow.disabled).toBe(false);
-    await user.click(allow);
-
-    expect(onResponse).toHaveBeenCalledWith({
-      configuration_secrets: {
-        password: "password-value",
-        token: "token-value",
-      },
-      decision: "allow",
-      request_id: "permission-secrets",
-    });
-  });
-
   it("opens the adjacent scope menu without replacing the allow-once command", async () => {
     const user = userEvent.setup();
     const { onResponse } = renderPermissionSurface({

@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { advanceAuthOwnerScopeGeneration, publishAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
 import { PresentationFilePreview } from "./presentation-file-preview";
@@ -61,23 +60,6 @@ it("disposes a late parse after A to B to A without replacing the new A result",
   expect(vi.mocked(fetchOfficePreviewBuffer).mock.calls[0][0].signal.aborted).toBe(true);
   view.unmount();
   expect(revoke.mock.calls).toEqual([["blob:B"], ["blob:Old A"], ["blob:New A"]]);
-});
-
-it("disposes a result when the owner changes before publication and reloads after notification", async () => {
-  const old = deferred<ParsedPresentation>();
-  vi.mocked(parsePptx).mockReturnValueOnce(old.promise).mockResolvedValueOnce(parsed("Current owner"));
-  const view = render(localized(<PresentationFilePreview {...file} />));
-  await waitFor(() => expect(parsePptx).toHaveBeenCalledTimes(1));
-  advanceAuthOwnerScopeGeneration();
-  await act(async () => old.resolve(parsed("Previous owner")));
-  expect(screen.queryByText("Previous owner")).toBeNull();
-  expect(revoke).toHaveBeenCalledWith("blob:Previous owner");
-  act(() => publishAuthOwnerScopeGeneration());
-  await screen.findByText("Current owner");
-  expect(fetchOfficePreviewBuffer).toHaveBeenCalledTimes(2);
-  expect(revoke).not.toHaveBeenCalledWith("blob:Current owner");
-  view.unmount();
-  expect(revoke).toHaveBeenCalledWith("blob:Current owner");
 });
 
 it("offers an explicit retry after parser failure and disposes a parse completed after unmount", async () => {

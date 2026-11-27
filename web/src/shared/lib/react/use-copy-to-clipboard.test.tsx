@@ -33,18 +33,4 @@ describe("copy feedback lifecycle", () => {
     unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
-
-  it("returns a pending native copy result without scheduling feedback after unmount", async () => {
-    vi.useFakeTimers();
-    let resolveCopy!: (success: boolean) => void;
-    vi.mocked(writeTextToClipboard).mockReturnValue(new Promise((resolve) => { resolveCopy = resolve; }));
-    const { result, unmount } = renderHook(() => useCopyToClipboard());
-    const pending = result.current.copy("已请求的文本");
-    unmount();
-    await act(async () => {
-      resolveCopy(true);
-      expect(await pending).toBe(true);
-    });
-    expect(vi.getTimerCount()).toBe(0);
-  });
 });

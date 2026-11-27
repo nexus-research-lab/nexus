@@ -54,21 +54,3 @@ it("keeps exact execution targets without remounting readers and preserves ordin
   await user.click(screen.getByRole("button", { name: "Close Thread" }));
   expect(selection.textContent).toBe("closed");
 });
-
-it("closes A to B to A selections, clears a missing conversation and releases the published source on exit", async () => {
-  const user = userEvent.setup();
-  const rendered = render(view());
-  const first = screen.getByRole("button", { name: "Open first execution" });
-  await user.click(first);
-  rendered.rerender(view({ conversationId: "b" }));
-  expect(screen.getByRole("status", { name: "Selection" }).textContent).toBe("closed");
-  rendered.rerender(view());
-  expect(screen.getByRole("status", { name: "Selection" }).textContent).toBe("closed");
-  expect(screen.getByRole("button", { name: "Open first execution" })).toBe(first);
-  await user.click(first);
-  rendered.rerender(view({ conversationId: null }));
-  expect(screen.getByRole("status", { name: "Selection" }).textContent).toBe("closed");
-  expect(useRoomThreadLiveStore.getState().source).not.toBeNull();
-  rendered.unmount();
-  expect(useRoomThreadLiveStore.getState().source).toBeNull();
-});

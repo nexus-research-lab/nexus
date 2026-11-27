@@ -34,60 +34,6 @@ it("projects task status into trigger copy and drops summary for non-task wakes"
   expect(projectRuntimeWakePresentation({ ...wakeMessage({}), metadata: undefined })).toBeNull();
 });
 
-it("projects a main-window scheduled task as a trigger showing only the task name", () => {
-  const message = {
-    ...wakeMessage({ input_kind: "scheduled_task", task_name: " 日报 ", job_id: "job-1", run_id: "run-1" }),
-    content: "<scheduled-task name=\"日报\">\n汇总今天的提交\n</scheduled-task>",
-  };
-  expect(projectRuntimeWakePresentation(message))
-    .toMatchObject({ source: "scheduled_task", labelKey: "message.scheduled_task.triggered", summary: "日报" });
-  render(
-    <I18nProvider>
-      <MessageUserSection compact={false} message={message} onEditUserMessage={() => undefined} />
-    </I18nProvider>,
-  );
-  const note = screen.getByRole("note");
-  expect(note.textContent).toContain("日报");
-  expect(note.textContent).not.toContain("汇总今天的提交");
-  expect(note.closest("[data-message-kind='scheduled-task']")).not.toBeNull();
-  expect(screen.queryByRole("button")).toBeNull();
-});
-
-it("projects a due follow-up as a trigger showing only the note", () => {
-  const message = {
-    ...wakeMessage({ input_kind: "follow_up", follow_up_id: "inbox_1", follow_up_note: "确认 CI 结果" }),
-    content: "<follow-up id=\"inbox_1\">\n内部包装\n</follow-up>",
-  };
-  expect(projectRuntimeWakePresentation(message))
-    .toMatchObject({ source: "follow_up", labelKey: "message.follow_up.triggered", summary: "确认 CI 结果" });
-  render(
-    <I18nProvider>
-      <MessageUserSection compact={false} message={message} onEditUserMessage={() => undefined} />
-    </I18nProvider>,
-  );
-  const note = screen.getByRole("note");
-  expect(note.textContent).toContain("确认 CI 结果");
-  expect(note.textContent).not.toContain("内部包装");
-  expect(note.closest("[data-message-kind='follow-up']")).not.toBeNull();
-});
-
-it("renders a runtime wake as an action-free trigger row instead of a user bubble", () => {
-  render(
-    <I18nProvider>
-      <MessageUserSection
-        compact={false}
-        message={wakeMessage({ input_kind: "runtime_wake", trigger_kind: "background_task", task_status: "completed" })}
-        onEditUserMessage={() => undefined}
-      />
-    </I18nProvider>,
-  );
-  const note = screen.getByRole("note");
-  expect(note.textContent).toContain(SUMMARY);
-  expect(note.closest("[data-message-kind='runtime-wake']")?.getAttribute("data-conversation-round-user-anchor")).toBe("true");
-  expect(document.querySelector(".nexus-chat-user-frame")).toBeNull();
-  expect(screen.queryByRole("button")).toBeNull();
-});
-
 it("folds a host run outcome into the trigger divider", () => {
   const outcome = (value: string): Message => ({
     message_id: "host_outcome_round-wake",

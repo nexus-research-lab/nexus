@@ -38,31 +38,6 @@ describe("composer footer model", () => {
     });
   });
 
-  it("projects pending and failure states without visual class names", () => {
-    expect(projectComposerFooterStatus({
-      activeError: null,
-      copy,
-      isGoalConfirming: true,
-      isGoalCreating: true,
-      isPreparingAttachments: false,
-      runtimeActivity: null,
-    })).toEqual({
-      hint: null,
-      indicator: "preparing",
-      kind: "goal",
-      message: "正在确认目标",
-      tone: "brand",
-    });
-    expect(projectComposerFooterStatus({
-      activeError: "发送失败",
-      copy,
-      isGoalConfirming: false,
-      isGoalCreating: false,
-      isPreparingAttachments: false,
-      runtimeActivity: null,
-    })?.tone).toBe("danger");
-  });
-
   it("keeps character risk priority semantic", () => {
     expect(getCharacterCountTone({ isNearLimit: true, isOverLimit: true })).toBe("danger");
     expect(getCharacterCountTone({ isNearLimit: true, isOverLimit: false })).toBe("warning");

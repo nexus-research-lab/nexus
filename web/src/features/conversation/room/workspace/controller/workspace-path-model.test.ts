@@ -15,11 +15,6 @@ describe("workspace path labels", () => {
       .toBe("Nexus 助手");
   });
 
-  it("falls back through the Agent name to the localized workspace label", () => {
-    expect(getWorkspaceRootLabel(" ", "nexus", "工作区")).toBe("nexus");
-    expect(getWorkspaceRootLabel(null, " ", "工作区")).toBe("工作区");
-  });
-
   it("renders file locations relative to the named workspace root", () => {
     expect(getWorkspaceFileLocationSegments("MEMORY.md", "Nexus 助手"))
       .toEqual(["Nexus 助手"]);

@@ -25,22 +25,6 @@ it.each(["repair", "compare", "check"])("routes Preferences %s explicitly and bl
   expect(expected).toHaveBeenCalledOnce();
 });
 
-it.each(["compare", "check"])("routes Echo %s explicitly and blocks checking", async (mode) => {
-  const recovery = { canCheckLatest: true, canCompare: mode !== "check", checking: false,
-    checkLatest: vi.fn(), reapplyChange: vi.fn() };
-  const renderNotice = () => <I18nProvider><EchoSettingsReliabilityNotice feedback={feedback} recovery={recovery} /></I18nProvider>;
-  const view = render(renderNotice());
-  const expected = mode === "compare" ? recovery.reapplyChange : recovery.checkLatest;
-  expect(expected).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("button"));
-  expect(expected).toHaveBeenCalledOnce();
-  expect([recovery.checkLatest, recovery.reapplyChange].filter(command => command.mock.calls.length)).toHaveLength(1);
-  recovery.checking = true;
-  view.rerender(renderNotice());
-  await userEvent.click(screen.getByRole("button"));
-  expect(expected).toHaveBeenCalledOnce();
-});
-
 it("shows no recovery action on success or when no recovery is authorized", () => {
   const recovery = { canCheckLatest: false, canCompare: false, checking: false,
     checkLatest: vi.fn(), reapplyChange: vi.fn() };

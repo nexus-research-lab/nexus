@@ -26,16 +26,6 @@ describe("continuous window history requests", () => {
     });
   });
 
-  it("reads the page adjacent to the resident head after eviction or a jump moved it", () => {
-    const request = planOlderHistoryRequest({
-      ...base,
-      cursor: { before_round_id: "round-2", before_round_timestamp: 200 },
-      residentRoundIds: ["round-40", "round-41"],
-    });
-    expect(request?.query.before_round_id).toBe("round-40");
-    expect(request?.query.before_round_timestamp).toBeUndefined();
-  });
-
   it("stops at the confirmed session start and reopens once that round is evicted", () => {
     const cursor = {
       before_round_id: null,

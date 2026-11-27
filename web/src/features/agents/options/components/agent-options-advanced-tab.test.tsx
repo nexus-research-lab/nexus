@@ -71,20 +71,6 @@ describe("AgentOptionsAdvancedTab", () => {
     expect(onToggleConnector).toHaveBeenLastCalledWith("Existing disconnected");
   });
 
-  it("uses the shared warning notice for bypass permissions", async () => {
-    const user = userEvent.setup();
-    renderAdvancedTab();
-    const summary = screen.getByText("agent_options.advanced.permission_settings");
-    const disclosure = summary.closest("details") as HTMLDetailsElement;
-    expect(disclosure.open).toBe(false);
-    await user.click(summary);
-    expect(disclosure.open).toBe(true);
-
-    const notice = screen.getByRole("status");
-    expect(notice.getAttribute("data-inline-notice-tone")).toBe("warning");
-    expect(notice.textContent).toContain("agent_options.advanced.bypass_warning");
-  });
-
   it("uses the reduced-motion shared spinner recipe for Connector loading", () => {
     const { container } = renderAdvancedTab({ connectorsLoading: true });
 

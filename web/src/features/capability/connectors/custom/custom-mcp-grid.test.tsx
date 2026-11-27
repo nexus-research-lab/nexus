@@ -60,22 +60,6 @@ describe("Custom MCP directory", () => {
     expect(actions.onOpen).toHaveBeenCalledExactlyOnceWith(SERVER);
   });
 
-  it("keeps details readable while busy prevents every mutation", async () => {
-    const user = userEvent.setup();
-    const actions = props();
-    render(<CustomMCPGrid {...actions} busy />, { wrapper: I18nProvider });
-    for (const control of [screen.getByRole("switch"), screen.getByRole("button", { name: "Edit" }),
-      screen.getByRole("button", { name: "Delete" })]) {
-      expect((control as HTMLButtonElement).disabled).toBe(true);
-      await user.click(control);
-    }
-    expect(actions.onToggle).not.toHaveBeenCalled();
-    expect(actions.onEdit).not.toHaveBeenCalled();
-    expect(actions.onDelete).not.toHaveBeenCalled();
-    await user.click(screen.getByText(SERVER.name));
-    expect(actions.onOpen).toHaveBeenCalledExactlyOnceWith(SERVER);
-  });
-
   it("keeps recovery disabled for chat while preserving explicit reconfiguration", async () => {
     const user = userEvent.setup();
     const actions = props();

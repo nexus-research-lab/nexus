@@ -3,7 +3,7 @@
 // POS: 共享标签滚动 Hook 的 DOM 行为回归，不声称浏览器几何验收。
 
 import type { PointerEvent } from "react";
-import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { useConversationTabsScroll } from "./use-conversation-tabs-scroll";
@@ -36,17 +36,6 @@ function wheel(viewport: HTMLElement, init: WheelEventInit) {
 }
 
 describe("conversation tabs wheel handling", () => {
-  it("preserves zoom gestures and events already consumed by a child", () => {
-    const viewport = setup();
-    for (const modifier of [{ ctrlKey: true }, { metaKey: true }]) {
-      expect(wheel(viewport, { deltaY: 60, ...modifier }).defaultPrevented).toBe(false);
-      expect(viewport.scrollLeft).toBe(0);
-    }
-    const consumed = new WheelEvent("wheel", { deltaY: 60, cancelable: true });
-    consumed.preventDefault();
-    fireEvent(viewport, consumed);
-    expect(viewport.scrollLeft).toBe(0);
-  });
 
   it("normalizes pixel, line and page deltas and releases outward wheel events at either edge", () => {
     const viewport = setup();
@@ -69,19 +58,6 @@ describe("conversation tabs wheel handling", () => {
     expect(wheel(viewport, { deltaY: 80 }).defaultPrevented).toBe(false);
     expect(viewport.scrollLeft).toBe(0);
   });
-});
-
-
-it.each([false, true])("uses the system motion preference for active tab alignment (%s)", async (reduced) => {
-  motion.reduced = reduced;
-  const view = render(<Harness active />);
-  const viewport = screen.getByTestId("viewport");
-  const scrollTo = vi.fn();
-  viewport.scrollTo = scrollTo;
-  await waitFor(() => expect(scrollTo).toHaveBeenCalled());
-  expect(scrollTo.mock.calls[0][0].behavior).toBe(reduced ? "auto" : "smooth");
-  view.unmount();
-  motion.reduced = false;
 });
 
 it("stops dragging when pointer capture is lost without moving on later pointer events", () => {

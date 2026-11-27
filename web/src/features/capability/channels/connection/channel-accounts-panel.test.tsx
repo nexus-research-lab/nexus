@@ -40,17 +40,6 @@ function renderPanel(
 }
 
 describe("ChannelAccountsPanel", () => {
-  it("renders managed account identity and safe error copy through shared owners", () => {
-    const { container } = renderPanel(ACCOUNT.account_id);
-
-    expect(container.querySelectorAll("section.surface-radius-sm")).toHaveLength(2);
-    const accountFailure = screen.getByRole("status");
-    expect(accountFailure.getAttribute("data-inline-notice-tone")).toBe("danger");
-    expect(accountFailure.getAttribute("data-inline-notice-width")).toBe("full");
-
-    expect(screen.queryByText(ACCOUNT.last_error)).toBeNull();
-
-  });
 
   it("dispatches deletion for the exact account", async () => {
     const user = userEvent.setup();

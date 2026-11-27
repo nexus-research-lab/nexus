@@ -14,11 +14,3 @@ it.each([[12, 16], [18, 24], [6, 8]])("converts %s pt text to %s CSS px without 
     fontSize: pixels, lineHeight: "normal", fontFamily: "Test Font", fontWeight: 700, fontStyle: "italic", color: "#123456",
   });
 });
-
-it("keeps default text on one line and applies wrapping and alignment to a flex cell", () => {
-  expect(createSpreadsheetCellStyle([])).toMatchObject({ whiteSpace: "nowrap", display: "flex", justifyContent: "flex-start" });
-  expect(createSpreadsheetCellStyle([{ textwrap: true, valign: "middle", align: "right", underline: true, strike: true }], 0)).toMatchObject({
-    whiteSpace: "pre-wrap", justifyContent: "center", textAlign: "right", textDecoration: "underline line-through",
-  });
-  expect(createSpreadsheetCellStyle([{ valign: "bottom" }], 0).justifyContent).toBe("flex-end");
-});

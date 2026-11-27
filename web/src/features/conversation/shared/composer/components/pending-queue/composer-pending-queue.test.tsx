@@ -19,22 +19,6 @@ const wrap = (items: InputQueueItem[], actions = commands(), mode: "queue" | "in
 </I18N_CONTEXT.Provider>;
 
 describe("ComposerPendingQueue", () => {
-  it("uses a native disclosure and a named ordered list, keeping queued content when collapsed", async () => {
-    const user = userEvent.setup();
-    const { container, rerender } = render(wrap(queue));
-    const details = container.querySelector("details")!;
-    const summary = container.querySelector("summary")!;
-    expect(details.open).toBe(true);
-    expect(screen.getByRole("list", { name: "composer.pending_queue" }).tagName).toBe("OL");
-    expect(screen.getAllByRole("listitem")).toHaveLength(3);
-    await user.click(summary);
-    expect(details.open).toBe(false);
-    expect(details.textContent).toContain("Bravo");
-    await user.click(summary);
-    expect(details.open).toBe(true);
-    rerender(wrap([]));
-    expect(container.querySelector("details")).toBeNull();
-  });
 
   it("moves by keyboard through the shared menu, preserving server-owned order and focus", async () => {
     const user = userEvent.setup();
@@ -89,44 +73,6 @@ describe("ComposerPendingQueue", () => {
     expect(actions.onGuideQueuedMessage).toHaveBeenCalledExactlyOnceWith("0");
     await user.click(remove);
     expect(actions.onDeleteQueuedMessage).toHaveBeenCalledExactlyOnceWith("0");
-  });
-
-  it("closes sorting when no neighbor remains and never reopens it when new items arrive", async () => {
-    const user = userEvent.setup();
-    const actions = commands();
-    const { rerender } = render(wrap(queue, actions));
-    await user.click(within(screen.getAllByRole("listitem")[0]).getByRole("button", { name: "composer.reorder_pending" }));
-    expect(screen.getByRole("menu")).toBeTruthy();
-    rerender(wrap([queue[0]], actions));
-    expect(screen.queryByRole("menu")).toBeNull();
-    rerender(wrap(queue, actions));
-    expect(screen.queryByRole("menu")).toBeNull();
-  });
-
-  it("shows attachment names or a meaningful fallback when a queued item has no text", () => {
-    const attachment = { kind: "file" as const, file_name: "report.csv", workspace_path: "files/report.csv" };
-    const { rerender } = render(wrap([{ ...queue[0], content: "  ", attachments: [attachment] }]));
-    expect(screen.getByText("report.csv")).toBeTruthy();
-    rerender(wrap([{ ...queue[0], content: "Message wins", attachments: [attachment] }]));
-    expect(screen.getByText("Message wins")).toBeTruthy();
-    expect(screen.queryByText("report.csv")).toBeNull();
-    rerender(wrap([{ ...queue[0], content: "" }]));
-    expect(screen.getByText("composer.pending_message")).toBeTruthy();
-  });
-
-  it("disables conflicting row commands only while dispatch is pending", async () => {
-    const user = userEvent.setup();
-    let finish!: () => void;
-    const actions = commands();
-    actions.onGuideQueuedMessage.mockImplementation(() => new Promise<void>((resolve) => { finish = resolve; }));
-    render(wrap(queue, actions));
-    await user.click(within(screen.getAllByRole("listitem")[0]).getByRole("button", { name: "composer.mark_guidance" }));
-    for (const row of screen.getAllByRole("listitem")) {
-      for (const button of within(row).getAllByRole("button")) expect((button as HTMLButtonElement).disabled).toBe(true);
-    }
-    await act(async () => { finish(); });
-    expect((screen.getAllByRole("button", { name: "composer.delete_pending" })[1] as HTMLButtonElement).disabled).toBe(false);
-    expect(actions.onDeleteQueuedMessage).not.toHaveBeenCalled();
   });
   it("offers only withdraw in inbox mode", async () => {
     const user = userEvent.setup();

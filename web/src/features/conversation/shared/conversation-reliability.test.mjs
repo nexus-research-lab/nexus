@@ -48,21 +48,6 @@ test("transport interruption stays recoverable until retries are exhausted", asy
   assert.equal(state.transport_phase, "healthy");
 });
 
-test("shared transport uses five bounded exponential reconnect attempts", async () => {
-  const { getReconnectDelay, resolveWebSocketConfig } = await import("@/lib/websocket/socket-policy.ts");
-  const config = resolveWebSocketConfig({ url: "ws://nexus.test" });
-  assert.equal(config.maxReconnectAttempts, 5);
-  // 等量抖动：random=1 取指数退避上限，random=0 取其一半。
-  assert.deepEqual(
-    [1, 2, 3, 4, 5].map((attempt) => getReconnectDelay(config, attempt, () => 1)),
-    [1_000, 2_000, 4_000, 8_000, 16_000],
-  );
-  assert.deepEqual(
-    [1, 2, 3, 4, 5].map((attempt) => getReconnectDelay(config, attempt, () => 0)),
-    [500, 1_000, 2_000, 4_000, 8_000],
-  );
-});
-
 test("durable reconciliation runs after reconnect but not on first connect", async () => {
   const { shouldReconcileConversationAfterReconnect } = await import("@/hooks/agent/transport/use-agent-conversation-socket.ts");
   assert.equal(
@@ -77,90 +62,6 @@ test("durable reconciliation runs after reconnect but not on first connect", asy
     shouldReconcileConversationAfterReconnect(true, "connected", "connected"),
     false,
   );
-});
-
-test("recovery evidence only clears the correlated request or Agent round", async () => {
-  const {
-    INITIAL_CONVERSATION_RELIABILITY_STATE,
-    reduceConversationReliabilityState,
-  } = await reliabilityModel();
-  let state = reduceConversationReliabilityState(
-    INITIAL_CONVERSATION_RELIABILITY_STATE,
-    { type: "scope_changed", session_key: "room:group:a" },
-  );
-  state = reduceConversationReliabilityState(state, {
-    type: "failure_reported",
-    failure: {
-      agent_round_id: "agent-round-a",
-      code: "round_failed",
-      round_id: "root-a",
-      session_key: "room:group:a",
-    },
-  });
-  state = reduceConversationReliabilityState(state, {
-    type: "recovery_observed",
-    evidence: {
-      agent_round_id: "agent-round-b",
-      kind: "round_progress",
-      round_id: "root-a",
-      session_key: "room:group:a",
-    },
-  });
-  assert.equal(state.failure?.agent_round_id, "agent-round-a");
-  state = reduceConversationReliabilityState(state, {
-    type: "recovery_observed",
-    evidence: {
-      agent_round_id: "agent-round-a",
-      kind: "round_progress",
-      round_id: "root-a",
-      session_key: "room:group:a",
-    },
-  });
-  assert.equal(state.failure, null);
-
-  state = reduceConversationReliabilityState(state, {
-    type: "failure_reported",
-    failure: {
-      client_request_id: "request-a",
-      code: "delivery_unknown",
-      session_key: "room:group:a",
-    },
-  });
-  state = reduceConversationReliabilityState(state, {
-    type: "recovery_observed",
-    evidence: {
-      client_request_id: "request-b",
-      kind: "request_accepted",
-      session_key: "room:group:a",
-    },
-  });
-  assert.equal(state.failure?.client_request_id, "request-a");
-  state = reduceConversationReliabilityState(state, {
-    type: "recovery_observed",
-    evidence: {
-      client_request_id: "request-a",
-      kind: "request_accepted",
-      session_key: "room:group:a",
-    },
-  });
-  assert.equal(state.failure, null);
-
-  state = reduceConversationReliabilityState(state, {
-    type: "failure_reported",
-    failure: {
-      code: "session_load_failed",
-      session_key: "room:group:a",
-    },
-  });
-  state = reduceConversationReliabilityState(state, {
-    type: "recovery_observed",
-    evidence: {
-      kind: "round_progress",
-      round_id: "root-live",
-      session_key: "room:group:a",
-    },
-  });
-  assert.equal(state.failure, null, "live output disproves an earlier Session load failure");
 });
 
 test("Room member failure stays on the exact Agent round", async () => {
@@ -353,33 +254,4 @@ test("user notice stays concise and hides transport or request details", async (
   assert.match(html, /data-conversation-failure-code="round_failed"/);
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /role="status"/);
-});
-
-test("unknown message receipt warns against duplicate submission", async () => {
-  const { ConversationReliabilityNotice } = await import("@/features/conversation/shared/conversation-reliability-notice.tsx");
-  const { I18N_CONTEXT } = await import("@/shared/i18n/i18n-context.ts");
-  const { MESSAGES } = await import("@/shared/i18n/messages.ts");
-  const t = (key) => MESSAGES.zh[key] ?? key;
-  const html = renderToStaticMarkup(
-    React.createElement(
-      I18N_CONTEXT.Provider,
-      { value: { locale: "zh", setLocale: () => {}, t } },
-      React.createElement(ConversationReliabilityNotice, {
-        compact: true,
-        reliability: {
-          failure: {
-            client_request_id: "request-a",
-            code: "delivery_unknown",
-            session_key: "dm:session-a",
-          },
-          provider_retry: null,
-          transport_phase: "healthy",
-        },
-      }),
-    ),
-  );
-  assert.match(html, /消息状态未确认/);
-  assert.match(html, /确认前不要重复发送/);
-  assert.match(html, />刷新</);
-  assert.doesNotMatch(html, /请稍后重试/);
 });

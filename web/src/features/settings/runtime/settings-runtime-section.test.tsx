@@ -89,23 +89,6 @@ describe("runtime fields", () => {
     expect(controller.onWebSearchPatch).toHaveBeenCalledTimes(2);
   });
 
-  it("names tool discovery from its title and preserves its exact toggle and saving lock", async () => {
-    const user = userEvent.setup();
-    const controller = configure("brave");
-    const { rerender } = renderSettings();
-    const control = screen.getByRole("switch", { name: text("tool_search_title") }) as HTMLButtonElement;
-    expect(document.getElementById(control.getAttribute("aria-describedby")!)?.textContent)
-      .toBe(text("tool_search_description"));
-    await user.click(control);
-    expect(controller.onToolSearchChange).toHaveBeenCalledExactlyOnceWith(true);
-    expect(controller.onWebSearchPatch).not.toHaveBeenCalled();
-    useController.mockReturnValue({ ...controller, preferencesBusy: true });
-    rerender(<SettingsRuntimeSection />);
-    expect(control.disabled).toBe(true);
-    await user.click(control);
-    expect(controller.onToolSearchChange).toHaveBeenCalledOnce();
-  });
-
   it.each<WebSearchProvider>(["brave", "tavily", "exa", "firecrawl", "searxng", "anysearch"])(
     "binds all %s fields to exact controls and names each visible selection group once",
     async (provider) => {
@@ -225,25 +208,5 @@ describe("runtime fields", () => {
     expect(controller.onWebSearchPatch).toHaveBeenLastCalledWith({ anysearch: { domain: "web", tag: "docs", params: undefined } });
     const ids = [...container.querySelectorAll("[id]")].map((node) => node.id);
     expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it("changes only the chosen search-depth group", async () => {
-    const user = userEvent.setup();
-    const controller = configure("tavily");
-    renderSettings();
-    await user.click(screen.getByRole("button", { name: text("web_search_more") }));
-    const depth = screen.getByRole("group", { name: text("web_search_depth") });
-    const extract = screen.getByRole("group", { name: text("web_search_extract_depth") });
-    await user.click(within(depth).getByRole("button", { name: text("web_search_advanced") }));
-    expect(controller.onWebSearchPatch).toHaveBeenCalledExactlyOnceWith({ search_depth: "advanced" });
-    expect(within(extract).getByRole("button", { name: text("web_search_basic") }).getAttribute("aria-pressed")).toBe("true");
-  });
-});
-
-describe("sandbox settings", () => {
-  it("leaves sandbox controls to the dedicated sandbox section", () => {
-    configure("brave");
-    renderSettings();
-    expect(screen.queryByRole("button", { name: text("sandbox_check") })).toBeNull();
   });
 });

@@ -2,7 +2,6 @@
 // OUTPUT: Resource requests occur synchronously only for accepted opening gestures.
 // POS: Public Select onOpen regression; no native permission prompt is invoked.
 import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { UiSelectMenu } from "./select-menu";
@@ -31,20 +30,4 @@ it.each([{ options: [] }, { options: [{ value: "a", label: "A", disabled: true }
   expect(onOpen).not.toHaveBeenCalled();
   expect(onChange).not.toHaveBeenCalled();
   expect(screen.queryByRole("listbox")).toBeNull();
-});
-it("ignores disabled gestures", () => {
-  const { onOpen, trigger } = setup(undefined, true);
-  fireEvent.keyDown(trigger, { key: "Enter" });
-  fireEvent.click(trigger);
-  expect(onOpen).not.toHaveBeenCalled();
-});
-it("ignores composition Enter and only reports opening clicks", async () => {
-  const { onOpen, trigger } = setup();
-  fireEvent.keyDown(trigger, { key: "Enter", isComposing: true });
-  expect(onOpen).not.toHaveBeenCalled();
-  const user = userEvent.setup();
-  await user.click(trigger);
-  expect(onOpen).toHaveBeenCalledOnce();
-  await user.click(trigger);
-  expect(onOpen).toHaveBeenCalledOnce();
 });

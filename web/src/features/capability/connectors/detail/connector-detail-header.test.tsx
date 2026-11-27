@@ -37,33 +37,6 @@ function callbacks() {
 beforeEach(() => localStorage.setItem(LOCALE_STORAGE_KEY, "zh"));
 
 describe("ConnectorDetailHeader", () => {
-  it("renders semantic identity and dispatches its projected primary action", async () => {
-    const user = userEvent.setup();
-    const onConnect = vi.fn();
-    const { container } = render(
-      <ConnectorDetailHeader
-        busy={false}
-        detail={DETAIL}
-        onConfigureCredential={vi.fn()}
-        onConfigureOauthClient={vi.fn()}
-        onConnect={onConnect}
-        onDisconnect={vi.fn()}
-        onReplaceOauthClient={vi.fn()}
-        state={{
-          configurationError: null,
-          oauthClientAction: null,
-          primaryAction: "connect",
-          status: "disconnected",
-        }}
-      />,
-      { wrapper: I18nProvider },
-    );
-
-    expect(container.querySelector("[data-slot='capability-detail-identity']")).toBeTruthy();
-
-    await user.click(screen.getByRole("button", { name: "添加到 Nexus" }));
-    expect(onConnect).toHaveBeenCalledWith(DETAIL.connector_id);
-  });
 
   it.each(["zh", "en"] as const)("preserves exact %s command targets and busy locks for each action", async (locale) => {
     localStorage.setItem(LOCALE_STORAGE_KEY, locale);

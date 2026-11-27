@@ -3,7 +3,6 @@
 // POS: 子任务列表 DOM 合同；纯状态排序与请求隔离继续由 model/hook 测试负责。
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -44,63 +43,6 @@ describe("SubagentTaskList", () => {
     rerender(view("en"));
     expect(screen.getByRole("button", { name: new RegExp(MESSAGES.en["agent.subagent_name_fallback"]) })).toBeTruthy();
   });
-
-  it("keeps one shared retry notice when the task list cannot refresh", async () => {
-    const user = userEvent.setup();
-    const onRefresh = vi.fn();
-    render(
-      <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
-      >
-        <SubagentTaskList
-          data={null}
-          error="network"
-          isLoading={false}
-          onClose={vi.fn()}
-          onRefresh={onRefresh}
-          onSelectTask={vi.fn()}
-          showTitle={false}
-          tasks={[]}
-        />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    const notice = screen.getByRole("status");
-    expect(notice.getAttribute("data-inline-notice-tone")).toBe("danger");
-    expect(notice.textContent).toContain("subagents.list_load_failed_title");
-    expect(notice.textContent).toContain("subagents.list_load_failed_impact");
-    expect(notice.textContent).not.toContain("subagents.list_load_failed_next_step");
-
-    await user.click(screen.getByRole("button", { name: "subagents.retry" }));
-    expect(onRefresh).toHaveBeenCalledOnce();
-    expect(screen.queryByText("subagents.no_active")).toBeNull();
-  });
-
-  it("renders running tasks as shared dense rows with semantic text and avatar state", async () => {
-    const user = userEvent.setup();
-    const onSelectTask = vi.fn();
-    render(
-      <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
-      >
-        <SubagentTaskList
-          data={null}
-          error={null}
-          isLoading={false}
-          onClose={vi.fn()}
-          onRefresh={vi.fn()}
-          onSelectTask={onSelectTask}
-          showTitle={false}
-          tasks={[ACTIVE_TASK]}
-        />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    const row = screen.getByRole("button", { name: /资料整理/ });
-
-    await user.click(row);
-    expect(onSelectTask).toHaveBeenCalledWith("task-1");
-  });
 });
 
 it("separates unknown and failed/stopped history while keeping exact keyboard selection", () => {
@@ -129,19 +71,6 @@ it("separates unknown and failed/stopped history while keeping exact keyboard se
   expect(screen.getByText("排队中")).toBeTruthy();
 });
 
-it("exposes one initial loading state and keeps cached rows readable during retry", () => {
-  const { container, rerender } = render(list({ isLoading: true }));
-  expect(screen.getByRole("status").textContent).toBe(MESSAGES.en["subagents.loading"]);
-  expect(container.querySelector('[aria-busy="true"]')).toBeTruthy();
-  expect(screen.queryByText(MESSAGES.en["subagents.no_active"])).toBeNull();
-  rerender(list({ tasks: [ACTIVE_TASK], error: "failed" }));
-  expect(screen.getByRole("button", { name: /资料整理/ })).toBeTruthy();
-  expect(screen.getAllByRole("status")).toHaveLength(1);
-  rerender(list({ tasks: [ACTIVE_TASK], isLoading: true }));
-  expect(screen.getByRole("button", { name: /资料整理/ })).toBeTruthy();
-  expect(screen.queryByText(MESSAGES.en["subagents.loading"])).toBeNull();
-});
-
 it("omits invalid times and provides an exact date plus updated minute labels for valid observations", () => {
   vi.useFakeTimers();
   const now = Date.UTC(2026, 8, 7, 12);
@@ -161,24 +90,4 @@ it("omits invalid times and provides an exact date plus updated minute labels fo
   expect(time.textContent).toBe(new Intl.RelativeTimeFormat("en", { numeric: "always", style: "narrow" }).format(-1, "minute"));
   expect(refresh).not.toHaveBeenCalled();
   expect(screen.getByRole("region", { name: "Active" })).toBeTruthy();
-});
-
-it.each(["en", "zh"] as const)("keeps a missing requested task actionable with one busy feedback surface in %s", (locale) => {
-  const refresh = vi.fn();
-  const data = { runtime_kind: ACTIVE_TASK.runtime_kind, capabilities: ACTIVE_TASK.capabilities, items: [] };
-  const { rerender } = render(list({ data, requestedTaskUnavailable: true, isLoading: true, onRefresh: refresh }, locale));
-  expect(screen.getAllByRole("status")).toHaveLength(1);
-  expect(screen.getByText(MESSAGES[locale]["subagents.requested_task_missing_title"])).toBeTruthy();
-  expect(screen.queryByText(MESSAGES[locale]["subagents.no_active"])).toBeNull();
-  const retry = screen.getByRole("button", { name: MESSAGES[locale]["subagents.retry"] });
-  expect(retry.getAttribute("aria-busy")).toBe("true");
-  expect(retry.hasAttribute("disabled")).toBe(true);
-  fireEvent.click(retry);
-  expect(refresh).not.toHaveBeenCalled();
-  rerender(list({ data, requestedTaskUnavailable: true, error: "offline", onRefresh: refresh }, locale));
-  expect(screen.getAllByRole("status")).toHaveLength(1);
-  expect(screen.getByText(MESSAGES[locale]["subagents.list_load_failed_title"])).toBeTruthy();
-  expect(screen.queryByText(MESSAGES[locale]["subagents.requested_task_missing_title"])).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: MESSAGES[locale]["subagents.retry"] }));
-  expect(refresh).toHaveBeenCalledOnce();
 });

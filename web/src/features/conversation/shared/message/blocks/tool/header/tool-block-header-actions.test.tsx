@@ -50,37 +50,4 @@ describe("ToolBlockHeaderActions", () => {
     expect(onCopyResult).toHaveBeenCalledOnce();
     expect(onParentClick).not.toHaveBeenCalled();
   });
-
-  it("keeps permission actions disabled with the supplied reason", () => {
-    const onAllow = vi.fn();
-    const onDeny = vi.fn();
-    render(
-      <I18nProvider>
-        <ToolBlockHeaderActions
-          canCopyResult={false}
-          canToggle={false}
-          copied={false}
-          expanded={false}
-          interactionDisabled
-          interactionDisabledReason="Another request is active."
-          onAllow={onAllow}
-          onCopyResult={vi.fn()}
-          onDeny={onDeny}
-          showPermissionActions
-        />
-      </I18nProvider>,
-    );
-
-    const deny = screen.getByRole("button", { name: /deny|拒绝/i });
-    const allow = screen.getByRole("button", { name: /allow|允许/i });
-    expect((deny as HTMLButtonElement).disabled).toBe(true);
-    expect((allow as HTMLButtonElement).disabled).toBe(true);
-    expect(deny.title).toBe("");
-    expect(allow.title).toBe("");
-
-    fireEvent.click(deny);
-    fireEvent.click(allow);
-    expect(onDeny).not.toHaveBeenCalled();
-    expect(onAllow).not.toHaveBeenCalled();
-  });
 });

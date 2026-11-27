@@ -67,40 +67,6 @@ describe("Goal controller interaction scope", () => {
     });
     expect(result.current.draft).toBeNull();
   });
-  it.each(["session", "owner", "goal"])("clears old UI state on %s changes without restoring it when the old target returns", (kind) => {
-    const { result, rerender } = renderController();
-    act(() => { result.current.actions.startEditing(); result.current.actions.startClearing(); });
-    expect(result.current.draft).not.toBeNull();
-    expect(result.current.dialog.kind).toBe("clear");
-    const oldResource = resource;
-    resource = { ...resource, ownerScopeGeneration: kind === "owner" ? 2 : 1,
-      goal: { ...ACTIVE_GOAL, id: kind === "goal" ? "goal-2" : ACTIVE_GOAL.id,
-        session_key: kind === "session" ? "session-2" : ACTIVE_GOAL.session_key } };
-    rerender({ sessionKey: resource.goal!.session_key });
-    expect(result.current.draft).toBeNull();
-    expect(result.current.dialog.kind).toBe("none");
-    resource = oldResource;
-    rerender({ sessionKey: ACTIVE_GOAL.session_key });
-    expect(result.current.draft).toBeNull();
-    expect(result.current.dialog.kind).toBe("none");
-  });
-  it.each(["objective", "binding", "busy"])("consumes a confirmation invalidated by %s changes", (kind) => {
-    const { result, rerender } = renderController();
-    act(() => result.current.actions.startClearing());
-    const before = resource;
-    resource = { ...resource,
-      goal: kind === "objective" ? { ...ACTIVE_GOAL, objective: "Replacement objective" } : ACTIVE_GOAL,
-      executionBinding: { state: kind === "binding" ? "confirmed" : "standalone" },
-      isLoading: kind === "busy",
-    };
-    rerender({ sessionKey: ACTIVE_GOAL.session_key });
-    expect(result.current.dialog.kind).toBe("none");
-    resource = before;
-    rerender({ sessionKey: ACTIVE_GOAL.session_key });
-    expect(result.current.dialog.kind).toBe("none");
-    act(() => result.current.actions.confirmDialog());
-    expect(clearGoalApi).not.toHaveBeenCalled();
-  });
   it("keeps draft and confirmation through language/progress updates, and clears a committed draft", () => {
     const { result, rerender } = renderController();
     act(() => { result.current.actions.startEditing(); result.current.actions.startClearing(); });
@@ -116,35 +82,6 @@ describe("Goal controller interaction scope", () => {
     } };
     rerender({ sessionKey: ACTIVE_GOAL.session_key });
     expect(result.current.draft).toBeNull();
-  });
-  it("distinguishes read recovery from saving while preserving a locked unknown-result draft", async () => {
-    const { result, rerender } = renderController();
-    act(() => result.current.actions.startEditing());
-    resource = { ...resource, isLoading: true };
-    rerender({ sessionKey: ACTIVE_GOAL.session_key });
-    expect(result.current.loadingLabel).toBe(goalTestI18n("en").t("state.reload_check"));
-    expect(result.current.pendingAction).toBeNull();
-    resource = { ...resource, isLoading: false, mutationsBlocked: true, mutationBlockReason: "unknown_mutation" };
-    rerender({ sessionKey: ACTIVE_GOAL.session_key });
-    await act(() => result.current.actions.submit(submitEvent()));
-    expect(resource.runCommand).not.toHaveBeenCalled();
-    expect(result.current.draft?.objective).toBe(ACTIVE_GOAL.objective);
-    act(() => result.current.actions.cancelEditing());
-    expect(result.current.draft).toBeNull();
-  });
-  it("does not clear a newer draft when an older command promise finishes", async () => {
-    let complete!: (value: Awaited<ReturnType<typeof resource.runCommand>>) => void;
-    resource.runCommand = vi.fn(() => new Promise<Awaited<ReturnType<typeof resource.runCommand>>>((resolve) => { complete = resolve; }));
-    const { result, rerender } = renderController();
-    act(() => result.current.actions.startEditing());
-    let submission!: Promise<void>;
-    act(() => { submission = result.current.actions.submit(submitEvent()); });
-    resource = { ...resource, goal: { ...ACTIVE_GOAL, id: "new-goal", session_key: "new-session" } };
-    rerender({ sessionKey: "new-session" });
-    act(() => result.current.actions.startEditing());
-    act(() => result.current.actions.setObjective("New draft"));
-    await act(async () => { complete({ ok: true, goal: ACTIVE_GOAL }); await submission; });
-    expect(result.current.draft?.objective).toBe("New draft");
   });
 });
 

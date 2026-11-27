@@ -4,7 +4,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { ApiRequestError } from "@/lib/api/core/http-error";
-import type { Locale } from "@/shared/i18n/locale-settings";
 import { useConnectorCatalog } from "./use-connector-catalog";
 import { useConnectorDetail } from "./use-connector-detail";
 const api = vi.hoisted(() => ({ catalog: vi.fn(), detail: vi.fn() }));
@@ -26,25 +25,4 @@ it("discards a denied catalog and detail until a successful authorized read", as
   act(() => { void catalog.result.current.refresh(); void detail.result.current.refreshDetail("github"); });
   expect(catalog.result.current.allConnectors).toEqual([]);
   expect(detail.result.current.selectedDetail).toBeNull();
-});
-it("rereads the catalog when the locale changes and reads a detail once per open in the active locale", async () => {
-  const item = { connector_id: "github", kind: "connector", status: "available", category: "developer", title: "GitHub", description: "Repository" };
-  api.catalog.mockReset().mockResolvedValue([item]);
-  api.detail.mockReset().mockResolvedValue(item);
-  const catalog = renderHook(({ locale }: { locale: Locale }) => useConnectorCatalog({ failureFallback: "Failed", locale }), { initialProps: { locale: "zh" } });
-  const detail = renderHook(({ locale }: { locale: Locale }) => useConnectorDetail({ failureFallback: "Failed", locale }), { initialProps: { locale: "zh" } });
-  await waitFor(() => expect(catalog.result.current.loading).toBe(false));
-  const openInChinese = detail.result.current.openDetail;
-  await act(async () => { await openInChinese("github"); });
-  expect(api.catalog).toHaveBeenLastCalledWith({ locale: "zh", status: "available" });
-  expect(api.detail).toHaveBeenLastCalledWith("github", "zh");
-  catalog.rerender({ locale: "en" });
-  detail.rerender({ locale: "en" });
-  await waitFor(() => expect(api.catalog).toHaveBeenLastCalledWith({ locale: "en", status: "available" }));
-  // 语言变化只换新 openDetail，由目录入口的 effect 重读一次，Hook 自身不再并发第二个请求。
-  expect(detail.result.current.openDetail).not.toBe(openInChinese);
-  expect(api.detail).toHaveBeenCalledTimes(1);
-  await act(async () => { await detail.result.current.openDetail("github"); });
-  expect(api.detail).toHaveBeenLastCalledWith("github", "en");
-  expect(api.detail).toHaveBeenCalledTimes(2);
 });

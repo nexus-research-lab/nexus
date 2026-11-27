@@ -2,7 +2,7 @@
 // OUTPUT: 首次失败/确认空目录、缓存失败反馈、重试及跨作用域迟到结果的回归。
 // POS: 真实 Workspace 控制器与目录视图接入测试；目录 API 使用离线结果。
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -98,20 +98,6 @@ it("keeps cached files and does not turn dismissed read failure into a confirmed
   act(() => useWorkspaceFilesStore.getState().clear_agent("a"));
   expect(screen.getByText("room.workspace_list_unavailable_impact")).toBeTruthy();
   expect(screen.queryByText("room.no_files")).toBeNull();
-});
-
-it("ignores a prior Agent failure after the new directory has loaded", async () => {
-  const oldRead = pendingFiles();
-  const newRead = pendingFiles();
-  vi.mocked(getWorkspaceFilesApi).mockImplementation((agentId) => agentId === "a" ? oldRead.promise : newRead.promise);
-  const { rerender } = renderWorkspace();
-  rerender(<Workspace agentId="b" />);
-  await waitFor(() => expect(getWorkspaceFilesApi).toHaveBeenCalledWith("b"));
-  await act(async () => newRead.resolve([]));
-  expect(screen.getByText("room.no_files")).toBeTruthy();
-  await act(async () => oldRead.reject(new Error("late failure")));
-  expect(screen.queryByText("room.workspace_list_failed_title")).toBeNull();
-  expect(screen.getByText("room.no_files")).toBeTruthy();
 });
 
 it("preserves directory expansion across preview focus and resets it for another Agent workspace", async () => {

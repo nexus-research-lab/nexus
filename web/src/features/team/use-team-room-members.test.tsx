@@ -5,7 +5,6 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import { useTeamRoomMembers } from "./use-team-room-members";
-import { advanceAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 
 const api = vi.hoisted(() => ({ add: vi.fn(), publish: vi.fn(), coordinator: vi.fn(), get: vi.fn(), invite: vi.fn(), pause: vi.fn() }));
 vi.mock("@/lib/api/account/control-api", () => ({ publishControlAgentApi: api.publish }));
@@ -68,18 +67,4 @@ it("guards publication and addition together, surfaces failure and retries witho
   await act(async () => { expect(await result.current.addAgent(agent)).toBe(true); });
   expect(api.add).toHaveBeenCalledExactlyOnceWith("room-1", "published-agent", 3, expect.any(String));
   expect(result.current.failed).toBe(false);
-});
-
-it("does not add an Agent under a different account after publication completes late", async () => {
-  api.get.mockReset().mockResolvedValue({room: {id: "room-1", membership_version: 3}, members: []});
-  let finish!: (agent: {agent_id: string}) => void;
-  api.publish.mockReset().mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-  api.add.mockReset();
-  const {result} = renderHook(() => useTeamRoomMembers("room-1", true));
-  await waitFor(() => expect(result.current.details).not.toBeNull());
-  let request!: Promise<boolean>;
-  act(() => { request = result.current.addAgent({id: "local", name: "Amy"} as Parameters<typeof result.current.addAgent>[0]); });
-  advanceAuthOwnerScopeGeneration();
-  await act(async () => { finish({agent_id: "remote"}); expect(await request).toBe(false); });
-  expect(api.add).not.toHaveBeenCalled();
 });

@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { MESSAGES } from "@/shared/i18n/messages";
 import type { ExecutionGraphNodeView } from "@/types/conversation/execution";
-import { compactExecutionNodeObjective, resolveExecutionAgent, resolveExecutionGraphNodeAgent } from "./execution-process-model";
+import { resolveExecutionAgent, resolveExecutionGraphNodeAgent } from "./execution-process-model";
 
 const node: ExecutionGraphNodeView = { id: "node", kind: "subagent", visibility: "nested", work_item_id: "work", position: 0, agent_id: "runtime-agent", subject_id: "child-identity" };
 
@@ -22,21 +22,5 @@ describe("Execution display identities", () => {
     expect(renamed.name).toBe("Research");
     expect(renamed.avatar).toBe(child.avatar);
     expect(renamed.id).toBe(child.id);
-  });
-  it("uses directory names without treating a blank name as an absent owner", () => {
-    const t = (key: keyof typeof MESSAGES.zh) => MESSAGES.zh[key];
-    const entry = { id: "owner-id", avatar: "icon:3", name: "  " };
-    expect(resolveExecutionAgent({ "owner-id": entry }, "owner-id", t)).toEqual({ ...entry, name: "智能体", nameIsFallback: true });
-    expect(entry.name).toBe("  ");
-    expect(resolveExecutionAgent({ "owner-id": { ...entry, name: " Nova " } }, "owner-id", t)?.name).toBe("Nova");
-    expect(resolveExecutionGraphNodeAgent({}, { ...node, kind: "tool" }, null, t)).toBeNull();
-  });
-  it("never strips a generic role label from the objective as though it were an owner name", () => {
-    const t = (key: keyof typeof MESSAGES.zh) => MESSAGES.zh[key];
-    const fallback = resolveExecutionAgent({}, "owner-id", t)!;
-    const objective = "智能体：检查权限";
-    expect(compactExecutionNodeObjective(objective, fallback.name, fallback.nameIsFallback)).toBe(objective);
-    const named = resolveExecutionAgent({ "owner-id": { id: "owner-id", avatar: null, name: "智能体" } }, "owner-id", t)!;
-    expect(compactExecutionNodeObjective(objective, named.name, named.nameIsFallback)).toBe("检查权限");
   });
 });

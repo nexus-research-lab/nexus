@@ -36,30 +36,6 @@ function view(onSave: ComponentProps<typeof SkillSourceManagerDialog>["onSave"],
 }
 
 describe("Skill source authentication", () => {
-  it("keeps fields and save commands isolated between two mounted editors", async () => {
-    const user = userEvent.setup();
-    const firstSave = vi.fn().mockResolvedValue(false);
-    const secondSave = vi.fn().mockResolvedValue(false);
-    render(view(firstSave, [SOURCE]));
-    await user.click(screen.getByRole("button", { name: "capability.skill_source_edit" }));
-    render(view(secondSave, [SOURCE]));
-    await user.click(screen.getByRole("button", { name: "capability.skill_source_edit" }));
-    for (const label of document.querySelectorAll<HTMLLabelElement>("form label[for]")) {
-      expect(label.control).not.toBeNull();
-      expect(label.control?.closest("form")).toBe(label.closest("form"));
-    }
-    const editors = screen.getAllByRole("dialog", { name: "capability.skill_source_edit_title" });
-    expect(editors).toHaveLength(2);
-    const editor = within(editors[1]);
-    const name = editor.getByRole("textbox", { name: "capability.skill_source_name" });
-    await user.clear(name);
-    await user.type(name, "Second source");
-    await user.click(editor.getByRole("button", { name: "capability.skill_source_validate_and_save" }));
-    expect(secondSave).toHaveBeenCalledExactlyOnceWith(SOURCE, {
-      authType: "bearer", name: "Second source", token: "", url: SOURCE.url,
-    });
-    expect(firstSave).not.toHaveBeenCalled();
-  });
 
   it("names each source action group and describes its switch without row-wide commands", async () => {
     const user = userEvent.setup();

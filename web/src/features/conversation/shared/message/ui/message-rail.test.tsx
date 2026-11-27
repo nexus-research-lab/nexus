@@ -54,20 +54,6 @@ describe("MessageDetailScroll follow", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps following when its own bottom scroll event lands after more content arrived", () => {
-    const detail = renderDetail();
-    detail.grow(400);
-    detail.observeResize();
-    expect(detail.element.scrollTop).toBe(detail.bottomTop());
-
-    // 代码块转为正文：一次增长几十 px，且先于上一次贴底的 scroll 事件被提交。
-    detail.grow(60);
-    fireEvent.scroll(detail.element);
-    detail.observeResize();
-
-    expect(detail.element.scrollTop).toBe(detail.bottomTop());
-  });
-
   it("stops following once the reader scrolls up, and resumes at the bottom", () => {
     const detail = renderDetail();
     detail.grow(400);

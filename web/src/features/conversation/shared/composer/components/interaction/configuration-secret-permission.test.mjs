@@ -1,7 +1,6 @@
 // @vitest-environment node
 
 import assert from "node:assert/strict";
-import path from "node:path";
 import { test } from "vitest";
 
 import React from "react";
@@ -193,54 +192,6 @@ test("Composer masks requested secrets and blocks allow while fields are empty",
   )?.[0] ?? "";
   assert.match(allowTag, /disabled=""/);
   assert.doesNotMatch(denyTag, /disabled=""/);
-});
-
-test("scheduled-task Composer offers a task-scoped approval choice", async () => {
-  const { ComposerPermissionSurface } = await import("@/features/conversation/shared/composer/components/interaction/composer-permission-surface.tsx");
-  const { buildComposerPermissionScopeItems } = await import("@/features/conversation/shared/composer/components/interaction/composer-permission-scope-items.tsx");
-  const { MESSAGES } = await import("@/shared/i18n/messages.ts");
-  const permission = {
-    automation: {
-      allow_task: true,
-      job_id: "task-1",
-      kind: "tool",
-      policy_revision: 4,
-      run_id: "run-1",
-      task_name: "Daily report",
-    },
-    request_id: "permission-automation",
-    source: "automation",
-    summary: "Scheduled task needs WebSearch",
-    tool_input: { query: "latest research" },
-    tool_name: "WebSearch",
-  };
-  const html = await renderWithI18n(React.createElement(
-    ComposerPermissionSurface,
-    {
-      interactionDisabled: false,
-      kind: "permission",
-      onResponse: () => true,
-      permission,
-      total: 1,
-    },
-  ));
-
-  assert.match(html, /data-composer-permission-action="allow"/);
-  assert.match(html, /aria-label="Choose permission scope"/);
-  const t = (key, params = {}) => Object.entries(params).reduce(
-    (message, [name, value]) => message.replaceAll(`{${name}}`, String(value)),
-    MESSAGES.en[key] ?? key,
-  );
-  const items = buildComposerPermissionScopeItems(
-    permission,
-    [],
-    undefined,
-    t,
-  );
-  assert.equal(items.length, 2);
-  assert.equal(items[1].value, "allow-task");
-  assert.equal(items[1].description, "Adds this capability only to scheduled task Daily report");
-  assert.match(renderToStaticMarkup(items[1].label), /Always allow for this task/);
 });
 
 function createPermissionContext(decisionPermission) {

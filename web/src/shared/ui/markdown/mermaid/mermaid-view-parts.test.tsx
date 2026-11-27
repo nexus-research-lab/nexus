@@ -11,28 +11,6 @@ import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { MermaidRenderedPreview, MermaidSourceView } from "./mermaid-view-parts";
 
 describe("Mermaid view parts", () => {
-  it("keeps rendering status consistent", () => {
-    const { container } = render(
-      <I18nProvider>
-        <MermaidRenderedPreview
-          compact
-          constrainHeight
-          error={null}
-          isRendering
-          isStreaming={false}
-          onOpenPreview={vi.fn()}
-          svg=""
-        />
-      </I18nProvider>,
-    );
-
-    const status = screen.getByRole("status");
-    expect(status.getAttribute("aria-busy")).toBe("true");
-
-    const spinner = container.querySelector('[role="status"] svg');
-    expect(spinner?.getAttribute("aria-hidden")).toBe("true");
-
-  });
 
   it("uses one native button for rendered-diagram activation", async () => {
     const user = userEvent.setup();

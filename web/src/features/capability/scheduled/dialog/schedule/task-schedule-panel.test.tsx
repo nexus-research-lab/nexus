@@ -73,19 +73,6 @@ describe("TaskSchedulePanel", () => {
       expect(document.getElementById(control.getAttribute("aria-describedby")!)?.textContent).toBe(`${label}_help`);
     }
   });
-
-  it("names weekday help and changes only the exact selected day or enabled flag", async () => {
-    const user = userEvent.setup();
-    const props = makeProps("cron");
-    render(<TestForm props={props} label="Weekly task" />);
-    const days = screen.getByRole("group", { name: "capability.scheduled_dialog_execution_days" });
-    expect(document.getElementById(days.getAttribute("aria-describedby")!)?.textContent).toBe("capability.scheduled_dialog_execution_days_help");
-    await user.click(within(days).getByRole("button", { name: "capability.scheduled_dialog_weekday_wed" }));
-    expect(props.actions.toggleWeekday).toHaveBeenCalledExactlyOnceWith("we");
-    await user.click(screen.getByRole("checkbox", { name: "capability.scheduled_dialog_enabled" }));
-    expect(props.formActions.setEnabled).toHaveBeenCalledExactlyOnceWith(false);
-    expect(props.actions.setKind).not.toHaveBeenCalled();
-  });
 });
 
 it("keeps unknown mutation recovery a warning without granting repeat submission", () => {

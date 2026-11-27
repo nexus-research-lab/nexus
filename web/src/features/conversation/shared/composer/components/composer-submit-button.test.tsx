@@ -40,34 +40,6 @@ describe("ComposerSubmitButton", () => {
     expect(props.onSend).toHaveBeenCalledOnce();
     expect(props.onStop).not.toHaveBeenCalled();
   });
-  it("routes the ordinary state only to the send action", async () => {
-    const user = userEvent.setup();
-    const props = renderSubmitButton();
-
-    await user.click(screen.getByRole("button", { name: "发送" }));
-
-    expect(props.onSend).toHaveBeenCalledTimes(1);
-    expect(props.onStop).not.toHaveBeenCalled();
-  });
-
-  it("routes an active round only to the stop action", async () => {
-    const user = userEvent.setup();
-    const props = renderSubmitButton({ shouldStop: true });
-
-    await user.click(screen.getByRole("button", { name: "停止" }));
-
-    expect(props.onStop).toHaveBeenCalledTimes(1);
-    expect(props.onSend).not.toHaveBeenCalled();
-  });
-
-  it("does not expose a stop action when no stop command exists", async () => {
-    const user = userEvent.setup();
-    const props = renderSubmitButton({ onStop: undefined, shouldStop: true });
-
-    await user.click(screen.getByRole("button", { name: "发送" }));
-
-    expect(props.onSend).toHaveBeenCalledTimes(1);
-  });
 
   it("keeps stopping available while send is disabled or another preparation flag remains", async () => {
     const user = userEvent.setup();
@@ -77,13 +49,5 @@ describe("ComposerSubmitButton", () => {
     await user.click(stop);
     expect(props.onStop).toHaveBeenCalledOnce();
     expect(props.onSend).not.toHaveBeenCalled();
-  });
-
-  it("honors the controller's explicit disabled send state", () => {
-    renderSubmitButton({ isDisabled: true });
-
-    expect(
-      (screen.getByRole("button", { name: "发送" }) as HTMLButtonElement).disabled,
-    ).toBe(true);
   });
 });

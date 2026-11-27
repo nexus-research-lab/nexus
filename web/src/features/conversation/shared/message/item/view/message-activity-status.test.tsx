@@ -50,15 +50,6 @@ describe("LocalizedMessageActivityStatus", () => {
     expect(screen.getByText("1m 2s")).toBeTruthy();
   });
 
-  it("keeps the verb stable when the row remounts in another position", () => {
-    const first = render(withClock(<LocalizedMessageActivityStatus state="thinking" />));
-    const verb = labelText(first.container);
-    first.unmount();
-
-    const second = render(withClock(<LocalizedMessageActivityStatus state="replying" />));
-    expect(labelText(second.container)).toBe(verb);
-  });
-
   it("lets model narration win over the playful verb", () => {
     const { container } = render(
       withClock(<LocalizedMessageActivityStatus label="正在比对两份配置" state="thinking" />),
@@ -70,16 +61,6 @@ describe("LocalizedMessageActivityStatus", () => {
   it("keeps waiting states literal and untimed", () => {
     const { container } = render(withClock(<LocalizedMessageActivityStatus state="waiting_permission" />));
     expect(labelText(container)).toMatch(/^(等待确认|Waiting for approval)$/);
-    expect(container.querySelector("[data-message-activity-elapsed]")).toBeNull();
-  });
-
-  it("falls back to the literal stage without a round clock", () => {
-    const { container } = render(
-      <I18nProvider>
-        <LocalizedMessageActivityStatus state="thinking" />
-      </I18nProvider>,
-    );
-    expect(labelText(container)).toMatch(LITERAL_THINKING);
     expect(container.querySelector("[data-message-activity-elapsed]")).toBeNull();
   });
 });

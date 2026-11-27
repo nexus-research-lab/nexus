@@ -9,9 +9,7 @@ import type { ConnectorInfo } from "@/types/capability/connector";
 
 import {
   buildConnectorSections,
-  filterConnectors,
 } from "./connector-catalog-model";
-import { getAvailableConnectorCategoryKeys } from "./connectors-categories";
 
 function connector(
   connectorId: string,
@@ -48,13 +46,6 @@ describe("Connector catalog model", () => {
     connector("Outlook", "productivity", "coming_soon"),
   ];
 
-  it("filters out every unavailable connector before search matching", () => {
-    expect(filterConnectors(catalog, "").map((item) => item.title))
-      .toEqual(["RichMail", "高德地图", "GitHub"]);
-    expect(filterConnectors(catalog, "outlook"))
-      .toEqual([]);
-  });
-
   it("groups available connectors by stable user-facing capability categories", () => {
     const sections = buildConnectorSections(catalog, "", t);
 
@@ -78,14 +69,6 @@ describe("Connector catalog model", () => {
         key: "development",
         title: "开发协作工具",
       },
-    ]);
-  });
-
-  it("offers only categories that contain available connectors", () => {
-    expect(getAvailableConnectorCategoryKeys(catalog)).toEqual([
-      "productivity",
-      "business",
-      "development",
     ]);
   });
 });

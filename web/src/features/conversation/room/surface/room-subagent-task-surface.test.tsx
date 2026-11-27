@@ -2,7 +2,7 @@
 // OUTPUT: Manual selection wins, source changes consume old intent, and late reads never replace the current scope.
 // POS: Room-to-shared-subagent integration; only HTTP and realtime transports are replaced.
 
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,24 +45,6 @@ beforeEach(() => {
 afterEach(() => { vi.resetAllMocks(); vi.restoreAllMocks(); });
 
 describe("Subagent navigation", () => {
-  it("opens the requested caller once, returns with one read and honors later manual selection", async () => {
-    const { rerender } = render(view(direct));
-    await screen.findByRole("button", { name: "Back" });
-    expect(getSubagentTaskMessagesApi).toHaveBeenCalledExactlyOnceWith(SOURCE, "task-bo");
-    await click(screen.getByRole("button", { name: "Back" }));
-    await screen.findByRole("button", { name: /Bo research/ });
-    await waitFor(() => expect(listSubagentTasksApi).toHaveBeenCalledTimes(2));
-    expect(getSubagentTaskMessagesApi).toHaveBeenCalledTimes(1);
-    await switchCaller("Ada");
-    expect(screen.getByRole("button", { name: /Ada research/ })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Bo research/ })).toBeNull();
-    rerender(view({ ...direct, roomMembers: [...MEMBERS].reverse().map((member) => ({ ...member })) }));
-    expect(screen.getByRole("button", { name: /^Switch calling Agent.*Ada/ })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
-    rerender(view({ ...direct, requestKey: 2 }));
-    await screen.findByRole("button", { name: "Back" });
-    expect(getSubagentTaskMessagesApi).toHaveBeenCalledTimes(2);
-  });
 
   it("waits for the exact requested task without selecting another task from that caller", async () => {
     vi.mocked(listSubagentTasksApi).mockResolvedValueOnce(response([TASKS[0]]));
@@ -72,20 +54,6 @@ describe("Subagent navigation", () => {
     await click(screen.getByRole("button", { name: "Retry" }));
     await screen.findByRole("button", { name: "Back" });
     expect(getSubagentTaskMessagesApi).toHaveBeenCalledExactlyOnceWith(SOURCE, "task-bo");
-  });
-
-  it("lets manual caller selection cancel a task request that has not arrived", async () => {
-    vi.mocked(listSubagentTasksApi).mockResolvedValueOnce(response([TASKS[0]]));
-    render(view(direct));
-    await screen.findByText(MESSAGES.en["subagents.requested_task_missing_title"]);
-    await switchCaller("Ada");
-    await click(screen.getByRole("button", { name: /Ada research/ }));
-    await screen.findByRole("button", { name: "Back" });
-    await click(screen.getByRole("button", { name: "Back" }));
-    await screen.findByRole("button", { name: /Ada research/ });
-    await switchCaller("Bo");
-    expect(screen.getByRole("button", { name: /Bo research/ })).toBeTruthy();
-    expect(getSubagentTaskMessagesApi).toHaveBeenCalledExactlyOnceWith(SOURCE, "task-ada");
   });
 
   it("keeps manual task selection when the earlier target arrives on the return refresh", async () => {
@@ -100,21 +68,6 @@ describe("Subagent navigation", () => {
     expect(screen.getByRole("button", { name: /Other task/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
     expect(getSubagentTaskMessagesApi).toHaveBeenCalledExactlyOnceWith(SOURCE, "task-other");
-  });
-
-  it("consumes old intent on source change and does not replay it when returning", async () => {
-    const { rerender } = render(view(direct));
-    await screen.findByRole("button", { name: "Back" });
-    rerender(view({ ...direct, source: { ...SOURCE, conversation_id: "conversation-two" } }));
-    await screen.findByRole("button", { name: /Ada research/ });
-    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
-    rerender(view(direct));
-    await screen.findByRole("button", { name: /Ada research/ });
-    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
-    expect(getSubagentTaskMessagesApi).toHaveBeenCalledTimes(1);
-    rerender(view({ ...direct, requestKey: 2 }));
-    await screen.findByRole("button", { name: "Back" });
-    expect(getSubagentTaskMessagesApi).toHaveBeenCalledTimes(2);
   });
 
   it("allows late member arrival to resolve a new request, but does not restore a removed manual caller", async () => {

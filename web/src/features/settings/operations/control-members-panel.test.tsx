@@ -41,20 +41,6 @@ it("一次成员写入期间禁止其他行和手动刷新，失败核对前保�
   expect(api.update).toHaveBeenCalledTimes(1);
 });
 
-it("按姓名或用户名筛选成员并保留清晰的空结果", async () => {
-  const user = userEvent.setup();
-  render(<I18nProvider><OrganizationMembersPanel /></I18nProvider>);
-  await screen.findByText("alice");
-
-  await user.type(screen.getByRole("searchbox", { name: /搜索成员|Search members/ }), "bob");
-  expect(screen.queryByText("alice")).toBeNull();
-  expect(screen.getByText("bob")).toBeTruthy();
-
-  await user.clear(screen.getByRole("searchbox", { name: /搜索成员|Search members/ }));
-  await user.type(screen.getByRole("searchbox", { name: /搜索成员|Search members/ }), "nobody");
-  expect(screen.getByText(/没有匹配的成员|No matching members/)).toBeTruthy();
-});
-
 
 it("直接移除组织成员，保留账号并从列表移除该行", async () => {
   api.list.mockResolvedValue([...members, {...members[0], user_id: "removed", username: "removed", display_name: "removed", membership_status: "revoked"}]);

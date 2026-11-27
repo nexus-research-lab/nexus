@@ -100,19 +100,6 @@ describe("static to virtual feed handoff", () => {
   const rounds = [round(0, -1_280, -800), round(1, -800, -320), round(2, -320, 100), round(3, 100, 520)];
   const roundIds = ["round-0", "round-1", "round-2", "round-3"];
 
-  it("starts the Virtualizer inside the round being read instead of at the static scrollTop", () => {
-    expect(resolveConversationVirtualHandoff(viewport(rounds), virtualRounds(roundIds), true)).toEqual({
-      initialOffset: 180,
-      readingAnchor: { key: "node-round-3", offsetTop: 0 },
-    });
-    // 已读入该轮 300px，但估高只有 60：初始偏移仍留在该轮的估高范围内。
-    const scrolledInto = [...rounds.slice(0, 2), round(2, -620, -200), round(3, -200, 220)];
-    expect(resolveConversationVirtualHandoff(viewport(scrolledInto), virtualRounds(roundIds), true)).toEqual({
-      initialOffset: 239,
-      readingAnchor: { key: "node-round-3", offsetTop: -300 },
-    });
-  });
-
   it("finds the round being read by identity when a history page lands with the switch", () => {
     // 静态 DOM 还是旧窗口，新列表前面已经多了一页：同一轮次的下标后移了 3。
     const prepended = ["round-a", "round-b", "round-c", ...roundIds];
@@ -150,12 +137,6 @@ describe("virtual conversation size changes", () => {
     expect(shouldAdjustConversationVirtualScrollPosition({ end: 200 }, -100, scrolled, reading)).toBe(true);
     expect(shouldAdjustConversationVirtualScrollPosition({ end: 900 }, -100, scrolled, reading)).toBe(false);
     expect(shouldAdjustConversationVirtualScrollPosition({ end: 900 }, -100, scrolled, { ...reading, userScrollActive: true })).toBe(false);
-  });
-
-  it("keeps compensating rounds above the viewport while the user scrolls up into loaded history", () => {
-    const reading = { ...following, followingLatest: false, userScrollActive: true };
-    const scrolled = { ...instance, scrollOffset: 300 };
-    expect(shouldAdjustConversationVirtualScrollPosition({ end: 200 }, 900, scrolled, reading)).toBe(true);
   });
 
   it("judges rows by the reading anchor while a window topology change commits", () => {

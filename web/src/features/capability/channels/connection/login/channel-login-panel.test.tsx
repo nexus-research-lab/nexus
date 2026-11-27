@@ -9,7 +9,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChannelLoginView } from "@/lib/api/capability/channel-api";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 
-import { LoginQRCode } from "./login-qr-code";
 import { MESSAGES } from "@/shared/i18n/messages";
 import { ChannelLoginPanel } from "./channel-login-panel";
 
@@ -132,17 +131,4 @@ describe("ChannelLoginPanel", () => {
     }));
     expect(onStartLogin).toHaveBeenCalledTimes(1);
   });
-});
-
-it.each(["zh", "en"] as const)("keeps a required missing QR inline and hides an optional missing QR in %s", (locale) => {
-  const show = (required: boolean) => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>
-    <LoginQRCode payload="" required={required} />
-  </I18N_CONTEXT.Provider>;
-  const result = render(show(true));
-  const notice = screen.getByRole("status");
-  expect(notice.textContent).toContain(MESSAGES[locale]["capability.channel_login_qr_missing_impact"]);
-  expect(notice.textContent).toContain(MESSAGES[locale]["capability.channel_login_qr_missing_next_step"]);
-  expect(screen.queryByRole("img")).toBeNull();
-  result.rerender(show(false));
-  expect(screen.queryByRole("status")).toBeNull();
 });

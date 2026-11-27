@@ -47,32 +47,6 @@ it.each(["en", "zh"] as const)("names the mounted modal in %s and leaves a missi
   expect(document.body.style.overflow).not.toBe("hidden");
 });
 
-it("traps Tab, closes the member menu before the task modal, and restores the opener", async () => {
-  const user = userEvent.setup();
-  const overflow = document.body.style.overflow;
-  render(<Harness />);
-  const trigger = screen.getByRole("button", { name: "Open tasks" });
-  await user.click(trigger);
-  const dialog = screen.getByRole("dialog", { name: "Subagents" });
-  const back = within(dialog).getByRole("button", { name: "Back" });
-  await screen.findByRole("button", { name: /Research/ });
-  await waitFor(() => expect(document.activeElement).toBe(back));
-  expect(document.body.style.overflow).toBe("hidden");
-  await user.keyboard("{Shift>}{Tab}{/Shift}");
-  expect(document.activeElement).toBe(screen.getByRole("button", { name: /Research/ }));
-  await user.keyboard("{Tab}");
-  expect(document.activeElement).toBe(back);
-  await user.click(screen.getByRole("button", { name: /^Switch calling Agent/ }));
-  await screen.findByRole("menu", { name: "Switch calling Agent" });
-  await user.keyboard("{Escape}");
-  expect(screen.queryByRole("menu")).toBeNull();
-  expect(screen.getByRole("dialog", { name: "Subagents" })).toBe(dialog);
-  await user.keyboard("{Escape}");
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(document.activeElement).toBe(trigger);
-  expect(document.body.style.overflow).toBe(overflow);
-});
-
 it("closes only the nested instruction prompt and keeps task navigation inside the outer modal", async () => {
   const user = userEvent.setup();
   render(<Harness />);

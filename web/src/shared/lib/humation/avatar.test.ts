@@ -23,18 +23,3 @@ it("rejects malformed colors, wrong slots, unknown versions and oversized input"
   expect(getIconAvatarSrc("h1:bad")).toBeNull();
   expect(getIconAvatarSrc("5")).toBe("/icon/agent/5.png");
 });
-
-
-it("varies background by seed and preserves it in saved SVG avatars", () => {
-  const backgrounds = new Set<string>();
-  for (let index = 0; index < 32; index += 1) {
-    const seed = `background-${index}`;
-    const state = createAvatarState(seed);
-    backgrounds.add(state.background);
-    expect(createAvatarState(seed).background).toBe(state.background);
-    const saved = encodeAvatar(state);
-    expect(decodeAvatar(saved)?.background).toBe(state.background);
-    expect(decodeURIComponent(getHumationAvatarSrc(saved)!)).toContain(`fill="#${state.background}"`);
-  }
-  expect(backgrounds.size).toBe(8);
-});

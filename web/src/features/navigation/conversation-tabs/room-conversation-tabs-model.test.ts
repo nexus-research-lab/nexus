@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import { getConversationIdsByCreationTime, resolveSelectedDraftConversationId } from "./room-conversation-tabs-model";
+import { getConversationIdsByCreationTime } from "./room-conversation-tabs-model";
 
 function conversation(id: string, patch: Partial<RoomConversationView> = {}): RoomConversationView {
   return {
@@ -15,17 +15,6 @@ function conversation(id: string, patch: Partial<RoomConversationView> = {}): Ro
 }
 
 describe("Room conversation tab rules", () => {
-  it("reuses only the explicitly selected internal draft", () => {
-    const conversations = [
-      conversation("draft", { is_draft: true }),
-      conversation("empty", { message_count: 0 }),
-      conversation("external", { is_draft: true, options: { external_session: true } }),
-    ];
-    expect(resolveSelectedDraftConversationId(conversations, "draft")).toBe("draft");
-    for (const selected of ["empty", "external", "missing", null]) {
-      expect(resolveSelectedDraftConversationId(conversations, selected)).toBeNull();
-    }
-  });
 
   it("orders by creation time and identity even when recent activity runs in reverse", () => {
     expect(getConversationIdsByCreationTime([

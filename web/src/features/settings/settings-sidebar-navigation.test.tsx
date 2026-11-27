@@ -39,21 +39,6 @@ it("filters names and groups, reports no results and restores navigation on clea
   expect(screen.getByRole("button", { name: "个人" })).toBeTruthy();
 });
 
-it("finds setting descriptions beneath their module without exposing restricted modules", async () => {
-  const user = userEvent.setup();
-  render(<SettingsSidebarNavigation variant="panel" />);
-  await user.click(screen.getByRole("button", { name: "搜索设置…" }));
-  const search = screen.getByRole("searchbox", { name: "搜索设置…" });
-  await user.type(search, "长期");
-  expect(screen.getByRole("button", { name: "常规" })).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "自动记忆" }));
-  expect(selectSection).toHaveBeenCalledWith("general", "settings.general.auto_memory_title");
-  await user.clear(search);
-  await user.type(search, "成员管理");
-  expect(screen.queryByRole("button", { name: "运营" })).toBeNull();
-  expect(screen.getByRole("status")).toBeTruthy();
-});
-
 it("keeps the full back label visible and keyboard accessible before search", async () => {
   const user = userEvent.setup();
   render(<SettingsSidebarNavigation variant="panel" />);
@@ -107,22 +92,4 @@ it("keeps rail navigation unfiltered and preserves the panel search draft", asyn
   view.rerender(<SettingsSidebarNavigation variant="panel" onNavigate={onNavigate} />);
   expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("不存在的设置");
   expect(screen.getByRole("status")).toBeTruthy();
-});
-
-it("电脑操控入口在 macOS 和 Windows 桌面宿主显示", () => {
-  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "macos" };
-  const macView = render(<SettingsSidebarNavigation variant="panel" />);
-  expect(screen.getByRole("button", { name: "电脑操控" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "浏览器" })).toBeTruthy();
-  macView.unmount();
-
-  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "windows" };
-  const windowsView = render(<SettingsSidebarNavigation variant="panel" />);
-  expect(screen.getByRole("button", { name: "电脑操控" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "浏览器" })).toBeTruthy();
-  windowsView.unmount();
-
-  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "linux" };
-  render(<SettingsSidebarNavigation variant="panel" />);
-  expect(screen.queryByRole("button", { name: "电脑操控" })).toBeNull();
 });

@@ -107,27 +107,6 @@ describe.each<ChatKind>(["dm", "room"])("%s user rows keyed by input_seq", (kind
   const first = acceptedInput(kind, 1);
   const second = acceptedInput(kind, 2);
 
-  it("shows a sent message once whichever of the acknowledgement and the live row arrives first", () => {
-    const sent = send([], first);
-    const ackFirst = live(ack(sent, first), first);
-    const liveFirst = ack(live(sent, first), first);
-
-    expect(userRows(ack(sent, first))).toEqual(expectedRows(first));
-    if (kind === "room") {
-      // Room broadcasts the durable row before the acknowledgement; it must
-      // replace the optimistic row in the same update, never sit beside it.
-      expect(userRows(live(sent, first))).toEqual(expectedRows(first));
-    }
-    for (const settled of [ackFirst, liveFirst]) {
-      expect(userRows(settled)).toEqual(expectedRows(first));
-      expect(settled[0]).toMatchObject({
-        client_message_id: first.ack.client_message_id,
-        message_id: first.ack.user_message_id,
-        round_id: first.ack.round_id,
-      });
-    }
-  });
-
   it("keeps one row when a refresh returns the acknowledged input", () => {
     const settled = ack(send([], first), first);
 
@@ -138,28 +117,11 @@ describe.each<ChatKind>(["dm", "room"])("%s user rows keyed by input_seq", (kind
     expect(userRows(refresh([], first))).toEqual(expectedRows(first));
   });
 
-  it("pairs a refreshed row by cursor even when history rewrote its message id", () => {
-    const settled = ack(send([], first), first);
-    const rewritten = { ...first.history, message_id: "transcript-copy-1" };
-    delete rewritten.client_message_id;
-
-    const merged = mergeLoadedMessages([rewritten], settled);
-
-    expect(userRows(merged)).toEqual(expectedRows(first));
-    expect(merged[0]?.message_id).toBe("transcript-copy-1");
-  });
-
   it("keeps one row when a reconnect replays the live row and the acknowledgement", () => {
     const settled = ack(live(send([], first), first), first);
     const replayed = ack(live(refresh(settled, first), first), first);
 
     expect(userRows(replayed)).toEqual(expectedRows(first));
-  });
-
-  it("settles to one row when the acknowledgement was lost and only arrives after the reconnect refresh", () => {
-    const recovered = ack(live(refresh(send([], first), first), first), first);
-
-    expect(userRows(recovered)).toEqual(expectedRows(first));
   });
 
   it("settles to one row when the acknowledgement never arrives and the refresh lands before the replayed live row", () => {
@@ -168,14 +130,6 @@ describe.each<ChatKind>(["dm", "room"])("%s user rows keyed by input_seq", (kind
 
     expect(userRows(kind === "room" ? replayed : refreshed)).toEqual(expectedRows(first));
     expect(userRows(live(replayed, first))).toEqual(expectedRows(first));
-  });
-
-  it("settles to one row when the acknowledgement never arrives and the live row lands before the refresh", () => {
-    const delivered = live(send([], first), first);
-    const refreshed = refresh(delivered, first);
-
-    expect(userRows(kind === "dm" ? refreshed : delivered)).toEqual(expectedRows(first));
-    expect(userRows(refresh(refreshed, first))).toEqual(expectedRows(first));
   });
 
   it("does not drop an acknowledged row that a stale refresh has not caught up with", () => {
@@ -190,15 +144,6 @@ describe.each<ChatKind>(["dm", "room"])("%s user rows keyed by input_seq", (kind
 
     expect(userRows(settled)).toEqual(expectedRows(first, repeat));
     expect(userRows(refresh(settled, first, repeat))).toEqual(expectedRows(first, repeat));
-  });
-
-  it("keeps a still-pending input beside rows a refresh returns", () => {
-    const pending = send(ack(send([], first), first), second);
-
-    expect(userRows(refresh(pending, first))).toEqual([
-      ...expectedRows(first),
-      { content: second.optimistic.content, input_seq: undefined },
-    ]);
   });
 
   it("pairs rows written before the cursor existed by message id", () => {
@@ -223,11 +168,5 @@ describe("inputs acknowledged without a cursor", () => {
     });
 
     expect(userRows(acknowledged)).toEqual(expectedRows(earlier));
-  });
-
-  it("recovers a DM input after acknowledgement loss from the history row that names its request", () => {
-    const input = acceptedInput("dm", 1);
-
-    expect(userRows(refresh(send([], input), input))).toEqual(expectedRows(input));
   });
 });

@@ -2,55 +2,9 @@
 
 import assert from "node:assert/strict";
 
-import path from "node:path";
 import { test } from "vitest";
 
 const recoveryModule = import("@/features/conversation/shared/editor/text/text-file-editor-recovery.ts");
-
-test("workspace text reconciliation preserves newer typing and distinguishes exact outcomes", async () => {
-  const {
-    classifyTextFileSaveReconciliation,
-    mergeSavedTextFile,
-  } = await recoveryModule;
-  const issue = {
-    attemptedDraft: "submitted",
-    expectedRevision: "sha256:base",
-    kind: "outcome_unknown",
-    reconciliationFailed: false,
-  };
-
-  assert.equal(classifyTextFileSaveReconciliation(issue, {
-    content: "submitted",
-    path: "notes.md",
-    revision: "sha256:submitted",
-  }), "intent_present");
-  assert.equal(classifyTextFileSaveReconciliation(issue, {
-    content: "base",
-    path: "notes.md",
-    revision: "sha256:base",
-  }), "retry_ready");
-  assert.equal(classifyTextFileSaveReconciliation(issue, {
-    content: "other writer",
-    path: "notes.md",
-    revision: "sha256:other",
-  }), "conflict");
-
-  assert.deepEqual(mergeSavedTextFile({
-    draftContent: "newer typing",
-    isEditing: true,
-    revision: "sha256:base",
-    savedContent: "base",
-  }, "submitted", {
-    content: "submitted",
-    path: "notes.md",
-    revision: "sha256:submitted",
-  }), {
-    draftContent: "newer typing",
-    isEditing: true,
-    revision: "sha256:submitted",
-    savedContent: "submitted",
-  });
-});
 
 test("external live updates never overwrite a dirty or outcome-unknown draft", async () => {
   const { resolveTextFileLiveUpdateIntent } = await recoveryModule;

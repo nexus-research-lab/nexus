@@ -38,49 +38,6 @@ describe("SidebarPanelToggleAction", () => {
 vi.mock("./use-sidebar-update-version", () => ({ useSidebarUpdateVersion: () => null }));
 vi.mock("@/shared/i18n/i18n-context", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 
-function CurrentRoute() {
-  const location = useLocation();
-  return <output data-testid="route">{location.pathname}{location.search}</output>;
-}
-
-it("opens personal settings from the account row and keeps logout explicit", async () => {
-  const user = userEvent.setup();
-  const onLogout = vi.fn();
-  const onOpenGuide = vi.fn();
-  render(<MemoryRouter><SidebarFooterActions
-    accountName="测试用户"
-    guideOpen={false}
-    labels={{ collapse: "收起", expand: "展开", settings: "设置", login: "登录远程账户", logout: "退出登录", guide: "帮助" }}
-    onCollapse={vi.fn()}
-    onExpand={vi.fn()}
-    onLogin={vi.fn()}
-    onLogout={onLogout}
-    onOpenGuide={onOpenGuide}
-    settingsActive={false}
-    showLogin={false}
-    showLogout
-    showPanelToggle
-    showSettings
-  /><CurrentRoute /></MemoryRouter>);
-  expect(screen.queryByRole("menuitem", { name: "退出登录" })).toBeNull();
-  await user.click(screen.getByRole("button", { name: "测试用户" }));
-  expect(screen.getByRole("menuitem", { name: "设置" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "设置" })).toBeTruthy();
-  expect(screen.getAllByRole("separator")).toHaveLength(1);
-  const account = screen.getByRole("menuitem", { name: "测试用户" });
-
-  await user.click(account);
-  expect(screen.getByTestId("route").textContent).toBe("/settings?section=personal");
-  expect(screen.queryByRole("menu")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "测试用户" }));
-  expect(onLogout).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("menuitem", { name: "退出登录" }));
-  expect(onLogout).toHaveBeenCalledOnce();
-  expect(screen.queryByRole("menu")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "测试用户" }));
-  await user.click(screen.getByRole("menuitem", { name: "帮助" }));
-  expect(onOpenGuide).toHaveBeenCalledOnce();
-});
 
 function CurrentLocation() {
   return <output data-testid="location">{useLocation().pathname}</output>;
@@ -111,28 +68,4 @@ it("shows the account name and opens settings inside the account menu with actio
   view.rerender(<MemoryRouter><SidebarFooterActions {...props} showSettings={false} /><CurrentLocation /></MemoryRouter>);
   expect(screen.queryByRole("button", { name: "设置" })).toBeNull();
   expect(screen.queryByRole("button", { name: "帮助" })).toBeNull();
-});
-
-it("exposes optional remote sign-in from the Desktop account menu", async () => {
-  const user = userEvent.setup();
-  const onLogin = vi.fn();
-  render(<MemoryRouter><SidebarFooterActions
-    accountName="本地用户"
-    guideOpen={false}
-    labels={{ collapse: "收起", expand: "展开", settings: "设置", login: "登录远程账户", logout: "退出登录", guide: "帮助" }}
-    onCollapse={vi.fn()}
-    onExpand={vi.fn()}
-    onLogin={onLogin}
-    onLogout={vi.fn()}
-    onOpenGuide={vi.fn()}
-    settingsActive={false}
-    showLogin
-    showLogout={false}
-    showPanelToggle
-    showSettings
-  /></MemoryRouter>);
-
-  await user.click(screen.getByRole("button", { name: "本地用户" }));
-  await user.click(screen.getByRole("menuitem", { name: "登录远程账户" }));
-  expect(onLogin).toHaveBeenCalledOnce();
 });

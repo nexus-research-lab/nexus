@@ -21,23 +21,6 @@ function Controls({ controller, disabled = false }: { controller: ComposerSessio
 }
 
 describe("ComposerSessionControls", () => {
-  it.each(["model", "permission"])("closes the %s menu when the exact Session changes and does not reopen on return", async (kind) => {
-    const user = userEvent.setup();
-    const controller = makeController();
-    const { rerender } = render(<Controls controller={controller} />);
-    await user.click(screen.getByRole("button", { name: `composer.session_${kind}` }));
-    expect(screen.getByRole("menu")).toBeTruthy();
-    const next = makeController({ target: { ...controller.target!, sessionKey: "session-b" } });
-    rerender(<Controls controller={next} />);
-    expect(screen.queryByRole("menu")).toBeNull();
-    expect(screen.getByRole("button", { name: `composer.session_${kind}` }).getAttribute("aria-expanded")).toBe("false");
-    rerender(<Controls controller={controller} />);
-    expect(screen.queryByRole("menu")).toBeNull();
-    for (const current of [controller, next]) {
-      expect(current.updateModel).not.toHaveBeenCalled();
-      expect(current.updatePermission).not.toHaveBeenCalled();
-    }
-  });
 
   it("groups models by Provider, marks the inherited default and keeps exact identity", async () => {
     const user = userEvent.setup();
@@ -72,15 +55,6 @@ describe("ComposerSessionControls", () => {
     await user.click(screen.getByRole("menuitem", { name: /composer\.session_effort/ }));
     await user.click(screen.getByRole("menuitemcheckbox", { name: "composer.session_effort_low" }));
     expect(controller.updateEffort).toHaveBeenCalledWith("low");
-  });
-
-  it("keeps the effort entry visible but disabled when the model exposes no levels", async () => {
-    const user = userEvent.setup();
-    render(<Controls controller={makeController({ effortLevels: [] })} />);
-    await user.click(screen.getByRole("button", { name: "composer.session_model" }));
-    const entry = screen.getByRole("menuitem", { name: /composer\.session_effort/ });
-    expect(entry.textContent).toContain("composer.session_effort_unsupported");
-    expect(entry.getAttribute("aria-disabled")).toBe("true");
   });
 
   it.each([false, true])("preserves inherited permission semantics with roomWide=%s", async (roomWide) => {

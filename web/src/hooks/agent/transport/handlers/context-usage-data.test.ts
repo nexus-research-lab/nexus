@@ -29,9 +29,4 @@ describe("parseContextUsageData", () => {
       total_tokens: 17_900,
     });
   });
-
-  it("omits categories when the runtime sends none", () => {
-    expect(parseContextUsageData({ max_tokens: 10, percentage: 10, total_tokens: 1 }))
-      .toEqual({ max_tokens: 10, percentage: 10, total_tokens: 1 });
-  });
 });

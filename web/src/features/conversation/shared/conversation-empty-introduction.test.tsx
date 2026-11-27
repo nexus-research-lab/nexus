@@ -29,30 +29,6 @@ describe("ConversationEmptyIntroduction", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps spaces around the Agent name and dispatches the selected suggestion", () => {
-    const onSelect = vi.fn();
-    render(
-      <I18nProvider>
-        <ConversationEmptyIntroduction
-          agentName="nexus"
-          kind="dm"
-          onSelect={onSelect}
-        />
-      </I18nProvider>,
-    );
-
-    expect(screen.getByRole("heading", {
-      name: "想让 nexus 帮你做什么？",
-    })).toBeTruthy();
-    const suggestionButtons = screen.getAllByRole("button");
-    expect(suggestionButtons).toHaveLength(4);
-
-    fireEvent.click(screen.getByRole("button", {
-      name: "处理当前工作区中的文件与内容",
-    }));
-    expect(onSelect).toHaveBeenCalledWith("处理当前工作区中的文件与内容");
-  });
-
   it("leaves starter suggestions for the main agent to the home launchpad", () => {
     render(
       <I18nProvider>

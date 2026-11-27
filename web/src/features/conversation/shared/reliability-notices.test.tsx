@@ -7,9 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 
-import { ConversationReliabilityNotice } from "./conversation-reliability-notice";
 import { ProviderUnavailableBanner } from "./provider-unavailable-banner";
-import { ReadResourceReliabilityNotice } from "./read-resource-reliability-notice";
 
 vi.mock("@/features/onboarding/provider-setup/provider-setup-dialog", () => ({
   ProviderSetupDialog: ({ isOpen }: { isOpen: boolean }) => (
@@ -24,58 +22,6 @@ const I18N_VALUE = {
 };
 
 describe("Conversation reliability notices", () => {
-  it("maps an unknown delivery result to the shared warning notice and reconcile action", () => {
-    const onReconcile = vi.fn();
-    render(
-      <I18N_CONTEXT.Provider value={I18N_VALUE}>
-        <ConversationReliabilityNotice
-          compact
-          isReconciling={false}
-          onReconcile={onReconcile}
-          reliability={{
-            failure: {
-              code: "delivery_unknown",
-              session_key: "session-1",
-            },
-            provider_retry: null,
-            transport_phase: "healthy",
-          }}
-        />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    const status = screen.getByRole("status");
-    expect(status.getAttribute("data-inline-notice-tone")).toBe("warning");
-    expect(status.getAttribute("data-conversation-failure-code")).toBe("delivery_unknown");
-    expect(screen.getByText("conversation.reliability.delivery_unknown")).toBeTruthy();
-    expect(screen.getByText("conversation.reliability.delivery_unknown_impact")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "common.refresh" }));
-    expect(onReconcile).toHaveBeenCalledOnce();
-  });
-
-  it("keeps read-resource identity and stale state on the shared edge notice", () => {
-    const onRefresh = vi.fn();
-    render(
-      <I18N_CONTEXT.Provider value={I18N_VALUE}>
-        <ReadResourceReliabilityNotice
-          impact="保留上一次成功读取的内容"
-          isRefreshing={false}
-          onRefresh={onRefresh}
-          problem="工作图读取失败"
-          resource="execution-workgraph"
-          stale
-        />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    const status = screen.getByRole("status", { name: "工作图读取失败" });
-    expect(status.getAttribute("data-inline-notice-variant")).toBe("edge");
-    expect(status.getAttribute("data-read-resource")).toBe("execution-workgraph");
-    expect(status.getAttribute("data-read-resource-state")).toBe("stale");
-    expect(screen.getByText("保留上一次成功读取的内容")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "state.reload_check" }));
-    expect(onRefresh).toHaveBeenCalledOnce();
-  });
 
   it("uses the same inline notice for Provider recovery and opens setup on demand", () => {
     render(

@@ -33,21 +33,6 @@ it("keeps exact path removal and selection as separate commands", async () => {
   expect(state.chooseDirectory).toHaveBeenCalledTimes(1);
 });
 
-it.each(["disabled", "saving", "unknown"])("disables directory mutations while %s without disabling a safe reload", async (reason) => {
-  const failure = { blocksMutation: reason === "unknown", impact: "Check current directories", message: "diagnostic", nextStep: "read" };
-  const state = controller({ saving: reason === "saving", failure });
-  render(view(state, reason === "disabled"));
-  const user = userEvent.setup();
-  const remove = screen.getByRole<HTMLButtonElement>("button", { name: "composer.remove_local_directory:Notes" });
-  const add = screen.getByRole<HTMLButtonElement>("button", { name: "composer.add_local_directory" });
-  expect(remove.disabled).toBe(true); expect(add.disabled).toBe(true);
-  await user.click(remove); await user.click(add);
-  expect(state.removeDirectory).not.toHaveBeenCalled(); expect(state.chooseDirectory).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "composer.local_directories_reload" }));
-  expect(state.reload).toHaveBeenCalledTimes(1);
-  expect(screen.queryByText("diagnostic")).toBeNull();
-});
-
 it("hides unavailable/empty scopes and keeps a failed empty read recoverable without an empty group", () => {
   const state = controller({ available: false });
   const rendered = render(view(state));

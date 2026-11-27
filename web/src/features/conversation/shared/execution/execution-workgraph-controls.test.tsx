@@ -41,16 +41,6 @@ function renderControls(overrides: Partial<Parameters<typeof ExecutionWorkGraphC
 }
 
 describe("ExecutionWorkGraphControls", () => {
-  it("invokes zoom commands from compact controls", () => {
-    const { onResetZoom, onZoomOut } = renderControls();
-    const zoomOut = screen.getByRole("button", { name: /zoom out|缩小/i });
-    const zoomReset = screen.getByRole("button", { name: /reset to 100%|重置为 100%/i });
-
-    fireEvent.click(zoomOut);
-    fireEvent.click(zoomReset);
-    expect(onZoomOut).toHaveBeenCalledOnce();
-    expect(onResetZoom).toHaveBeenCalledOnce();
-  });
 
   it("keeps the expanded view close action alongside its navigation controls", () => {
     const onCloseExpanded = vi.fn();

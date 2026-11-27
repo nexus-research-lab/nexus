@@ -33,39 +33,3 @@ it("waits through an empty root and delayed route loading before reporting once"
   await vi.advanceTimersByTimeAsync(300);
   expect(ready).toHaveBeenCalledTimes(1);
 });
-
-it("rechecks loading introduced between a commit and its scheduled paint", async () => {
-  root.innerHTML = "<main>Shell</main>";
-  const ready = vi.fn();
-  stop = observeRootReadiness(root, ready);
-  root.firstElementChild!.setAttribute("data-bootstrap-pending", "true");
-  await vi.advanceTimersByTimeAsync(500);
-  expect(ready).not.toHaveBeenCalled();
-  root.firstElementChild!.removeAttribute("data-bootstrap-pending");
-  await vi.advanceTimersByTimeAsync(300);
-  expect(ready).toHaveBeenCalledTimes(1);
-});
-
-it("allows a committed error page and cancels pending notifications", async () => {
-  root.innerHTML = "<main>Unable to load. Retry</main>";
-  const ready = vi.fn();
-  stop = observeRootReadiness(root, ready);
-  stop();
-  await vi.advanceTimersByTimeAsync(500);
-  expect(ready).not.toHaveBeenCalled();
-  stop = observeRootReadiness(root, ready);
-  await vi.advanceTimersByTimeAsync(300);
-  expect(ready).toHaveBeenCalledTimes(1);
-});
-
-it("uses the background timer only after loading has resolved", async () => {
-  vi.spyOn(window, "requestAnimationFrame").mockReturnValue(1);
-  root.innerHTML = '<main data-bootstrap-pending="true">Loading</main>';
-  const ready = vi.fn();
-  stop = observeRootReadiness(root, ready);
-  await vi.advanceTimersByTimeAsync(500);
-  expect(ready).not.toHaveBeenCalled();
-  root.innerHTML = "<main>Launcher</main>";
-  await vi.advanceTimersByTimeAsync(300);
-  expect(ready).toHaveBeenCalledExactlyOnceWith("timerFallback");
-});

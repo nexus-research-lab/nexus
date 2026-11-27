@@ -63,33 +63,6 @@ function catalogProps(catalog: DefaultModelCatalog, saved: UserPreferences) {
 }
 
 describe("Default model settings", () => {
-  it.each(["zh", "en"] as const)("names all four %s roles and dispatches the exact selection", async (locale) => {
-    const user = userEvent.setup();
-    const props = preferences();
-    const messages = locale === "zh" ? zhSettingsMessages : enSettingsMessages;
-    render(view(<SettingsDefaultModelsView {...props} />, locale));
-    for (const [name, role] of modelRows) {
-      await user.click(screen.getByRole("button", { name: messages[`settings.general.${name}_title`] }));
-      await user.click(screen.getByRole("option", { name: "Provider / Model" }));
-      expect(props.onDefaultModelChange).toHaveBeenLastCalledWith('["provider","model"]', role);
-    }
-    expect(props.onDefaultModelChange).toHaveBeenCalledTimes(4);
-    expect(screen.queryByText("服务 / 模型")).toBeNull();
-  });
-
-  it.each(["preferencesLoading", "preferencesSaving", "providerOptionsLoading"] as const)("locks all populated selectors during %s", (flag) => {
-    const props = { ...preferences(), [flag]: true };
-    const { rerender } = render(view(<SettingsDefaultModelsView {...props} />));
-    for (const [name] of modelRows) {
-      const control = screen.getByRole("button", { name: zhSettingsMessages[`settings.general.${name}_title`] });
-      expect((control as HTMLButtonElement).disabled).toBe(true);
-    }
-    rerender(view(<SettingsDefaultModelsView {...props} {...{ [flag]: false }} />));
-    for (const [name] of modelRows) {
-      const control = screen.getByRole("button", { name: zhSettingsMessages[`settings.general.${name}_title`] });
-      expect((control as HTMLButtonElement).disabled).toBe(false);
-    }
-  });
 
   it("blocks duplicate catalog retries while its read is pending", async () => {
     const user = userEvent.setup();

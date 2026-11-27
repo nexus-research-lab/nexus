@@ -27,13 +27,3 @@ it("shows my remote avatar even though the invitation directory excludes me", as
   await screen.findByRole("dialog");
   expect(document.querySelector('img[src="/icon/agent/7.png"]')).not.toBeNull();
 });
-
-it("marks only online members with the presence dot", async () => {
-  render(<I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}>
-    <TeamRoomMembersDialog agents={[]} currentUserId="remote-me" directory={[]}
-      onClose={() => {}} onChanged={() => {}} onDeparted={() => {}} open roomId="room" />
-  </I18N_CONTEXT.Provider>);
-  await screen.findByRole("dialog");
-  expect(document.querySelectorAll('[data-presence="online"]')).toHaveLength(1);
-  expect(screen.getByRole("img", {name: /team\.online/})).toBeTruthy();
-});

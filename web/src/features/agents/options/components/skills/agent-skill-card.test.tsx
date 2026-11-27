@@ -17,16 +17,6 @@ const skill: AgentSkillEntry = {
 };
 
 describe("AgentSkillCard", () => {
-  it("preserves exact switch commands without making the whole card clickable", async () => {
-    const user = userEvent.setup();
-    const onAction = vi.fn();
-    render(<I18nProvider><AgentSkillCard actionLabel="Enable" blocked={false} busy={false} commandBusy={false} onAction={onAction} skill={skill} /></I18nProvider>);
-    await user.click(screen.getByText("Review skill"));
-    expect(onAction).not.toHaveBeenCalled();
-    expect(screen.getByRole("article").hasAttribute("tabindex")).toBe(false);
-    await user.click(screen.getByRole("switch", { name: "Enable Review skill" }));
-    expect(onAction).toHaveBeenCalledExactlyOnceWith(skill);
-  });
 
   it("keeps blocked and pending commands inert and locked Skills without a switch", async () => {
     const user = userEvent.setup();

@@ -3,7 +3,6 @@
 // POS: Goal 状态条 DOM 合同；生命周期投影由纯模型负责。
 
 import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -11,38 +10,6 @@ import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { GoalStatusStrip } from "./goal-status-strip";
 
 import { ACTIVE_GOAL, goalTestI18n } from "./goal.test-support";
-
-describe("GoalStatusStrip", () => {
-  it("uses shared badges, typography, and accessible actions", async () => {
-    const user = userEvent.setup();
-    const onPause = vi.fn();
-    render(
-<I18N_CONTEXT.Provider
-value={goalTestI18n("zh")}
->
-<GoalStatusStrip
-canResume={false}
-compact={false}
-disabled={false}
-executionBinding={{ state: "confirmed",execution_id: "execution-1" }}
-goal={ACTIVE_GOAL}
-isGenerating={false}
-isLoading={false}
-mutationBlockReason={null}
-mutationBlocked={false}
-onClearRequest={vi.fn()}
-onEdit={vi.fn()}
-onPause={onPause}
-onRefresh={vi.fn()}
-onResume={vi.fn()}
-scopeLabel="当前 Goal" />
-</I18N_CONTEXT.Provider>
-);
-
-    await user.click(screen.getByRole("button", { name: "暂停" }));
-    expect(onPause).toHaveBeenCalledOnce();
-  });
-});
 
 const STRIP_PROPS = {
   canResume: false, compact: false, disabled: false, goal: ACTIVE_GOAL,

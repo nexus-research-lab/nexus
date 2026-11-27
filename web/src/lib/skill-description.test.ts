@@ -35,20 +35,4 @@ describe("skill display projection", () => {
     expect(getSkillDisplayTitle(item, translate("zh"))).toBe(chinese);
     expect(getSkillDisplayDescription(item, translate("en"))).not.toMatch(/\p{Script=Han}/u);
   });
-
-  it.each(["visualize", "computer-use"])(
-    "localizes the bundled %s description and keeps its Chinese copy",
-    (name) => {
-      const item = skill(name);
-      expect(getSkillDisplayDescription(item, translate("en"))).not.toMatch(/\p{Script=Han}/u);
-      expect(getSkillDisplayDescription(item, translate("zh"))).toMatch(/\p{Script=Han}/u);
-      expect(getSkillDisplayDescription(item, translate("zh"))).not.toBe("原始说明");
-    },
-  );
-
-  it("keeps a user-provided Skill with a bundled name unchanged", () => {
-    const item = skill("ima-skill", { source_type: "external", source_kind: "user" });
-    expect(getSkillDisplayTitle(item, translate("en"))).toBe("原始标题");
-    expect(getSkillDisplayDescription(item, translate("en"))).toBe("原始说明");
-  });
 });

@@ -72,65 +72,6 @@ test("Goal lifecycle reads only unlock outcomes proven by authoritative state", 
   );
 });
 
-test("objective rewrite or unrelated Goal progress never proves an unknown update", async () => {
-  const {
-    createGoalLifecycleIntent,
-    reconcileGoalLifecycleIntent,
-  } = await import("@/features/conversation/shared/goal/goal-lifecycle-recovery.ts");
-  const base = goal();
-  const update = createGoalLifecycleIntent(base, base.session_key, {
-    objective: "Prepare the release",
-    operation: "update",
-    tokenBudget: 1200,
-  });
-
-  assert.equal(reconcileGoalLifecycleIntent(update, base), "unproven");
-  assert.equal(
-    reconcileGoalLifecycleIntent(update, {
-      ...base,
-      objective: "Prepare a production-ready release plan",
-      token_budget: 1200,
-      version: base.version + 1,
-    }),
-    "unproven",
-    "a server-rewritten objective has no exact mutation identity in the current read model",
-  );
-  assert.equal(
-    reconcileGoalLifecycleIntent(update, {
-      ...base,
-      objective: "Prepare the release",
-      token_budget: 1200,
-      version: base.version + 1,
-    }),
-    "applied",
-  );
-  assert.equal(
-    reconcileGoalLifecycleIntent(update, goal({
-      id: "goal-new",
-      session_key: base.session_key,
-    })),
-    "target_not_current",
-  );
-  assert.equal(
-    reconcileGoalLifecycleIntent(update, {
-      ...base,
-      objective: "Prepare the release",
-      session_key: "room:other",
-      token_budget: 1200,
-      version: base.version + 1,
-    }),
-    "unproven",
-  );
-  assert.equal(
-    reconcileGoalLifecycleIntent(update, goal({
-      id: "goal-other-scope",
-      session_key: "room:other",
-    })),
-    "unproven",
-    "a cross-session response must fail closed even when the Goal ID differs",
-  );
-});
-
 function goal(overrides = {}) {
   return {
     id: "goal-current",

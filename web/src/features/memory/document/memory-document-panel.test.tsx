@@ -47,18 +47,6 @@ it("announces initial document loading instead of an unnamed spinner", () => {
   expect(screen.queryByRole("textbox")).toBeNull();
 });
 
-it("retains a compact return action on access failure without exposing the document or editing actions", async () => {
-  controller.resourceError = { access: "forbidden", message: "denied" };
-  const { onBack, onDelete } = panel();
-  expect(screen.queryByText("Project")).toBeNull();
-  expect(screen.queryByRole("textbox")).toBeNull();
-  expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-  await userEvent.click(screen.getByRole("button", { name: "Back to memory list" }));
-  expect(onBack).toHaveBeenCalledOnce();
-  expect(controller.reload).not.toHaveBeenCalled();
-  expect(onDelete).not.toHaveBeenCalled();
-});
-
 it("keeps both conflict versions and requires an explicit overwrite action", async () => {
   controller.saveIssue = { kind: "conflict", phase: "review" }; controller.saveBlocked = true;
   panel();

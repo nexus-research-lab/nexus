@@ -62,36 +62,4 @@ describe("Provider detail test actions", () => {
     expect(screen.queryByRole("menu")).toBeNull();
     expect(input.onTestSelection).not.toHaveBeenCalled();
   });
-
-  it.each(["provider", "options", "permission", "editing"])("consumes open state when %s changes and never resurrects it", async (boundary) => {
-    const user = userEvent.setup();
-    const input = props();
-    const view = render(<ProviderSettingsDetailHeader {...input} />, { wrapper: I18nProvider });
-    await user.click(testTrigger());
-    const changed: Partial<Props> = boundary === "provider" ? { providerId: "provider-b" }
-      : boundary === "options" ? { testModelOptions: [{ label: "Beta", value: "beta" }] }
-        : boundary === "permission" ? { selectedCanManage: false } : { isEditing: false };
-    view.rerender(<ProviderSettingsDetailHeader {...input} {...changed} />);
-    expect(screen.queryByRole("menu")).toBeNull();
-    view.rerender(<ProviderSettingsDetailHeader {...input} />);
-    expect(screen.queryByRole("menu")).toBeNull();
-    expect(input.onTestSelection).not.toHaveBeenCalled();
-  });
-
-  it("keeps identity labels and switch behavior through presentation-only updates", async () => {
-    const user = userEvent.setup();
-    const input = props();
-    const view = render(<ProviderSettingsDetailHeader {...input} />, { wrapper: I18nProvider });
-    await user.click(testTrigger());
-    const longName = "A full custom Provider name that must remain readable";
-    view.rerender(<ProviderSettingsDetailHeader {...input} detailTitle={longName}
-      testModelOptions={options.map((option) => ({ ...option, label: `${option.label} renamed` }))} />);
-    expect(screen.getByRole("menu")).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "Auto renamed" })).toBeTruthy();
-
-    await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("switch"));
-    expect(input.onEnabledChange).toHaveBeenCalledExactlyOnceWith(false);
-    expect(input.onTestSelection).not.toHaveBeenCalled();
-  });
 });

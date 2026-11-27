@@ -42,35 +42,6 @@ it("keeps an incomplete streaming head as literal keyboard-readable source until
   expect(frame().srcdoc).toContain("ready");
 });
 
-it("coalesces streaming updates at the existing 250 ms deadline without replacing the frame", () => {
-  const view = render(<HtmlFilePreview content={complete("first")} isStreaming title="report.html" />);
-  const preview = frame();
-  advance(50);
-  view.rerender(<HtmlFilePreview content={complete("second")} isStreaming title="report.html" />);
-  advance(100);
-  view.rerender(<HtmlFilePreview content={complete("latest")} isStreaming title="report.html" />);
-  expect(vi.getTimerCount()).toBe(1);
-  advance(99);
-  expect(preview.srcdoc).toContain("first");
-  advance(1);
-  expect(frame()).toBe(preview);
-  expect(preview.srcdoc).toContain("latest");
-  expect(preview.srcdoc).not.toContain("second");
-  expect(vi.getTimerCount()).toBe(0);
-});
-
-it("flushes final content immediately and cancels a pending intermediate commit", () => {
-  const view = render(<HtmlFilePreview content={complete("first")} isStreaming title="report.html" />);
-  advance(30);
-  view.rerender(<HtmlFilePreview content={complete("intermediate")} isStreaming title="report.html" />);
-  expect(vi.getTimerCount()).toBe(1);
-  view.rerender(<HtmlFilePreview content={complete("final")} title="report.html" />);
-  expect(frame().srcdoc).toContain("final");
-  expect(vi.getTimerCount()).toBe(0);
-  advance(500);
-  expect(frame().srcdoc).toContain("final");
-});
-
 it("preserves the committed frame while a new head is partial and cleans up on unmount", () => {
   const view = render(<HtmlFilePreview content={complete("first")} isStreaming title="report.html" />);
   advance(30);

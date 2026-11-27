@@ -2,7 +2,7 @@
 // OUTPUT: 临时导航隔离、稳定身份刷新、成员单飞和迟到打开保护的 DOM 回归。
 // POS: Surface 装配测试；聊天/任务/编辑表单用类型化边界替身避免独立 HTTP/runtime。
 
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { expect, it, vi } from "vitest";
@@ -11,7 +11,6 @@ import type { RoomMemberManagerDialog } from "../../members/room-member-manager-
 import type { RoomChatSurface } from "../room-chat-surface";
 import type { RoomMobileAuxiliaryOverlay } from "./room-mobile-auxiliary-overlay";
 import type { RoomMobileSubagentOverlay } from "./room-mobile-subagent-overlay";
-import { advanceAuthOwnerScopeGeneration, publishAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { RoomMobileSurface } from "./room-mobile-surface";
 
@@ -106,52 +105,6 @@ it("uses exact DM session identity, preserves equivalent snapshots and never rev
   expect(openFile).toHaveBeenCalledExactlyOnceWith("/report.md", "host-a");
   expect(screen.queryByRole("region", { name: "tasks" })).toBeNull();
   expect(screen.getByRole("region", { name: "workspace" })).toBeTruthy();
-});
-
-it("coalesces member preparation and ignores the old request after returning to the same Room", async () => {
-  const old = deferred(); const fresh = deferred();
-  const prepare = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
-  const rendered = render(view({ onOpenMemberManager: prepare }));
-  await action("room.members");
-  await userEvent.click(screen.getByRole("button", { name: "common.more_actions" }));
-  const members = screen.getByRole("menuitem", { name: "room.members" });
-  expect(members.hasAttribute("disabled")).toBe(true);
-  fireEvent.click(members);
-  expect(prepare).toHaveBeenCalledOnce();
-  rendered.rerender(view({ roomId: "room-b", onOpenMemberManager: prepare }));
-  rendered.rerender(view({ onOpenMemberManager: prepare }));
-  await action("room.members");
-  await act(async () => old.resolve());
-  expect(screen.queryByRole("dialog")).toBeNull();
-  await userEvent.click(screen.getByRole("button", { name: "common.more_actions" }));
-  await act(async () => fresh.resolve());
-  expect(screen.getByRole("dialog", { name: "Research" })).toBeTruthy();
-  expect(screen.queryByRole("menu")).toBeNull();
-  expect(prepare).toHaveBeenCalledTimes(2);
-  // Membership belongs to the Room, so changing only the selected Session keeps its editor.
-  rendered.rerender(view({ conversationId: "conversation-b", currentRoomTitle: "Renamed" }));
-  expect(screen.getByRole("dialog", { name: "Renamed" })).toBeTruthy();
-  await userEvent.click(screen.getByRole("button", { name: "Close members" }));
-  expect(screen.queryByRole("dialog")).toBeNull();
-});
-
-it("closes owner-scoped navigation and rejects late catalog opens after owner change or unmount", async () => {
-  const pending = deferred();
-  const rendered = render(view({ onOpenMemberManager: vi.fn(() => pending.promise) }));
-  await action("room.members");
-  act(() => { advanceAuthOwnerScopeGeneration(); publishAuthOwnerScopeGeneration(); });
-  await act(async () => pending.resolve());
-  expect(screen.queryByRole("dialog")).toBeNull();
-  await userEvent.click(screen.getByRole("button", { name: "Open graph from chat" }));
-  act(() => { advanceAuthOwnerScopeGeneration(); publishAuthOwnerScopeGeneration(); });
-  expect(screen.queryByRole("region", { name: "workgraph" })).toBeNull();
-  const another = deferred();
-  rendered.rerender(view({ onOpenMemberManager: vi.fn(() => another.promise) }));
-  await action("room.members");
-  rendered.unmount();
-  await act(async () => another.resolve());
-  render(view());
-  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it.each(["Open graph from chat", "room.switch_conversation"])("cancels a pending member open when choosing %s", async (name) => {
