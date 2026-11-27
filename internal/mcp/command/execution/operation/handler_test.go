@@ -1,3 +1,4 @@
+// handler_test.go 覆盖执行命令操作处理器、批量指派、注册表与 WorkBinding 状态测试。
 package operation
 
 import (
@@ -7,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	command "github.com/nexus-research-lab/nexus/internal/mcp/command"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	mcpcommand "github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -83,7 +85,7 @@ func TestSubmitWorkProjectsRetargetedPredecessorAsSuperseded(t *testing.T) {
 			"execution_id":   "execution-retargeted",
 			"result_summary": "late predecessor result",
 		},
-		&command.CallContext{RequestID: "tool-late-submit"},
+		&mcpcommand.CallContext{RequestID: "tool-late-submit"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -256,20 +258,20 @@ func TestExecutionInspectRoutesWithoutInvokeOrDurableMutation(t *testing.T) {
 		return nil
 	}
 	operations := BuildAll(svc, executionContext())
-	result, err := command.HandleSemantic(context.Background(), command.Actor{}, "execution", "get_execution", operations,
-		command.Request{Domain: "execution", Action: "inspect"})
+	result, err := mcpcommand.HandleSemantic(context.Background(), mcpcommand.Actor{}, "execution", "get_execution", operations,
+		mcpcommand.Request{Domain: "execution", Action: "inspect"})
 	if err != nil || activations != 1 {
 		t.Fatalf("inspect result=%#v activations=%d err=%v", result, activations, err)
 	}
-	view, ok := result.(command.Result)
+	view, ok := result.(mcpcommand.Result)
 	if !ok || view.IsError {
 		t.Fatalf("inspect result = %#v", result)
 	}
 	if xml, ok := view.StructuredContent["execution_context"].(string); !ok || !strings.Contains(xml, "<allowed_actions>") {
 		t.Fatalf("inspect did not return XML action boundary: %#v", view)
 	}
-	_, err = command.HandleSemantic(context.Background(), command.Actor{}, "execution", "get_execution", operations,
-		command.Request{Domain: "execution", Action: "invoke", Operation: "get_execution", RequestID: "inspect-route-test"})
+	_, err = mcpcommand.HandleSemantic(context.Background(), mcpcommand.Actor{}, "execution", "get_execution", operations,
+		mcpcommand.Request{Domain: "execution", Action: "invoke", Operation: "get_execution", RequestID: "inspect-route-test"})
 	if err == nil || activations != 1 {
 		t.Fatalf("invoke unexpectedly reached inspect: activations=%d err=%v", activations, err)
 	}
@@ -383,7 +385,7 @@ func TestPromoteExecutionToGoalUpgradesSharedRoundAuthority(t *testing.T) {
 	result, err := promoteExecutionToGoal(svc, sctx).ContextHandler(
 		context.Background(),
 		map[string]any{"activation_reason": "substantial_complexity"},
-		&command.CallContext{RequestID: "tool-promote"},
+		&mcpcommand.CallContext{RequestID: "tool-promote"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -421,7 +423,7 @@ func TestPreparePlanExecutionEndsStaleGoalAuthorityRoundWithoutRetryLoop(t *test
 	result, err := preparePlanExecution(svc, sctx).ContextHandler(
 		context.Background(),
 		commandInput,
-		&command.CallContext{RequestID: "goal-stale-plan-1"},
+		&mcpcommand.CallContext{RequestID: "goal-stale-plan-1"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -454,7 +456,7 @@ func TestPreparePlanExecutionDirectsMissingCurrentExecutionToCreate(t *testing.T
 		map[string]any{
 			"plan_document": strings.Replace(validPlanDocument(), "operation: create", "operation: replan", 1),
 		},
-		&command.CallContext{RequestID: "goal-successor-replan-1"},
+		&mcpcommand.CallContext{RequestID: "goal-successor-replan-1"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -489,7 +491,7 @@ func TestPreparePlanExecutionConflictCommitsExistingHostBinding(t *testing.T) {
 	result, err := preparePlanExecution(svc, executionContext()).ContextHandler(
 		context.Background(),
 		validPreparePlanCommandInput(),
-		&command.CallContext{RequestID: "prepare-conflict-1"},
+		&mcpcommand.CallContext{RequestID: "prepare-conflict-1"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -551,7 +553,7 @@ func TestPreparePlanExecutionReturnsCompleteParserContractOnDocumentError(t *tes
 	result, err := preparePlanExecution(svc, executionContext()).ContextHandler(
 		context.Background(),
 		validPreparePlanCommandInput(),
-		&command.CallContext{RequestID: "tool-invalid-plan"},
+		&mcpcommand.CallContext{RequestID: "tool-invalid-plan"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -604,12 +606,12 @@ func TestPreparePlanExecutionReturnsCompleteParserContractOnDocumentError(t *tes
 func TestPlanOperationsStrictlyRejectUnknownTopLevelFieldsBeforeService(t *testing.T) {
 	for _, test := range []struct {
 		name       string
-		definition func(contract.Service, contract.Context) command.Operation
+		definition func(contract.Service, contract.Context) mcpcommand.Operation
 		input      map[string]any
 	}{
 		{
 			name: "prepare",
-			definition: func(svc contract.Service, sctx contract.Context) command.Operation {
+			definition: func(svc contract.Service, sctx contract.Context) mcpcommand.Operation {
 				return preparePlanExecution(svc, sctx)
 			},
 			input: map[string]any{
@@ -619,7 +621,7 @@ func TestPlanOperationsStrictlyRejectUnknownTopLevelFieldsBeforeService(t *testi
 		},
 		{
 			name: "commit",
-			definition: func(svc contract.Service, sctx contract.Context) command.Operation {
+			definition: func(svc contract.Service, sctx contract.Context) mcpcommand.Operation {
 				return planExecution(svc, sctx)
 			},
 			input: map[string]any{
@@ -764,7 +766,7 @@ func TestResumeWorkPassesResolutionEvidenceAndLatestFence(t *testing.T) {
 			"resolution":  "credentials were supplied",
 			"evidence":    []any{"secret store reference credential-7"},
 		},
-		&command.CallContext{RequestID: "tool-resume"},
+		&mcpcommand.CallContext{RequestID: "tool-resume"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -812,7 +814,7 @@ func TestPlanModeCanPrepareButCommitKeepsTheSealedReference(t *testing.T) {
 	prepared, err := preparePlanExecution(svc, sctx).ContextHandler(
 		context.Background(),
 		validPreparePlanCommandInput(),
-		&command.CallContext{RequestID: "tool-plan-mode-prepare"},
+		&mcpcommand.CallContext{RequestID: "tool-plan-mode-prepare"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -921,7 +923,7 @@ func TestAbandonExecutionClearsOldExplicitContextAfterSuccess(t *testing.T) {
 			"execution_id": snapshot.Execution.ID,
 			"reason":       "user stopped",
 		},
-		&command.CallContext{RequestID: "tool-abandon"},
+		&mcpcommand.CallContext{RequestID: "tool-abandon"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -989,7 +991,7 @@ func TestAuditExecutionAlignmentPassesTypedReportAndLeavesRoutingToAgent(t *test
 			}},
 			"summary": "The report still needs verification.",
 		},
-		&command.CallContext{RequestID: "tool-alignment"},
+		&mcpcommand.CallContext{RequestID: "tool-alignment"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1110,5 +1112,144 @@ func sealedPlanProposal() *protocol.ExecutionPlanProposal {
 				{LogicalKey: "verify", Kind: protocol.WorkItemKindVerify},
 			},
 		},
+	}
+}
+
+func TestAssignmentBatchInvokesWithoutContractLookupAndBindsOnlyDurableReceipt(t *testing.T) {
+	for _, outcome := range []orchestration.MutationOutcome{orchestration.MutationApplied, orchestration.MutationRejected} {
+		t.Run(string(outcome), func(t *testing.T) {
+			snapshot := executionSnapshot(9)
+			binding := &protocol.ExecutionWorkBinding{
+				ExecutionID: snapshot.Execution.ID, PlanID: "plan-1", WorkItemID: "work-self",
+				SpecID: "spec-self", AssignmentID: "assignment-self", AttemptID: "attempt-self",
+			}
+			sctx := executionContext()
+			sctx.ResponsibilityAuthority = runtimectx.NewResponsibilityAuthorityState(nil, snapshot.Execution.ID, nil, nil)
+			calls := 0
+			svc := &fakeExecutionService{
+				current: func() *protocol.ExecutionSnapshot { return snapshot },
+				assignBatch: func(input orchestration.AssignWorkBatchInput) orchestration.MutationResult {
+					calls++
+					if input.ExecutionID != snapshot.Execution.ID || input.SnapshotRevision != 9 || input.CommandID != "batch-request-001" || len(input.Assignments) != 2 || input.Assignments[0].TargetAgentID != "agent-worker" {
+						t.Fatalf("batch envelope = %+v", input)
+					}
+					return orchestration.MutationResult{Outcome: outcome, ExecutionID: snapshot.Execution.ID, Snapshot: snapshot, WorkBinding: &orchestration.WorkBindingReceipt{Binding: binding}}
+				},
+			}
+			result, err := mcpcommand.HandleSemantic(context.Background(), mcpcommand.Actor{}, "execution", "get_execution", BuildAll(svc, sctx), mcpcommand.Request{
+				Domain: "execution", Action: "invoke", Operation: "assign_work_batch", RequestID: "batch-request-001",
+				Input: map[string]any{"assignments": []any{
+					map[string]any{"logical_key": "first", "target_agent_id": "agent-worker"},
+					map[string]any{"logical_key": "self", "target_agent_id": "agent-1"},
+				}},
+			})
+			if err != nil || calls != 1 {
+				t.Fatalf("invoke = %#v err=%v calls=%d", result, err, calls)
+			}
+			actor := sctx.Actor()
+			if outcome == orchestration.MutationApplied && (actor.WorkBinding == nil || *actor.WorkBinding != *binding) {
+				t.Fatalf("applied batch did not bind exact self work: %+v", actor)
+			}
+			if outcome == orchestration.MutationRejected && actor.WorkBinding != nil {
+				t.Fatal("rejected batch changed responsibility")
+			}
+		})
+	}
+}
+
+func TestAssignmentBatchRejectsNestedIdentityAndBoundsBeforeStateReads(t *testing.T) {
+	inputs := []map[string]any{
+		{"assignments": []any{}},
+		{"assignments": make([]any, 33)},
+		{"assignments": []any{map[string]any{"target_agent_id": "worker", "execution_id": "another"}}},
+		{"assignments": []any{map[string]any{"logical_key": "one"}}},
+		{"assignments": []any{map[string]any{"target_agent_id": "worker", "snapshot_revision": 7}}},
+	}
+	for _, input := range inputs {
+		svc := &fakeExecutionService{}
+		_, err := assignWorkBatch(svc, executionContext()).Invoke(context.Background(), input, &mcpcommand.CallContext{RequestID: "batch-invalid"})
+		if err == nil || svc.snapshotReads != 0 || svc.currentReads != 0 {
+			t.Fatalf("invalid input reached state: %#v err=%v reads=%d/%d", input, err, svc.snapshotReads, svc.currentReads)
+		}
+	}
+}
+
+func TestPlanTransportRetryGuardSurvivesOperationRegistryRebuild(t *testing.T) {
+	attempts := nexusmcp.NewCommandAttemptState()
+	sctx := contract.Context{CommandAttempts: attempts}
+	invokeEmptyPrepare := func() mcpcommand.Result {
+		definition, ok := mcpcommand.FindOperation(BuildAll(nil, sctx), "prepare_plan_execution")
+		if !ok {
+			t.Fatal("prepare_plan_execution missing")
+		}
+		result, err := definition.ContextHandler(context.Background(), map[string]any{"plan_document": ""}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	first := invokeEmptyPrepare()
+	second := invokeEmptyPrepare()
+	if first.StructuredContent["next_actions"] == nil || second.StructuredContent["next_actions"] != nil ||
+		!strings.Contains(second.StructuredContent["message"].(string), "stop retrying") {
+		t.Fatalf("registry rebuild reset transport guard: first=%#v second=%#v", first, second)
+	}
+}
+
+func TestAssignWorkBindsOnlyConfirmedRoomSelfReceipt(t *testing.T) {
+	snapshot := executionSnapshot(9)
+	binding := &protocol.ExecutionWorkBinding{
+		ExecutionID: snapshot.Execution.ID, PlanID: "plan-1", WorkItemID: "work-1",
+		SpecID: "spec-1", AssignmentID: "assignment-1", AttemptID: "attempt-1",
+	}
+	for _, test := range []struct {
+		name      string
+		scope     protocol.ExecutionScopeKind
+		receipt   bool
+		state     bool
+		wantBound bool
+	}{
+		{name: "Room host receipt", scope: protocol.ExecutionScopeRoom, receipt: true, state: true, wantBound: true},
+		{name: "DM ignores receipt", scope: protocol.ExecutionScopeDM, receipt: true, state: true},
+		{name: "Room requires receipt", scope: protocol.ExecutionScopeRoom, state: true},
+		{name: "Room requires host state", scope: protocol.ExecutionScopeRoom, receipt: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result := orchestration.AppliedResult(snapshot, nil, nil)
+			if test.receipt {
+				result.WorkBinding = &orchestration.WorkBindingReceipt{Binding: binding}
+			}
+			sctx := contract.Context{ScopeKind: test.scope}
+			if test.state {
+				sctx.WorkBindingState = runtimectx.NewWorkBindingState(nil)
+			}
+			if got := bindMutationWorkBinding(sctx, result); got != test.wantBound {
+				t.Fatalf("bind = %t, want %t", got, test.wantBound)
+			}
+			if sctx.WorkBindingState != nil {
+				loaded, ok := sctx.WorkBindingState.Load()
+				if ok != test.wantBound || (ok && loaded.AssignmentID != binding.AssignmentID) {
+					t.Fatalf("state = %#v, %t", loaded, ok)
+				}
+			}
+		})
+	}
+}
+
+func TestReviewWorkClearReceiptReturnsRoomRoundToCoordination(t *testing.T) {
+	binding := &protocol.ExecutionWorkBinding{
+		ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-1",
+		SpecID: "spec-1", AssignmentID: "assignment-1", AttemptID: "attempt-1",
+	}
+	state := runtimectx.NewWorkBindingState(binding)
+	result := orchestration.MutationResult{
+		Outcome:     orchestration.MutationApplied,
+		WorkBinding: &orchestration.WorkBindingReceipt{Clear: true},
+	}
+	if !applyMutationWorkBindingTransition(contract.Context{WorkBindingState: state}, result) {
+		t.Fatal("clear receipt was not applied")
+	}
+	if loaded, ok := state.Load(); ok || loaded != nil {
+		t.Fatalf("cleared state = %#v, %t", loaded, ok)
 	}
 }

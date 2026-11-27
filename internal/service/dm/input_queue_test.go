@@ -1,22 +1,33 @@
+// input_queue_test.go 覆盖 DM 输入队列、游标、配置溯源、派发锁与中断测试。
 package dm
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
+	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
-
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type dmConversationActivitySpy struct {
@@ -762,15 +773,6 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	}
 }
 
-func TestQueueItemVisibleToUserHidesHostRecovery(t *testing.T) {
-	if queueItemVisibleToUser(protocol.InputQueueItem{Source: protocol.InputQueueSourceHostRecovery}) {
-		t.Fatal("host recovery instruction would be broadcast as a visible user message")
-	}
-	if !queueItemVisibleToUser(protocol.InputQueueItem{Source: protocol.InputQueueSourceUser}) {
-		t.Fatal("queued user input must stay visible")
-	}
-}
-
 // A claim that survived a crash after its round was persisted must be
 // consumed, not dispatched as a second identical round.
 func TestSurvivingQueueClaimWithPersistedRoundIsConsumedWithoutReplay(t *testing.T) {
@@ -810,4 +812,860 @@ func TestSurvivingQueueClaimWithPersistedRoundIsConsumedWithoutReplay(t *testing
 	if queries != 0 {
 		t.Fatalf("persisted queued round was replayed %d time(s)", queries)
 	}
+}
+
+type dmInputCursorHarness struct {
+	service        *Service
+	runtimeManager *runtimectx.Manager
+	sender         *dmTestSender
+	sessionKey     string
+}
+
+// newDMInputCursorHarness 每次调用都装配全新的服务、runtime 与连接，只共用落盘状态，等价于进程重启后的宿主。
+func newDMInputCursorHarness(t *testing.T, cfg config.Config, sessionKey string) *dmInputCursorHarness {
+	t.Helper()
+	client := newFakeDMClient()
+	replies := 0
+	client.onQuery = func(context.Context, string) {
+		replies++
+		reply := replies
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+					ID:      fmt.Sprintf("assistant-%d", reply),
+					Model:   "sonnet",
+					Content: []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "收到"}},
+				}},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      fmt.Sprintf("result-%d", reply),
+				Result:    &sdkprotocol.ResultMessage{Subtype: "success", NumTurns: 1, Result: "done"},
+			}
+		}()
+	}
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	service.SetUsageRecorder(&fakeTokenUsageRecorder{})
+	sender := newDMTestSender("sender-input-cursor")
+	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
+	return &dmInputCursorHarness{service: service, runtimeManager: runtimeManager, sender: sender, sessionKey: sessionKey}
+}
+
+// accept 受理一条会广播 durable 用户行的输入，返回 ACK 与实时用户行各自携带的身份和游标。
+func (h *dmInputCursorHarness) accept(t *testing.T, content string) (userMessageID string, inputSeq int64) {
+	t.Helper()
+	if err := h.service.HandleChat(context.Background(), Request{
+		SessionKey:           h.sessionKey,
+		Content:              content,
+		ClientMessageID:      "local-" + content,
+		BroadcastUserMessage: true,
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	events := collectEventsUntil(t, h.sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+	waitForDMRuntimeIdle(t, h.runtimeManager, h.sessionKey)
+
+	var ackSeq, liveSeq int64
+	var liveMessageID string
+	for _, event := range events {
+		switch {
+		case event.EventType == protocol.EventTypeChatAck:
+			userMessageID = anyToString(event.Data["user_message_id"])
+			ackSeq = protocol.Int64FromAny(event.Data[protocol.InputSeqField])
+		case event.EventType == protocol.EventTypeMessage && event.Data["role"] == "user":
+			liveMessageID = anyToString(event.Data["message_id"])
+			liveSeq = protocol.Int64FromAny(event.Data[protocol.InputSeqField])
+		}
+	}
+	if ackSeq <= 0 || liveSeq != ackSeq || liveMessageID != userMessageID {
+		t.Fatalf("ACK 与实时用户行必须给出同一身份与游标: ack=(%s,%d) live=(%s,%d)", userMessageID, ackSeq, liveMessageID, liveSeq)
+	}
+	return userMessageID, ackSeq
+}
+
+// historyInputSeqs 用全新的历史 store 读取落盘历史，返回每条用户行的游标。
+func (h *dmInputCursorHarness) historyInputSeqs(t *testing.T, cfg config.Config) map[string]int64 {
+	t.Helper()
+	cursors := map[string]int64{}
+	for _, row := range readDMSessionHistory(t, cfg, h.service, h.sessionKey) {
+		if row["role"] == "user" {
+			cursors[anyToString(row["message_id"])] = protocol.Int64FromAny(row[protocol.InputSeqField])
+		}
+	}
+	return cursors
+}
+
+func TestDMUserRowSharesInputSeqAcrossAckLiveRowAndHistory(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	sessionKey := "agent:nexus:ws:dm:input-cursor"
+	live := map[string]int64{}
+	assertHistory := func(stage string, harness *dmInputCursorHarness) {
+		t.Helper()
+		got := harness.historyInputSeqs(t, cfg)
+		if len(got) != len(live) {
+			t.Fatalf("%s: 历史用户行 = %v，实时受理 = %v", stage, got, live)
+		}
+		for messageID, inputSeq := range live {
+			if got[messageID] != inputSeq {
+				t.Fatalf("%s: %s 的历史游标 = %d，受理时是 %d", stage, messageID, got[messageID], inputSeq)
+			}
+		}
+	}
+
+	first := newDMInputCursorHarness(t, cfg, sessionKey)
+	firstID, firstSeq := first.accept(t, "第一条")
+	live[firstID] = firstSeq
+	assertHistory("受理后读取", first)
+
+	secondID, secondSeq := first.accept(t, "第二条")
+	if secondSeq <= firstSeq {
+		t.Fatalf("后受理的输入游标必须更大: first=%d second=%d", firstSeq, secondSeq)
+	}
+	live[secondID] = secondSeq
+	assertHistory("追加一轮后刷新", first)
+
+	restarted := newDMInputCursorHarness(t, cfg, sessionKey)
+	assertHistory("换新服务实例后读取", restarted)
+	thirdID, thirdSeq := restarted.accept(t, "第三条")
+	// 这里只换服务实例，分配器仍是同一进程的；真正跨进程的先后取决于宿主时钟（见 protocol.NewInputSeq）。
+	if thirdSeq <= secondSeq {
+		t.Fatalf("换新服务实例后受理的输入游标必须大于已落盘的游标: second=%d third=%d", secondSeq, thirdSeq)
+	}
+	live[thirdID] = thirdSeq
+	assertHistory("重启后再受理一轮", restarted)
+}
+
+func TestDirectUserDMQueueKeepsConfigurationContextAfterAdmissionClaim(t *testing.T) {
+	service, client, sources, bindings, prompts, db, sessionKey := newDMQueueProvenanceFixture(t)
+	ctx := trustedDMQueueContext()
+
+	if err := service.HandleChat(ctx, Request{
+		SessionKey:                  sessionKey,
+		Content:                     "keep the first round running",
+		RoundID:                     "round-provenance-first",
+		UserMessageID:               "message-provenance-first",
+		TrustedConfigurationContext: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	expectDMQueueSource(t, sources, "agent")
+	expectDMQueuePrompt(t, prompts, "keep the first round running")
+
+	if err := service.HandleChat(ctx, Request{
+		SessionKey:                  sessionKey,
+		Content:                     "update my safe settings",
+		RoundID:                     "round-provenance-queued",
+		UserMessageID:               "message-provenance-queued",
+		TrustedConfigurationContext: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	finishDMQueueRound(client, "result-provenance-first")
+	expectDMQueueSource(t, sources, "agent")
+	expectDMQueuedHumanBinding(t, bindings)
+	expectDMQueuePrompt(t, prompts, "update my safe settings")
+
+	status := waitForDMQueueAdmissionStatus(t, db, "round-provenance-queued", queueadmissionstore.StatusConsumed)
+	if status != queueadmissionstore.StatusConsumed {
+		t.Fatalf("queue admission status = %q, want consumed", status)
+	}
+	finishDMQueueRound(client, "result-provenance-queued")
+}
+
+func TestTamperedDMQueuePayloadLosesConfigurationContextAndRevokesAdmission(t *testing.T) {
+	service, client, sources, _, prompts, db, sessionKey := newDMQueueProvenanceFixture(t)
+	ctx := trustedDMQueueContext()
+
+	if err := service.HandleChat(ctx, Request{
+		SessionKey:                  sessionKey,
+		Content:                     "keep the first round running",
+		RoundID:                     "round-tamper-first",
+		UserMessageID:               "message-tamper-first",
+		TrustedConfigurationContext: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	expectDMQueueSource(t, sources, "agent")
+	expectDMQueuePrompt(t, prompts, "keep the first round running")
+
+	if err := service.HandleChat(ctx, Request{
+		SessionKey:                  sessionKey,
+		Content:                     "original queued request",
+		RoundID:                     "round-tamper-queued",
+		UserMessageID:               "message-tamper-queued",
+		TrustedConfigurationContext: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, location, err := service.resolveInputQueueLocation(
+		context.Background(),
+		sessionKey,
+		service.Config.DefaultAgentID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := service.InputQueue.Snapshot(location)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("queued items = %+v, err=%v", items, err)
+	}
+	tampered := items[0]
+	tampered.Content = "tampered destructive request"
+	if _, err = service.InputQueue.Enqueue(location, tampered); err != nil {
+		t.Fatal(err)
+	}
+
+	finishDMQueueRound(client, "result-tamper-first")
+	expectDMQueueSource(t, sources, "agent_queue")
+	expectDMQueuePrompt(t, prompts, "tampered destructive request")
+
+	status := waitForDMQueueAdmissionStatus(t, db, "round-tamper-queued", queueadmissionstore.StatusRevoked)
+	if status != queueadmissionstore.StatusRevoked {
+		t.Fatalf("tampered queue admission status = %q, want revoked", status)
+	}
+	finishDMQueueRound(client, "result-tamper-queued")
+}
+
+type rejectingDMQueueAdmissionStore struct {
+	err error
+}
+
+func (s rejectingDMQueueAdmissionStore) Record(context.Context, queueadmissionstore.Admission) error {
+	return s.err
+}
+
+func (rejectingDMQueueAdmissionStore) Claim(context.Context, queueadmissionstore.Binding) (queueadmissionstore.Claim, bool, error) {
+	return queueadmissionstore.Claim{}, false, nil
+}
+
+func (rejectingDMQueueAdmissionStore) Release(context.Context, queueadmissionstore.Claim) error {
+	return nil
+}
+
+func (rejectingDMQueueAdmissionStore) Consume(context.Context, queueadmissionstore.Claim) error {
+	return nil
+}
+
+func (rejectingDMQueueAdmissionStore) Revoke(context.Context, queueadmissionstore.Binding) error {
+	return nil
+}
+
+func TestDMQueueAdmissionFailureKeepsAndRecoversDurableUserInput(t *testing.T) {
+	service, client, _, _, prompts, db, sessionKey := newDMQueueProvenanceFixture(t)
+	admissionErr := errors.New("queue admission unavailable")
+	service.SetQueueAdmissionStore(rejectingDMQueueAdmissionStore{err: admissionErr})
+	request := InputQueueRequest{
+		SessionKey: sessionKey, ClientMessageID: "client-dm-queue-retained",
+		Action: "enqueue", Content: "keep this DM input for retry",
+		TrustedConfigurationContext: true,
+	}
+	if _, err := service.HandleInputQueue(trustedDMQueueContext(), request); !errors.Is(err, admissionErr) {
+		t.Fatalf("HandleInputQueue error = %v, want %v", err, admissionErr)
+	}
+	_, location, err := service.resolveInputQueueLocation(
+		context.Background(),
+		sessionKey,
+		service.Config.DefaultAgentID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := service.InputQueue.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 ||
+		items[0].ClientMessageID != request.ClientMessageID ||
+		items[0].Content != request.Content {
+		t.Fatalf("durable DM input was lost after admission failure: %+v", items)
+	}
+
+	service.SetQueueAdmissionStore(queueadmissionstore.NewRepository(service.Config, db))
+	retry, err := service.HandleInputQueue(trustedDMQueueContext(), request)
+	if err != nil {
+		t.Fatalf("retry retained DM input: %v", err)
+	}
+	if !retry.Duplicate || retry.ItemID != items[0].ID {
+		t.Fatalf("retry result = %+v, want original item %q", retry, items[0].ID)
+	}
+	expectDMQueuePrompt(t, prompts, request.Content)
+	finishDMQueueRound(client, "result-retained-dm-queue")
+}
+
+func trustedDMQueueContext() context.Context {
+	return authctx.WithState(context.Background(), authctx.State{AuthRequired: false})
+}
+
+func newDMQueueProvenanceFixture(
+	t *testing.T,
+) (*Service, *fakeDMClient, <-chan string, <-chan authctx.QueuedHumanPrincipalBinding, <-chan string, *sql.DB, string) {
+	t.Helper()
+	cfg := newDMTestConfig(t)
+	db := dmTestDB(t, cfg)
+
+	agentService := newDMAgentService(t, cfg)
+	client := newFakeDMClient()
+	prompts := make(chan string, 4)
+	client.onQuery = func(_ context.Context, prompt string) {
+		prompts <- prompt
+	}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	sessionKey := protocol.BuildAgentSessionKey(
+		newPlainDMAgent(t, agentService).AgentID,
+		protocol.SessionChannelWebSocketSegment,
+		protocol.RoomTypeDM,
+		"queue-provenance",
+		"",
+	)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = runtimeManager.CloseSession(closeCtx, sessionKey)
+	})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	service.SetQueueAdmissionStore(queueadmissionstore.NewRepository(cfg, db))
+	sources := make(chan string, 4)
+	bindings := make(chan authctx.QueuedHumanPrincipalBinding, 2)
+	service.SetMCPServerBuilder(func(
+		ctx context.Context,
+		_ *protocol.Agent,
+		_ string,
+		_ string,
+		sourceContextType string,
+		_ string,
+		_ string,
+		_ *atomic.Int64,
+		_ sdkpermission.Mode,
+	) map[string]sdkmcp.ServerConfig {
+		sources <- sourceContextType
+		if binding, ok := authctx.QueuedHumanPrincipalBindingFromContext(ctx); ok {
+			bindings <- binding
+		}
+		return nil
+	})
+	return service, client, sources, bindings, prompts, db, sessionKey
+}
+
+func expectDMQueuedHumanBinding(
+	t *testing.T,
+	bindings <-chan authctx.QueuedHumanPrincipalBinding,
+) {
+	t.Helper()
+	select {
+	case binding := <-bindings:
+		if binding.UserID != authctx.SystemUserID ||
+			binding.AuthMethod != authctx.AuthMethodLocal ||
+			binding.SessionID != "" {
+			t.Fatalf("queued DM human binding = %+v", binding)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for queued DM human binding")
+	}
+}
+
+func expectDMQueueSource(t *testing.T, sources <-chan string, want string) {
+	t.Helper()
+	select {
+	case got := <-sources:
+		if got != want {
+			t.Fatalf("configuration source = %q, want %q", got, want)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for configuration source %q", want)
+	}
+}
+
+func expectDMQueuePrompt(t *testing.T, prompts <-chan string, content string) {
+	t.Helper()
+	select {
+	case prompt := <-prompts:
+		if !strings.Contains(prompt, content) {
+			t.Fatalf("runtime prompt does not contain %q: %s", content, prompt)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for prompt containing %q", content)
+	}
+}
+
+func finishDMQueueRound(client *fakeDMClient, resultID string) {
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      resultID,
+		Result:    &sdkprotocol.ResultMessage{Subtype: "success", DurationMS: 1, NumTurns: 1},
+	}
+}
+
+func waitForDMQueueAdmissionStatus(
+	t *testing.T,
+	db *sql.DB,
+	itemID string,
+	want string,
+) string {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	status := ""
+	for time.Now().Before(deadline) {
+		err := db.QueryRow(
+			`SELECT status FROM configuration_queue_admissions
+WHERE queue_item_id = ? AND scope = 'dm'`,
+			itemID,
+		).Scan(&status)
+		if err == nil && status == want {
+			return status
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return status
+}
+
+func TestDispatchLocksSerializeOneSessionOnly(t *testing.T) {
+	var locks dispatchLocks
+	ctx := context.Background()
+	unlockA, err := locks.lock(ctx, "session-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherDone := make(chan struct{})
+	go func() {
+		unlock, lockErr := locks.lock(ctx, "session-b")
+		if lockErr == nil {
+			unlock()
+		}
+		close(otherDone)
+	}()
+	select {
+	case <-otherDone:
+	case <-time.After(time.Second):
+		t.Fatal("其他会话被 session-a 的锁挡住")
+	}
+	sameDone := make(chan struct{})
+	go func() {
+		unlock, lockErr := locks.lock(ctx, " session-a ")
+		if lockErr == nil {
+			unlock()
+		}
+		close(sameDone)
+	}()
+	select {
+	case <-sameDone:
+		t.Fatal("同一会话（含首尾空白的同一 key）没有串行")
+	case <-time.After(50 * time.Millisecond):
+	}
+	unlockA()
+	unlockA()
+	select {
+	case <-sameDone:
+	case <-time.After(time.Second):
+		t.Fatal("释放后等待者没有拿到锁")
+	}
+	if n := locks.size(); n != 0 {
+		t.Fatalf("释放后锁表残留 %d 个会话", n)
+	}
+}
+
+func TestDispatchLocksWaitHonoursContext(t *testing.T) {
+	var locks dispatchLocks
+	unlock, err := locks.lock(context.Background(), "session-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if _, err = locks.lock(ctx, "session-a"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("等待应随 ctx 超时放弃: %v", err)
+	}
+	unlock()
+	if n := locks.size(); n != 0 {
+		t.Fatalf("放弃等待与释放后锁表残留 %d 个会话", n)
+	}
+	cancelled, stop := context.WithCancel(context.Background())
+	stop()
+	if _, err = locks.lock(cancelled, "session-a"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("已取消的 ctx 不应取锁: %v", err)
+	}
+}
+
+func TestMainWindowStartsWhileAnotherSessionHoldsDispatchLock(t *testing.T) {
+	f := newMainInboxFixture(t, "dispatch-lock-independent")
+	unlock, err := f.service.dispatchLocks.lock(context.Background(), "agent:nexus:ws:dm:some-other-session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	f.send(t, "不受其他会话影响", "client-1")
+	f.waitPrompts(t, 1)
+	f.finishRound("dispatch-lock-independent")
+}
+
+// size 返回仍在使用中的会话数，供测试确认释放后不残留。
+func (l *dispatchLocks) size() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.entries)
+}
+
+func assertNoInternalInterruptSentinel(t *testing.T, value any) {
+	t.Helper()
+	payload, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("编码中断投影失败: %v", err)
+	}
+	if strings.Contains(string(payload), messagepkg.InterruptWithoutMessage) {
+		t.Fatalf("内部中断哨兵泄漏到用户可见投影: %s", payload)
+	}
+}
+
+func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *testing.T) {
+	cfg := newDMTestConfig(t)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, _ string) {}
+	client.interruptErrors = []error{errors.New("os: process already finished")}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	sender := newDMTestSender("sender-interrupt-stale")
+	sessionKey := "agent:nexus:ws:dm:test-interrupt-stale"
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "停止一个已经退出的进程",
+		RoundID:    "round-interrupt-stale",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatalf("失效进程中断应被业务层清理而不是返回错误: %v", err)
+	}
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeSessionStatus && event.Data["is_generating"] == false
+	})
+	if len(runtimeManager.GetRunningRoundIDs(sessionKey)) != 0 {
+		t.Fatal("失效进程清理后不应残留 running round")
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if sessionValue.Status != "closed" || sessionValue.IsActive {
+		t.Fatalf("失效进程清理后 session meta 应关闭: %+v events=%+v", sessionValue, events)
+	}
+}
+
+func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
+	cfg := newDMTestConfig(t)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, prompt string) {
+		if strings.Contains(prompt, "第二轮") {
+			client.sendResultAsync(client.sessionID, "result-interrupt-policy", "success", "ok")
+		}
+	}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-interrupt-policy-old",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "interrupted",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     messagepkg.InterruptWithoutMessage,
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	sender := newDMTestSender("sender-interrupt-policy")
+	sessionKey := "agent:nexus:ws:dm:test-interrupt-policy"
+	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "第一轮",
+		RoundID:    "round-interrupt-policy-1",
+	}); err != nil {
+		t.Fatalf("第一轮 HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey:     sessionKey,
+		Content:        "第二轮",
+		RoundID:        "round-interrupt-policy-2",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyInterrupt,
+	}); err != nil {
+		t.Fatalf("打断策略 HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "round-interrupt-policy-2" &&
+			event.Data["status"] == "finished"
+	})
+	assertContainsRoundStatus(t, events, "finished")
+	assertNoInternalInterruptSentinel(t, events)
+
+	client.mu.Lock()
+	interruptCalls := client.interruptCalls
+	interruptReasons := append([]string(nil), client.interruptReasons...)
+	sentContents := append([]string(nil), client.sentContents...)
+	client.mu.Unlock()
+	if interruptCalls == 0 {
+		t.Fatal("打断策略应中断运行中 DM round")
+	}
+	if len(interruptReasons) == 0 || interruptReasons[0] != "interrupt" {
+		t.Fatalf("打断策略应传递 submit-interrupt reason: %+v", interruptReasons)
+	}
+	if len(sentContents) != 0 {
+		t.Fatalf("打断策略不应走 streaming input: %+v", sentContents)
+	}
+	_, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
+	overlayPath := workspacestore.New(cfg.WorkspacePath).SessionOverlayPath(workspacePath, sessionKey)
+	overlayPayload, err := os.ReadFile(overlayPath)
+	if err != nil {
+		t.Fatalf("读取打断策略 overlay 失败: %v", err)
+	}
+	assertNoInternalInterruptSentinel(t, string(overlayPayload))
+	if !strings.Contains(string(overlayPayload), "收到新的用户消息，上一轮已停止") {
+		t.Fatalf("原生 interrupted result 未保留自定义打断文案: %s", overlayPayload)
+	}
+}
+
+func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t *testing.T) {
+	cfg := newDMTestConfig(t)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+
+	client := newFakeDMClient()
+	client.sessionID = "sdk-interrupt-old"
+	queryCount := 0
+	oldTerminalSent := make(chan struct{})
+	client.onQuery = func(_ context.Context, _ string) {
+		queryCount++
+		if queryCount != 2 {
+			return
+		}
+		go func() {
+			<-oldTerminalSent
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-after-resume",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	client.onInterrupt = func(_ context.Context) {
+		go func() {
+			// 晚于 Manager 的强制取消宽限，复现真实 nxs 中断尾包落入下一轮。
+			time.Sleep(250 * time.Millisecond)
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-after-interrupt",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "error_during_execution",
+					DurationMS: 25707,
+					NumTurns:   1,
+					IsError:    true,
+					Errors:     []string{"stale interrupted request"},
+				},
+			}
+			close(oldTerminalSent)
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	sender := newDMTestSender("sender-reconnect")
+	sessionKey := "agent:nexus:ws:dm:test-interrupt-reconnect"
+	permission.BindSession(sessionKey, sender)
+	cleanupDMRuntimeSession(t, runtimeManager, sessionKey)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "第一轮",
+		RoundID:    "round-interrupt-1",
+	}); err != nil {
+		t.Fatalf("第一轮 HandleChat 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
+		t.Fatalf("HandleInterrupt 失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "interrupted"
+	})
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "第二轮",
+		RoundID:    "round-interrupt-2",
+	}); err != nil {
+		t.Fatalf("第二轮 HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["status"] == "finished" &&
+			event.Data["round_id"] == "round-interrupt-2"
+	})
+
+	if len(factory.options) != 1 {
+		t.Fatalf("只应创建一次 runtime client，第二轮应复用现有 client: got=%d want=1", len(factory.options))
+	}
+	if len(client.reconfigureOps) == 0 {
+		t.Fatalf("第二轮应复用 client 并执行 reconfigure")
+	}
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage {
+			continue
+		}
+		if event.Data["round_id"] != "round-interrupt-2" {
+			continue
+		}
+		summary, ok := event.Data["result_summary"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if summary["subtype"] == "interrupted" {
+			t.Fatalf("第二轮不应消费上一轮残留结果: %+v", events)
+		}
+	}
+}
+
+func TestServiceHandleInterruptExactOldRoundKeepsSuccessorRunning(t *testing.T) {
+	cfg := newDMTestConfig(t)
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	sessionKey := "agent:nexus:ws:dm:test-exact-old-round"
+	oldCancelled := false
+	successorCancelled := false
+
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-old", func() {
+		oldCancelled = true
+		runtimeManager.MarkRoundFinished(sessionKey, "round-old")
+	}); err != nil {
+		t.Fatalf("注册旧 round 失败: %v", err)
+	}
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {
+		successorCancelled = true
+		runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+	}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
+	}
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{
+		SessionKey: sessionKey,
+		RoundID:    "round-old",
+	}); err != nil {
+		t.Fatalf("精确中断旧 round 失败: %v", err)
+	}
+	if !oldCancelled {
+		t.Fatal("旧 round 应被精确取消")
+	}
+	if successorCancelled {
+		t.Fatal("旧 round 的迟到停止不得取消 successor")
+	}
+	if running := runtimeManager.GetRunningRoundIDs(sessionKey); len(running) != 1 || running[0] != "round-successor" {
+		t.Fatalf("successor 运行态被破坏: %+v", running)
+	}
+	runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+}
+
+func TestServiceHandleInterruptStaleRoundNeverFallsBackToSession(t *testing.T) {
+	cfg := newDMTestConfig(t)
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	sessionKey := "agent:nexus:ws:dm:test-stale-round-stop"
+	successorCancelled := false
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {
+		successorCancelled = true
+		runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+	}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
+	}
+
+	err := service.HandleInterrupt(context.Background(), InterruptRequest{
+		SessionKey: sessionKey,
+		RoundID:    "round-ended",
+	})
+	if !errors.Is(err, ErrTargetDMRoundNotRunning) {
+		t.Fatalf("迟到 round 停止错误 = %v, want ErrTargetDMRoundNotRunning", err)
+	}
+	if successorCancelled {
+		t.Fatal("找不到 exact target 时不得退化为 session 中断")
+	}
+	if running := runtimeManager.GetRunningRoundIDs(sessionKey); len(running) != 1 || running[0] != "round-successor" {
+		t.Fatalf("迟到停止改变了 successor 运行态: %+v", running)
+	}
+	runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+}
+
+func TestServiceHandleInterruptExactUnsupportedFailsClosed(t *testing.T) {
+	cfg := newDMTestConfig(t)
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	service.SetInboxStore(newDMInboxStore(t, cfg))
+	sessionKey := "agent:nexus:ws:dm:test-exact-unsupported"
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-without-cancel", nil); err != nil {
+		t.Fatalf("注册无 exact cancel 的 round 失败: %v", err)
+	}
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
+	}
+
+	err := service.HandleInterrupt(context.Background(), InterruptRequest{
+		SessionKey: sessionKey,
+		RoundID:    "round-without-cancel",
+	})
+	if !errors.Is(err, ErrExactDMRoundInterruptUnsupported) {
+		t.Fatalf("不支持 exact stop 时错误 = %v", err)
+	}
+	if running := runtimeManager.GetRunningRoundIDs(sessionKey); len(running) != 2 {
+		t.Fatalf("不支持 exact stop 时必须 fail closed: %+v", running)
+	}
+	runtimeManager.MarkRoundFinished(sessionKey, "round-without-cancel")
+	runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
 }

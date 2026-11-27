@@ -1,22 +1,25 @@
+// round_runner_test.go 覆盖 DM 轮次执行器、上下文注入、连接器通告、子代理任务与唤醒测试。
 package dm
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
-
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type maintenancePolicyDMClient struct {
@@ -389,5 +392,351 @@ func TestBoundLocalDMForwardsFinalReplyToOriginalIM(t *testing.T) {
 	runner.deliverExternalAssistantReply(t.Context(), protocol.Message{"role": "assistant", "content": []map[string]any{{"type": "text", "text": "未绑定"}}})
 	if len(dispatcher.callsSnapshot()) != 1 {
 		t.Fatal("unbound local session forwarded")
+	}
+}
+
+func TestDMConfigurationContextRequiresTrustedWebSocketInput(t *testing.T) {
+	webSession := protocol.BuildAgentSessionKey(
+		"worker",
+		protocol.SessionChannelWebSocketSegment,
+		protocol.RoomTypeDM,
+		"main",
+		"",
+	)
+	externalSession := protocol.BuildAgentSessionKey("worker", "telegram", protocol.RoomTypeDM, "chat", "")
+	tests := []struct {
+		name    string
+		session string
+		request Request
+		want    string
+	}{
+		{
+			name:    "trusted websocket",
+			session: webSession,
+			request: Request{TrustedConfigurationContext: true},
+			want:    "agent",
+		},
+		{
+			name:    "missing trusted admission",
+			session: webSession,
+			request: Request{},
+			want:    "agent_untrusted",
+		},
+		{
+			name:    "external session cannot forge trusted admission",
+			session: externalSession,
+			request: Request{TrustedConfigurationContext: true},
+			want:    "agent_untrusted",
+		},
+		{
+			name:    "channel origin",
+			session: webSession,
+			request: Request{TrustedConfigurationContext: true, ExecutionOrigin: "channel"},
+			want:    "agent_channel",
+		},
+		{
+			name:    "active paired external dm",
+			session: externalSession,
+			request: Request{
+				ExecutionOrigin:                   "channel",
+				TrustedExternalInteractiveContext: true,
+			},
+			want: "agent_paired",
+		},
+		{
+			name:    "paired flag cannot upgrade websocket",
+			session: webSession,
+			request: Request{
+				ExecutionOrigin:                   "channel",
+				TrustedExternalInteractiveContext: true,
+			},
+			want: "agent_channel",
+		},
+		{
+			name:    "paired flag cannot upgrade external group",
+			session: protocol.BuildAgentSessionKey("worker", "telegram", protocol.RoomTypeGroup, "chat", ""),
+			request: Request{
+				ExecutionOrigin:                   "channel",
+				TrustedExternalInteractiveContext: true,
+			},
+			want: "agent_channel",
+		},
+		{
+			name:    "queue origin",
+			session: webSession,
+			request: Request{ExecutionOrigin: "queue"},
+			want:    "agent_queue",
+		},
+		{
+			name:    "server claimed direct user queue",
+			session: webSession,
+			request: Request{
+				ExecutionOrigin:                   "queue",
+				trustedQueuedConfigurationContext: true,
+			},
+			want: "agent",
+		},
+		{
+			name:    "internal",
+			session: webSession,
+			request: Request{TrustedConfigurationContext: true, Internal: true},
+			want:    "agent_internal",
+		},
+		{
+			name:    "mismatched agent",
+			session: webSession,
+			request: Request{TrustedConfigurationContext: true},
+			want:    "agent_untrusted",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			agentID := "worker"
+			if test.name == "mismatched agent" {
+				agentID = "other"
+			}
+			if got := dmMCPSourceContextType(test.session, agentID, test.request); got != test.want {
+				t.Fatalf("source context = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+// DM 告知与 runtimehost 的 compact 清理必须落在同一个会话键上，否则 compact 后状态永远不再告知。
+func TestConnectorContextReannouncedAfterCompact(t *testing.T) {
+	service := &Service{}
+	service.Announcements = &runtimehost.ContextAnnouncements{}
+	sessionID := "sdk-1"
+	runner := &roundRunner{
+		service:          service,
+		sessionKey:       "agent:main:dm:1",
+		session:          protocol.Session{SessionID: &sessionID},
+		connectorContext: "<connector_runtime_state/>",
+	}
+	if len(runner.connectorContextualInputs()) != 1 {
+		t.Fatal("first round must announce connector state")
+	}
+	if len(runner.connectorContextualInputs()) != 0 {
+		t.Fatal("unchanged connector state must not be resent")
+	}
+	service.Announcements.ForgetAfterCompact(runner.sessionKey, sdkprotocol.ReceivedMessage{
+		Type:   sdkprotocol.MessageTypeSystem,
+		System: &sdkprotocol.SystemMessage{Subtype: "compact_boundary"},
+	})
+	if len(runner.connectorContextualInputs()) != 1 {
+		t.Fatal("compact boundary must force connector state to be announced again")
+	}
+}
+
+// 恢复上下文改读历史尾页后，结果必须与读取完整历史时一致。
+func TestRecoveryContextualInputsMatchFullHistory(t *testing.T) {
+	cases := map[string]func(t *testing.T, h *workspacestore.AgentHistoryStore, ws, key string, ts *int64){
+		"failed previous round": func(t *testing.T, h *workspacestore.AgentHistoryStore, ws, key string, ts *int64) {
+			for i := range 12 {
+				appendRecoveryRound(t, h, ws, key, fmt.Sprintf("round-%d", i), "success", ts)
+			}
+			appendRecoveryRound(t, h, ws, key, "round-failed", "error", ts)
+		},
+		"automation deliveries after last user": func(t *testing.T, h *workspacestore.AgentHistoryStore, ws, key string, ts *int64) {
+			appendRecoveryRound(t, h, ws, key, "round-user", "success", ts)
+			for i := range 7 {
+				appendAutomationDeliveryRound(t, h, ws, key, i, ts)
+			}
+		},
+	}
+	for name, seed := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			workspacePath := filepath.Join(root, "agent-1")
+			history := workspacestore.NewAgentHistoryStore(root)
+			sessionKey := "agent:agent-1:web:dm:recovery"
+			session := protocol.Session{SessionKey: sessionKey, AgentID: "agent-1"}
+			timestamp := int64(1000)
+			seed(t, history, workspacePath, sessionKey, &timestamp)
+			if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-current", "now", timestamp+10); err != nil {
+				t.Fatal(err)
+			}
+
+			full, err := history.ReadMessages(workspacePath, session, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := append(
+				conversationsvc.AutomationDeliveryContextualInputs(full, "round-current"),
+				conversationsvc.RoundRecoveryContextualInputs(full, "", "round-current")...,
+			)
+			if len(want) == 0 {
+				t.Fatal("fixture 应产生恢复上下文")
+			}
+			execution := &dmChatExecution{
+				service: &Service{Host: runtimehost.Host{History: history}},
+				ctx:     context.Background(),
+				request: Request{RoundID: "round-current"},
+				agent:   &protocol.Agent{AgentID: "agent-1", WorkspacePath: workspacePath},
+				session: session,
+			}
+			if got := execution.recoveryContextualInputs(); !reflect.DeepEqual(got, want) {
+				t.Fatalf("恢复上下文与完整历史不一致: got=%d %v want=%d %v", len(got), blockNames(got), len(want), blockNames(want))
+			}
+		})
+	}
+}
+
+func appendRecoveryRound(t *testing.T, h *workspacestore.AgentHistoryStore, ws, key, roundID, subtype string, ts *int64) {
+	t.Helper()
+	*ts += 10
+	if err := h.AppendRoundMarker(ws, key, roundID, "question "+roundID, *ts); err != nil {
+		t.Fatal(err)
+	}
+	appendRecoveryOverlay(t, h, ws, key, protocol.Message{
+		"message_id": "assistant-" + roundID, "session_key": key, "agent_id": "agent-1", "round_id": roundID,
+		"role": "assistant", "timestamp": *ts + 1, "is_complete": subtype == "success",
+		"content": []map[string]any{{"type": "text", "text": "answer"}},
+	})
+	result := protocol.NewHostResultMessage("result-"+roundID, key, "agent-1", roundID, subtype, "done", subtype != "success")
+	result["timestamp"] = *ts + 2
+	appendRecoveryOverlay(t, h, ws, key, result)
+}
+
+func appendAutomationDeliveryRound(t *testing.T, h *workspacestore.AgentHistoryStore, ws, key string, index int, ts *int64) {
+	t.Helper()
+	*ts += 10
+	roundID := fmt.Sprintf("automation_delivery_round_%d", index)
+	if err := h.AppendRoundMarkerWithOptions(ws, key, roundID, "deliver", *ts, workspacestore.RoundMarkerOptions{
+		HiddenFromUser: true, Synthetic: true, Purpose: "automation_delivery",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	metadata := map[string]any{"source": "automation_delivery", "job_id": "job", "run_id": fmt.Sprintf("run-%d", index)}
+	appendRecoveryOverlay(t, h, ws, key, protocol.Message{
+		"message_id": fmt.Sprintf("automation_delivery_assistant_%d", index), "session_key": key, "agent_id": "agent-1",
+		"round_id": roundID, "role": "assistant", "timestamp": *ts + 1, "stop_reason": "end_turn", "is_complete": true,
+		"content":  []map[string]any{{"type": "text", "text": fmt.Sprintf("report %d", index)}},
+		"metadata": metadata,
+	})
+	result := protocol.NewHostResultMessage(fmt.Sprintf("automation_delivery_result_%d", index), key, "agent-1", roundID, "success", "report", false)
+	result["timestamp"] = *ts + 2
+	result["metadata"] = metadata
+	appendRecoveryOverlay(t, h, ws, key, result)
+}
+
+func appendRecoveryOverlay(t *testing.T, h *workspacestore.AgentHistoryStore, ws, key string, message protocol.Message) {
+	t.Helper()
+	if err := h.AppendOverlayMessage(ws, key, message); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func blockNames(blocks []runtimectx.ContextualInputBlock) []string {
+	names := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		names = append(names, block.Name+":"+fmt.Sprint(block.Metadata))
+	}
+	return names
+}
+
+func TestSubagentPostRoundDispatchIsClaimedOnceAcrossTaskFollowUp(t *testing.T) {
+	runner := &roundRunner{
+		service:     &Service{Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
+		sessionKey:  "agent:host:ws:dm:conversation-1",
+		runtimeKind: "nxs",
+	}
+
+	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_started", "running"))
+	if runner.claimSubagentPostRoundDispatch() {
+		t.Fatal("running task 不应提前触发 post-round work")
+	}
+	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_notification", "completed"))
+	if !runner.claimSubagentPostRoundDispatch() {
+		t.Fatal("task 首次完成后应触发一次 post-round work")
+	}
+
+	// UI 用同 task ID 续聊并再次完成时，不能重复消费输入队列或启动 Goal continuation。
+	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_progress", "running"))
+	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_notification", "completed"))
+	if runner.claimSubagentPostRoundDispatch() {
+		t.Fatal("同一父 round 的 task follow-up 不应重复触发 post-round work")
+	}
+}
+
+func TestDMIgnoresLocalShellTaskLifecycle(t *testing.T) {
+	runtimeManager := runtimectx.NewManager()
+	runner := &roundRunner{
+		service:    &Service{Host: runtimehost.Host{Runtime: runtimeManager}},
+		sessionKey: "agent:host:ws:dm:conversation-shell",
+	}
+	runner.rememberSubagentTaskMessage(protocol.Message{
+		"metadata": map[string]any{
+			"subtype":    "task_started",
+			"task_id":    "shell-task",
+			"agent_id":   "host",
+			"agent_type": "shell",
+			"task_type":  "local_shell",
+		},
+	})
+	if runner.HasRunningSubagentTask() || runtimeManager.HasSubagentHistory(runner.sessionKey) {
+		t.Fatal("local_shell 不应保活 DM subagent runtime")
+	}
+}
+
+func dmSubagentTaskMessage(subtype string, status string) protocol.Message {
+	return protocol.Message{
+		"metadata": map[string]any{
+			"subtype":    subtype,
+			"task_id":    "task-1",
+			"agent_id":   "subagent-1",
+			"agent_type": "worker",
+			"status":     status,
+		},
+	}
+}
+
+// 唤醒说明来自最近一次顶层后台任务通知，交接后清空，避免下一次唤醒复用旧摘要。
+func TestRuntimeWakeTriggerUsesLatestTaskNotification(t *testing.T) {
+	runner := &roundRunner{}
+	runner.observeIdleTaskNotification(sdkprotocol.ReceivedMessage{
+		Type:             sdkprotocol.MessageTypeSystem,
+		TaskNotification: &sdkprotocol.TaskNotificationMessage{TaskID: "b1", Status: "completed", Summary: "first"},
+	})
+	runner.observeIdleTaskNotification(sdkprotocol.ReceivedMessage{
+		Type:   sdkprotocol.MessageTypeSystem,
+		System: &sdkprotocol.SystemMessage{TaskNotification: &sdkprotocol.TaskNotificationMessage{TaskID: "b2", Status: "failed", Summary: "second"}},
+	})
+	trigger := runner.idleWakeTrigger
+	if trigger.TaskID != "b2" || trigger.Content() != "second" {
+		t.Fatalf("trigger = %+v", trigger)
+	}
+	metadata := trigger.Metadata()
+	if metadata["input_kind"] != "runtime_wake" || metadata["task_status"] != "failed" || metadata["trigger_kind"] != "background_task" {
+		t.Fatalf("metadata = %+v", metadata)
+	}
+}
+
+// 交接期间普通输入让路并在交接结束后放行；自唤醒 round 自身不受闸门影响。
+func TestRuntimeWakeGateYieldsOrdinaryInputUntilHandoffEnds(t *testing.T) {
+	service := &Service{}
+	release := service.RuntimeWakeGates.Begin("agent:a:ws:dm:c")
+	ordinary := &dmChatExecution{service: service, sessionKey: "agent:a:ws:dm:c"}
+	err := ordinary.yieldToRuntimeWake()
+	var pending *runtimeWakePendingError
+	if !errors.As(err, &pending) || !errors.Is(err, runtimehost.ErrRuntimeWakeHandoffPending) {
+		t.Fatalf("ordinary yield err = %v", err)
+	}
+	wake := &dmChatExecution{service: service, sessionKey: "agent:a:ws:dm:c", request: Request{runtimeWake: &runtimeWakeStart{}}}
+	if err := wake.yieldToRuntimeWake(); err != nil {
+		t.Fatalf("wake round must pass its own gate: %v", err)
+	}
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		release()
+		release()
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := pending.wait(ctx); err != nil {
+		t.Fatalf("wait err = %v", err)
+	}
+	if err := ordinary.yieldToRuntimeWake(); err != nil {
+		t.Fatalf("after release err = %v", err)
 	}
 }

@@ -1,8 +1,10 @@
+// manager_test.go 覆盖 runtime Manager 生命周期、后台任务、清理、删除栅栏、停机与 AutoDream 测试。
 package runtime
 
 import (
 	"context"
 	"errors"
+	"io"
 	"maps"
 	"slices"
 	"strings"
@@ -200,15 +202,6 @@ func (c *fakeRuntimeClient) Supports(capability agentclient.Capability) bool {
 }
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
-
-func TestAgentClientWaitReturnsStreamError(t *testing.T) {
-	processErr := errors.New("process: command exited with error: exit status 2")
-	client := &agentClient{streamErr: processErr}
-
-	if err := client.Wait(); !errors.Is(err, processErr) {
-		t.Fatalf("Wait() error = %v，期望返回 stream error", err)
-	}
-}
 
 func TestAgentClientRetirePermanentlyPreventsReconnect(t *testing.T) {
 	newSessionCalls := 0
@@ -1950,5 +1943,443 @@ func TestAgentClientPreCanceledConfigurationDoesNotMutateDesiredState(t *testing
 				t.Fatalf("预取消配置不应推进版本: %d", client.configVersion)
 			}
 		})
+	}
+}
+
+func TestManagerBackgroundTaskRejectsCrossOwnerReuse(t *testing.T) {
+	manager := NewManager()
+	started := make(chan struct{})
+	stopped := make(chan struct{})
+	if !manager.StartBackgroundTaskForOwner(
+		"room:group:conversation-1",
+		"owner-a",
+		func(ctx context.Context) {
+			close(started)
+			<-ctx.Done()
+			close(stopped)
+		},
+	) {
+		t.Fatal("首个 owner 后台任务未启动")
+	}
+	<-started
+
+	crossOwnerRan := false
+	if manager.StartBackgroundTaskForOwner(
+		"room:group:conversation-1",
+		"owner-b",
+		func(context.Context) {
+			crossOwnerRan = true
+		},
+	) {
+		t.Fatal("同一 session 不应接受其他 owner 的后台任务")
+	}
+	if crossOwnerRan {
+		t.Fatal("跨 owner 后台任务不应执行")
+	}
+
+	if _, err := manager.CloseOwnerSessions(context.Background(), "owner-a"); err != nil {
+		t.Fatalf("关闭 owner 后台任务失败: %v", err)
+	}
+	select {
+	case <-stopped:
+	default:
+		t.Fatal("关闭 owner 必须取消并等待无 client 的后台任务")
+	}
+}
+
+// TestAgentClientCleanupFailureBlocksReconnect 不将完成清理尝试误认为清理成功。
+func TestAgentClientCleanupFailureBlocksReconnect(t *testing.T) {
+	want := errors.New("descendants remain")
+	cleanup := &agentClientSessionCleanup{done: closedSignal(), err: want}
+	var opened atomic.Int32
+	client := &agentClient{cleanup: cleanup, newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+		opened.Add(1)
+		return nil, errors.New("unexpected startup")
+	}}
+	for i := 0; i < 2; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		err := client.Connect(ctx)
+		cancel()
+		if !errors.Is(err, want) {
+			t.Errorf("Connect %d lost cleanup failure: %v", i, err)
+		}
+	}
+	if opened.Load() != 0 || client.cleanup != cleanup {
+		t.Fatal("failed cleanup allowed new startup or discarded evidence")
+	}
+}
+
+// TestCleanupFailureIsNotAnOrdinaryClosedTransport 防止批量回收把 joined 断管错误整体忽略。
+func TestCleanupFailureIsNotAnOrdinaryClosedTransport(t *testing.T) {
+	want := &agentclient.ProcessCleanupError{SessionID: 9000, Err: io.ErrClosedPipe}
+	for _, err := range []error{want, errors.Join(agentclient.ErrNotConnected, want)} {
+		if IsRuntimeTransportClosedError(err) {
+			t.Fatalf("cleanup failure classified as ordinary transport closure: %v", err)
+		}
+	}
+	if !IsRuntimeTransportClosedError(io.ErrClosedPipe) {
+		t.Fatal("ordinary closed-pipe classification changed")
+	}
+}
+
+// TestManagerBulkCleanupReportsAndRetainsFailure 批量关闭仍报告清理错误并保留原 Session 栅栏。
+func TestManagerBulkCleanupReportsAndRetainsFailure(t *testing.T) {
+	for _, entry := range []string{"owner", "idle", "agent_revocation"} {
+		t.Run(entry, func(t *testing.T) {
+			want := &agentclient.ProcessCleanupError{SessionID: 9000, Err: io.ErrClosedPipe}
+			client := &fakeRuntimeClient{disconnectFn: func(context.Context) error {
+				return errors.Join(agentclient.ErrNotConnected, want)
+			}}
+			manager := NewManager()
+			state := &sessionState{Client: client, OwnerUserID: "cleanup-owner", AgentID: "cleanup-agent", LastUsedAt: time.Now().Add(-time.Hour)}
+			manager.sessions["cleanup-failed"] = state
+			closeAll := func() (int, error) {
+				switch entry {
+				case "owner":
+					return manager.CloseOwnerSessions(t.Context(), state.OwnerUserID)
+				case "idle":
+					return manager.CloseIdleSessions(t.Context(), time.Minute)
+				default:
+					return manager.RevokeAgentSessions(t.Context(), state.OwnerUserID, state.AgentID)
+				}
+			}
+			if _, err := closeAll(); !errors.Is(err, want) {
+				t.Fatalf("bulk close lost cleanup error: %v", err)
+			}
+			if err := manager.CloseSession(t.Context(), "cleanup-failed"); !errors.Is(err, want) {
+				t.Fatalf("exact session lost cleanup error: %v", err)
+			}
+			if entry != "idle" {
+				if _, err := closeAll(); !errors.Is(err, want) {
+					t.Fatalf("repeated bulk close lost cleanup error: %v", err)
+				}
+			}
+			manager.mu.RLock()
+			defer manager.mu.RUnlock()
+			if manager.sessions["cleanup-failed"] != state || !state.Closing {
+				t.Fatal("bulk cleanup failure released session fence")
+			}
+		})
+	}
+}
+
+// TestAgentClientStaleStartupCleanupFailureStopsRetry 启动中配置换代后，旧产物清理失败不得重试。
+func TestAgentClientStaleStartupCleanupFailureStopsRetry(t *testing.T) {
+	want := errors.New("stale runtime cleanup failed")
+	started, release := make(chan struct{}), make(chan struct{})
+	var opened atomic.Int32
+	client := &agentClient{options: agentclient.Options{Model: "old"}, newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+		if opened.Add(1) == 1 {
+			close(started)
+			<-release
+			return &agentclient.Session{}, nil
+		}
+		return nil, errors.New("unexpected retry")
+	}, closeSession: func(*agentclient.Session) error { return want }}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- client.Connect(ctx) }()
+	<-started
+	if err := client.Reconfigure(ctx, agentclient.Options{Model: "new"}); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	select {
+	case err := <-done:
+		if !errors.Is(err, want) {
+			t.Errorf("stale cleanup error lost: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if opened.Load() != 1 || client.cleanup == nil {
+		t.Fatal("stale process cleanup failure permitted retry")
+	}
+}
+
+// TestManagerCleanupFailureRetainsSessionFence 同步失败和超时后失败都保留原状态与精确关闭结果。
+func TestManagerCleanupFailureRetainsSessionFence(t *testing.T) {
+	for _, delayed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "synchronous", true: "after_timeout"}[delayed], func(t *testing.T) {
+			want := errors.New("runtime descendants unconfirmed")
+			var calls atomic.Int32
+			client := &fakeRuntimeClient{disconnectFn: func(context.Context) error {
+				if delayed && calls.Add(1) == 1 {
+					return context.DeadlineExceeded
+				}
+				return want
+			}}
+			manager := NewManager()
+			state := &sessionState{Client: client}
+			manager.sessions["cleanup-failed"] = state
+			if err := manager.CloseSession(context.Background(), "cleanup-failed"); err == nil {
+				t.Fatal("close failure not reported")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := manager.CloseSession(ctx, "cleanup-failed"); !errors.Is(err, want) {
+				t.Fatalf("repeat close lost failure: %v", err)
+			}
+			if _, err := manager.GetOrCreate(ctx, "cleanup-failed", agentclient.Options{}); !errors.Is(err, ErrRuntimeSessionClosing) {
+				t.Fatalf("failed cleanup allowed replacement: %v", err)
+			}
+			manager.mu.RLock()
+			defer manager.mu.RUnlock()
+			if manager.sessions["cleanup-failed"] != state || !errors.Is(state.CloseError, want) {
+				t.Fatal("cleanup failure evidence removed")
+			}
+		})
+	}
+}
+
+func TestManagerSessionDeletionFenceBlocksAdmissionAndCanAbort(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:agent-a:ws:dm:delete-fence"
+	options := agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
+	}
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, options); err != nil {
+		t.Fatal(err)
+	}
+	lease, err := manager.BeginSessionDeletion(sessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = manager.GetOrCreate(
+		context.Background(),
+		sessionKey,
+		options,
+	); !errors.Is(err, ErrRuntimeSessionDeleted) {
+		t.Fatalf("new runtime admission was not blocked: %v", err)
+	}
+	canceled := false
+	if err := manager.StartRound(t.Context(), sessionKey, "late-round", func() { canceled = true }); !errors.Is(err, ErrRuntimeSessionDeleted) {
+		t.Fatalf("late round error = %v, want session deleted", err)
+	}
+	if !canceled {
+		t.Fatal("rejected round must cancel its context")
+	}
+	manager.AbortSessionDeletion(lease)
+	if _, err = manager.GetOrCreate(context.Background(), sessionKey, options); err != nil {
+		t.Fatalf("aborted deletion fence still blocks runtime: %v", err)
+	}
+}
+
+func TestManagerShutdownRejectsNewWorkAndPreservesFailure(t *testing.T) {
+	want := errors.New("runtime descendant cleanup failed")
+	client := &fakeRuntimeClient{disconnectErr: want}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	if _, err := manager.GetOrCreate(t.Context(), "session", agentclient.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := manager.Close(t.Context()); !errors.Is(err, want) {
+			t.Fatalf("Close=%v, want retained cleanup error", err)
+		}
+	}
+	if client.disconnectCalls != 1 {
+		t.Fatalf("shutdown repeated side effects: %d disconnects", client.disconnectCalls)
+	}
+	for _, owner := range []string{"", "owner"} {
+		if _, err := manager.BeginClientStartup(t.Context(), "new", owner); !errors.Is(err, ErrRuntimeManagerClosed) {
+			t.Fatalf("startup owner=%q err=%v", owner, err)
+		}
+	}
+	if manager.StartBackgroundTask("new", func(context.Context) { t.Error("late background task ran") }) {
+		t.Fatal("closed manager accepted background task")
+	}
+	if err := manager.StartRound(t.Context(), "new", "round", nil); !errors.Is(err, ErrRuntimeManagerClosed) {
+		t.Fatalf("closed manager accepted round: %v", err)
+	}
+}
+
+func TestManagerShutdownWaitsForLateFactory(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	client := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client {
+		close(entered)
+		<-release
+		return client
+	}))
+	started := make(chan error, 1)
+	go func() { _, err := manager.GetOrCreate(t.Context(), "session", agentclient.Options{}); started <- err }()
+	<-entered
+	short, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if err := manager.Close(short); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Close returned before factory disposed: %v", err)
+	}
+	close(release)
+	if err := <-started; !errors.Is(err, ErrRuntimeManagerClosed) {
+		t.Fatalf("late factory installed client: %v", err)
+	}
+	if err := manager.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if client.disconnectCalls != 1 || manager.SessionClient("session") != nil {
+		t.Fatalf("late client survived: disconnects=%d", client.disconnectCalls)
+	}
+}
+
+func TestManagerShutdownSetsRecoveryReasonBeforeCancellation(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	reason := make(chan string, 1)
+	if err := manager.StartRound(t.Context(), "session", "round", func() {
+		reason <- manager.GetInterruptReason("session", "round")
+		manager.MarkRoundFinished("session", "round")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-reason; got != InterruptHostShutdown {
+		t.Fatalf("cancel reason=%q", got)
+	}
+}
+
+func TestManagerShutdownAllowsBridgeTerminationAfterCallerTimeout(t *testing.T) {
+	client := &fakeRuntimeClient{disconnectFn: func(ctx context.Context) error {
+		// A warm bridge can exhaust its 5s graceful-exit phase before SIGTERM.
+		timer := time.NewTimer(5100 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	if _, err := manager.GetOrCreate(t.Context(), "warm-session", agentclient.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	short, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if err := manager.Close(short); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("short caller did not stop waiting: %v", err)
+	}
+	if err := manager.Close(t.Context()); err != nil {
+		t.Fatalf("completed bridge cleanup retained a false timeout: %v", err)
+	}
+	if client.disconnectCalls != 1 || manager.HasSession("warm-session") {
+		t.Fatal("shared shutdown did not retire the client exactly once")
+	}
+}
+
+type dreamTestClient struct {
+	fakeRuntimeClient
+	once       sync.Once
+	closed     chan struct{}
+	closeErr   error
+	connectErr error
+	run        func(context.Context) (agentclient.AutoDreamResult, error)
+}
+
+func (c *dreamTestClient) Connect(context.Context) error { return c.connectErr }
+func (c *dreamTestClient) TryAutoDream(ctx context.Context) (agentclient.AutoDreamResult, error) {
+	return c.run(ctx)
+}
+func (c *dreamTestClient) Disconnect(context.Context) error {
+	c.once.Do(func() { close(c.closed) })
+	return c.closeErr
+}
+
+func dreamOptions() agentclient.Options {
+	return agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}, Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}
+}
+
+func TestManagedAutoDreamRetiresClient(t *testing.T) {
+	key := "memory-maintenance:agent"
+	c := &dreamTestClient{closed: make(chan struct{}), run: func(context.Context) (agentclient.AutoDreamResult, error) {
+		return agentclient.AutoDreamResult{Status: agentclient.AutoDreamStatusSkipped, Reason: "not_due"}, nil
+	}}
+	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return c }))
+	result, err := m.TryAutoDream(t.Context(), key, dreamOptions())
+	if err != nil || result.Reason != "not_due" {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if m.SessionClient(key) != nil {
+		t.Fatal("maintenance client retained after successful close")
+	}
+	if err := m.WaitBackgroundTasks(t.Context(), key); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestManagedAutoDreamCancellationForcesUnresponsiveControl(t *testing.T) {
+	for _, cause := range []string{"caller", "shutdown", "agent_revocation"} {
+		t.Run(cause, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			started := make(chan struct{})
+			c := &dreamTestClient{closed: make(chan struct{})}
+			c.run = func(context.Context) (agentclient.AutoDreamResult, error) {
+				close(started)
+				<-c.closed // Deliberately ignore RPC context; only transport closure releases it.
+				return agentclient.AutoDreamResult{}, context.Canceled
+			}
+			m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return c }))
+			result := make(chan error, 1)
+			go func() {
+				_, err := m.TryAutoDream(ctx, "memory-maintenance:agent", dreamOptions())
+				result <- err
+			}()
+			select {
+			case <-started:
+			case <-time.After(5 * time.Second):
+				t.Fatal("control did not start")
+			}
+			closeCtx, closeCancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer closeCancel()
+			switch cause {
+			case "caller":
+				cancel()
+			case "shutdown":
+				if err := m.Close(closeCtx); err != nil {
+					t.Fatal(err)
+				}
+			case "agent_revocation":
+				if _, err := m.RevokeAgentSessions(closeCtx, "owner", "agent"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			select {
+			case err := <-result:
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("result=%v", err)
+				}
+			case <-closeCtx.Done():
+				t.Fatal("cancellation did not retire control")
+			}
+		})
+	}
+}
+
+func TestManagedAutoDreamCleanupFailureRetainsFence(t *testing.T) {
+	key := "memory-maintenance:agent"
+	failure := errors.New("descendant retirement unknown")
+	c := &dreamTestClient{closed: make(chan struct{}), closeErr: failure, run: func(context.Context) (agentclient.AutoDreamResult, error) { return agentclient.AutoDreamResult{}, nil }}
+	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return c }))
+	if _, err := m.TryAutoDream(t.Context(), key, dreamOptions()); !errors.Is(err, failure) {
+		t.Fatalf("err=%v", err)
+	}
+	if _, err := m.TryAutoDream(t.Context(), key, dreamOptions()); err == nil {
+		t.Fatal("cleanup failure allowed another maintenance process")
+	}
+}
+
+func TestManagedAutoDreamConnectFailureRetiresClient(t *testing.T) {
+	failure := errors.New("initialize failed")
+	c := &dreamTestClient{closed: make(chan struct{}), connectErr: failure}
+	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return c }))
+	if _, err := m.TryAutoDream(t.Context(), "memory-maintenance:agent", dreamOptions()); !errors.Is(err, failure) {
+		t.Fatalf("err=%v", err)
+	}
+	select {
+	case <-c.closed:
+	default:
+		t.Fatal("failed maintenance client was not disconnected")
 	}
 }

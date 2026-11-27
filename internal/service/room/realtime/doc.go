@@ -27,7 +27,7 @@
 //     Goal scope、complete 时的当前 Room 成员/工作一致读取、协作终态回连、root receipt/Agent audit 双身份 continuation 终态、附着最终回复的完成收据和额度适配。
 //
 // chat.go 记录派发锁、准备、上下文、历史、落盘与启动的慢阶段/失败；
-// chat_diagnostics_test.go 验证取消后不再进入准备，以及阶段日志保留关联身份而不记录正文。
+// collaboration_test.go 验证取消后不再进入准备，以及阶段日志保留关联身份而不记录正文。
 // HandleAdmittedChat 复用原生 round 注册后、slot 启动前的宿主屏障，供 Node 再验授权/租约；忙碌或暂停明确拒绝，不能退入会丢失回调的用户队列。HTTP/WS 不提供回调。
 //
 // conversation 共享 queue、public wake、Goal continuation 与 Execution slot；锁必须

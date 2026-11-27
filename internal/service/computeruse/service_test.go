@@ -1,17 +1,20 @@
+// service_test.go 覆盖 Computer Use 服务、目录、产物、进程监督、撤销与原生集成测试。
 package computeruse
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	nexuscua "github.com/nexus-research-lab/nexus-cua/sdk/go"
-
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
@@ -752,4 +755,371 @@ func TestForegroundHandoffDoesNotRunBeforeApproval(t *testing.T) {
 	if !errors.Is(err, denied) || supervisor.foregroundCalls != 0 || client.performCalls != 0 {
 		t.Fatalf("denied mutation granted foreground or dispatched: err=%v handoffs=%d dispatch=%d", err, supervisor.foregroundCalls, client.performCalls)
 	}
+}
+
+type catalogClient struct {
+	*fakeClient
+	installed []nexuscua.LaunchableApplication
+}
+
+func (c *catalogClient) DiscoverLaunchableApplications(context.Context, time.Duration) (nexuscua.DiscoverLaunchableApplicationsOutput, error) {
+	return nexuscua.DiscoverLaunchableApplicationsOutput{Applications: c.installed, Complete: false}, nil
+}
+
+func (c *catalogClient) DiscoverApplications(context.Context, time.Duration) (nexuscua.DiscoverApplicationsOutput, error) {
+	apps := make([]nexuscua.DiscoveredApplication, 0, len(c.installed))
+	for _, app := range c.installed {
+		apps = append(apps, nexuscua.DiscoveredApplication{Name: app.Name, ApplicationID: app.ApplicationID, Provenance: app.Provenance})
+	}
+	return nexuscua.DiscoverApplicationsOutput{Applications: apps, Complete: false}, nil
+}
+
+func (*catalogClient) LaunchApplication(context.Context, nexuscua.LaunchApplicationInput, time.Duration) (nexuscua.ApplicationLaunchOutput, *nexuscua.LaunchRequest, error) {
+	panic("catalog discovery must not launch an application")
+}
+
+func (*catalogClient) ReconcileLaunch(context.Context, *nexuscua.LaunchRequest, time.Duration) (nexuscua.ApplicationLaunchOutput, error) {
+	panic("catalog discovery must not reconcile a mutation")
+}
+
+func TestApplicationQueryAvoidsFullCatalogWithoutSelectingOrWideningAuthority(t *testing.T) {
+	service, base, _ := newFakeService(t)
+	round, err := service.Round(context.Background(), "owner-a", "round-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &catalogClient{fakeClient: base}
+	for i := range 144 {
+		client.installed = append(client.installed, nexuscua.LaunchableApplication{
+			LaunchRef: nexuscua.LaunchRef(fmt.Sprintf("launch-%d", i)),
+			Name:      fmt.Sprintf("Application %d", i), ApplicationID: fmt.Sprintf("dev.fixture.%d", i),
+		})
+	}
+	bundleID := "com.google.Chrome"
+	chrome := nexuscua.LaunchableApplication{
+		LaunchRef: "chrome-exact-ref", Name: "Google Chrome", ApplicationID: bundleID,
+		ExpiresAt:  "2026-11-03T10:00:00Z",
+		Provenance: nexuscua.ApplicationProvenance{Platform: nexuscua.PlatformMacOS, BundleID: &bundleID},
+	}
+	client.installed[89] = chrome
+	round.client = client
+	for _, query := range []string{"CHROME", "com.google.chrome"} {
+		result, err := round.ListLaunchableApplications(context.Background(), query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		apps := result["applications"].([]nexuscua.LaunchableApplication)
+		encoded, _ := json.Marshal(result)
+		if len(apps) != 1 || !reflect.DeepEqual(apps[0], chrome) || len(encoded) > 4096 || result["complete"] != false {
+			t.Fatal("filtered catalog lost exact identity, exceeded a small page, or hid native incompleteness")
+		}
+		running, err := round.ListApplications(context.Background(), query)
+		if err != nil || len(running["applications"].([]map[string]any)) != 1 || running["complete"] != false {
+			t.Fatalf("running catalog differs: %v, %v", running, err)
+		}
+	}
+	approved := false
+	_, err = round.LaunchApplication(context.Background(), "hidden-app", nexuscua.LaunchApplicationInput{LaunchRef: "launch-0"}, func(nexuscua.LaunchableApplication) error { approved = true; return nil })
+	if err == nil || approved || base.openCalls != 0 || base.performCalls != 0 || len(round.launchables) != 1 {
+		t.Fatal("query silently selected/granted authority or admitted an undisclosed launch ref")
+	}
+	for query, want := range map[string]int{"missing": 0, "": 144} {
+		result, err := round.ListLaunchableApplications(context.Background(), query)
+		if err != nil || len(result["applications"].([]nexuscua.LaunchableApplication)) != want {
+			t.Fatalf("query %q did not preserve empty/full discovery behavior: %v", query, err)
+		}
+	}
+}
+
+
+func TestProcessSupervisorRestartsAfterChildExit(t *testing.T) {
+	root := t.TempDir()
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NEXUS_CUA_TEST_EXIT_CHILD", "1")
+	supervisor := NewProcessSupervisor(config.Config{
+		DatabaseURL:           filepath.Join(root, "nexus.db"),
+		ComputerUseBinaryPath: binary,
+	})
+	var factoryCalls atomic.Int32
+	supervisor.factory = func(nexuscua.Config) (Client, error) {
+		factoryCalls.Add(1)
+		return &fakeClient{}, nil
+	}
+
+	first, err := supervisor.Start(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && supervisor.ArtifactRoot() != "" {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if supervisor.ArtifactRoot() != "" {
+		t.Fatal("supervisor did not observe the crashed sidecar")
+	}
+	second, err := supervisor.Start(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("restart reused the dead sidecar client")
+	}
+	if factoryCalls.Load() != 2 {
+		t.Fatalf("client factory calls = %d, want two epochs", factoryCalls.Load())
+	}
+	_ = supervisor.Stop(context.Background())
+}
+
+func TestMain(m *testing.M) {
+	if os.Getenv("NEXUS_CUA_TEST_EXIT_CHILD") == "1" && len(os.Args) > 1 && os.Args[1] == "serve" {
+		time.Sleep(100 * time.Millisecond)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
+
+type versionedClient struct {
+	fakeClient
+	runtimeVersion string
+}
+
+func (c *versionedClient) GetCapabilities(ctx context.Context, timeout time.Duration) (nexuscua.DriverCapabilities, error) {
+	capabilities, err := c.fakeClient.GetCapabilities(ctx, timeout)
+	capabilities.RuntimeVersion = c.runtimeVersion
+	return capabilities, err
+}
+
+func TestReadinessRejectsUnpinnedRuntimeVersion(t *testing.T) {
+	client := &versionedClient{runtimeVersion: "0.1.0"}
+	started := time.Now()
+	if err := waitUntilReady(context.Background(), client, pinnedCUAVersion); !errors.Is(err, ErrRuntimeVersionMismatch) {
+		t.Fatalf("waitUntilReady error = %v, want runtime version mismatch", err)
+	}
+	if time.Since(started) > readinessTimeout/2 {
+		t.Fatal("version mismatch waited for the readiness timeout instead of failing fast")
+	}
+	if err := waitUntilReady(context.Background(), client, ""); err != nil {
+		t.Fatalf("unpinned development readiness failed: %v", err)
+	}
+	client.runtimeVersion = pinnedCUAVersion
+	if err := waitUntilReady(context.Background(), client, pinnedCUAVersion); err != nil {
+		t.Fatalf("pinned runtime readiness failed: %v", err)
+	}
+}
+
+type revocationClient struct {
+	fakeClient
+	started chan struct{}
+	revoked chan struct{}
+}
+
+func (c *revocationClient) PerformAction(context.Context, nexuscua.PerformActionInput, time.Duration) (nexuscua.ActionOutput, *nexuscua.ActionRequest, error) {
+	close(c.started)
+	select {
+	case <-c.revoked:
+		return nexuscua.ActionOutput{}, nil, &nexuscua.CUAError{Code: nexuscua.ErrorSessionUnavailable}
+	case <-time.After(2 * time.Second):
+		return nexuscua.ActionOutput{}, nil, errors.New("action did not receive revocation")
+	}
+}
+
+func (c *revocationClient) CloseSession(context.Context, nexuscua.SessionID, time.Duration) error {
+	close(c.revoked)
+	return nil
+}
+
+func TestCloseRevokesWhileActionOwnsMutationLock(t *testing.T) {
+	client := &revocationClient{started: make(chan struct{}), revoked: make(chan struct{})}
+	round := &Round{
+		client: client, sessionID: "session", observationID: "observation",
+		application: &nexuscua.DiscoveredApplication{DiscoveryRef: "application"},
+		window:      &nexuscua.WindowSummary{WindowRef: "window"},
+		deadline:    time.Now().Add(time.Minute),
+	}
+	finished := make(chan error, 1)
+	go func() {
+		_, err := round.PerformAction(context.Background(), "press", ActionInput{Kind: "type_text", Text: "fixture"})
+		finished <- err
+	}()
+	select {
+	case <-client.started:
+	case <-time.After(time.Second):
+		t.Fatal("action did not start")
+	}
+	if err := round.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-client.revoked:
+	default:
+		t.Fatal("close did not revoke the active session")
+	}
+	var unavailable *nexuscua.CUAError
+	if err := <-finished; !errors.As(err, &unavailable) || unavailable.Code != nexuscua.ErrorSessionUnavailable {
+		t.Fatalf("action was not interrupted by session revocation: %v", err)
+	}
+	if round.HasSession() {
+		t.Fatal("closed round retained its session")
+	}
+}
+
+type openingClient struct {
+	fakeClient
+	started chan struct{}
+	release chan struct{}
+	revoked chan nexuscua.SessionID
+}
+
+func (c *openingClient) OpenSession(context.Context, nexuscua.OpenSessionInput, time.Duration) (nexuscua.OpenSessionOutput, error) {
+	close(c.started)
+	<-c.release
+	return nexuscua.OpenSessionOutput{SessionID: "late-session"}, nil
+}
+
+func (c *openingClient) CloseSession(_ context.Context, session nexuscua.SessionID, _ time.Duration) error {
+	c.revoked <- session
+	return nil
+}
+
+func TestCloseRevokesSessionReturnedDuringShutdown(t *testing.T) {
+	client := &openingClient{started: make(chan struct{}), release: make(chan struct{}), revoked: make(chan nexuscua.SessionID, 1)}
+	round := &Round{client: client, deadline: time.Now().Add(time.Minute)}
+	selected := make(chan error, 1)
+	go func() {
+		_, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{}, func(TargetGrant) error { return nil })
+		selected <- err
+	}()
+	select {
+	case <-client.started:
+	case <-time.After(time.Second):
+		t.Fatal("session opening did not start")
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- round.Close(context.Background()) }()
+	deadline := time.Now().Add(time.Second)
+	for {
+		round.mu.Lock()
+		closing := round.closed
+		round.mu.Unlock()
+		if closing {
+			break
+		}
+		if time.Now().After(deadline) {
+			close(client.release)
+			t.Fatal("close did not revoke admission during session opening")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(client.release)
+	if err := <-selected; !errors.Is(err, ErrRoundClosed) {
+		t.Fatalf("late session was admitted: %v", err)
+	}
+	if err := <-closed; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case id := <-client.revoked:
+		if id != "late-session" {
+			t.Fatalf("wrong session revoked: %s", id)
+		}
+	default:
+		t.Fatal("late session leaked")
+	}
+}
+
+func TestPackagedCUANativeActionLoop(t *testing.T) {
+	binary := os.Getenv("NEXUS_CUA_TEST_BINARY")
+	if binary == "" {
+		t.Skip("set NEXUS_CUA_TEST_BINARY and open the owned native fixture")
+	}
+	if !filepath.IsAbs(binary) {
+		t.Fatal("NEXUS_CUA_TEST_BINARY must be absolute")
+	}
+	ctx := context.Background()
+	root, err := os.MkdirTemp("", "nexus-cua-live-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	service := NewService(config.Config{
+		DatabaseURL:        filepath.Join(root, "nexus.db"),
+		ComputerUseEnabled: true, ComputerUseBinaryPath: binary,
+	})
+	t.Cleanup(func() { _ = service.Close(ctx) })
+	round, err := service.Round(ctx, "native-test-owner", "native-test-round")
+	if err != nil {
+		t.Fatal(err)
+	}
+	computer, err := round.GetComputer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if computer["runtime_version"] != pinnedCUAVersion || computer["observe_after"] != true {
+		t.Fatal("packaged runtime version/capabilities do not match pinned SDK")
+	}
+	approved := false
+	fixtureID := os.Getenv("NEXUS_CUA_TEST_APPLICATION_ID")
+	if fixtureID == "" {
+		fixtureID = "dev.nexus.cua.native-fixture"
+	}
+	_, err = round.SelectTarget(ctx, fixtureID, TargetOptions{
+		Actions: []nexuscua.ActionKind{nexuscua.ActionInvokeElement}, TTLSeconds: 60,
+	}, func(grant TargetGrant) error {
+		approved = grant.Application.ApplicationID == fixtureID && !grant.AllowForegroundInput
+		return nil
+	})
+	if err != nil || !approved {
+		t.Fatalf("bounded fixture selection: %v", err)
+	}
+	observed, err := round.Observe(ctx, ObserveInput{
+		WindowSelector: "Generation", IncludeScreenshot: true, Accessibility: "full",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observed.ImageData == "" || observed.ImageMIME != "image/png" {
+		t.Fatal("initial image missing")
+	}
+	findButton := func(data map[string]any) string {
+		for _, element := range data["elements"].([]map[string]any) {
+			if element["name"] == "Increment Counter" {
+				return string(element["element_ref"].(nexuscua.ElementRef))
+			}
+		}
+		t.Fatal("owned fixture button missing")
+		return ""
+	}
+	for _, id := range []string{"native-first", "native-second"} {
+		result, err := round.PerformAction(ctx, id, ActionInput{Kind: "invoke_element", ElementRef: findButton(observed.Data)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Data["dispatched"] != true || result.Data["observation_error"] != nil || result.ImageData == "" {
+			t.Fatal("action did not return successful evidence and a fresh image")
+		}
+		after, ok := result.Data["observation"].(map[string]any)
+		if !ok || after["observation_id"] == observed.Data["observation_id"] {
+			t.Fatal("guard did not advance")
+		}
+		if shot, ok := after["screenshot"].(map[string]any); !ok || shot["path"] != nil {
+			t.Fatal("screenshot missing or leaked its private path")
+		}
+		observed = Observation{Data: after}
+	}
+	if _, err := round.PerformAction(ctx, "native-first", ActionInput{Kind: "invoke_element", ElementRef: findButton(observed.Data)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.CloseRound(ctx, "native-test-owner", "native-test-round"); err != nil {
+		t.Fatal(err)
+	}
+	if round.HasSession() {
+		t.Fatal("round close retained native authority")
+	}
+	if _, err := round.Observe(ctx, ObserveInput{}); err == nil || !strings.Contains(err.Error(), "关闭") {
+		t.Fatal("closed round admitted a read")
+	}
+	t.Log("pinned runtime, bounded host approval, image delivery, two chained actions, replay and close verified")
 }

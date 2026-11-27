@@ -1,3 +1,4 @@
+// service_test.go 覆盖 WorkGraph 工作流服务、抽象、内建模板与参数测试。
 package workgraphworkflow
 
 import (
@@ -12,6 +13,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	workflowstore "github.com/nexus-research-lab/nexus/internal/storage/workgraphworkflow"
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -592,5 +595,152 @@ func workflowSourceView() *protocol.ExecutionView {
 			ID: "tool-secret", Kind: protocol.ExecutionGraphNodeTool,
 			Runs: []protocol.ExecutionGraphNodeRunView{{ID: "attempt-secret"}},
 		}}},
+	}
+}
+
+type abstractionProviderRecorder struct {
+	provider string
+	model    string
+}
+
+func TestApplyAbstractionRejectsOmittedStructuralNode(t *testing.T) {
+	sourceNodes := []protocol.WorkGraphWorkflowNode{
+		{LogicalKey: "prepare", Terminal: false},
+		{LogicalKey: "review", Terminal: true},
+	}
+	inputNodes := []AbstractionSourceNode{
+		{LogicalKey: "prepare", MustPreserve: true},
+		{LogicalKey: "review", MustPreserve: true},
+	}
+	_, err := applyAbstraction(sourceNodes, inputNodes, completeAbstractionOutput([]AbstractedNode{
+		completeAbstractedNode("prepare"),
+	}))
+	if err == nil || !strings.Contains(err.Error(), "omitted structural node review") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestApplyAbstractionAllowsOmittingTrulyOptionalIsolatedNode(t *testing.T) {
+	sourceNodes := []protocol.WorkGraphWorkflowNode{
+		{LogicalKey: "deliver", Required: true, Terminal: true},
+		{LogicalKey: "incidental"},
+	}
+	inputNodes := []AbstractionSourceNode{
+		{LogicalKey: "deliver", MustPreserve: true},
+		{LogicalKey: "incidental", MustPreserve: false},
+	}
+	validated, err := applyAbstraction(sourceNodes, inputNodes, completeAbstractionOutput([]AbstractedNode{
+		completeAbstractedNode("deliver"),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(validated.Nodes) != 1 || validated.Nodes[0].LogicalKey != "deliver" {
+		t.Fatalf("validated nodes = %#v", validated.Nodes)
+	}
+}
+
+func completeAbstractionOutput(nodes []AbstractedNode) AbstractionOutput {
+	return AbstractionOutput{
+		SlashName: "workflow", Title: "Workflow", Description: "Reusable workflow",
+		Objective: "Produce a reusable result", CompletionCriteria: []string{"Result is complete"},
+		Nodes: nodes,
+	}
+}
+
+func completeAbstractedNode(logicalKey string) AbstractedNode {
+	return AbstractedNode{
+		LogicalKey: logicalKey, Role: protocol.WorkGraphWorkflowNodeKey,
+		Subject: "Reusable stage", Objective: "Complete the stage", Deliverable: "Stage output",
+		AcceptanceCriteria: []string{"Output is verifiable"},
+	}
+}
+
+func (r *abstractionProviderRecorder) ResolveLLMConfig(_ context.Context, provider, model string) (*clientopts.RuntimeConfig, error) {
+	r.provider = provider
+	r.model = model
+	return nil, errors.New("stop before model request")
+}
+
+type abstractionPreferencesReader struct {
+	preferences preferencessvc.Preferences
+}
+
+func (r abstractionPreferencesReader) Get(context.Context, string) (preferencessvc.Preferences, error) {
+	return r.preferences, nil
+}
+
+func TestLLMAbstractorUsesDefaultChatModelInsteadOfBackgroundModel(t *testing.T) {
+	providers := &abstractionProviderRecorder{}
+	abstractor := NewLLMAbstractor(providers, abstractionPreferencesReader{preferences: preferencessvc.Preferences{
+		DefaultAgentOptions: protocol.Options{
+			Provider: "default-provider",
+			Model:    "default-model",
+		},
+		DefaultBackgroundModelSelection: preferencessvc.ModelSelection{
+			Provider: "background-provider",
+			Model:    "background-model",
+		},
+	}})
+
+	_, err := abstractor.Abstract(context.Background(), "owner-a", AbstractionInput{})
+	if err == nil || err.Error() != "stop before model request" {
+		t.Fatalf("abstract error = %v", err)
+	}
+	if providers.provider != "default-provider" || providers.model != "default-model" {
+		t.Fatalf("resolved model = %q/%q, want default-provider/default-model", providers.provider, providers.model)
+	}
+}
+
+func TestBuiltinTerminalNodesAreGraphSinks(t *testing.T) {
+	for _, workflow := range builtinWorkflows("zh-CN") {
+		terminal := make(map[string]bool, len(workflow.Nodes))
+		for _, node := range workflow.Nodes {
+			terminal[node.LogicalKey] = node.Terminal
+		}
+		for _, dependency := range workflow.Dependencies {
+			if terminal[dependency.DependsOnLogicalKey] {
+				t.Fatalf("workflow %q has an edge out of terminal node %q", workflow.SlashName, dependency.DependsOnLogicalKey)
+			}
+		}
+	}
+}
+
+func TestTypedParametersAndInvocation(t *testing.T) {
+	minimum, maximum := 1.0, 5.0
+	workflow := protocol.WorkGraphWorkflow{ID: "template", Version: 2, SlashName: "report", Parameters: []protocol.WorkGraphParameter{
+		{Name: "topic", Type: "string", Required: true}, {Name: "count", Type: "integer", Default: 3.0, Minimum: &minimum, Maximum: &maximum},
+		{Name: "format", Type: "string", Enum: []string{"md", "txt"}, Default: "md"}, {Name: "links", Type: "string_list"}, {Name: "verbose", Type: "boolean"},
+	}}
+	request, source, err := parameterInvocation(workflow, `{"parameters":{"topic":"$(do not execute)","links":["fixture:a"]},"request":"prepare"}`)
+	if err != nil || request != "prepare" || source.Parameters["topic"] != "$(do not execute)" || source.Parameters["count"] != 3.0 || source.Version != 2 {
+		t.Fatalf("valid invocation: %+v %s %v", source, request, err)
+	}
+	for _, raw := range []string{`null`, `{}`, `{"parameters":{"topic":"x","count":null}}`, `{"parameters":{"topic":"x","count":"3"}}`, `{"parameters":{"topic":"x","count":1.2}}`, `{"parameters":{"topic":"x","count":6}}`, `{"parameters":{"topic":"x","format":"pdf"}}`, `{"parameters":{"topic":"x","unknown":true}}`, `{"parameters":{"topic":"x","verbose":1}}`, `{"parameters":{"topic":"x","links":[1]}}`, `{"parameters":{"topic":"x","topic":"y"}}`, `{"parameters":{"topic":"x"},"extra":true}`, `{"parameters":{"topic":"x"}} {}`} {
+		if _, _, err = parameterInvocation(workflow, raw); err == nil {
+			t.Errorf("accepted %s", raw)
+		}
+	}
+	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{"template": workflow}}
+	workflow.OwnerUserID = "owner"
+	repository.items[workflow.ID] = workflow
+	service := NewService(repository, nil)
+	if _, err = service.ValidateWorkflowSource(t.Context(), "other", *source); err == nil {
+		t.Fatal("cross-owner template")
+	}
+	source.Version = 1
+	if _, err = service.ValidateWorkflowSource(t.Context(), "owner", *source); err == nil {
+		t.Fatal("stale template version")
+	}
+	expanded, err := service.ExpandRuntimePrompt(t.Context(), "owner", `/report {"parameters":{"topic":"test"}}`)
+	if err != nil || !strings.Contains(expanded, `"version":2`) || !strings.Contains(expanded, `"count":3`) {
+		t.Fatalf("expansion: %s %v", expanded, err)
+	}
+}
+
+func TestIntegerParameterRejectsEmptyRange(t *testing.T) {
+	minimum, maximum := 1.2, 1.3
+	if err := validateParameters([]protocol.WorkGraphParameter{{Name: "count", Type: "integer", Minimum: &minimum, Maximum: &maximum}}); err == nil {
+		t.Fatal("integer parameter accepted an interval with no valid value")
 	}
 }
