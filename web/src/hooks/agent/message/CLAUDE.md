@@ -4,7 +4,7 @@
 - `message-collection-model.ts` 负责消息唯一性、集合 upsert、时间排序和历史快照合并。
 - `message-window-model.ts` 把驻留消息约束为一段连续 round 窗口加实时/固定尾部：按 round 数与估算字节预算从指定一端整轮淘汰，并输出窗口与最新内容之间唯一的 `gapAfterRoundId`。
 - `stream-message-reducer.ts` 分离流式元数据投影和索引内容块更新，只把单条事件归约到消息集合；仅新建 live placeholder 可为首次出现的 text/thinking 写入本地首帧标记，历史/恢复消息不得补标；完整 message 快照提交前由 transport 同步 flush 已排队 stream event，终态快照进入集合后旧 event 也不得再改写其内容或 metadata。
-- `use-agent-message-collection.ts` 是消息集合的 React 状态边界，所有写入统一执行 `message_id` 去重。
+- `use-agent-message-collection.ts` 是消息集合的 React 状态边界，所有写入统一执行 `message_id` 去重。`windowRef` 是窗口唯一真相并在写入时同步前进，React state 只驱动渲染；历史游标同步提交，窗口若等 render 才前进，渲染前的边界检查会拿新游标配旧头部重复请求同一页。
 - 内容块身份通过类型解析表定义；新增 `ContentBlock` 类型时必须显式声明身份规则。
 - 图片身份来源通过有序解析表声明；表中顺序就是跨快照合并优先级，不允许在合并函数内追加字段短路链。
 - 历史、实时快照、流式 patch 和本地 optimistic 消息最终都必须满足 `message_id` 唯一。

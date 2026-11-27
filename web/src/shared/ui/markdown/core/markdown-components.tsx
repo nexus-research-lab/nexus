@@ -1,171 +1,56 @@
 /**
- * INPUT: Markdown AST 节点、受控 Workspace 解析命令与可选链接渲染槽。
- * OUTPUT: 通用 Markdown 元素、文件交互与消费侧注入的链接视图。
+ * INPUT: Markdown AST 节点、Mermaid 展示选项；能力相关元素经 Context 读取受控 Workspace 能力与链接渲染槽。
+ * OUTPUT: 按静态选项缓存、身份恒定的通用 Markdown 组件表。
  * POS: 共享 Markdown 渲染注册表；领域 URI 和业务状态由消费侧解释。
  */
 "use client";
 
-import { UiTooltip } from "@/shared/ui/overlay/tooltip";
-import type { ReactNode } from "react";
 import { type Components } from "react-markdown";
 
-import { WorkspaceFileButton } from "../workspace/markdown-workspace-file-button";
-import {
-  resolveWorkspaceArtifactPath,
-  resolveWorkspaceImagePath,
-  type ResolveWorkspaceFilePath,
-} from "../workspace/markdown-workspace-artifact-model";
-import {
-  buildMarkdownLinkPresentation,
-} from "./markdown-link-model";
-import {
-  buildMarkdownCodePresentation,
-  type MarkdownCodeNode,
-} from "./markdown-code-model";
-import { StreamingAwareCodeBlock, StreamingAwareMermaid } from "./markdown-streaming-code";
+import { MarkdownCode, MarkdownImage, MarkdownLink } from "./markdown-capability-elements";
 
 interface CreateMarkdownComponentsOptions {
   compactMermaid?: boolean;
   showMermaidHeader?: boolean;
-  // 返回 null/undefined 时继续通用安全链接渲染；领域协议放行由消费侧 URL transform 决定。
-  renderLink?: (href: string, children: ReactNode) => ReactNode | null;
-  getFilePreviewUrl?: (path: string) => string;
 }
 
-interface MarkdownLinkProps {
-  children: ReactNode;
-  href?: string;
-  onOpenWorkspaceFile?: (path: string) => void;
-  resolveFilePath: ResolveWorkspaceFilePath;
-  renderLink?: CreateMarkdownComponentsOptions["renderLink"];
-}
-
-type OpenWorkspaceFile = NonNullable<
-  MarkdownLinkProps["onOpenWorkspaceFile"]
->;
-
-function requireWorkspaceFileCommand(
-  command: MarkdownLinkProps["onOpenWorkspaceFile"],
-): OpenWorkspaceFile {
-  if (!command) {
-    throw new Error("工作区链接缺少文件打开命令");
-  }
-  return command;
-}
-
-function assertNever(value: never): never {
-  throw new Error(`未处理的 Markdown 链接状态: ${String(value)}`);
-}
-
-function renderMarkdownLink({
-  children,
-  href,
-  onOpenWorkspaceFile,
-  resolveFilePath,
-  renderLink,
-}: MarkdownLinkProps): ReactNode {
-  const rawHref = String(href ?? "").trim();
-  const customLink = renderLink?.(rawHref, children);
-  if (customLink != null) {
-    return customLink;
-  }
-  const workspacePath = onOpenWorkspaceFile
-    ? resolveWorkspaceArtifactPath(rawHref, resolveFilePath)
-    : null;
-  const presentation = buildMarkdownLinkPresentation(
-    href,
-    children,
-    workspacePath,
-  );
-
-  switch (presentation.kind) {
-    case "text":
-      return <span className="text-primary">{children}</span>;
-    case "workspace":
-      return (
-        <WorkspaceFileButton
-          label={children}
-          onOpenWorkspaceFile={requireWorkspaceFileCommand(onOpenWorkspaceFile)}
-          path={presentation.path}
-        />
-      );
-    case "anchor":
-      return (
-        <a
-          className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
-          href={presentation.href}
-        >
-          {children}
-        </a>
-      );
-    case "external":
-      return (
-        <>
-          <UiTooltip label={presentation.href}><a
-            className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
-            href={presentation.href}
-            rel="noopener noreferrer"
-            target={presentation.openInNewTab ? "_blank" : undefined}
-
-          >
-            {presentation.compactLabel ?? children}
-          </a></UiTooltip>
-          {presentation.trailingText}
-        </>
-      );
-  }
-  return assertNever(presentation);
-}
+// react-markdown 把组件表里的函数当作元素类型：表身份一变，整段正文卸载重建，
+// 重建期间的高度塌陷会让滚动容器夹紧 scrollTop。表只由静态选项决定并按选项缓存，
+// 文件解析、预览和打开命令经 MarkdownCapabilitiesProvider 在渲染时读取。
+const MARKDOWN_COMPONENTS_CACHE = new Map<string, Components>();
 
 export function createMarkdownComponents(
-  resolveFilePath: ResolveWorkspaceFilePath,
-  onOpenWorkspaceFile?: (path: string) => void,
   options: CreateMarkdownComponentsOptions = {},
+): Components {
+  const compactMermaid = options.compactMermaid ?? true;
+  const cacheKey = `${compactMermaid}:${String(options.showMermaidHeader)}`;
+  const cached = MARKDOWN_COMPONENTS_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const components = buildMarkdownComponents(compactMermaid, options.showMermaidHeader);
+  MARKDOWN_COMPONENTS_CACHE.set(cacheKey, components);
+  return components;
+}
+
+function buildMarkdownComponents(
+  compactMermaid: boolean,
+  showMermaidHeader: boolean | undefined,
 ): Components {
   return {
     pre({ children }) {
       return <div className="w-full min-w-0 max-w-full overflow-hidden">{children}</div>;
     },
     code({ children, className, node }) {
-      const presentation = buildMarkdownCodePresentation(
-        node as MarkdownCodeNode | undefined,
-        className,
-        children,
-      );
-      if (presentation.kind === "mermaid") {
-        return (
-          <StreamingAwareMermaid
-            chart={presentation.value}
-            compact={options.compactMermaid ?? true}
-            showHeader={options.showMermaidHeader}
-          />
-        );
-      }
-      if (presentation.kind === "block") {
-        return (
-          <StreamingAwareCodeBlock
-            language={presentation.language}
-            value={presentation.value}
-          />
-        );
-      }
-
-      const resolvedPath = resolveWorkspaceArtifactPath(
-        presentation.value,
-        resolveFilePath,
-      );
-      if (resolvedPath && onOpenWorkspaceFile) {
-        return (
-          <WorkspaceFileButton
-            label={presentation.value}
-            path={resolvedPath}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-          />
-        );
-      }
-
       return (
-        <code className="content-inline-code message-code-font">{presentation.value}</code>
+        <MarkdownCode
+          className={className}
+          compactMermaid={compactMermaid}
+          node={node}
+          showMermaidHeader={showMermaidHeader}
+        >
+          {children}
+        </MarkdownCode>
       );
     },
     p({ children }) {
@@ -199,46 +84,10 @@ export function createMarkdownComponents(
       );
     },
     a({ href, children }) {
-      return renderMarkdownLink({
-        children,
-        href,
-        onOpenWorkspaceFile,
-        resolveFilePath,
-        renderLink: options.renderLink,
-      });
+      return <MarkdownLink href={href}>{children}</MarkdownLink>;
     },
     img({ alt, src }) {
-      const rawSrc = String(src || "").trim();
-      const resolvedPath = resolveWorkspaceImagePath(rawSrc, resolveFilePath);
-      const imageSrc = resolvedPath && options.getFilePreviewUrl
-        ? options.getFilePreviewUrl(resolvedPath)
-        : rawSrc;
-      const interactive = Boolean(resolvedPath && onOpenWorkspaceFile);
-      const image = (
-        <img
-          alt={alt || ""}
-          className={interactive
-            ? "content-media block h-full w-full object-contain"
-            : "content-media content-media-frame block object-contain"}
-          loading="lazy"
-          src={imageSrc}
-        />
-      );
-
-      if (resolvedPath && onOpenWorkspaceFile) {
-        return (
-          <UiTooltip label={resolvedPath}><button
-            className="content-media-action content-media-frame block text-left"
-            onClick={() => onOpenWorkspaceFile(resolvedPath)}
-
-            type="button"
-          >
-            {image}
-          </button></UiTooltip>
-        );
-      }
-
-      return image;
+      return <MarkdownImage alt={alt} src={typeof src === "string" ? src : undefined} />;
     },
     h1({ children }) {
       // Streaming Markdown can change the first parsed block from a paragraph

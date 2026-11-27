@@ -173,7 +173,7 @@ export function RoomPage() {
     currentRoomId: getCurrentRoomId(controller),
     selectedConversationId: conversation.selectedId,
     selectedDraftConversationId,
-    isHydrated: status.isHydrated,
+    isHydrated: status.isRouteReady,
     closeConversation: actions.closeConversation,
     createConversation: actions.createConversation,
     deleteConversation: actions.deleteConversation,

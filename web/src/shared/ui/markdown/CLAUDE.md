@@ -5,6 +5,7 @@
 - `markdown-content.tsx` 是静态、流式、正文和摘要的公共入口。
 - `summary` 使用语法树公式标记且跳过 KaTeX，调用方通过 `summaryMathLabel` 注入当前语言（未注入时为 `[Formula]`）；该入口不读取语言或业务 Store。正文与摘要共享识别规则，但摘要不继承正文公式视口。
 - 文件索引、预览 URL 和打开动作仅通过 `resolveFilePath`、`getFilePreviewUrl` 与单路径 `onOpenWorkspaceFile` 注入；共享入口没有当前 Agent、Session、owner 或 Store 订阅。消费侧必须在能力闭包中固定资源作用域。
+- 组件表身份只由静态展示选项决定并按选项缓存；文件能力与 `renderLink` 经 `core/markdown-capabilities-context.ts` 的 Provider 在渲染时读取。react-markdown 把组件函数当作元素类型，能力闭包一旦进入组件表，任一父级回调身份变化都会卸载重建整段正文，重建期间的高度塌陷会让 WebKit 夹紧会话 scrollTop 并画出跳动帧。
 - `core/` 负责元素语义、链接、插件和 Fence。
 - `streaming/` 负责增量分块与平滑显示。
 - `workspace/` 负责文件路径解析和通用文件链接交互；Agent 工作区资源由 `hooks/agent/use-workspace-markdown.ts` 在业务消费侧读取并绑定。
@@ -20,4 +21,4 @@ Markdown `strong` 统一使用 600 字重；聊天中文正文所用字体只有
 
 会增量追加的段落和引用使用普通换行，禁止 `text-wrap: pretty/balance`；这类算法会随尾部字符到达重新平衡已经展示的行，造成 live 卡片高度反复增减。静态与流式组件保持同一换行契约，terminal 不得再切换排版算法。
 
-Feature 只能通过这里消费通用 Markdown。Conversation 对文件产物、Agent mention/handoff 与 Slash URI 的解释留在自己的适配器中；`createMarkdownComponents` 的 `renderLink` 槽只接收 href/children，返回空值时继续通用安全链接渲染，不得回流领域解释到共享入口。
+Feature 只能通过这里消费通用 Markdown。Conversation 对文件产物、Agent mention/handoff 与 Slash URI 的解释留在自己的适配器中；`MarkdownCapabilities.renderLink` 槽只接收 href/children，返回空值时继续通用安全链接渲染，不得回流领域解释到共享入口。
