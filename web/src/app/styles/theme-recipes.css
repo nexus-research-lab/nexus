@@ -978,7 +978,8 @@
    * mask 再把整层羽化掉，最终与侧栏底面无缝衔接。装饰层压在导航轨与目录内容之下，
    * 搜索框等控件保留自身底面；pointer-events 关闭，不影响拖动与点击。
    */
-  .sidebar-panel-shell {
+  .sidebar-panel-shell,
+  .sidebar-sky-preview {
     --sidebar-sky-height: calc(var(--workspace-header-height, 60px) + 28px);
     --sidebar-sky-top: #2a1a58;
     --sidebar-sky-mid: #1d1b4b;
@@ -991,8 +992,13 @@
     --sidebar-sky-ground: var(--surface-shell-directory-background);
   }
 
+  /* 关闭天空后导航轨顶部不再需要羽化露出，计算结果为负值即整段实色。 */
+  .sidebar-panel-shell[data-sidebar-sky="off"] {
+    --sidebar-sky-height: 0px;
+  }
+
   /* 变体只替换底色、光晕和主角图层的颜色；深色与雨天主题统一压暗插画，渐隐底色仍跟随主题。 */
-  .sidebar-panel-sky[data-sky-variant="dawn"] {
+  :is(.sidebar-panel-sky, .sidebar-sky-preview)[data-sky-variant="dawn"] {
     --sidebar-sky-top: #2a2466;
     --sidebar-sky-mid: #7e4c9c;
     --sidebar-sky-bottom: #e08a7c;
@@ -1005,7 +1011,7 @@
   }
 
   /* 白天：偏深的晴空蓝保证品牌栏浅色文字仍清晰，右上角暖白日光，云朵改为白色。 */
-  .sidebar-panel-sky[data-sky-variant="day"] {
+  :is(.sidebar-panel-sky, .sidebar-sky-preview)[data-sky-variant="day"] {
     --sidebar-sky-top: #2f6fdc;
     --sidebar-sky-mid: #4b8eea;
     --sidebar-sky-bottom: #86bdf4;
@@ -1015,6 +1021,23 @@
     --sidebar-sky-cloud-a: #ffffff;
     --sidebar-sky-cloud-b: #f2f8ff;
     --sidebar-sky-cloud-c: #fdfcff;
+  }
+
+  /* 外观设置里的缩略预览复用同一插画与配色；底部只做轻度洗白，让小图仍能看清主角图层。 */
+  .sidebar-sky-preview {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sidebar-sky-preview::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      transparent 55%,
+      color-mix(in srgb, var(--sidebar-sky-ground) 45%, transparent) 100%
+    );
+    content: "";
   }
 
   :root[data-theme="dark"] .sidebar-panel-sky-art,
@@ -1106,8 +1129,8 @@
     to { opacity: 1; }
   }
 
-  /* 品牌栏坐在夜空上：去掉自身底面与分隔线，文字与图标切到夜色上的浅色。 */
-  .sidebar-panel-shell .sidebar-panel-header {
+  /* 品牌栏坐在天空上：去掉自身底面与分隔线，文字与图标切到天色上的浅色；外观设置关闭天空时整组覆盖失效。 */
+  .sidebar-panel-shell:not([data-sidebar-sky="off"]) .sidebar-panel-header {
     --text-strong: #f5f4ff;
     --icon-strong: #f5f4ff;
     --icon-default: rgba(236, 236, 255, 0.86);

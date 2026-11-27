@@ -6,7 +6,7 @@
  */
 import { useId } from "react";
 
-export type SidebarSkyVariant = "night" | "meteor" | "dawn" | "day";
+import type { SidebarSkyVariant } from "@/shared/theme/sidebar-sky-preference";
 
 // 视图盒固定 480×96，外层以 xMinYMin slice 铺满任意侧栏宽度。
 const SKY_VIEW_BOX = "0 0 480 96";

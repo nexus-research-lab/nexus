@@ -3,7 +3,7 @@
  * OUTPUT: 当前时段对应的品牌栏天空变体，以及距离下一次切换的毫秒数。
  * POS: 天空变体随时间切换的唯一规则表；纯函数，不读取定时器或 DOM。
  */
-import type { SidebarSkyVariant } from "./view/sidebar-night-sky";
+import type { SidebarSkyVariant } from "@/shared/theme/sidebar-sky-preference";
 
 // 按起始小时升序排列；跨零点的夜间段由最后一项延续到次日首项之前。
 const SKY_SCHEDULE: ReadonlyArray<readonly [startHour: number, variant: SidebarSkyVariant]> = [

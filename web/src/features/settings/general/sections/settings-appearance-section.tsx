@@ -1,17 +1,18 @@
-// INPUT: 主题、语言与本机聊天排版偏好。
+// INPUT: 主题、语言、侧栏天空与本机聊天排版偏好。
 // OUTPUT: 即时预览、范围反馈与恢复默认动作；输入法确认不提前提交数字草稿。
 // POS: General 外观分区纯视图；不持久化服务端 Preferences。
 "use client";
 
 import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
-import { Languages, Palette, RotateCcw } from "lucide-react";
+import { CloudSun, Languages, Palette, RotateCcw } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { CHAT_TYPOGRAPHY_LIMITS, DEFAULT_CHAT_TYPOGRAPHY, useChatTypography } from "@/shared/theme/chat-typography";
+import { DEFAULT_SIDEBAR_SKY_PREFERENCE, useSidebarSkyPreference } from "@/shared/theme/sidebar-sky-preference";
 import { defaultTheme, useTheme } from "@/shared/theme/theme-context";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
@@ -19,10 +20,12 @@ import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { SettingsFontPicker } from "../components/settings-font-picker";
+import { SettingsSidebarSkyPicker } from "../components/settings-sidebar-sky-picker";
 import { LOCALE_OPTIONS, THEME_OPTIONS } from "../model/settings-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
+  SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
@@ -32,10 +35,12 @@ export function SettingsAppearanceSection() {
   const { locale, setLocale, t } = useI18n();
   const { setTheme, theme } = useTheme();
   const { typography, setTypography } = useChatTypography();
+  const skyTitleId = useId();
 
   function resetAppearance() {
     setTheme(defaultTheme());
     setTypography(DEFAULT_CHAT_TYPOGRAPHY);
+    useSidebarSkyPreference.getState().setPreference(DEFAULT_SIDEBAR_SKY_PREFERENCE);
   }
 
   return (
@@ -93,6 +98,25 @@ export function SettingsAppearanceSection() {
               value={locale}
             />
           </div>
+        </div>
+      </div>
+
+      <div className={SETTINGS_CARD_CLASS_NAME}>
+        <div className="space-y-3 px-4 py-3">
+          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+            <div className={SETTINGS_ICON_CLASS_NAME}>
+              <CloudSun className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME} id={skyTitleId}>
+                {t("settings.appearance.sky_title")}
+              </h3>
+              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                {t("settings.appearance.sky_description")}
+              </p>
+            </div>
+          </div>
+          <SettingsSidebarSkyPicker labelledBy={skyTitleId} />
         </div>
       </div>
 

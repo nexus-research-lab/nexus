@@ -19,7 +19,9 @@ import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import { SidebarBrandLink } from "./sidebar-brand-link";
-import { SidebarNightSky, type SidebarSkyVariant } from "./sidebar-night-sky";
+import type { SidebarSkyVariant } from "@/shared/theme/sidebar-sky-preference";
+
+import { SidebarNightSky } from "./sidebar-night-sky";
 import { SidebarPinnedConversations } from "./sidebar-pinned-conversations";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
 import {
@@ -64,7 +66,8 @@ interface SidebarPanelProps {
   rootRef: RefObject<HTMLDivElement | null>;
   settingsNavigation?: ReactNode;
   showSplitEdge: boolean;
-  skyVariant: SidebarSkyVariant;
+  /** null 表示用户在外观设置中关闭了天空，品牌栏回到普通底面。 */
+  skyVariant: SidebarSkyVariant | null;
   tabs: SidebarPrimaryTabItem[];
   utility: SidebarUtilityActionsProps;
 }
@@ -122,6 +125,7 @@ export function SidebarPanel({
           resizeEnabled && resizeHotzoneActive && "cursor-col-resize",
         )}
         data-shell-split-edge={showSplitEdge && !collapsed ? "true" : undefined}
+        data-sidebar-sky={skyVariant ? undefined : "off"}
         data-sidebar-collapsed={collapsed ? "true" : undefined}
         data-sidebar-resizing={
           resizeEnabled && resizing ? "true" : undefined
@@ -136,10 +140,12 @@ export function SidebarPanel({
         ref={resizeEnabled ? rootRef : undefined}
         style={{ width }}
       >
-        {/* 品牌栏背后的夜空装饰层：纯视觉、不拦截指针，由 theme-recipes 配方按主题着色。 */}
-        <div aria-hidden="true" className="sidebar-panel-sky" data-sky-variant={skyVariant}>
-          <SidebarNightSky variant={skyVariant} />
-        </div>
+        {/* 品牌栏背后的天空装饰层：纯视觉、不拦截指针，由 theme-recipes 配方按主题着色；用户关闭时整层不挂载。 */}
+        {skyVariant ? (
+          <div aria-hidden="true" className="sidebar-panel-sky" data-sky-variant={skyVariant}>
+            <SidebarNightSky variant={skyVariant} />
+          </div>
+        ) : null}
         <div
           className={cn(
             "sidebar-panel-header shell-region-header -mr-1.5 flex shrink-0 items-center",
