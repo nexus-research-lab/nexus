@@ -189,29 +189,41 @@ func (s *Service) selectImageTarget(
 	items []providerstore.Entity,
 	allowFallback bool,
 ) (*providerModelTarget, error) {
+	modelsByProvider, err := s.modelsByProvider(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+	return imageTarget(items, modelsByProvider, allowFallback), nil
+}
+
+// imageTarget 优先返回显式默认图片模型；allowFallback 时退回第一个可用图片模型。
+func imageTarget(
+	items []providerstore.Entity,
+	modelsByProvider map[string][]providerstore.ModelEntity,
+	allowFallback bool,
+) *providerModelTarget {
 	var fallback *providerModelTarget
 	for _, item := range items {
 		imageItem, ok := imageRuntimeProvider(item)
 		if !providerHasCredentials(item) || !ok {
 			continue
 		}
-		model, err := s.defaultOrFirstEnabledModelForKind(ctx, item, ProviderKindImageGeneration)
-		if err != nil {
-			return nil, err
-		}
+		model := preferredEnabledModel(modelsByProvider[item.ID], func(model providerstore.ModelEntity) bool {
+			return modelUsableForProviderKind(item, model, ProviderKindImageGeneration)
+		})
 		if model == nil {
 			continue
 		}
 		candidate := &providerModelTarget{provider: imageItem, model: *model}
 		if model.IsDefault {
-			return candidate, nil
+			return candidate
 		}
 		if fallback == nil {
 			fallback = candidate
 		}
 	}
 	if allowFallback {
-		return fallback, nil
+		return fallback
 	}
-	return nil, nil
+	return nil
 }
