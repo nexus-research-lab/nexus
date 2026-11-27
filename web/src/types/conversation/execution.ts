@@ -1,6 +1,6 @@
 /**
  * INPUT: internal/protocol/execution_view.go 与 execution_recovery.go 的 JSON 协议。
- * OUTPUT: DM/Room 共用的安全 WorkGraph 展示类型。
+ * OUTPUT: DM/Room 共用的安全 WorkGraph 展示类型；公共图为骨架，节点运行事实见 ExecutionGraphNodeDetailView。
  * POS: Execution 后端投影在 Web 端的跨会话协议镜像。
  */
 
@@ -165,6 +165,13 @@ export interface ExecutionGraphNodeView {
   finished_at?: string;
   runs?: ExecutionGraphNodeRunView[];
   position: number;
+}
+
+/** 节点检查器按需读取的完整运行事实；公共图读取只返回去掉这些字段的骨架。 */
+export interface ExecutionGraphNodeDetailView {
+  execution_id: string;
+  node: ExecutionGraphNodeView;
+  children?: ExecutionGraphNodeView[];
 }
 
 export interface ExecutionGraphEdgeView {

@@ -1,5 +1,5 @@
 // INPUT: 已认证 owner、session_key/exact Execution/草图确认与命名工作图查询参数。
-// OUTPUT: 当前/历史安全 WorkGraph、durable Draft/版本编辑、确认后的直接事务保存、命名目录读取/删除及 Apply 结构化失败。
+// OUTPUT: 当前/历史安全 WorkGraph 骨架、单节点运行详情、durable Draft/版本编辑、确认后的直接事务保存、命名目录读取/删除及 Apply 结构化失败。
 // POS: Web/桌面端 WorkGraph 管理 HTTP 边界；确认表单只可修改元信息，图结构来自服务端 Draft。
 package execution
 
@@ -19,9 +19,11 @@ import (
 	workgraphworkflowsvc "github.com/nexus-research-lab/nexus/internal/service/workgraphworkflow"
 )
 
+// executionViewer 是公共图读取面：图只返回骨架，节点运行事实按节点读取。
 type executionViewer interface {
-	GetLatestView(context.Context, string, string) (*protocol.ExecutionView, error)
-	GetView(context.Context, string, string, string) (*protocol.ExecutionView, error)
+	GetLatestSkeletonView(context.Context, string, string) (*protocol.ExecutionView, error)
+	GetSkeletonView(context.Context, string, string, string) (*protocol.ExecutionView, error)
+	GetGraphNodeDetail(context.Context, string, string, string, string) (*protocol.ExecutionGraphNodeDetailView, error)
 }
 
 type executionHistoryViewer interface {
@@ -480,7 +482,7 @@ func (h *Handlers) writeExecutionError(
 	h.api.WriteFailure(writer, http.StatusInternalServerError, fallback)
 }
 
-// HandleGetLatestExecution 返回 session 当前或最近一次 managed WorkGraph。
+// HandleGetLatestExecution 返回 session 当前或最近一次 managed WorkGraph 骨架。
 func (h *Handlers) HandleGetLatestExecution(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -494,7 +496,7 @@ func (h *Handlers) HandleGetLatestExecution(
 		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "Execution 服务不可用")
 		return
 	}
-	view, err := h.executions.GetLatestView(
+	view, err := h.executions.GetLatestSkeletonView(
 		request.Context(),
 		authsvc.OwnerUserID(request.Context()),
 		sessionKey,
@@ -511,7 +513,42 @@ func (h *Handlers) HandleGetLatestExecution(
 	h.api.WriteSuccess(writer, view)
 }
 
-// HandleGetExecution 按 exact owner/session/execution 读取来源 WorkGraph，供草图对照使用。
+// HandleGetExecutionGraphNode 读取一个节点的完整运行事实与直接子节点，供检查器按需展开。
+func (h *Handlers) HandleGetExecutionGraphNode(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
+	executionID := strings.TrimSpace(chi.URLParam(request, "execution_id"))
+	// node_id 放在 query：runtime 节点 ID 由多段 identity 拼成，不保证是安全路径段。
+	nodeID := strings.TrimSpace(request.URL.Query().Get("node_id"))
+	if sessionKey == "" || executionID == "" || nodeID == "" {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, "session_key、execution_id 和 node_id 不能为空")
+		return
+	}
+	if h.executions == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "Execution 服务不可用")
+		return
+	}
+	detail, err := h.executions.GetGraphNodeDetail(
+		request.Context(),
+		authsvc.OwnerUserID(request.Context()),
+		sessionKey,
+		executionID,
+		nodeID,
+	)
+	if err != nil {
+		h.writeExecutionError(writer, err, "WorkGraph 节点读取失败")
+		return
+	}
+	if detail == nil {
+		h.api.WriteFailure(writer, http.StatusNotFound, "WorkGraph 节点不存在")
+		return
+	}
+	h.api.WriteSuccess(writer, detail)
+}
+
+// HandleGetExecution 按 exact owner/session/execution 读取历史 WorkGraph 骨架。
 func (h *Handlers) HandleGetExecution(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -526,7 +563,7 @@ func (h *Handlers) HandleGetExecution(
 		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "Execution 服务不可用")
 		return
 	}
-	view, err := h.executions.GetView(
+	view, err := h.executions.GetSkeletonView(
 		request.Context(),
 		authsvc.OwnerUserID(request.Context()),
 		sessionKey,

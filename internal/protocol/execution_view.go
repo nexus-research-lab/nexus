@@ -1,5 +1,5 @@
 // INPUT: ExecutionSnapshot 中当前 active Plan、责任状态与 WorkAttempt 运行身份。
-// OUTPUT: 面向 Web/桌面端的安全 WorkGraph、Agent/Subagent 分层运行图、NodeRun 历史、Artifact 引用与可发起恢复标记；不暴露 command、lease 或 runtime capability identity。
+// OUTPUT: 面向 Web/桌面端的安全 WorkGraph（公共读取为骨架，节点详情按需读取）、Agent/Subagent 分层运行图、NodeRun 历史、Artifact 引用与可发起恢复标记；不暴露 command、lease 或 runtime capability identity。
 // POS: Execution Orchestration 状态机与 DM/Room Execution Graph UI 之间的跨边界展示协议。
 package protocol
 
@@ -191,6 +191,15 @@ type ExecutionGraphView struct {
 	RuntimeEdgeTotal      int                      `json:"runtime_edge_total"`
 	RuntimeNodesTruncated bool                     `json:"runtime_nodes_truncated"`
 	RuntimeEdgesTruncated bool                     `json:"runtime_edges_truncated"`
+}
+
+// ExecutionGraphNodeDetailView 是节点检查器按需读取的完整运行事实：节点自身的
+// 结果/错误摘要、NodeRun 历史与 Artifact，以及挂在它下面的全部子节点（含 detail
+// 历史）。公共图读取只返回骨架，这些随运行时长增长的内容只在打开节点时读取。
+type ExecutionGraphNodeDetailView struct {
+	ExecutionID string                   `json:"execution_id"`
+	Node        ExecutionGraphNodeView   `json:"node"`
+	Children    []ExecutionGraphNodeView `json:"children,omitempty"`
 }
 
 // ExecutionSubmissionView 展示当前 spec 最近一次不可变交付声明。

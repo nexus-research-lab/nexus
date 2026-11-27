@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph 与用户本地的折叠、搜索、平移、缩放及焦点意图。
- * OUTPUT: 可隐藏节点、祖先路径、完整上下游聚焦路径、子图整体及其直接边界关系聚焦、全文检索结果、有界 viewport 比例、首次居中锚点、对称平移留白、焦点稳定的缩放滚动位置与有界详情浮层位置。
+ * OUTPUT: 可隐藏节点、祖先路径、完整上下游聚焦路径、子图整体及其直接边界关系聚焦、结构字段检索结果（运行摘要只在节点详情中读取，不参与检索）、有界 viewport 比例、首次居中锚点、对称平移留白、焦点稳定的缩放滚动位置与有界详情浮层位置。
  * POS: WorkGraph 画布的纯交互模型；不改变后端拓扑、节点状态或 Agent 路线。
  */
 import type {
@@ -473,9 +473,7 @@ function executionGraphNodeSearchFields(
     node.agent_id ?? "",
     node.subject_id ?? "",
     node.lifecycle_status ?? "",
-    node.result_summary ?? "",
     node.error_code ?? "",
-    node.error_summary ?? "",
     item?.subject ?? "",
     item?.objective ?? "",
     item?.deliverable ?? "",
@@ -485,21 +483,6 @@ function executionGraphNodeSearchFields(
     ...(item?.submission?.result_refs ?? []),
     ...(item?.submission?.evidence ?? []),
   ];
-  for (const run of node.runs ?? []) {
-    values.push(
-      run.id,
-      run.status ?? "",
-      run.result_summary ?? "",
-      run.error_code ?? "",
-      run.error_summary ?? "",
-      ...(run.artifacts ?? []).flatMap((artifact) => [
-        artifact.path,
-        artifact.display_path ?? "",
-        artifact.title ?? "",
-        artifact.label ?? "",
-      ]),
-    );
-  }
   for (const criterion of item?.acceptance?.criteria_results ?? []) {
     values.push(criterion.criterion, criterion.note ?? "", ...(criterion.evidence ?? []));
   }

@@ -244,6 +244,11 @@ Subagent 子树遵守同一规则，并可额外保留少量 direct supporting T
 
 - managed 条件见 §2；planless Execution、runtime-only round 和 Goal-only continuation 不能让该接口返回非空。
 - 接口只接受已认证 owner scope 内的 `session_key`，返回 `ExecutionView` 的安全投影；没有写入、重试、路由或状态推进能力。
+- 返回的是**骨架**：不含 `visibility=detail` 的历史节点，所有节点去掉 `runs`、`result_summary`、`error_summary` 与 `summary_truncated`，只保留两端都在骨架内的边；Work Item、结构字段、状态、`error_code`、恢复/重试能力以及 `runtime_*_total`/`runtime_*_truncated` 与完整投影一致。骨架体积由 §4.5 的主图窗口约束，不随 NodeRun 历史增长。exact `GET /executions/{execution_id}` 返回同样的骨架。
+- 节点运行事实由 `GET /executions/{execution_id}/graph-node?session_key=&node_id=` 按需读取：返回 `{execution_id, node, children}`，`node` 是该节点完整视图（摘要、NodeRun 与 Artifact），`children` 是 `parent_node_id` 指向它的全部节点（含 detail）。owner/session 不匹配返回参数错误，节点不存在返回 404。
+- 骨架与节点详情派生自同一份服务端投影缓存：每个 Execution 在两次 `execution_invalidated` 之间只计算一次，并发读取共享同一次计算；`history_pending` 与读取失败不缓存。未绑定 Execution identity 但属于同一 root round 的 runtime 写入只失效缓存、不广播。
+- 三条图读取路由对 `application/json` 响应启用 gzip。
+- `execution_invalidated` 在 WebSocket adapter 中按 owner/session 合并：窗口空闲时立即投递，窗口（1s）内只保留最新一条并在窗口末尾补发；bind/rebind fence 不经合并。
 
 ### 7.2 历史读取与命名工作图
 
@@ -327,6 +332,8 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 - Composer Agent Dock 只在当前 managed WorkGraph 非终态活动时显示。
 - runtime-only graph 不能填充 Surface、替换已保留的 managed 图或触发 Composer Dock。
 - 资源读取失败时可以保留最后一次成功快照，但必须显式标记 stale 与最后成功时间。
+- 最新图资源同一 session 同时至多一个读取；在途期间的失效只补读一次，页面隐藏期间的失效推迟到重新可见时读取一次。
+- 节点与边检查器打开时才读取 graph-node 详情，骨架刷新时重读当前打开的节点；加载中不得把缺失摘要显示为“未提供”。画布搜索只覆盖结构字段（节点名称、描述、负责人、Work Item 目标/交付等），不检索运行摘要与 Artifact。内联预览图（草图/命名图）没有详情读取，检查器直接使用图内字段。
 - 返回 truncated flags 时 Surface 必须显式标记 partial。
 
 ### 7.4 精确节点恢复入口

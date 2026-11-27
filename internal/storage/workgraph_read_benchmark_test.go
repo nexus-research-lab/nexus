@@ -1,5 +1,5 @@
 // INPUT: Deterministic synthetic histories in temporary SQLite/isolated PostgreSQL.
-// OUTPUT: Warm read latency, Go allocations, returned facts/JSON size and full/window projection parity.
+// OUTPUT: Warm read latency, Go allocations, returned facts/JSON size, full/window projection parity and public skeleton/node-detail reads.
 // POS: WorkGraph read-path benchmarks and cross-driver regression; excludes providers and installed state.
 package storage_test
 
@@ -74,6 +74,125 @@ func BenchmarkWorkGraphRuntimeRead(b *testing.B) {
 				})
 			}
 		})
+	}
+}
+
+// BenchmarkWorkGraphPublicRead 度量 HTTP 读取面：cold 是失效后的首次投影，warm 是
+// 同一失效窗口内的重复读取（多页面/多次刷新共享缓存）。json-B/op 是骨架体积，
+// full-json-B/op 是改造前 latest 返回的完整投影体积。
+func BenchmarkWorkGraphPublicRead(b *testing.B) {
+	for _, profile := range []string{"detail", "mixed"} {
+		b.Run(profile, func(b *testing.B) {
+			for _, size := range []int{1000, 10000} {
+				b.Run(fmt.Sprint(size), func(b *testing.B) {
+					cfg := integrationDatabase(b, "sqlite")
+					migrateIntegrationDatabase(b, cfg, 0)
+					db := openIntegrationDatabase(b, cfg)
+					repo := orchestrationrepo.NewSQLRepository("sqlite", db)
+					e := seedWorkGraphReadHistory(b, db, repo, "sqlite", profile, size)
+					full, err := orchestrationservice.NewService(repo).GetView(b.Context(), e.OwnerUserID, e.SessionKey, e.ID)
+					if err != nil || full == nil {
+						b.Fatal(full, err)
+					}
+					fullJSON, _ := json.Marshal(full)
+					for _, mode := range []string{"cold", "warm"} {
+						b.Run(mode, func(b *testing.B) {
+							shared := orchestrationservice.NewService(repo)
+							read := func(svc *orchestrationservice.Service) *protocol.ExecutionView {
+								view, err := svc.GetLatestSkeletonView(b.Context(), e.OwnerUserID, e.SessionKey)
+								if err != nil || view == nil {
+									b.Fatal(view, err)
+								}
+								return view
+							}
+							encoded, _ := json.Marshal(read(shared))
+							b.ReportAllocs()
+							b.ResetTimer()
+							for range b.N {
+								svc := shared
+								if mode == "cold" {
+									svc = orchestrationservice.NewService(repo)
+								}
+								if _, err := json.Marshal(read(svc)); err != nil {
+									b.Fatal(err)
+								}
+							}
+							b.StopTimer()
+							b.ReportMetric(float64(len(encoded)), "json-B/op")
+							b.ReportMetric(float64(len(fullJSON)), "full-json-B/op")
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestWorkGraphPublicReadReturnsSkeletonAndNodeDetail(t *testing.T) {
+	cfg := integrationDatabase(t, "sqlite")
+	migrateIntegrationDatabase(t, cfg, 0)
+	db := openIntegrationDatabase(t, cfg)
+	repo := orchestrationrepo.NewSQLRepository("sqlite", db)
+	e := seedWorkGraphReadHistory(t, db, repo, "sqlite", "mixed", 1000)
+	svc := orchestrationservice.NewService(repo)
+	full, err := svc.GetView(t.Context(), e.OwnerUserID, e.SessionKey, e.ID)
+	if err != nil || full == nil {
+		t.Fatal(full, err)
+	}
+	skeleton, err := svc.GetLatestSkeletonView(t.Context(), e.OwnerUserID, e.SessionKey)
+	if err != nil || skeleton == nil {
+		t.Fatal(skeleton, err)
+	}
+	fullJSON, _ := json.Marshal(full)
+	skeletonJSON, _ := json.Marshal(skeleton)
+	// 骨架体积不随 NodeRun 历史与摘要增长；固定夹具上应远小于完整投影。
+	if len(skeletonJSON)*3 > len(fullJSON) {
+		t.Fatalf("skeleton bytes = %d, full bytes = %d", len(skeletonJSON), len(fullJSON))
+	}
+	visible := make(map[string]bool, len(skeleton.Graph.Nodes))
+	for _, node := range skeleton.Graph.Nodes {
+		if node.Visibility == protocol.ExecutionGraphNodeDetail || len(node.Runs) > 0 || node.ResultSummary != "" || node.ErrorSummary != "" {
+			t.Fatalf("skeleton leaked run facts: %+v", node)
+		}
+		visible[node.ID] = true
+	}
+	for _, edge := range skeleton.Graph.Edges {
+		if !visible[edge.SourceNodeID] || !visible[edge.TargetNodeID] {
+			t.Fatalf("skeleton edge references a dropped node: %+v", edge)
+		}
+	}
+	if skeleton.Graph.RuntimeNodeTotal != full.Graph.RuntimeNodeTotal || len(skeleton.WorkItems) != len(full.WorkItems) {
+		t.Fatalf("skeleton totals/work items diverged from full projection")
+	}
+
+	parentID, detailChildren := "", 0
+	for _, node := range full.Graph.Nodes {
+		if node.Visibility == protocol.ExecutionGraphNodeDetail && node.ParentNodeID != "" {
+			parentID = node.ParentNodeID
+			break
+		}
+	}
+	for _, node := range full.Graph.Nodes {
+		if parentID != "" && node.ParentNodeID == parentID {
+			detailChildren++
+		}
+	}
+	if parentID == "" || !visible[parentID] {
+		t.Fatalf("fixture has no visible parent with detail children: %q", parentID)
+	}
+	detail, err := svc.GetGraphNodeDetail(t.Context(), e.OwnerUserID, e.SessionKey, e.ID, parentID)
+	if err != nil || detail == nil {
+		t.Fatal(detail, err)
+	}
+	if detail.Node.ID != parentID || len(detail.Children) != detailChildren {
+		t.Fatalf("node detail = %s with %d children, want %d", detail.Node.ID, len(detail.Children), detailChildren)
+	}
+	if _, err := svc.GetGraphNodeDetail(t.Context(), e.OwnerUserID, "other-session", e.ID, parentID); err == nil {
+		t.Fatal("node detail crossed session scope")
+	}
+	missing, err := svc.GetGraphNodeDetail(t.Context(), e.OwnerUserID, e.SessionKey, e.ID, "missing-node")
+	if err != nil || missing != nil {
+		t.Fatalf("missing node = %+v, %v", missing, err)
 	}
 }
 

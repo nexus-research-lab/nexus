@@ -2,7 +2,9 @@ package websocket
 
 import (
 	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
@@ -68,7 +70,60 @@ func TestHandlerProjectsExecutionInvalidationPayload(t *testing.T) {
 	}
 }
 
+func TestExecutionInvalidationRegistryCoalescesBurstsPerScope(t *testing.T) {
+	registry := newExecutionInvalidationRegistry()
+	registry.window = 40 * time.Millisecond
+	sender := &executionInvalidationTestSender{key: "sender-1"}
+	other := &executionInvalidationTestSender{key: "sender-2"}
+	registry.Bind("owner-a", "session-1", sender)
+	registry.Bind("owner-a", "session-2", other)
+
+	for version := int64(1); version <= 20; version++ {
+		registry.Invalidate(context.Background(), orchestrationsvc.ExecutionInvalidation{
+			OwnerUserID: "owner-a", SessionKey: "session-1", ExecutionID: "execution-1", Version: version,
+		})
+	}
+	registry.Invalidate(context.Background(), orchestrationsvc.ExecutionInvalidation{
+		OwnerUserID: "owner-a", SessionKey: "session-2", ExecutionID: "execution-2",
+	})
+	// 首个失效立即投递，另一个 scope 不受该窗口影响。
+	if got := sender.snapshot(); len(got) != 1 || got[0].Data["version"] != int64(1) {
+		t.Fatalf("leading events = %#v", got)
+	}
+	if got := other.snapshot(); len(got) != 1 {
+		t.Fatalf("independent scope events = %#v", got)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for len(sender.snapshot()) < 2 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	got := sender.snapshot()
+	if len(got) != 2 || got[1].Data["version"] != int64(20) {
+		t.Fatalf("trailing events = %#v, want one carrying the latest version", got)
+	}
+
+	// 空窗口结束后释放 scope，下一次失效重新立即投递。
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		registry.mu.Lock()
+		idle := len(registry.throttles) == 0
+		registry.mu.Unlock()
+		if idle {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	registry.Invalidate(context.Background(), orchestrationsvc.ExecutionInvalidation{
+		OwnerUserID: "owner-a", SessionKey: "session-1", ExecutionID: "execution-1", Version: 21,
+	})
+	if got := sender.snapshot(); len(got) != 3 || got[2].Data["version"] != int64(21) {
+		t.Fatalf("post-idle events = %#v", got)
+	}
+}
+
 type executionInvalidationTestSender struct {
+	mu     sync.Mutex
 	key    string
 	closed bool
 	events []protocol.EventMessage
@@ -80,6 +135,14 @@ func (s *executionInvalidationTestSender) SendEvent(
 	_ context.Context,
 	event protocol.EventMessage,
 ) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.events = append(s.events, event)
 	return nil
+}
+
+func (s *executionInvalidationTestSender) snapshot() []protocol.EventMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]protocol.EventMessage(nil), s.events...)
 }

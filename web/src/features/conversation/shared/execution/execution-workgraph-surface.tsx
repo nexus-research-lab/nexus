@@ -2,7 +2,7 @@ import { ExecutionRetryConfirmation } from "./execution-retry-confirmation";
 /**
  * INPUT: Room/DM 共用 Execution resource、Agent 目录与精确 Agent round Task run。
  * OUTPUT: 以共享标题动作和状态 Badge、唯一历史下拉和明确空态切换已有历史的 WorkGraph 主视图，以及当前有效图共用的恢复动作。
- * POS: 底部节点轨迹之外的完整图入口；只消费同一权威 ExecutionView，不解析 metadata 或另起状态机。
+ * POS: 底部节点轨迹之外的完整图入口；只消费同一权威骨架 ExecutionView，节点运行详情经 exact session/Execution 按需读取，不解析 metadata 或另起状态机。
  */
 "use client";
 
@@ -49,6 +49,7 @@ import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import type { ExecutionResource } from "./use-execution-resource";
 import { useWorkGraphHistoryResource } from "./use-workgraph-history-resource";
 import { useExecutionViewResource } from "./use-execution-view-resource";
+import { useExecutionNodeDetailLoader } from "./use-execution-node-detail";
 import { WorkGraphDistillationDialog } from "./workgraph-distillation-dialog";
 
 type WorkGraphSurfaceMode = "current" | "history";
@@ -117,6 +118,7 @@ export function ExecutionWorkGraphSurface({
       : null,
   );
   const execution = mode === "history" ? historyDetail.execution : currentExecution;
+  const loadNodeDetail = useExecutionNodeDetailLoader(resource.sessionKey, execution?.id);
   const historyError = historyResource.error ?? historyDetail.error;
   const historyLoading = historyResource.isLoading || historyDetail.isLoading;
   const historyStale = Boolean(historyError && historyDetail.execution);
@@ -408,6 +410,7 @@ export function ExecutionWorkGraphSurface({
           directory={directory}
           execution={execution}
           key={execution.id}
+          loadNodeDetail={loadNodeDetail}
           recovery={mode === "current" && !resource.isStale && !resource.error ? recovery : undefined}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           taskRuns={taskRuns}

@@ -1,5 +1,5 @@
 // INPUT: 已提交的 Execution/Runtime Graph mutation 与 owner/session identity。
-// OUTPUT: 仅 managed Execution 的 WorkGraph 失效通知；普通对话运行事实不刷新历史工作图。
+// OUTPUT: 仅 managed Execution 的 WorkGraph 失效通知与服务端投影缓存失效；普通对话运行事实不刷新历史工作图。
 // POS: orchestration 到实时传输层的窄事件 port；服务不依赖 handler 或 WebSocket。
 package orchestration
 
@@ -81,6 +81,7 @@ func (s *Service) invalidateActor(ctx context.Context, actor ActorContext) {
 	// Conversation-only runtime facts do not change the managed WorkGraph.
 	// The command that creates or binds a Plan emits its own snapshot event.
 	if actor.ExecutionID == "" {
+		s.invalidateRootRoundView(actor)
 		return
 	}
 	s.invalidateExecution(ctx, ExecutionInvalidation{
@@ -88,6 +89,19 @@ func (s *Service) invalidateActor(ctx context.Context, actor ActorContext) {
 		SessionKey:  strings.TrimSpace(actor.SessionKey),
 		ExecutionID: strings.TrimSpace(actor.ExecutionID),
 	})
+}
+
+// invalidateRootRoundView 只失效服务端读模型，不向 UI 广播：无 Execution identity
+// 的写入属于普通对话面，但其 root round 可能已被某个 managed Execution 认领。
+func (s *Service) invalidateRootRoundView(actor ActorContext) {
+	if s == nil {
+		return
+	}
+	identity, err := runtimeGraphIdentityFromActor(actor)
+	if err != nil {
+		return
+	}
+	s.viewCache.invalidateRootRound(identity.OwnerUserID, identity.SessionKey, identity.RootRoundID)
 }
 
 func (s *Service) invalidateExecutionID(ctx context.Context, executionID string) {
@@ -108,6 +122,8 @@ func (s *Service) invalidateExecution(
 		invalidation.SessionKey == "" {
 		return
 	}
+	// 先丢读模型再通知：收到事件的读取方一定看到这次提交之后的投影。
+	s.viewCache.invalidate(strings.TrimSpace(invalidation.ExecutionID))
 	s.invalidationMu.RLock()
 	sink := s.invalidationSink
 	s.invalidationMu.RUnlock()

@@ -33,6 +33,8 @@
 //     confirmation receipt/reconciler。
 //   - completion_audit_recovery.go：accepted Review 后的 blocker-aware durable
 //     completion reconciler；不替代模型可见 alignment audit。
+//   - execution_view_cache.go / execution_view_skeleton.go：两次失效之间单次计算、并发共享的完整 WorkGraph 投影缓存
+//     （invalidateExecution 与 root round 失效是唯一失效来源），以及从它派生的公共骨架与单节点详情。
 //   - invalidation.go / result.go：owner/session 只读投影失效 port、宿主消费的
 //     responsibility advancement receipt，以及 final Acceptance 到 Goal completion audit
 //     的跨 domain 稳定 mutation outcome/next-action envelope。
