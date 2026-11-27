@@ -102,7 +102,6 @@ export const zhNavigationMessages = {
   "sidebar.directory_refresh_failed_impact": "显示的聊天目录可能不是最新内容，请刷新。",
   "sidebar.directory_refresh_failed_next_step": "重新加载最新目录；当前仍可查看上次成功加载的内容。",
   "sidebar.retry": "重试",
-  "sidebar.no_contacts": "还没有联系人",
   "sidebar.contacts_empty_description": "联系人是你的 Agent 目录，添加后可以从聊天列表发起 DM 或组进群聊。",
   "sidebar.contact_no_description": "暂无描述",
   "sidebar.guide_nexus_agent": "Nexus：固定在聊天列表顶部的默认助手。",

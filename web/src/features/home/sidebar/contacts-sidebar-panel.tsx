@@ -28,7 +28,9 @@ import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { useSidebarStore } from "@/store/sidebar";
 
+import { isMainAgent } from "@/config/runtime-options";
 import { useSidebarDirectory } from "./sidebar-directory";
+import { SidebarTeammateCard } from "./sidebar-teammate-card";
 import {
   ContactRow,
   SidebarListLoadingRows,
@@ -73,8 +75,11 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     : null;
   const filteredAgents = useMemo(() => {
     const search = createUiSearchMatcher(query);
-    return agents.filter((agent) => search.matches([agent.name]));
+    // 主智能体固定在聊天目录顶部，联系人只列自建 Agent，与联系人页目录一致。
+    return agents.filter((agent) => !isMainAgent(agent.id) && search.matches([agent.name]));
   }, [agents, query]);
+
+  const hasCustomAgents = agents.some((agent) => !isMainAgent(agent.id));
 
   const openContactsDirectory = useCallback(() => {
     setActiveItem(null);
@@ -205,15 +210,23 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
                 onAction={refreshDirectory}
                 title={t("sidebar.directory_load_failed")}
               />
-            ) : (
+            ) : query ? (
               <SidebarEmptyGuide
                 actionLabel={t("sidebar.manage_contacts")}
                 description={t("sidebar.contacts_empty_description")}
                 icon={Users2}
                 onAction={openContactsDirectory}
-                title={query ? t("sidebar.no_matching_contacts") : t("sidebar.no_contacts")}
+                title={t("sidebar.no_matching_contacts")}
               />
-            )}
+            ) : null}
+            {hasLoaded && !query && !hasCustomAgents ? (
+              // 只有主智能体时与聊天侧栏同一张队友引导卡：直接新建 Agent，或进入联系人目录管理。
+              <SidebarTeammateCard
+                onCreateAgent={openAgentCreation}
+                onSecondary={openContactsDirectory}
+                secondaryLabel={t("sidebar.manage_contacts")}
+              />
+            ) : null}
           </>
         )}
       </div>

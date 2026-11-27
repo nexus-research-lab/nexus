@@ -131,7 +131,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
             {controller.list.hasLoaded && !controller.list.query && !controller.directory.hasCustomAgents ? (
               <SidebarTeammateCard
                 onCreateAgent={controller.create.openAgent}
-                onCreateRoom={controller.create.open}
+                onSecondary={controller.create.open}
               />
             ) : null}
           </>
