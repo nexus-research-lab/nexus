@@ -18,7 +18,6 @@ import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { useScrollFade } from "@/shared/lib/react/use-scroll-fade";
 
@@ -107,9 +106,6 @@ function HumanContactsContent({currentUserId, sidebar, afterSearch}: {currentUse
         <MessageCircle aria-hidden="true" className="h-4 w-4" />{t("team.start_direct")}
       </UiButton>
     </div> : selectedId ? (!loading && !failed ? <UiResourceState state="empty" variant="plain" title={t("team.member_unavailable")} /> : null) : <>
-      <div className="mb-3 flex min-h-8 items-center">
-        <span className={getUiTypographyClassName({role: "metadata", tone: "muted"})}>{t("team.member_result_count", {count: visible.length, total: people.length})}</span>
-      </div>
       {!loading && !failed ? <UiPanel padding="none" radius="md" variant="card" className="divide-y divide-(--divider-subtle-color) overflow-hidden">
         {visible.map((person) => <UiListRow key={person.user_id} variant="flush" title={person.display_name || person.username} description={`@${person.username}`}
           leading={<UiAgentAvatar avatar={person.avatar} name={person.display_name || person.username} size="md" />}

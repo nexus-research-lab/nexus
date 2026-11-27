@@ -23,7 +23,7 @@ const ASSISTANT: MessageAssistantSectionProps["assistant"] = {
   hidden: false,
   permissions: { all: [], matchedByToolUseId: new Map(), owner: "composer", unmatched: [] },
   process: { anchorRef: { current: null }, expanded: false, projection: { content: [], streamingIndexes: new Set() },
-    summary: { kind: "details", latestDetail: null, metrics: [] }, toggle: () => undefined, visible: false },
+    summary: { errorCount: 0, kind: "details", latestDetail: null }, toggle: () => undefined, visible: false },
   showMaxTokensWarning: false,
 };
 

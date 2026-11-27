@@ -414,8 +414,6 @@ export const enSettingsMessages = {
   "settings.personal.cache_tokens": "Cache tokens",
   "settings.personal.quota_limit": "Quota limit",
   "settings.personal.quota_unset": "Not set",
-  "settings.personal.session_count": "{count} sessions covered",
-  "settings.personal.message_count": "{count} measured messages",
   "settings.personal.updated_at": "Updated: {value}",
   "settings.personal.password_title": "Change password",
   "settings.personal.password_current": "Current password",

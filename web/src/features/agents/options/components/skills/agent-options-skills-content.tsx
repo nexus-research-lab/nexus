@@ -73,14 +73,7 @@ function EnabledSkillsSection({
   const { t } = useI18n();
   return (
     <section className="space-y-3.5">
-      <SkillsSectionHeader
-        title={t("agent_options.skills.enabled_section")}
-        trailing={(
-          <span className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>
-            {projection.enabled.length}
-          </span>
-        )}
-      />
+      <SkillsSectionHeader title={t("agent_options.skills.enabled_section")} />
       {projection.enabled.length === 0 ? (
         <UiStateBlock
           description={t("agent_options.skills.empty_enabled")}

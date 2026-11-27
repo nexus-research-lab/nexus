@@ -84,7 +84,6 @@ function ProviderModelListHeader({
   hasModelsEndpoint,
   isApiFormatConfigurable,
   isEditing,
-  modelCount,
   onFetchModels,
   onOpenAddModel,
   pendingAction,
@@ -100,7 +99,7 @@ function ProviderModelListHeader({
   | "pendingAction"
   | "selectedCanManage"
   | "selectedRecord"
-> & { modelCount: number }) {
+>) {
   const { t } = useI18n();
   const actionsVisible = isEditing && selectedRecord !== null;
   const actionsDisabled = pendingAction !== null
@@ -108,16 +107,9 @@ function ProviderModelListHeader({
     || !selectedCanManage;
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-      <div className="flex min-w-0 items-baseline gap-2">
-        <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
-          {t("settings.providers.models")}
-        </h3>
-        {selectedRecord ? (
-          <UiBadge shape="pill" size="xs" tone="idle">
-            {modelCount}
-          </UiBadge>
-        ) : null}
-      </div>
+      <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+        {t("settings.providers.models")}
+      </h3>
       {actionsVisible ? (
         <div className="flex items-center gap-2">
           <UiButton
@@ -422,7 +414,6 @@ export function ProviderSettingsModelList({
         hasModelsEndpoint={hasModelsEndpoint}
         isApiFormatConfigurable={isApiFormatConfigurable}
         isEditing={isEditing}
-        modelCount={displayedModels.length}
         onFetchModels={onFetchModels}
         onOpenAddModel={onOpenAddModel}
         pendingAction={pendingAction}

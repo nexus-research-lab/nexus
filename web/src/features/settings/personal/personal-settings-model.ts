@@ -35,9 +35,7 @@ export type TokenUsageMetricKey = "quota" | "input" | "output" | "cache";
 export type TokenUsageValueKey = "input" | "output" | "cache";
 
 export interface TokenUsagePresentation {
-  messageCount: number;
   metrics: Record<TokenUsageMetricKey, string>;
-  sessionCount: number;
   tokenValues: Record<TokenUsageValueKey, number>;
   totalTokens: string;
   updatedAt: string;
@@ -190,14 +188,12 @@ export function buildTokenUsagePresentation(
   const cacheTokens = source.cache_creation_input_tokens
     + source.cache_read_input_tokens;
   return {
-    messageCount: source.message_count,
     metrics: {
       quota: formatQuota(source, translate),
       input: formatTokens(source.input_tokens),
       output: formatTokens(source.output_tokens),
       cache: formatTokens(cacheTokens),
     },
-    sessionCount: source.session_count,
     tokenValues: {
       input: source.input_tokens,
       output: source.output_tokens,

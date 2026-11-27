@@ -187,8 +187,7 @@ export function AgentPrivateDomainView({
         <div className="grid h-full min-h-0 flex-1 grid-cols-[230px_minmax(0,1fr)] items-stretch gap-3 overflow-hidden px-4 pb-4 pt-3 2xl:grid-cols-[250px_minmax(0,1fr)]">
           <UiPanel className="flex h-full min-h-0 flex-col overflow-hidden" padding="none" variant="filled">
             <PrivateDomainToolbar
-              count={threads.length}
-              isLoading={threadsLoading || eventsLoading}
+                isLoading={threadsLoading || eventsLoading}
               onRefresh={handleRefresh}
               refreshLabel={t("agent_options.contact.refresh")}
               title={t("agent_options.contact.preview_title")}
@@ -235,7 +234,6 @@ export function AgentPrivateDomainView({
     <div className="nexus-private-domain-layout grid min-h-0 min-w-0 flex-1 overflow-hidden">
       <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-shell-directory-background)">
         <PrivateDomainToolbar
-          count={threads.length}
           isLoading={threadsLoading || eventsLoading}
           onRefresh={handleRefresh}
           refreshLabel={t("agent_options.contact.refresh")}

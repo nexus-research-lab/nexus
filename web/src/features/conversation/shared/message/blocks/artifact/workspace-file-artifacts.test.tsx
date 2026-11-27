@@ -47,7 +47,7 @@ function routeView(route: string, artifact: WorkspaceFileArtifactContent, worksp
     ];
     return <AssistantMessageContent activity={ACTIVITY} environment={environment} permissions={PERMISSIONS}
       direct={{ visible: route === "tool process" || route === "standalone artifact" || route === "room result", projection: { ...projection, content: route === "standalone artifact" ? [artifact] : content } }}
-      process={{ anchorRef: createRef(), expanded: route === "expanded process", projection, summary: { kind: "details", latestDetail: null, metrics: [] }, toggle: vi.fn(), visible: route === "archived process" || route === "expanded process" }}
+      process={{ anchorRef: createRef(), expanded: route === "expanded process", projection, summary: { errorCount: 0, kind: "details", latestDetail: null }, toggle: vi.fn(), visible: route === "archived process" || route === "expanded process" }}
       final={{ content: "Report complete", visible: true, isStreaming: false, streamingIndexes: new Set(), mentions: [] }}
       showMaxTokensWarning={false} />;
   }
@@ -157,7 +157,7 @@ it("moves Room final artifacts after the complete answer and deduplicates proces
     environment={{ mode: "room_result", canRespondToPermissions: false, hiddenToolNames: [], workspaceAgentId: "author", onOpenWorkspaceFile: open }}
     permissions={PERMISSIONS}
     direct={{ visible: withArtifacts, projection: { content: withArtifacts ? [ARTIFACT] : [], streamingIndexes: new Set() } }}
-    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { kind: "details", latestDetail: null, metrics: [] } }}
+    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { errorCount: 0, kind: "details", latestDetail: null } }}
     final={{ visible: true, isStreaming: false, mentions: [], streamingIndexes: new Set(), content: [
       { type: "text", text: "Report: `reports/result.md`" },
       ...(withArtifacts ? [ARTIFACT] : []),
@@ -183,7 +183,7 @@ it("shows a registered script deliverable from hidden Room process with exact so
   render(localized(<AssistantMessageContent activity={ACTIVITY}
     environment={{ mode: "room_result", canRespondToPermissions: false, hiddenToolNames: [], workspaceAgentId: "author", onOpenWorkspaceFile: open }} permissions={PERMISSIONS}
     direct={{ visible: false, projection: { content: [{ ...ARTIFACT, path: "make_report.py", role: "working_file" }], streamingIndexes: new Set() } }}
-    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [{ ...ARTIFACT, path: "报告.pptx", role: "deliverable", producer_agent_id: "author", workspace_agent_id: "author" }], streamingIndexes: new Set() }, summary: { kind: "details", latestDetail: null, metrics: [] } }}
+    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [{ ...ARTIFACT, path: "报告.pptx", role: "deliverable", producer_agent_id: "author", workspace_agent_id: "author" }], streamingIndexes: new Set() }, summary: { errorCount: 0, kind: "details", latestDetail: null } }}
     final={{ visible: true, isStreaming: false, mentions: [], streamingIndexes: new Set(), content: "文件：`报告.pptx`" }} showMaxTokensWarning={false}
   />));
   expect(screen.queryByText("make_report.py")).toBeNull();
@@ -198,7 +198,7 @@ it("does not turn references into generated files or replace durable delivery wi
   const show = (deliver: boolean) => localized(<AssistantMessageContent activity={ACTIVITY}
     environment={{ mode: "room_result", canRespondToPermissions: false, hiddenToolNames: [], workspaceAgentId: "author" }} permissions={PERMISSIONS}
     direct={{ visible: false, projection: { content: deliver ? [{ ...ARTIFACT, role: "deliverable" }] : [], streamingIndexes: new Set() } }}
-    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { kind: "details", latestDetail: null, metrics: [] } }}
+    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { errorCount: 0, kind: "details", latestDetail: null } }}
     final={{ visible: true, isStreaming: false, mentions: [], streamingIndexes: new Set(), content: "参考了 `reference.md` 和 [资料](reference.md)" }} showMaxTokensWarning={false}
   />);
   const { rerender } = render(show(false));
@@ -215,7 +215,7 @@ it("keeps a declared delivery under its producer rather than a summarizing Room 
   const show = (agent: string) => localized(<AssistantMessageContent activity={ACTIVITY}
     environment={{ mode: "room_result", canRespondToPermissions: false, hiddenToolNames: [], workspaceAgentId: agent, onOpenWorkspaceFile: open }} permissions={PERMISSIONS}
     direct={{ visible: false, projection: { content: [delivery], streamingIndexes: new Set() } }}
-    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { kind: "details", latestDetail: null, metrics: [] } }}
+    process={{ visible: false, expanded: false, anchorRef: createRef(), toggle: vi.fn(), projection: { content: [], streamingIndexes: new Set() }, summary: { errorCount: 0, kind: "details", latestDetail: null } }}
     final={{ visible: true, isStreaming: false, mentions: [], streamingIndexes: new Set(), content: "完成" }} showMaxTokensWarning={false}
   />);
   const { rerender } = render(show("researcher"));

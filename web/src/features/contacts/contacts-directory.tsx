@@ -17,7 +17,6 @@ import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiPanel } from "@/shared/ui/panel";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   WORKSPACE_CATALOG_GRID_CLASS_NAME,
   WORKSPACE_CONTENT_PAGE_CLASS_NAME,
@@ -128,16 +127,7 @@ export function ContactsDirectory({
             title={t("contacts.title")}
           />
           <div className="mb-3 space-y-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={cn(
-                "mr-auto shrink-0",
-                getUiTypographyClassName({ role: "metadata", tone: "muted" }),
-              )}>
-                {t("contacts.result_count", {
-                  count: filteredAgents.length,
-                  total: agents.length,
-                })}
-              </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <UiFilterSelect
                 ariaLabel={t("contacts.filters.tags")}
                 className="w-full sm:w-[232px]"
