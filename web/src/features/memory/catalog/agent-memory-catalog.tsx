@@ -3,12 +3,10 @@
  * OUTPUT: 紧凑记忆目录，以可读摘要为主标题并保留可区分的文档名。
  * POS: Agent 记忆页左栏，不读取正文或解释路径协议。
  */
-import { RefreshCw, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
-import { UiIconButton } from "@/shared/ui/button/button";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -32,10 +30,8 @@ interface AgentMemoryCatalogProps {
   filter: MemoryFilter;
   onFilterChange: (filter: MemoryFilter) => void;
   onQueryChange: (query: string) => void;
-  onRefresh: () => void;
   onSelectDocument: (path: string) => void;
   query: string;
-  refreshing: boolean;
   sections: MemoryCatalogSection[];
   truncated: boolean;
 }
@@ -46,10 +42,8 @@ export function AgentMemoryCatalog({
   filter,
   onFilterChange,
   onQueryChange,
-  onRefresh,
   onSelectDocument,
   query,
-  refreshing,
   sections,
   truncated,
 }: AgentMemoryCatalogProps) {
@@ -63,23 +57,6 @@ export function AgentMemoryCatalog({
     <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 px-3 py-3">
         <UiSearchInput
-          action={(
-            <UiIconButton
-              aria-label={t("capability.refresh")}
-              className="-mr-1 shrink-0"
-              disabled={refreshing}
-              onClick={onRefresh}
-              size="xs"
-              title={t("capability.refresh")}
-              variant="ghost"
-            >
-              <RefreshCw
-                className={refreshing
-                  ? getUiSpinnerClassName({ size: "sm" })
-                  : "h-3.5 w-3.5"}
-              />
-            </UiIconButton>
-          )}
           className="min-w-0 flex-1"
           onChange={onQueryChange}
           placeholder={t("capability.memory_search_placeholder")}

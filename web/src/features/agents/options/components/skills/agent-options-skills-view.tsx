@@ -1,7 +1,6 @@
 // INPUT: Agent Skill 读取/修改可靠性状态与列表交互。
 // OUTPUT: 分离的读取/修改错误面与 Skill 列表；无快照读失败不伪装空目录。
 // POS: Agent Options Skill 展示边界；读取刷新不清理 mutation unknown。
-import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import type { AgentSkillEntry } from "@/types/capability/skill";
@@ -17,12 +16,9 @@ import "./agent-options-skills.css";
 interface AgentOptionsSkillsViewProps {
   agentId: string | null;
   busySkillName: string | null;
-  cancelDisable: () => void;
   commandBusy: boolean;
-  confirmDisable: () => void;
   loading: boolean;
   mutationFailures: AgentSkillMutationFailure[];
-  pendingDisableSkill: AgentSkillEntry | null;
   projection: AgentSkillsProjection;
   readFailure: AgentSkillsReadFailure | null;
   refresh: () => Promise<unknown>;
@@ -85,13 +81,10 @@ function SkillMutationFailures({
 export function AgentOptionsSkillsView({
   agentId,
   busySkillName,
-  cancelDisable,
   commandBusy,
-  confirmDisable,
   blockedSkillNames,
   loading,
   mutationFailures,
-  pendingDisableSkill,
   projection,
   readFailure,
   refresh,
@@ -99,8 +92,6 @@ export function AgentOptionsSkillsView({
   searchQuery,
   setSearchQuery,
 }: AgentOptionsSkillsViewProps) {
-  const { t } = useI18n();
-
   return (
     <div className="agent-options-skills-container space-y-5 animate-in slide-in-from-right-4 duration-(--motion-duration-layout)">
       <SkillsLoadError
@@ -126,18 +117,6 @@ export function AgentOptionsSkillsView({
           setSearchQuery={setSearchQuery}
         />
       ) : null}
-
-      <ConfirmDialog
-        confirmText={t("agent_options.skills.disable_confirm_action")}
-        isOpen={Boolean(pendingDisableSkill)}
-        message={t("agent_options.skills.disable_confirm_message", {
-          name: pendingDisableSkill?.title || pendingDisableSkill?.name || "",
-        })}
-        onCancel={cancelDisable}
-        onConfirm={confirmDisable}
-        title={t("agent_options.skills.disable_confirm_title")}
-        variant="danger"
-      />
     </div>
   );
 }

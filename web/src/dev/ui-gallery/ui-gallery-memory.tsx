@@ -41,8 +41,8 @@ export function MemoryGallery() {
     <div className="nexus-memory-view flex h-[520px] min-w-0 flex-col" data-document-open={open ? "true" : "false"}>
       <div className="nexus-memory-layout min-h-0 min-w-0 flex-1">
         <AgentMemoryCatalog {...projected} filter={filter} onFilterChange={setFilter} onQueryChange={setQuery}
-          onRefresh={() => record("refresh")} onSelectDocument={(path) => { record(path); setOpen(true); }}
-          query={query} refreshing={false} />
+          onSelectDocument={(path) => { record(path); setOpen(true); }}
+          query={query} />
         <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
           <MemoryDocumentHeader controller={{
             cancelEditing: () => setEditing(false), dirty: editing, editing, isReconciling: false, isSaving: false,

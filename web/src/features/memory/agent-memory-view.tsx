@@ -153,10 +153,8 @@ function MemoryContent({
           filter={memory.catalog.filter}
           onFilterChange={memory.catalog.setFilter}
           onQueryChange={memory.catalog.setQuery}
-          onRefresh={() => void memory.resource.refresh()}
           onSelectDocument={memory.document.selectDocument}
           query={memory.catalog.query}
-          refreshing={memory.resource.isLoading}
           sections={memory.catalog.sections}
           truncated={memory.catalog.truncated}
         />

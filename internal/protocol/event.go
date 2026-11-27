@@ -48,6 +48,7 @@ const (
 	EventTypeDirectoryChanged            EventType = "directory_changed"
 	EventTypeScheduledTaskChanged        EventType = "scheduled_task_changed"
 	EventTypeSubagentTaskChanged         EventType = "subagent_task_changed"
+	EventTypeResourceChanged             EventType = "resource_changed"
 	EventTypeRoomMemberAdded             EventType = "room_member_added"
 	EventTypeRoomMemberRemoved           EventType = "room_member_removed"
 	EventTypeRoomMemberParticipation     EventType = "room_member_participation_changed"
@@ -61,6 +62,12 @@ const (
 	EventTypeStreamCancelled             EventType = "stream_cancelled"
 	EventTypeError                       EventType = "error"
 	EventTypePong                        EventType = "pong"
+)
+
+// resource_changed 的资源名；前端按资源名决定重读哪份快照，载荷不携带资源内容。
+const (
+	ResourceChannelControl     = "channel_control"
+	ResourceAgentPrivateDomain = "agent_private_domain"
 )
 
 const (

@@ -60,7 +60,8 @@ describe("Goal status readability and busy actions", () => {
     const pause = screen.getByRole("button", { name: "Pause" });
     expect(pause.getAttribute("aria-busy")).toBe("true");
 
-    expect(screen.getByRole("button", { name: "Refresh" }).getAttribute("aria-busy")).toBeNull();
+    // 常态 Goal 由服务端事件推送更新，不提供手动刷新。
+    expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
     expect(screen.getByText("Active")).toBeTruthy();
     rerender(element("zh"));
     expect(screen.getByText("运行中")).toBeTruthy();

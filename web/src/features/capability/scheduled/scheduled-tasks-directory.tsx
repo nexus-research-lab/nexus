@@ -433,7 +433,6 @@ export function ScheduledTasksDirectory() {
         <CapabilityPageLayout
           actions={(
             <div className="flex items-center gap-2">
-              {/* 列表由实时事件驱动刷新；手动刷新只在读取失败时作为恢复动作出现。 */}
               <UiButton
                 disabled={editorBusy || scopeUnavailable
                   || accessBlocked

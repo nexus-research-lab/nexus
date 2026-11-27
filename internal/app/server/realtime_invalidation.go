@@ -1,5 +1,5 @@
 // INPUT: 已装配的核心/automation/configuration 服务与 websocket broadcaster。
-// OUTPUT: Session、conversation 标题、定时任务、Agent 与 Room 配置变更的实时失效通知绑定。
+// OUTPUT: Session、conversation 标题、定时任务、Channel 控制状态、Agent 私域与 Room 配置变更的实时失效通知绑定。
 // POS: 各服务领域事件到前端实时刷新投影的统一应用装配点。
 package server
 
@@ -42,6 +42,18 @@ func configureRealtimeInvalidation(
 			},
 		))
 		services.Automation.SetPermissionSessionEventNotifier(broadcaster)
+	}
+	if services.ChannelControl != nil {
+		services.ChannelControl.SetControlChangeNotifier(func(ctx context.Context, _ string) {
+			broadcaster.BroadcastResourceChanged(ctx, protocol.ResourceChannelControl, nil)
+		})
+	}
+	if services.RoomRealtime != nil {
+		services.RoomRealtime.SetPrivateDomainNotifier(func(ctx context.Context, agentIDs []string) {
+			broadcaster.BroadcastResourceChanged(ctx, protocol.ResourceAgentPrivateDomain, map[string]any{
+				"agent_ids": agentIDs,
+			})
+		})
 	}
 	if services.Configuration != nil {
 		services.Configuration.SetNotifier(configurationRealtimeNotifier{broadcaster: broadcaster})

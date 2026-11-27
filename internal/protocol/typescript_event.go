@@ -38,6 +38,7 @@ export type EventType =
   | 'directory_changed'
   | 'scheduled_task_changed'
   | 'subagent_task_changed'
+  | 'resource_changed'
   | 'room_member_added'
   | 'room_member_removed'
   | 'room_member_participation_changed'
@@ -53,6 +54,8 @@ export type EventType =
   | 'pong';
 
 export type DeliveryMode = 'durable' | 'ephemeral' | 'transient';
+
+export type ChangedResource = 'channel_control' | 'agent_private_domain';
 
 export type ConversationFailureCode =
   | 'connection_unavailable'

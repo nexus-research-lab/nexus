@@ -39,6 +39,7 @@ type ControlService struct {
 	registrationPollInterval  time.Duration
 	authorizationCommitGuard  ChannelLoginAuthorizationCommitGuard
 	keyErr                    error
+	changeNotifier            ControlChangeNotifier
 }
 
 func NewControlService(

@@ -71,6 +71,8 @@ interface GoalStatusProjectionInput {
   goal: Goal;
   isGenerating: boolean;
   locale: Locale;
+  /** 写命令被锁（结果未知或读取过期）时，刷新是唯一安全的核对动作。 */
+  mutationBlocked?: boolean;
   t: I18nContextValue["t"];
 }
 
@@ -144,7 +146,8 @@ const GOAL_BINDING_BADGE: Record<
 };
 
 const GOAL_ACTION_RULES: GoalActionRule[] = [
-  { action: "refresh", visible: () => true },
+  // Goal 变化由服务端事件推送；刷新只在需要人工核对时出现。
+  { action: "refresh", visible: ({ mutationBlocked }) => mutationBlocked === true },
   { action: "edit", visible: () => true },
   {
     action: "pause",

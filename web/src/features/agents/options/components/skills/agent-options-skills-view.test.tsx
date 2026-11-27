@@ -7,8 +7,8 @@ import { expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { AgentOptionsSkillsView } from "./agent-options-skills-view";
 const base: ComponentProps<typeof AgentOptionsSkillsView> = {
-  agentId: "agent", busySkillName: null, blockedSkillNames: new Set(), cancelDisable: vi.fn(), commandBusy: false,
-  confirmDisable: vi.fn(), loading: false, mutationFailures: [], pendingDisableSkill: null,
+  agentId: "agent", busySkillName: null, blockedSkillNames: new Set(), commandBusy: false,
+  loading: false, mutationFailures: [],
   projection: { available: [], availableEmptyState: "catalog_empty", enabled: [], visibleAvailable: [] },
   readFailure: null, refresh: vi.fn(async () => undefined), requestSkillAction: vi.fn(), searchQuery: "", setSearchQuery: vi.fn(),
 };
