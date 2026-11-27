@@ -890,6 +890,24 @@ func TestRunWorkspaceFilesRemovesRetiredStateEntries(t *testing.T) {
 	assertMigrationPathExists(t, workspaceFileMigrationMarker(appRoot, retiredStateEntriesName))
 }
 
+func TestRunWorkspaceFilesRelocatesAppToolRoots(t *testing.T) {
+	stateRoot := t.TempDir()
+	appRoot := filepath.Join(stateRoot, "app")
+	binary := filepath.Join("versions", "0.2.0-arm64", "nexuscua")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "data", "computer-use", binary), "cua")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "data", "computer-use", "state.json"), "{}\n")
+	writeMigrationTestFile(t, filepath.Join(appRoot, ".agents", "bin", "nexusctl"), "#!/bin/sh\n")
+
+	if err := RunWorkspaceFiles(appRoot, filepath.Join(stateRoot, "workspace"), discardMigrationLogger()); err != nil {
+		t.Fatal(err)
+	}
+	assertMigrationPathExists(t, filepath.Join(appRoot, "computer-use", binary))
+	assertMigrationPathExists(t, filepath.Join(appRoot, "computer-use", "state.json"))
+	assertMigrationPathMissing(t, filepath.Join(appRoot, "data", "computer-use"))
+	assertMigrationPathMissing(t, filepath.Join(appRoot, ".agents"))
+	assertMigrationPathExists(t, workspaceFileMigrationMarker(appRoot, appToolRootsMigrationName))
+}
+
 func TestRunWorkspaceFilesKeepsNonEmptyRetiredStateCandidates(t *testing.T) {
 	stateRoot := t.TempDir()
 	appRoot := filepath.Join(stateRoot, "app")

@@ -167,11 +167,11 @@ func resolveDefaultConfigDir() string {
 	return filepath.Join(home, ".nexus")
 }
 
-// AgentRuntimeBinDir 返回 nexusctl/nexuscfg shim 的共享目录。
+// RuntimeCLIBinDir 返回 nexusctl/nexuscfg shim 的宿主目录。
 //
-// workspace 初始化器写入 shim，runtime 环境把它前置到 PATH 并作为默认命令路径。
-func AgentRuntimeBinDir() string {
-	return filepath.Join(AppDir(), ".agents", "bin")
+// workspace 初始化器每次启动重写 shim，runtime 环境把它前置到 PATH 并作为默认命令路径。
+func RuntimeCLIBinDir() string {
+	return filepath.Join(AppDir(), "bin")
 }
 
 // PlatformSkillRoot 返回平台托管 Skill 的全局兼容根目录。

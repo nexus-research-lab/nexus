@@ -91,7 +91,7 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 // Enumeration preserves physical aliases of existing private child symlinks;
 // the whole-root rule above, not this list, protects future private entries.
 func desktopHostPrivateAppEntries(root string) ([]string, error) {
-	names := []string{"data", "config", "cache", "logs", "rooms", "backups", ".migrations", ".agents", "sidecar.lock"}
+	names := []string{"data", "config", "cache", "logs", "rooms", "backups", ".migrations", "bin", "computer-use", "sidecar.lock"}
 	entries, err := os.ReadDir(root)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err

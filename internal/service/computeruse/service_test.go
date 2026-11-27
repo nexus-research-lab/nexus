@@ -421,7 +421,7 @@ func TestProcessSupervisorRestartsAfterChildExit(t *testing.T) {
 	}
 	t.Setenv("NEXUS_CUA_TEST_EXIT_CHILD", "1")
 	supervisor := NewProcessSupervisor(config.Config{
-		DatabaseURL:           filepath.Join(root, "nexus.db"),
+		ComputerUseStateDir:   filepath.Join(root, "computer-use"),
 		ComputerUseBinaryPath: binary,
 	})
 	var factoryCalls atomic.Int32
@@ -477,8 +477,8 @@ func TestPackagedCUANativeActionLoop(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(root) })
 	service := NewService(config.Config{
-		DatabaseURL:        filepath.Join(root, "nexus.db"),
-		ComputerUseEnabled: true, ComputerUseBinaryPath: binary,
+		ComputerUseStateDir: filepath.Join(root, "computer-use"),
+		ComputerUseEnabled:  true, ComputerUseBinaryPath: binary,
 	})
 	t.Cleanup(func() { _ = service.Close(ctx) })
 	round, err := service.Round(ctx, "native-test-owner", "native-test-round")

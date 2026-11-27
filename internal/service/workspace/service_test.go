@@ -196,7 +196,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		!slices.Contains(agentValue.Options.SkillIDs, "execution-orchestrator") {
 		t.Fatalf("Agent 应只记录平台 Skill ID: %#v", agentValue.Options.SkillIDs)
 	}
-	sharedBinDir := filepath.Join(os.Getenv("NEXUS_CONFIG_DIR"), "app", ".agents", "bin")
+	sharedBinDir := filepath.Join(os.Getenv("NEXUS_CONFIG_DIR"), "app", "bin")
 	nexusctlShim := filepath.Join(sharedBinDir, "nexusctl")
 	if info, statErr := os.Stat(nexusctlShim); statErr != nil {
 		t.Fatalf("共享 nexusctl shim 未生成: %v", statErr)

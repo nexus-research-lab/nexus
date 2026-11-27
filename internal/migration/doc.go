@@ -23,6 +23,7 @@
 //   - retired_sandbox_resources.go：旧版 macOS 桌面沙箱监督根与带租约标记 scratch 的尽力清理；失败只告警并下次重试。
 //   - retired_state_entries.go：孤立 session-memory project、app 内旧记忆入口、空 app/debug、零字节 nexus.sqlite、
 //     根级旧 runtime/arg-files 与非 Linux 空 shared-workspaces 的尽力清理。
+//   - app_tool_roots.go：Computer Use 状态迁到 app/computer-use，删除旧 shim 目录 app/.agents。
 //   - SQL 00160–00162 / workgraph_history*.go：冻结旧 Execution 回填集合、读取分类/恢复/连线目标索引及 canonical transcript 的可重试 Subagent 回填。
 //   - SQL 00169：Heartbeat 退役，删除配置表、wake outbox 行与 00125 的 wake 列/部分索引。
 //   - SQL 00159：删除无状态沙箱后已无读取方的启动记录、策略回执与 scratch 恢复表。
