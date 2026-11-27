@@ -346,7 +346,7 @@ export function CapabilitySectionHeader({
   title,
 }: CapabilitySectionHeaderProps) {
   return (
-    <div className="mb-2 flex items-end justify-between gap-4 border-b border-(--divider-subtle-color) pb-1.5">
+    <div className="mb-2 flex items-end justify-between gap-4">
       <div className="min-w-0">
         <h2 className={cn(
           "truncate",

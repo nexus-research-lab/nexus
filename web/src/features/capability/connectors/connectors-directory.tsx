@@ -245,7 +245,6 @@ export function ConnectorsDirectory() {
   } else {
     const directoryGrid = directoryMode === "catalog" ? (
       <ConnectorsGrid
-        activeCategory={controller.activeCategory}
         connectors={controller.connectors}
         failure={controller.catalogFailure}
         loading={controller.loading}
@@ -293,10 +292,7 @@ export function ConnectorsDirectory() {
         title={t("capability.connectors_intro_title")}
       >
         <ConnectorsSearchBar
-          activeCategory={controller.activeCategory}
-          categoryKeys={controller.categoryKeys}
           mode={directoryMode}
-          onCategoryChange={controller.setActiveCategory}
           onModeChange={setDirectoryMode}
           onQueryChange={directoryMode === "catalog"
             ? controller.setSearchQuery

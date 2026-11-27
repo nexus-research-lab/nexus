@@ -18,8 +18,6 @@ import { galleryText } from "./ui-gallery-copy";
 
 export function ProductControlsGallery() {
   const { locale, t } = useI18n();
-  const [skillCategory, setSkillCategory] = useState("all");
-  const [connectorCategory, setConnectorCategory] = useState("all");
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("all");
@@ -34,16 +32,15 @@ export function ProductControlsGallery() {
       {galleryText(locale, "目录筛选与上下文详情", "Catalog filters and context details")}
     </h2>
     <div data-gallery-filter="skills">
-      <SkillsSearchBar activeCategory={skillCategory} catalogQuery={query}
-        categories={[{ key: "all", label: t("capability.category_all") }, { key: "writing", label: galleryText(locale, "写作", "Writing") }]}
+      <SkillsSearchBar catalogQuery={query}
         discoveryMode={skillMode} externalLoading={false} externalQuery={query} externalSourceId={source}
-        externalSources={[{ label: "Community", value: "all" }]} onChangeCategory={setSkillCategory}
+        externalSources={[{ label: "Community", value: "all" }]}
         onChangeCatalogQuery={setQuery} onChangeDiscoveryMode={setSkillMode} onChangeExternalQuery={setQuery}
         onChangeExternalSource={setSource} onSubmitExternalSearch={() => undefined} />
     </div>
     <div data-gallery-filter="connectors">
-      <ConnectorsSearchBar activeCategory={connectorCategory} categoryKeys={["productivity", "development"]}
-        mode={connectorMode} onCategoryChange={setConnectorCategory} onModeChange={setConnectorMode}
+      <ConnectorsSearchBar
+        mode={connectorMode} onModeChange={setConnectorMode}
         onQueryChange={setQuery} searchQuery={query} />
     </div>
     <div data-gallery-filter="status">

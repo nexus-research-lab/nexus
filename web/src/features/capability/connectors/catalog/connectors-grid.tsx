@@ -19,7 +19,6 @@ import { ConnectorCard } from "./connector-card";
 import { buildConnectorSections } from "./connector-catalog-model";
 
 interface ConnectorsGridProps {
-  activeCategory: string;
   connectors: ConnectorInfo[];
   failure: ResourceFailure | null;
   loading: boolean;
@@ -34,7 +33,6 @@ interface ConnectorsGridProps {
 
 /** 连接器卡片网格 */
 export function ConnectorsGrid({
-  activeCategory,
   connectors,
   failure,
   loading,
@@ -76,7 +74,6 @@ export function ConnectorsGrid({
 
   const sections = buildConnectorSections(
     connectors,
-    activeCategory,
     searchQuery,
     t,
   );

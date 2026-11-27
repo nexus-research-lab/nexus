@@ -48,15 +48,15 @@ describe("Connector catalog model", () => {
     connector("Outlook", "productivity", "coming_soon"),
   ];
 
-  it("filters out every unavailable connector before search or category matching", () => {
-    expect(filterConnectors(catalog, "all", "").map((item) => item.title))
+  it("filters out every unavailable connector before search matching", () => {
+    expect(filterConnectors(catalog, "").map((item) => item.title))
       .toEqual(["RichMail", "高德地图", "GitHub"]);
-    expect(filterConnectors(catalog, "productivity", "outlook"))
+    expect(filterConnectors(catalog, "outlook"))
       .toEqual([]);
   });
 
   it("groups available connectors by stable user-facing capability categories", () => {
-    const sections = buildConnectorSections(catalog, "all", "", t);
+    const sections = buildConnectorSections(catalog, "", t);
 
     expect(sections.map((section) => ({
       connectors: section.connectors.map((item) => item.title),

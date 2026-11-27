@@ -1,10 +1,9 @@
-// INPUT: Connector 目录模式、当前可用分类键、搜索与筛选状态。
-// OUTPUT: 使用 Capability 公共筛选组件的目录模式、搜索和有效分类控件。
-// POS: Connector 目录筛选纯视图；分类集合由目录模型提供，不展示空分类。
+// INPUT: Connector 目录模式与搜索状态。
+// OUTPUT: 使用 Capability 公共筛选组件的目录模式与搜索；分类由目录分区标题表达，不再提供分类下拉。
+// POS: Connector 目录筛选纯视图。
 
 "use client";
 
-import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import {
@@ -12,14 +11,9 @@ import {
   CapabilityFilterSearchInput,
 } from "@/features/capability/shared/capability-page-layout";
 
-import { getConnectorCategoryLabel } from "./connectors-categories";
-
 export type ConnectorDirectoryMode = "catalog" | "custom_mcp";
 
 interface ConnectorsSearchBarProps {
-  activeCategory: string;
-  categoryKeys: string[];
-  onCategoryChange: (category: string) => void;
   onModeChange: (mode: ConnectorDirectoryMode) => void;
   onQueryChange: (query: string) => void;
   mode: ConnectorDirectoryMode;
@@ -27,9 +21,6 @@ interface ConnectorsSearchBarProps {
 }
 
 export function ConnectorsSearchBar({
-  activeCategory,
-  categoryKeys,
-  onCategoryChange,
   onModeChange,
   onQueryChange,
   mode,
@@ -63,18 +54,6 @@ export function ConnectorsSearchBar({
             : t("capability.custom_mcp_search_placeholder")}
           value={searchQuery}
         />
-        {mode === "catalog" ? (
-          <UiFilterSelect
-            ariaLabel={t("capability.connectors_filter_aria")}
-            onChange={onCategoryChange}
-            options={["all", ...categoryKeys].map((category) => ({
-              label: getConnectorCategoryLabel(category, t),
-              value: category,
-            }))}
-            placeholder={getConnectorCategoryLabel("all", t)}
-            value={activeCategory}
-          />
-        ) : null}
       </div>
     </CapabilityFilterBar>
   );

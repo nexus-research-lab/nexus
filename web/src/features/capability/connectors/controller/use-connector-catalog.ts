@@ -12,7 +12,6 @@ import type { Locale } from "@/shared/i18n/locale-settings";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import { filterConnectors } from "../catalog/connector-catalog-model";
-import { getAvailableConnectorCategoryKeys } from "../catalog/connectors-categories";
 
 interface UseConnectorCatalogOptions {
   failureFallback: string;
@@ -28,7 +27,6 @@ export function useConnectorCatalog({
   const [failure, setFailure] = useState<ResourceFailure | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
 
   const reconcile = useCallback(async (): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
@@ -68,35 +66,19 @@ export function useConnectorCatalog({
     )),
     [allConnectors],
   );
-  const categoryKeys = useMemo(
-    () => getAvailableConnectorCategoryKeys(catalogConnectors),
-    [catalogConnectors],
-  );
-  useEffect(() => {
-    if (
-      activeCategory !== "all"
-      && !categoryKeys.includes(activeCategory)
-    ) {
-      setActiveCategory("all");
-    }
-  }, [activeCategory, categoryKeys]);
   const connectors = useMemo(() => filterConnectors(
     catalogConnectors,
-    activeCategory,
     searchQuery,
-  ), [activeCategory, catalogConnectors, searchQuery]);
+  ), [catalogConnectors, searchQuery]);
 
   return {
-    activeCategory,
     allConnectors,
-    categoryKeys,
     connectors,
     failure,
     loading,
     reconcile,
     refresh,
     searchQuery,
-    setActiveCategory,
     setSearchQuery,
   };
 }

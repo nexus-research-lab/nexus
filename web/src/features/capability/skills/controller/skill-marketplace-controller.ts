@@ -43,15 +43,12 @@ export interface SkillMarketplaceFeedbackActions {
 }
 
 export interface SkillCatalogController {
-  activeCategory: string;
-  categories: Array<{ key: string; label: string }>;
   groupedSkills: Array<[string, SkillInfo[]]>;
   importedExternalSources: Map<string, Set<string>>;
   loading: boolean;
   loadFailed: boolean;
   query: string;
   refresh: () => Promise<boolean>;
-  setActiveCategory: (category: string) => void;
   setQuery: (query: string) => void;
   skills: SkillInfo[];
   updateAvailableSkills: SkillInfo[];

@@ -117,9 +117,7 @@ export function SkillsDirectory() {
           >
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
               <SkillsSearchBar
-                activeCategory={catalog.activeCategory}
                 catalogQuery={catalog.query}
-                categories={catalog.categories}
                 discoveryMode={discoveryMode}
                 externalLoading={external.loading}
                 externalQuery={external.query}
@@ -135,7 +133,6 @@ export function SkillsDirectory() {
                     value: source.source_id,
                   })),
                 ]}
-                onChangeCategory={catalog.setActiveCategory}
                 onChangeCatalogQuery={catalog.setQuery}
                 onChangeDiscoveryMode={setDiscoveryMode}
                 onChangeExternalQuery={external.setQuery}

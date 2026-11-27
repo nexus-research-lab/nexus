@@ -12,7 +12,7 @@
 - `import/` 负责本地与 Git 导入表单。
 - `detail/` 按路由编排、请求控制器、展示模型和纯视图分离技能详情与 Agent 使用矩阵；Markdown 与部署失败说明留在详情域。
 - Nexus 随产品提供的 Skill 在目录与详情中共用 `lib/skill-description.ts` 的产品展示标题和双语短摘要；`execution-orchestrator` 与 `goal-manager` 分别稳定显示为 `WorkGraph Orchestrator` 和 `Goal Manager`。来源元数据和真实 Skill 内容保持不变，内部命令名与宿主协议不直接作为目录文案。
-- Nexus 已知分类通过 `lib/skill-category.ts` 按 `category_key` 投影双语名称；未知分类视为用户数据并保留服务端名称。
+- Nexus 已知分类通过 `lib/skill-category.ts` 按 `category_key` 投影双语名称；未知分类视为用户数据并保留服务端名称。分类只作为已安装目录的分区标题，不再提供分类下拉；社区模式保留来源筛选。
 - 全局技能市场不接收 Agent workspace Skill；这类 Skill 只由对应 Agent 设置页投影。
 
 ## 约定

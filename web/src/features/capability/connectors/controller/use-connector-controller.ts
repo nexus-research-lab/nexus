@@ -96,8 +96,6 @@ export function useConnectorController() {
   const clearFeedback = useCallback(() => setFeedback(null), []);
 
   return {
-    activeCategory: catalog.activeCategory,
-    categoryKeys: catalog.categoryKeys,
     clearFeedback,
     closeDetail: detail.closeDetail,
     connectors: catalog.connectors,
@@ -121,7 +119,6 @@ export function useConnectorController() {
     selectedDetail: detail.selectedDetail,
     detailFailure: detail.failure,
     detailLoading: detail.detailLoading,
-    setActiveCategory: catalog.setActiveCategory,
     setSearchQuery: catalog.setSearchQuery,
     ...commands,
   };
