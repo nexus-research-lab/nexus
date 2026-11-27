@@ -48,3 +48,17 @@ it.each(cases)("preserves %s tutorial contracts while switching language", async
     expect(screen.queryByRole("link")).toBeNull();
   }
 });
+
+it("links the platform documentation inside the guide when the channel provides one", async () => {
+  const user = userEvent.setup();
+  const item = { channel_type: "telegram", docs_url: "https://core.telegram.org/bots" } as ChannelConfigView;
+  render(
+    <I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => MESSAGES.en[key] }}>
+      <ChannelGuide item={item} />
+    </I18N_CONTEXT.Provider>,
+  );
+  await user.click(screen.getByText("Connection instructions"));
+  const docs = screen.getByRole("link", { name: "View setup documentation" });
+  expect(docs.getAttribute("href")).toBe(item.docs_url);
+  expect(docs.getAttribute("rel")).toBe("noopener noreferrer");
+});

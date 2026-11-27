@@ -5,7 +5,6 @@ export const SKILLS_TOUR_ID = "skills-directory";
 
 export const SKILLS_TOUR_ANCHORS = {
   catalog: "skills-catalog",
-  categories: "skills-categories",
   header: "skills-header",
   import_skill: "skills-import",
   modes: "skills-modes",
@@ -52,13 +51,6 @@ export function buildSkillsTour(
         title: t("capability.skills_tour_search_title"),
         description: t("capability.skills_tour_search_description"),
         target: SKILLS_TOUR_ANCHORS.search,
-        placement: "bottom",
-      },
-      {
-        id: "categories",
-        title: t("capability.skills_tour_categories_title"),
-        description: t("capability.skills_tour_categories_description"),
-        target: SKILLS_TOUR_ANCHORS.categories,
         placement: "bottom",
       },
       {

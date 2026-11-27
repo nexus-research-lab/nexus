@@ -6,7 +6,6 @@
 "use client";
 
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
-import { ShieldCheck } from "lucide-react";
 
 import {
   getAgentPermissionChoices,
@@ -25,8 +24,6 @@ import type {
 
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_ICON_CLASS_NAME,
-  SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
@@ -63,16 +60,10 @@ export function SettingsPermissionsSection({
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <ShieldCheck className="h-3.5 w-3.5" />
-            </div>
             <div className="min-w-0">
               <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                 {t("settings.general.agent_defaults_title")}
               </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.agent_defaults_description")}
-              </p>
             </div>
           </div>
           <div className="relative flex min-w-0 flex-col gap-1.5">

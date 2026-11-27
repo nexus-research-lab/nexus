@@ -1,12 +1,13 @@
 /**
- * INPUT: Agent 身份与打开详情、私聊、群聊的页面命令。
- * OUTPUT: 单一目录卡片与列表行；完整身份和元信息共享投影，主次动作独立。
+ * INPUT: Agent 身份与打开详情、私聊的页面命令。
+ * OUTPUT: 单一目录卡片与列表行；完整身份和元信息共享投影，整卡打开详情、唯一次动作为聊天（发起群聊留在详情页）；权限与 Provider 只在偏离默认时显示。
  * POS: 联系人管理目录卡片；正文复用共享槽位的外部布局，默认层承担 Agent 选择所需的比较信息。
  */
 "use client";
 
-import { MessageCirclePlus, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 
+import { getInitialAgentOptions } from "@/config/runtime-options";
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
@@ -30,34 +31,35 @@ interface ContactsAgentCardProps {
   agent: Agent;
   onOpenProfile: () => void;
   onOpenRoom: () => void;
-  onCreateTeam: () => void;
   view: "grid" | "list";
 }
 
 interface ContactsAgentCardViewProps extends Omit<ContactsAgentCardProps, "view"> {
   businessTags: string[];
   chatLabel: string;
-  createTeamLabel: string;
   editLabel: string;
-  permissionMode: string;
-  provider: string;
+  /** 偏离新建 Agent 默认权限时的权限名；默认值不占卡片行。 */
+  permissionMode: string | null;
+  /** 显式指定的 Provider；跟随默认模型时为空。 */
+  provider: string | null;
 }
 
 export function ContactsAgentCard({
   agent,
   onOpenProfile,
   onOpenRoom,
-  onCreateTeam,
   view,
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
 
-  const permissionMode = AGENT_PERMISSION_MODES.find(
-    (option) => option.value === agent.options.permission_mode,
-  ) ?? AGENT_PERMISSION_MODES[0];
+  const permissionValue = agent.options.permission_mode?.trim() || "";
+  const defaultPermissionValue = getInitialAgentOptions().permission_mode ?? "";
+  const permissionMode = permissionValue && permissionValue !== defaultPermissionValue
+    ? AGENT_PERMISSION_MODES.find((option) => option.value === permissionValue) ?? null
+    : null;
   const provider = agent.options.provider?.trim()
     ? formatProviderLabel(agent.options.provider)
-    : t("agent_options.identity.follow_default_provider");
+    : null;
   const businessTags = [...new Set(
     (agent.business_tags ?? []).map((tag) => tag.trim()).filter(Boolean),
   )];
@@ -66,12 +68,10 @@ export function ContactsAgentCard({
     agent,
     businessTags,
     chatLabel: t("contacts.chat"),
-    createTeamLabel: t("contacts.create_team"),
     editLabel: t("common.edit"),
-    onCreateTeam,
     onOpenProfile,
     onOpenRoom,
-    permissionMode: t(permissionMode.labelKey),
+    permissionMode: permissionMode ? t(permissionMode.labelKey) : null,
     provider,
   };
 
@@ -99,9 +99,11 @@ function ContactsAgentListRow(props: ContactsAgentCardViewProps) {
           <WorkspaceCatalogTitle className="min-w-0 [overflow-wrap:anywhere]" size="sm">
             {agent.name}
           </WorkspaceCatalogTitle>
-          <UiBadge className="max-w-full whitespace-normal [overflow-wrap:anywhere]" size="sm" tone="idle">
-            {permissionMode}
-          </UiBadge>
+          {permissionMode ? (
+            <UiBadge className="max-w-full whitespace-normal [overflow-wrap:anywhere]" size="sm" tone="idle">
+              {permissionMode}
+            </UiBadge>
+          ) : null}
           <ContactsAgentBusinessTags className="hidden md:flex" tags={businessTags} />
         </div>
         <ContactsAgentMetadata provider={props.provider} />
@@ -145,8 +147,11 @@ function ContactsAgentGridCard(props: ContactsAgentCardViewProps) {
 }
 
 function ContactsAgentMetadata({ provider, permissionMode, className }:
-  Pick<ContactsAgentCardViewProps, "provider"> & { permissionMode?: string; className?: string }) {
+  Pick<ContactsAgentCardViewProps, "provider"> & { permissionMode?: string | null; className?: string }) {
   const { t } = useI18n();
+  if (!provider && !permissionMode) {
+    return null;
+  }
   return <dl className={cn("mt-2 flex min-w-0 flex-wrap gap-x-3 gap-y-1",
     getUiTypographyClassName({ role: "metadata", tone: "muted" }), className)}>
     {permissionMode ? (
@@ -155,18 +160,19 @@ function ContactsAgentMetadata({ provider, permissionMode, className }:
         <dd className="inline">{permissionMode}</dd>
       </div>
     ) : null}
-    <div className="min-w-0 max-w-full [overflow-wrap:anywhere]">
-      <dt className="inline">{t("contacts.metadata.provider")}</dt>{" "}
-      <dd className="inline">{provider}</dd>
-    </div>
+    {provider ? (
+      <div className="min-w-0 max-w-full [overflow-wrap:anywhere]">
+        <dt className="inline">{t("contacts.metadata.provider")}</dt>{" "}
+        <dd className="inline">{provider}</dd>
+      </div>
+    ) : null}
   </dl>;
 }
 
-function ContactsAgentActions({ agent, chatLabel, createTeamLabel, onOpenRoom, onCreateTeam, compact = false }:
-  Pick<ContactsAgentCardViewProps, "agent" | "chatLabel" | "createTeamLabel" | "onOpenRoom" | "onCreateTeam"> & { compact?: boolean }) {
+function ContactsAgentActions({ agent, chatLabel, onOpenRoom, compact = false }:
+  Pick<ContactsAgentCardViewProps, "agent" | "chatLabel" | "onOpenRoom"> & { compact?: boolean }) {
   const actions = [
     { label: chatLabel, command: onOpenRoom, Icon: MessageCircle, tone: "default" as const },
-    { label: createTeamLabel, command: onCreateTeam, Icon: MessageCirclePlus, tone: "default" as const },
   ];
   return <div className={cn("flex flex-wrap items-center", compact ? "gap-1" : "gap-x-3 gap-y-1")}>
     {actions.map(({ label, command, Icon, tone }) => compact ? (

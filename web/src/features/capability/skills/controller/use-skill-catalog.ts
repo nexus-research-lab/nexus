@@ -26,7 +26,6 @@ export function useSkillCatalog({
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
   const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const requestRef = useRef(0);
@@ -70,35 +69,9 @@ export function useSkillCatalog({
     void load(debouncedQuery);
   }, [active, debouncedQuery, load]);
 
-  const categories = useMemo(() => {
-    const categoryNames = new Map<string, string>();
-    skills.forEach((skill) => {
-      categoryNames.set(
-        skill.category_key,
-        getSkillCategoryLabel(skill, t),
-      );
-    });
-    return [
-      { key: "all", label: t("capability.category_all") },
-      ...Array.from(categoryNames, ([key, label]) => ({ key, label })),
-    ];
-  }, [skills, t]);
-  const availableCategoryKeys = useMemo(
-    () => new Set(categories.map((category) => category.key)),
-    [categories],
-  );
-  const selectedCategory = availableCategoryKeys.has(activeCategory)
-    ? activeCategory
-    : "all";
-  const visibleSkills = useMemo(
-    () => selectedCategory === "all"
-      ? skills
-      : skills.filter((skill) => skill.category_key === selectedCategory),
-    [selectedCategory, skills],
-  );
   const groupedSkills = useMemo(() => {
     const groups = new Map<string, [string, SkillInfo[]]>();
-    visibleSkills.forEach((skill) => {
+    skills.forEach((skill) => {
       const group = groups.get(skill.category_key) ?? [
         getSkillCategoryLabel(skill, t),
         [],
@@ -107,7 +80,7 @@ export function useSkillCatalog({
       groups.set(skill.category_key, group);
     });
     return Array.from(groups.values());
-  }, [t, visibleSkills]);
+  }, [skills, t]);
   const updateAvailableSkills = useMemo(
     () => skills.filter((skill) => skill.has_update),
     [skills],
@@ -125,15 +98,12 @@ export function useSkillCatalog({
   const refresh = useCallback(() => load(query), [load, query]);
 
   return {
-    activeCategory: selectedCategory,
-    categories,
     groupedSkills,
     importedExternalSources,
     loading,
     loadFailed,
     query,
     refresh,
-    setActiveCategory,
     setQuery,
     skills,
     updateAvailableSkills,

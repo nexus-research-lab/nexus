@@ -15,7 +15,7 @@ import { ConnectorsGrid } from "./connectors-grid";
 it("keeps loading, failure recovery and a successful empty catalog distinct", async () => {
   const user = userEvent.setup();
   const props: ComponentProps<typeof ConnectorsGrid> = {
-    activeCategory: "all", connectors: [], failure: getResourceFailure(new Error("offline"), "Catalog unavailable"),
+    connectors: [], failure: getResourceFailure(new Error("offline"), "Catalog unavailable"),
     loading: true, onConnect: vi.fn(), onDisconnect: vi.fn(), onOpenConnector: vi.fn(), onRefresh: vi.fn(),
     pendingAction: null, reconciliationActions: [], searchQuery: "",
   };

@@ -1,6 +1,6 @@
 /**
- * INPUT: Agent 目录与创建、详情、私聊、群聊导航命令。
- * OUTPUT: 直接复用公共搜索输入、共享具名筛选、可恢复空态和卡片/列表 Agent 目录。
+ * INPUT: Agent 目录与创建、详情、私聊导航命令。
+ * OUTPUT: Header 中的搜索与新建动作；Agent 达到阈值后才出现具名筛选与视图切换；可恢复空态和卡片/列表 Agent 目录。
  * POS: 联系人正文根目录；承载选择 Agent 所需的识别和能力概况。
  */
 "use client";
@@ -13,7 +13,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
-import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiPanel } from "@/shared/ui/panel";
@@ -21,12 +21,6 @@ import {
   WORKSPACE_CATALOG_GRID_CLASS_NAME,
   WORKSPACE_CONTENT_PAGE_CLASS_NAME,
 } from "@/shared/ui/layout/workspace-content-layout";
-import { WorkspaceCatalogGhostAction } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
-import {
-  WorkspaceCatalogDescription,
-  WorkspaceCatalogTitle,
-} from "@/shared/ui/workspace/catalog/workspace-catalog-content";
-import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { Agent } from "@/types/agent/agent";
 import { formatProviderLabel } from "@/types/capability/provider";
@@ -47,31 +41,35 @@ interface ContactsDirectoryProps {
   onOpenDirectRoom: (agentId: string) => void;
   onCreateAgent: () => void;
   onOpenAgent: (agentId: string) => void;
-  onCreateTeam: (agentId: string) => void;
 }
+
+/** 少量 Agent 一眼可见，筛选与视图切换只在目录达到这个规模后出现。 */
+export const CONTACTS_DIRECTORY_FILTER_THRESHOLD = 8;
 
 export function ContactsDirectory({
   agents,
   onOpenDirectRoom,
   onCreateAgent,
   onOpenAgent,
-  onCreateTeam,
 }: ContactsDirectoryProps) {
   const { t } = useI18n();
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState("");
   const [permissionFilter, setPermissionFilter] = useState("");
-  const [view, setView] = useState<ContactsDirectoryView>("grid");
+  const [selectedView, setView] = useState<ContactsDirectoryView>("grid");
+  const showFilters = agents.length >= CONTACTS_DIRECTORY_FILTER_THRESHOLD;
+  // 控件隐藏时同步失效其选择，避免目录缩小后残留看不见的筛选。
+  const view = showFilters ? selectedView : "grid";
 
   const filteredAgents = useMemo(
     () => filterContactsAgents(agents, {
-      permissionMode: permissionFilter,
-      provider: providerFilter,
+      permissionMode: showFilters ? permissionFilter : "",
+      provider: showFilters ? providerFilter : "",
       query: searchQuery,
-      tag: tagFilter,
+      tag: showFilters ? tagFilter : "",
     }),
-    [agents, permissionFilter, providerFilter, searchQuery, tagFilter],
+    [agents, permissionFilter, providerFilter, searchQuery, showFilters, tagFilter],
   );
   const businessTags = useMemo(
     () => getContactsDirectoryBusinessTags(agents),
@@ -110,12 +108,18 @@ export function ContactsDirectory({
   ];
 
   const headerTrailing = (
-    <UiSearchInput
-      className="w-full sm:w-[240px]"
-      onChange={setSearchQuery}
-      placeholder={t("common.search_agents")}
-      value={searchQuery}
-    />
+    <div className="flex w-full items-center gap-2 sm:w-auto">
+      <UiSearchInput
+        className="min-w-0 flex-1 sm:w-[240px] sm:flex-none"
+        onChange={setSearchQuery}
+        placeholder={t("common.search_agents")}
+        value={searchQuery}
+      />
+      <UiButton className="shrink-0" onClick={onCreateAgent} size="md" variant="outline">
+        <Plus aria-hidden className="h-4 w-4" />
+        {t("contacts.new_agent")}
+      </UiButton>
+    </div>
   );
 
   return (
@@ -126,7 +130,7 @@ export function ContactsDirectory({
             actions={headerTrailing}
             title={t("contacts.title")}
           />
-          <div className="mb-3 space-y-2.5">
+          {showFilters ? <div className="mb-3 space-y-2.5">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <UiFilterSelect
                 ariaLabel={t("contacts.filters.tags")}
@@ -175,7 +179,7 @@ export function ContactsDirectory({
                 value={view}
               />
             </div>
-          </div>
+          </div> : null}
           <UiPanel
             className={view === "grid"
               ? cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "gap-3.5 md:gap-4")
@@ -184,33 +188,10 @@ export function ContactsDirectory({
             radius="md"
             variant={view === "grid" ? "plain" : "card"}
           >
-            {view === "grid" ? (
-              <WorkspaceCatalogGhostAction aria-label={t("contacts.new_agent")} className="gap-3"
-                onClick={onCreateAgent} size="comfort">
-                <WorkspaceIconFrame shape="round" size="lg"><Plus aria-hidden className="h-6 w-6" /></WorkspaceIconFrame>
-                <span className="min-w-0">
-                  <WorkspaceCatalogTitle as="span" className="block [overflow-wrap:anywhere]" size="lg">
-                    {t("contacts.new_agent")}
-                  </WorkspaceCatalogTitle>
-                  <WorkspaceCatalogDescription className="mt-1" lines={2}>
-                    {t("contacts.new_agent_description")}
-                  </WorkspaceCatalogDescription>
-                </span>
-              </WorkspaceCatalogGhostAction>
-            ) : (
-              <UiListRow aria-label={t("contacts.new_agent")} variant="flush" onClick={onCreateAgent}
-                leading={<WorkspaceIconFrame shape="round" size="md"><Plus aria-hidden className="h-5 w-5" /></WorkspaceIconFrame>}>
-                <div className="min-w-0">
-                  <WorkspaceCatalogTitle className="[overflow-wrap:anywhere]" size="sm">{t("contacts.new_agent")}</WorkspaceCatalogTitle>
-                  <WorkspaceCatalogDescription className="mt-1" lines={2}>{t("contacts.new_agent_description")}</WorkspaceCatalogDescription>
-                </div>
-              </UiListRow>
-            )}
             {filteredAgents.map((agent) => (
               <ContactsAgentCard
                 key={agent.agent_id}
                 agent={agent}
-                onCreateTeam={() => onCreateTeam(agent.agent_id)}
                 onOpenProfile={() => onOpenAgent(agent.agent_id)}
                 onOpenRoom={() => onOpenDirectRoom(agent.agent_id)}
                 view={view}

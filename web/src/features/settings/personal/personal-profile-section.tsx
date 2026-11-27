@@ -51,9 +51,11 @@ export function PersonalProfileSection({
         </h2>
         <div className="flex max-w-full flex-wrap items-center justify-center gap-2">
           {presentation.username !== presentation.displayName ? <span className="ui-type-supporting break-all text-(--text-muted)">@{presentation.username}</span> : null}
-          <UiTooltip label={`${t("settings.personal.role")} · ${presentation.roleLabel} / ${t("settings.personal.auth_method")} · ${presentation.authMethodLabel}`}>
-            <UiButton variant="ghost" className="h-auto min-h-0 p-0"><UiBadge size="sm" tone="default">{presentation.subscriptionPlanName ?? presentation.roleLabel}</UiBadge></UiButton>
-          </UiTooltip>
+          {presentation.showIdentityBadge ? (
+            <UiTooltip label={`${t("settings.personal.role")} · ${presentation.roleLabel} / ${t("settings.personal.auth_method")} · ${presentation.authMethodLabel}`}>
+              <UiButton variant="ghost" className="h-auto min-h-0 p-0"><UiBadge size="sm" tone="default">{presentation.subscriptionPlanName ?? presentation.roleLabel}</UiBadge></UiButton>
+            </UiTooltip>
+          ) : null}
         </div>
       </div>
       {!presentation.canUpdateProfile ? (

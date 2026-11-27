@@ -1,14 +1,11 @@
-// INPUT: 当前选中项、搜索查询与路由导航命令。
-// OUTPUT: 使用共享搜索、列表行和语义排版的能力目录侧栏。
-// POS: 能力导航装配层；数据刷新和单行呈现归相邻 model/view。
+// INPUT: 当前选中项与路由导航命令。
+// OUTPUT: 使用共享列表行的能力目录侧栏；六个固定入口一眼可见，不提供搜索。
+// POS: 能力导航装配层；单行呈现归相邻 model/view。
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
-import { cn } from "@/shared/ui/class-name";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useScrollFade } from "@/shared/lib/react/use-scroll-fade";
 import { useSidebarStore } from "@/store/sidebar";
 
@@ -16,7 +13,6 @@ import { CapabilitySidebarItemView } from "./capability-sidebar-item";
 import {
   buildCapabilitySidebarItems,
   type CapabilitySidebarItem,
-  filterCapabilitySidebarItems,
 } from "./capability-sidebar-model";
 
 export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
@@ -25,14 +21,7 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
   const navigate = useNavigate();
   const activeItemId = useSidebarStore((state) => state.active_panel_item_id);
   const setActiveItem = useSidebarStore((state) => state.set_active_panel_item);
-  const [query, setQuery] = useState("");
-  const items = useMemo(
-    () => filterCapabilitySidebarItems(
-      buildCapabilitySidebarItems(t),
-      query,
-    ),
-    [query, t],
-  );
+  const items = useMemo(() => buildCapabilitySidebarItems(t), [t]);
   const selectItem = useCallback((item: CapabilitySidebarItem) => {
     setActiveItem(item.id);
     navigate(item.path);
@@ -40,32 +29,19 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <SidebarSearchField
-        onChange={setQuery}
-        label={t("sidebar.search_capabilities")}
-        value={query}
-      />
-
       <div
         ref={scrollRef}
         {...fadeProps}
         className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2 pl-2 pr-0.5 overscroll-contain max-[559px]:gap-1 max-[559px]:px-3"
       >
-        {items.length > 0 ? items.map((item) => (
+        {items.map((item) => (
           <CapabilitySidebarItemView
             active={activeItemId === item.id}
             item={item}
             key={item.id}
             onSelect={selectItem}
           />
-        )) : (
-          <div className={cn(
-            "px-2.5 py-4",
-            getUiTypographyClassName({ role: "caption", tone: "muted" }),
-          )}>
-            {t("sidebar.no_matching_capabilities")}
-          </div>
-        )}
+        ))}
       </div>
     </div>
   );

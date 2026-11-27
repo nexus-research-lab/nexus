@@ -56,7 +56,7 @@ export function TaskFormGallery() {
     <div className="min-w-0 max-w-full" data-gallery-task-suggestions>
       <ScheduledTaskBoard failure={null} hasSnapshot isLoading={false} isPermissionLoading={false} items={[]}
         pending={new Map()} unconfirmed={new Map()} permissionFailure={null}
-        onCreate={noOp} onCreateFromPreset={noOp} onConfirmDeletionStopped={noOp} onDelete={noOp}
+        onCreateFromPreset={noOp} onConfirmDeletionStopped={noOp} onDelete={noOp}
         onEdit={noOp} onOpenHistory={noOp} onOpenConnector={noOp} onPermissionDecision={noOp}
         onPermissionResume={noOp} onRefresh={noOp} onRunNow={noOp} onToggleEnabled={noOp} />
     </div>

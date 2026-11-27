@@ -27,8 +27,7 @@ export function ContactsGallery() {
   return <><section className="min-w-0 xl:col-span-2" data-gallery-contacts>
     <div className="flex h-[680px] min-w-0">
       <ContactsDirectory agents={agents} onCreateAgent={() => record("create")}
-        onOpenAgent={(id) => record("profile", id)} onOpenDirectRoom={(id) => record("chat", id)}
-        onCreateTeam={(id) => record("team", id)} />
+        onOpenAgent={(id) => record("profile", id)} onOpenDirectRoom={(id) => record("chat", id)} />
     </div>
     <output className="sr-only" data-gallery-contacts-commands>{JSON.stringify(commands)}</output>
   </section><CommunicationDirectoryGallery /></>;

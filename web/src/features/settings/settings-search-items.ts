@@ -28,18 +28,18 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
     ["settings.reading.font"],
     ["settings.reading.size"],
     ["settings.reading.spacing"],
-    ["settings.appearance.reset", "settings.appearance.reset_description"],
+    ["settings.appearance.reset"],
   ],
   permissions: [
-    ["settings.general.agent_defaults_title", "settings.general.agent_defaults_description", "agent_options.advanced.permission.default.description", "agent_options.advanced.permission.plan.description", "agent_options.advanced.permission.auto.description", "agent_options.advanced.permission.accept_edits.description", "agent_options.advanced.permission.bypass.description", "agent_options.advanced.permission.dont_ask.description"],
+    ["settings.general.agent_defaults_title", "agent_options.advanced.permission.default.description", "agent_options.advanced.permission.plan.description", "agent_options.advanced.permission.auto.description", "agent_options.advanced.permission.accept_edits.description", "agent_options.advanced.permission.bypass.description", "agent_options.advanced.permission.dont_ask.description"],
   ],
   workspace: [
     ["settings.general.state_root_title", "settings.general.state_root_description"],
   ],
   runtime: [
-    ["settings.runtime.kernel_title", "settings.runtime.kernel_description"],
+    ["settings.runtime.kernel_title"],
     ["settings.runtime.tool_search_title", "settings.runtime.tool_search_description"],
-    ["settings.runtime.web_search_title", "settings.runtime.web_search_description"],
+    ["settings.runtime.web_search_title"],
     ["settings.runtime.web_search_provider"],
     ["settings.runtime.web_search_api_key"],
     ["settings.runtime.web_search_base_url"],

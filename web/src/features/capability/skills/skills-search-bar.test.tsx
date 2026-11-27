@@ -20,15 +20,12 @@ describe("SkillsSearchBar", () => {
         value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
       >
         <SkillsSearchBar
-          activeCategory=""
           catalogQuery=""
-          categories={[]}
           discoveryMode="external"
           externalLoading={false}
           externalQuery="agent skill"
           externalSourceId=""
           externalSources={[{ label: "全部来源", value: "" }]}
-          onChangeCategory={vi.fn()}
           onChangeCatalogQuery={vi.fn()}
           onChangeDiscoveryMode={onChangeDiscoveryMode}
           onChangeExternalQuery={vi.fn()}
@@ -69,9 +66,9 @@ describe("SkillsSearchBar", () => {
 it.each([{ query: "a", loading: false }, { query: "valid", loading: true }])("keeps Enter aligned with disabled search ($query, $loading)", ({ query, loading }) => {
   const submit = vi.fn();
   render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
-    <SkillsSearchBar activeCategory="" catalogQuery="" categories={[]} discoveryMode="external"
+    <SkillsSearchBar catalogQuery="" discoveryMode="external"
       externalLoading={loading} externalQuery={query} externalSourceId="" externalSources={[]}
-      onChangeCategory={vi.fn()} onChangeCatalogQuery={vi.fn()} onChangeDiscoveryMode={vi.fn()}
+      onChangeCatalogQuery={vi.fn()} onChangeDiscoveryMode={vi.fn()}
       onChangeExternalQuery={vi.fn()} onChangeExternalSource={vi.fn()} onSubmitExternalSearch={submit} />
   </I18N_CONTEXT.Provider>);
   fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });

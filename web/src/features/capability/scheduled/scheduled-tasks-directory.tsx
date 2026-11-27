@@ -462,11 +462,6 @@ export function ScheduledTasksDirectory() {
             isLoading={resource.isLoading}
             isPermissionLoading={resource.isPermissionLoading}
             items={resource.items}
-            onCreate={() => {
-              if (!scopeUnavailable && !accessBlockedRef.current) {
-                openEditor({ kind: "create", preset: null });
-              }
-            }}
             onCreateFromPreset={(preset) => {
               if (!scopeUnavailable && !accessBlockedRef.current) {
                 openEditor({ kind: "create", preset });

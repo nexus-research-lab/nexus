@@ -1,5 +1,5 @@
 // INPUT: Skill 导入、更新检查、来源管理动作及其忙碌状态。
-// OUTPUT: 桌面工具栏或窄窗共享动作菜单，并以统一 Spinner 投影等待状态。
+// OUTPUT: 桌面常驻导入并把检查更新、来源收进更多菜单；窄窗三项都进入同一菜单；等待状态复用统一 Spinner。
 // POS: Skill 目录页头动作视图；不持有导入、更新或来源命令生命周期。
 import {
   Download,
@@ -38,18 +38,14 @@ export function SkillsHeaderActions(props: SkillsHeaderActionsProps) {
     : <SkillsHeaderDesktopActions {...props} />;
 }
 
-function SkillsHeaderCompactActions({
+function useSkillsHeaderMenuItems({
   checkingUpdates,
   importing,
-  onCheckUpdates,
-  onOpenImport,
-  onOpenSources,
-}: SkillsHeaderActionsProps) {
+  includeImport,
+}: Pick<SkillsHeaderActionsProps, "checkingUpdates" | "importing"> & { includeImport: boolean }): UiActionMenuItem[] {
   const { t } = useI18n();
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const items: UiActionMenuItem[] = [
-    {
+  return [
+    ...(includeImport ? [{
       disabled: importing,
       icon: importing
         ? <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
@@ -57,9 +53,9 @@ function SkillsHeaderCompactActions({
       label: importing
         ? t("capability.skills_importing")
         : t("capability.import_skill"),
-      tone: "primary",
+      tone: "primary" as const,
       value: "import",
-    },
+    }] : []),
     {
       disabled: checkingUpdates,
       icon: checkingUpdates
@@ -76,20 +72,41 @@ function SkillsHeaderCompactActions({
       value: "sources",
     },
   ];
+}
 
+function SkillsHeaderMoreMenu({
+  busy,
+  items,
+  onOpenImport,
+  onCheckUpdates,
+  onOpenSources,
+  size,
+  tourAnchor,
+}: Pick<SkillsHeaderActionsProps, "onCheckUpdates" | "onOpenImport" | "onOpenSources"> & {
+  busy: boolean;
+  items: UiActionMenuItem[];
+  size: "lg" | "md";
+  tourAnchor: string;
+}) {
+  const { t } = useI18n();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
   return (
     <>
       <UiIconButton
         ref={buttonRef}
+        aria-busy={busy || undefined}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}
+        data-tour-anchor={tourAnchor}
         onClick={() => setIsOpen((current) => !current)}
-        size="lg"
+        size={size}
         title={t("common.more_actions")}
       >
-        <MoreHorizontal className="h-4 w-4" />
+        {busy
+          ? <Loader2 className={getUiSpinnerClassName({ size: "sm", tone: "muted" })} />
+          : <MoreHorizontal className="h-4 w-4" />}
       </UiIconButton>
       <UiActionMenu
         anchorRef={buttonRef}
@@ -111,16 +128,26 @@ function SkillsHeaderCompactActions({
   );
 }
 
-function SkillsHeaderDesktopActions({
-  checkingUpdates,
-  importing,
-  onCheckUpdates,
-  onOpenImport,
-  onOpenSources,
-}: SkillsHeaderActionsProps) {
-  const { t } = useI18n();
+function SkillsHeaderCompactActions(props: SkillsHeaderActionsProps) {
+  const items = useSkillsHeaderMenuItems({ ...props, includeImport: true });
   return (
-    <div className="flex items-center gap-2">
+    <SkillsHeaderMoreMenu
+      {...props}
+      busy={props.checkingUpdates || props.importing}
+      items={items}
+      size="lg"
+      tourAnchor={SKILLS_TOUR_ANCHORS.import_skill}
+    />
+  );
+}
+
+/** 桌面只常驻“导入”；检查更新与来源管理是低频动作，收进同一个更多菜单。 */
+function SkillsHeaderDesktopActions(props: SkillsHeaderActionsProps) {
+  const { importing, onOpenImport } = props;
+  const { t } = useI18n();
+  const items = useSkillsHeaderMenuItems({ ...props, includeImport: false });
+  return (
+    <div className="flex items-center gap-1">
       <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}>
         <UiButton
           disabled={importing}
@@ -134,27 +161,13 @@ function SkillsHeaderDesktopActions({
             : t("capability.import_skill")}
         </UiButton>
       </div>
-      <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
-        <UiButton
-          disabled={checkingUpdates}
-          onClick={onCheckUpdates}
-          size="2xs"
-          variant="text"
-        >
-          {checkingUpdates ? (
-            <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-          {checkingUpdates
-            ? t("capability.skills_checking")
-            : t("capability.update_library")}
-        </UiButton>
-      </div>
-      <UiButton onClick={onOpenSources} size="2xs" variant="text">
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        {t("capability.skill_sources")}
-      </UiButton>
+      <SkillsHeaderMoreMenu
+        {...props}
+        busy={props.checkingUpdates}
+        items={items}
+        size="md"
+        tourAnchor={SKILLS_TOUR_ANCHORS.update_library}
+      />
     </div>
   );
 }

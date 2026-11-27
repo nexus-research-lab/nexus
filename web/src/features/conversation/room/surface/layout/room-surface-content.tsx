@@ -6,12 +6,15 @@
  * POS: Room 桌面 Surface 的主内容装配层；对话视觉效果必须裁剪在聊天栏内。
  */
 
+import { useMemo } from "react";
+
 import { cn } from "@/shared/ui/class-name";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ReadResourceReliabilityNotice } from "@/features/conversation/shared/read-resource-reliability-notice";
+import { useHasSubagentTasks } from "@/features/conversation/shared/subagent/use-has-subagent-tasks";
 
 import { RoomChatSurface } from "../room-chat-surface";
 import { RoomSurfaceAuxiliaryPanel } from "./room-surface-auxiliary-panel";
@@ -96,6 +99,13 @@ export function RoomSurfaceContent({
     onChangeSurfaceTab,
     roomId,
   });
+  const hasSubagentTasks = useHasSubagentTasks(layout.subagentTaskSource);
+  // 没有工作图或子智能体任务时不在 Header 放空入口；消息内入口仍可直接打开对应面板。
+  const hasWorkGraph = executionResource.execution !== null;
+  const tabAvailability = useMemo(() => ({
+    subagents: hasSubagentTasks !== false,
+    workgraph: hasWorkGraph,
+  }), [hasSubagentTasks, hasWorkGraph]);
 
   return (
     <section
@@ -135,6 +145,7 @@ export function RoomSurfaceContent({
                 roomMembers={roomMembers}
                 roomPrivateMessagesEnabled={roomPrivateMessagesEnabled}
                 roomSkillNames={roomSkillNames}
+                tabAvailability={tabAvailability}
               />
               {isDm && externalSessionsReliability.failure ? (
                 <ReadResourceReliabilityNotice

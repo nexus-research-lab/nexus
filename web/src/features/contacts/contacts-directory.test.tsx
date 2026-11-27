@@ -1,5 +1,5 @@
 // INPUT: A local Agent directory with distinct business tags, providers and permissions.
-// OUTPUT: Shared filters/search/view preserve exact commands and can recover from no matches.
+// OUTPUT: Search/create stay in the header, filters/view only appear for larger directories, and exact commands survive filtering.
 // POS: Contacts page DOM regression; no directory API, runtime, persistence or geometry assertions.
 
 import { render, screen, within } from "@testing-library/react";
@@ -21,8 +21,15 @@ const agents: Agent[] = [
     options: { permission_mode: "default", provider: "anthropic" } },
 ];
 
-function directory(items = agents) {
-  const actions = { onCreateAgent: vi.fn(), onOpenAgent: vi.fn(), onOpenDirectRoom: vi.fn(), onCreateTeam: vi.fn() };
+// 筛选只在目录达到阈值后出现；补足无标签、跟随默认的 Agent 以便测试真实筛选。
+const fillers: Agent[] = Array.from({ length: 5 }, (_, index) => ({
+  agent_id: `filler-${index}`, name: `Filler ${index}`, avatar: null, created_at: 10 + index,
+  description: "", status: "idle", workspace_path: `/filler-${index}`, options: { permission_mode: "default" },
+}));
+const largeDirectory = [...agents, ...fillers];
+
+function directory(items = largeDirectory) {
+  const actions = { onCreateAgent: vi.fn(), onOpenAgent: vi.fn(), onOpenDirectRoom: vi.fn() };
   render(<I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => key }}>
     <ContactsDirectory agents={items} {...actions} />
   </I18N_CONTEXT.Provider>);
@@ -35,7 +42,7 @@ describe("ContactsDirectory", () => {
     const actions = directory();
     expect(screen.getAllByRole("searchbox")).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: "contacts.new_agent" })).toHaveLength(1);
-    expect(screen.getAllByRole("article")).toHaveLength(3);
+    expect(screen.getAllByRole("article")).toHaveLength(8);
     await user.click(screen.getByRole("button", { name: "contacts.filters.tags" }));
     await user.click(screen.getByRole("option", { name: "Research" }));
     expect(screen.getAllByRole("article")).toHaveLength(1);
@@ -43,13 +50,11 @@ describe("ContactsDirectory", () => {
     await user.click(screen.getByRole("button", { name: "contacts.views.list" }));
     expect(screen.queryByRole("article")).toBeNull();
     await user.click(screen.getByRole("button", { name: "contacts.chat Researcher" }));
-    await user.click(screen.getByRole("button", { name: "contacts.create_team Researcher" }));
     expect(actions.onOpenAgent).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "common.edit Researcher" }));
     await user.click(screen.getByRole("button", { name: "contacts.new_agent" }));
     expect(actions.onOpenAgent).toHaveBeenCalledExactlyOnceWith("research");
     expect(actions.onOpenDirectRoom).toHaveBeenCalledExactlyOnceWith("research");
-    expect(actions.onCreateTeam).toHaveBeenCalledExactlyOnceWith("research");
     expect(actions.onCreateAgent).toHaveBeenCalledOnce();
   });
 
@@ -79,11 +84,20 @@ describe("ContactsDirectory", () => {
     }
   });
 
+  it("hides filters and the view switch for a small directory while search still narrows it", async () => {
+    const user = userEvent.setup();
+    directory(agents);
+    expect(screen.queryByRole("button", { name: "contacts.filters.tags" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "contacts.views.list" })).toBeNull();
+    await user.type(screen.getByRole("searchbox"), "writer");
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+  });
+
   it("keeps creation available in an empty directory without inventing a filtering failure", async () => {
     const user = userEvent.setup();
     const actions = directory([]);
     expect(screen.queryByRole("status")).toBeNull();
-    expect(screen.getByRole("button", { name: "contacts.filters.tags" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByRole("button", { name: "contacts.filters.tags" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "contacts.new_agent" }));
     expect(actions.onCreateAgent).toHaveBeenCalledOnce();
   });

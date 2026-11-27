@@ -16,7 +16,7 @@ import { RoomConversationTabs } from "@/features/navigation/conversation-tabs/ro
 import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+import type { RoomHeaderTabAvailability, RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
 interface DmConversationHeaderProps {
   activeTab: RoomSurfaceTabKey;
@@ -31,6 +31,7 @@ interface DmConversationHeaderProps {
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
+  tabAvailability?: RoomHeaderTabAvailability;
   singleConversation?: boolean;
 }
 
@@ -47,12 +48,17 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   onDeleteConversation,
   onSelectConversation,
   onUpdateConversationTitle,
+  tabAvailability,
   singleConversation = false,
 }: DmConversationHeaderProps) {
   const { t } = useI18n();
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const headerTitle = currentAgentName?.trim() || t("room.untitled_dm");
-  const roomTabs = buildRoomHeaderTabs(t, { mainAgent: singleConversation });
+  const roomTabs = buildRoomHeaderTabs(t, {
+    activeTab,
+    availability: tabAvailability,
+    mainAgent: singleConversation,
+  });
 
   return (
     <WorkspaceSurfaceHeader

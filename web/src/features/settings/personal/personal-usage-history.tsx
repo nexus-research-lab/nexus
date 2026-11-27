@@ -1,6 +1,7 @@
 // INPUT: 最近 365 个 UTC 自然日的真实 Token 汇总。
-// OUTPUT: 可键盘查看的年度热力图、堆叠柱状图和精确明细表。
+// OUTPUT: 可键盘查看的年度热力图；近 30 天堆叠柱状图和精确明细表默认折叠在“每日 Token”里。
 // POS: 个人用量趋势视图，不补造旧服务未返回的历史。
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import type { DailyTokenUsage } from "@/lib/api/account/auth-api";
 import { formatTokens } from "@/lib/format/token-count";
@@ -22,16 +23,21 @@ export function PersonalUsageHistory({ days: allDays }: { days: DailyTokenUsage[
     { key: "cache_tokens", label: t("settings.personal.cache_tokens"), color: "bg-(--text-muted)" },
   ] as const;
   const maximum = Math.max(1, ...days.map((day) => day.input_tokens + day.output_tokens + day.cache_tokens));
-  return <section className={`${SETTINGS_CARD_CLASS_NAME} space-y-5 p-5`}>
+  // 热力图与摘要已给出总体趋势；逐日图表是按需查看的明细，默认收起。
+  return <details className={`${SETTINGS_CARD_CLASS_NAME} group`}>
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 focus-visible:outline-2 focus-visible:outline-(--ring) [&::-webkit-details-marker]:hidden">
+      <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <span className="ui-type-section-title text-(--text-strong)">{t("settings.personal.daily_usage")}</span>
+        <span className="ui-type-metadata text-(--text-muted)">{t("settings.personal.daily_period")}</span>
+      </span>
+      <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-(--text-muted) transition-transform group-open:rotate-180" />
+    </summary>
+    <div className="space-y-5 px-5 pb-5 pt-2">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h3 className="ui-type-section-title">{t("settings.personal.daily_usage")}</h3>
-        <p className="ui-type-metadata mt-1 text-(--text-muted)">{t("settings.personal.daily_period")}</p></div>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="ui-type-metadata flex flex-wrap gap-4 text-(--text-muted)">{series.map((item) => <span key={item.key} className="flex items-center gap-2"><span className={`h-2 w-2 rounded-(--radius-control-xs) ${item.color}`} />{item.label}</span>)}</div>
       <UiSegmentedControl title={t("settings.personal.daily_usage")} value={view} onChange={setView} density="compact"
         options={[{ value: "chart", label: t("settings.personal.chart") }, { value: "table", label: t("settings.personal.table") }]} />
-      </div>
     </div>
-    <div className="ui-type-metadata flex flex-wrap gap-4 text-(--text-muted)">{series.map((item) => <span key={item.key} className="flex items-center gap-2"><span className={`h-2 w-2 rounded-(--radius-control-xs) ${item.color}`} />{item.label}</span>)}</div>
     {view === "chart" ? <>
       <div className="flex gap-3">
         <div aria-hidden="true" className="ui-type-caption flex h-48 flex-col justify-between text-right tabular-nums text-(--text-muted)"><span>{formatTokens(maximum, locale)}</span><span>{formatTokens(maximum / 2, locale)}</span><span>0</span></div>
@@ -48,7 +54,8 @@ export function PersonalUsageHistory({ days: allDays }: { days: DailyTokenUsage[
         <span>{active?.date}</span>{series.map((item) => <span key={item.key}>{item.label} · {formatTokens(active?.[item.key] ?? 0, locale)}</span>)}
       </div>
     </> : <div className="max-h-72 overflow-auto"><table className="ui-type-metadata w-full text-right tabular-nums"><thead><tr><th className="sticky top-0 bg-(--background) py-2 text-left">{t("settings.personal.date")}</th>{series.map((item) => <th className="sticky top-0 bg-(--background) px-2 py-2 font-medium" key={item.key}>{item.label}</th>)}</tr></thead><tbody>{days.toReversed().map((day) => <tr className="border-t border-(--divider-subtle-color)" key={day.date}><td className="py-2 text-left">{day.date}</td>{series.map((item) => <td className="px-2 py-2" key={item.key}>{day[item.key].toLocaleString(locale)}</td>)}</tr>)}</tbody></table></div>}
-  </section>;
+    </div>
+  </details>;
 }
 
 // 日历范围不依赖接口返回条数；旧服务只返回 30 天时，仍保留全年空格。

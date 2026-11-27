@@ -24,7 +24,7 @@ interface WorkspaceContentDetailHeaderProps {
   className?: string;
 }
 
-/** 管理页只保留一层正文标题，常规内容与动作对齐，长内容允许增高而不越过分隔线。 */
+/** 管理页只保留一层正文标题，常规内容与动作对齐，长内容允许自然增高；标题与正文只靠留白分开，不画分隔线。 */
 export function WorkspaceContentHeader({
   actions,
   className,
@@ -35,7 +35,7 @@ export function WorkspaceContentHeader({
   return (
     <header
       className={cn(
-        "workspace-content-header mb-4 shrink-0 border-b border-(--divider-subtle-color) pb-4 sm:min-h-[var(--workspace-header-height,60px)] sm:pb-0",
+        "workspace-content-header mb-4 shrink-0 pb-4 sm:min-h-[var(--workspace-header-height,60px)] sm:pb-0",
         className,
       )}
       data-desktop-window-drag-region

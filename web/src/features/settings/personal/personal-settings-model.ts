@@ -23,6 +23,8 @@ export type PersonalSettingsFeedback = FeedbackBannerProps;
 
 export interface PersonalProfilePresentation {
   authMethodLabel: string;
+  /** 本机单用户（local 登录）且无套餐时，角色徽标恒为“所有者”，不展示。 */
+  showIdentityBadge: boolean;
   avatarName: string;
   canUpdateProfile: boolean;
   displayName: string;
@@ -148,6 +150,7 @@ export function buildPersonalProfilePresentation(
     canUpdateProfile: profileCanUpdate(profile),
     displayName: firstDisplayValue([user.display_name, user.username]),
     roleLabel: resolveRoleLabel(user.role, translate),
+    showIdentityBadge: Boolean(resolveSubscriptionPlanName(profile)) || user.auth_method !== "local",
     subscriptionPlanName: resolveSubscriptionPlanName(profile),
     username: displayValue(user.username),
   };

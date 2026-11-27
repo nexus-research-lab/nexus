@@ -1,7 +1,6 @@
 // INPUT: Default model catalog and versioned preference commands.
 // OUTPUT: A dedicated model settings page for chat, generation, vision and background tasks.
 // POS: Default model settings owner; provider credentials remain in Provider settings.
-import { Image, MonitorCog, ScanEye, Sparkles } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
@@ -104,7 +103,6 @@ export function SettingsDefaultModelsView({
           disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_model_description"
           emptyPlaceholderKey="settings.general.default_model_empty"
-          icon={<MonitorCog className="h-3.5 w-3.5" />}
           onChange={onDefaultModelChange}
           options={defaultModelOptions}
           providerOptionsLoading={providerOptionsLoading}
@@ -120,7 +118,6 @@ export function SettingsDefaultModelsView({
           disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_image_model_description"
           emptyPlaceholderKey="settings.general.default_image_model_empty"
-          icon={<Image className="h-3.5 w-3.5" />}
           onChange={onDefaultModelChange}
           options={defaultImageModelOptions}
           providerOptionsLoading={providerOptionsLoading}
@@ -136,7 +133,6 @@ export function SettingsDefaultModelsView({
           disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_vision_model_description"
           emptyPlaceholderKey="settings.general.default_vision_model_empty"
-          icon={<ScanEye className="h-3.5 w-3.5" />}
           onChange={onDefaultModelChange}
           options={defaultVisionModelOptions}
           providerOptionsLoading={providerOptionsLoading}
@@ -157,7 +153,6 @@ export function SettingsDefaultModelsView({
           disabled={preferencesLoading || preferencesSaving}
           descriptionKey="settings.general.default_background_model_description"
           emptyPlaceholderKey="settings.general.default_background_model_empty"
-          icon={<Sparkles className="h-3.5 w-3.5" />}
           onChange={onDefaultModelChange}
           options={defaultBackgroundModelOptions}
           providerOptionsLoading={providerOptionsLoading}

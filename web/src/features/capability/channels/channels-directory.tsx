@@ -1,14 +1,11 @@
 /**
- * INPUT: 频道目录、状态筛选、连接命令和配置弹窗状态。
+ * INPUT: 频道目录、搜索、连接命令和配置弹窗状态。
  * OUTPUT: 呈现平台用途、连接状态与使用事实的频道目录。
  * POS: “能力 > 频道”的唯一页面入口。
  */
 "use client";
 
-import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
-import {
-  MessageCircle,
-} from "lucide-react";
+import { MessageCircle } from "lucide-react";
 
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
@@ -26,10 +23,6 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
-import {
-  CHANNEL_FILTER_OPTIONS,
-  type ChannelFilter,
-} from "./catalog/channel-catalog-model";
 import { ChannelCard } from "./catalog/channel-card";
 import { useChannelsController } from "./catalog/use-channels-controller";
 import { ChannelConnectDialog } from "./connection/channel-connect-dialog";
@@ -65,17 +58,6 @@ export function ChannelsDirectory() {
               onChange={controller.setSearchQuery}
               placeholder={t("capability.channels_search_placeholder")}
               value={controller.searchQuery}
-            />
-            <UiFilterSelect
-              ariaLabel={t("capability.channels_filter_aria")}
-              onChange={(value) => controller.setChannelFilter(
-                value as ChannelFilter,
-              )}
-              options={CHANNEL_FILTER_OPTIONS.map((option) => ({
-                value: option.value,
-                label: t(option.labelKey),
-              }))}
-              value={controller.channelFilter}
             />
           </CapabilityFilterBar>
 

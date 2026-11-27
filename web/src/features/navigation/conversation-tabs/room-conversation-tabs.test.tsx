@@ -2,7 +2,7 @@
 // OUTPUT: 验证领域适配器向共享视图提供真实标题、固定状态和独立命令。
 // POS: DM、Group 与 Contacts 共用标签入口的集成回归。
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -87,10 +87,10 @@ describe("RoomConversationTabs", () => {
     });
     const props = { conversationId: "same-id", conversations, onSelectConversation };
     const view = render(<I18nProvider><RoomConversationTabs {...props} /></I18nProvider>);
+    expect(screen.queryByRole("button", { name: "Research" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Pin to sidebar" }));
     const tab = screen.getByRole("button", { name: "Research" }).parentElement!;
     const pin = within(tab).getAllByRole("button")[1];
-    expect(pin.getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(pin);
     expect(pin.getAttribute("aria-pressed")).toBe("true");
     expect(onSelectConversation).not.toHaveBeenCalled();
     expect(useRoomNavigationStore.getState().pinned_conversations).toContainEqual({
@@ -99,6 +99,23 @@ describe("RoomConversationTabs", () => {
     fireEvent.click(pin);
     expect(useRoomNavigationStore.getState().pinned_conversations.map((item) => item.room_id)).toEqual(["other-room"]);
     view.rerender(<I18nProvider><RoomConversationTabs {...props} pinningEnabled={false} /></I18nProvider>);
-    expect(within(tab).getAllByRole("button")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Pin to sidebar" })).toBeNull();
+  });
+
+  it("hides the tab strip for a single unpinned conversation and keeps it once pinned", () => {
+    const conversations: RoomConversationView[] = [{
+      conversation_id: "only-id", room_id: "room", session_key: "room/only", session_id: null,
+      title: "Only", created_at: 1, last_activity_at: 1, options: {},
+    }];
+    const props = { conversationId: "only-id", conversations, onSelectConversation: vi.fn() };
+    const view = render(<I18nProvider><RoomConversationTabs {...props} /></I18nProvider>);
+    expect(screen.queryByRole("button", { name: "Only" })).toBeNull();
+    act(() => {
+      useRoomNavigationStore.getState().toggle_pinned_conversation({
+        room_id: "room", conversation_id: "only-id", session_key: "room/only", title: "Only",
+      });
+    });
+    view.rerender(<I18nProvider><RoomConversationTabs {...props} /></I18nProvider>);
+    expect(screen.getByRole("button", { name: "Only" })).toBeTruthy();
   });
 });

@@ -1,5 +1,5 @@
-// INPUT: Skill 目录/社区的搜索、分类、来源及用户命令。
-// OUTPUT: 统一目录标签、回车搜索和无额外图标的标签筛选器。
+// INPUT: Skill 目录/社区的搜索、来源及用户命令。
+// OUTPUT: 统一目录标签、回车搜索与社区来源筛选；已安装目录按分类分区展示，不再提供分类下拉。
 // POS: Skill 工具区纯视图；筛选结构由 UiFilterSelect 唯一拥有。
 
 import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
@@ -25,15 +25,12 @@ const DISCOVERY_OPTIONS: ReadonlyArray<{
 ];
 
 interface SkillsSearchBarProps {
-  activeCategory: string;
   catalogQuery: string;
-  categories: Array<{ key: string; label: string }>;
   discoveryMode: DiscoveryMode;
   externalLoading: boolean;
   externalQuery: string;
   externalSourceId: string;
   externalSources: Array<{ disabled?: boolean; label: string; value: string }>;
-  onChangeCategory: (category: string) => void;
   onChangeCatalogQuery: (query: string) => void;
   onChangeDiscoveryMode: (mode: DiscoveryMode) => void;
   onChangeExternalQuery: (query: string) => void;
@@ -42,15 +39,12 @@ interface SkillsSearchBarProps {
 }
 
 export function SkillsSearchBar({
-  activeCategory,
   catalogQuery,
-  categories,
   discoveryMode,
   externalLoading,
   externalQuery,
   externalSourceId,
   externalSources,
-  onChangeCategory,
   onChangeCatalogQuery,
   onChangeDiscoveryMode,
   onChangeExternalQuery,
@@ -107,26 +101,14 @@ export function SkillsSearchBar({
           value={discoveryMode === "catalog" ? catalogQuery : externalQuery}
         />
 
-        {discoveryMode === "catalog" ? (
-          <UiFilterSelect
-            ariaLabel={t("capability.skills_filter_aria")}
-            onChange={onChangeCategory}
-            options={categories.map((category) => ({
-              label: category.label,
-              value: category.key,
-            }))}
-            placeholder={t("capability.category_all")}
-            tourAnchor={SKILLS_TOUR_ANCHORS.categories}
-            value={activeCategory}
-          />
-        ) : (
+        {discoveryMode === "external" ? (
           <UiFilterSelect
             ariaLabel={t("capability.skill_source_search_scope")}
             onChange={onChangeExternalSource}
             options={externalSources}
             value={externalSourceId}
           />
-        )}
+        ) : null}
       </div>
     </CapabilityFilterBar>
   );

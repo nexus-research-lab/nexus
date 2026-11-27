@@ -11,7 +11,6 @@ import {
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { SIDEBAR_CAPABILITY_ITEM_IDS } from "@/store/sidebar";
 
 interface CapabilitySidebarDefinition {
@@ -76,12 +75,4 @@ export function buildCapabilitySidebarItems(
     label: translate(definition.labelKey),
     path: definition.path,
   }));
-}
-
-export function filterCapabilitySidebarItems(
-  items: CapabilitySidebarItem[],
-  query: string,
-): CapabilitySidebarItem[] {
-  const search = createUiSearchMatcher(query);
-  return items.filter((item) => search.matches([item.label]));
 }

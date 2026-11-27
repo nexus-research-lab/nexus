@@ -2,7 +2,6 @@
 // OUTPUT: 真实设置行和公共紧凑控件的密度、可读性及选择回调预览。
 // POS: 开发期消费夹具；不请求设置服务，不写入用户偏好。
 
-import { Brain, MonitorCog } from "lucide-react";
 import { useState } from "react";
 
 import { SettingsDefaultModelRow } from "@/features/settings/default-models/settings-default-model-row";
@@ -38,7 +37,7 @@ export function SettingsControlsGallery() {
     <div data-gallery-settings-model>
       <SettingsNavigationGroupLabel>{galleryText(locale, "默认行为", "Defaults")}</SettingsNavigationGroupLabel>
       <SettingsDefaultModelRow disabled={false} descriptionKey="settings.general.default_model_description"
-        emptyPlaceholderKey="settings.general.default_model_empty" icon={<MonitorCog className="h-3.5 w-3.5" />}
+        emptyPlaceholderKey="settings.general.default_model_empty"
         modelCategory="agent_runtime" onChange={(value, role) => {
           setModel(value);
           setCommands((current) => [...current, `${role}:${value}`]);
@@ -57,7 +56,7 @@ export function SettingsControlsGallery() {
     <div data-gallery-settings-toggle>
       <SettingsToggleRow checked={consolidation} disabled={saving}
         description={t("settings.general.auto_dream_description")}
-        title={t("settings.general.auto_dream_title")} icon={<Brain className="h-3.5 w-3.5" />}
+        title={t("settings.general.auto_dream_title")}
         onChange={(checked) => {
           setConsolidation(checked);
           setCommands((current) => [...current, `consolidation:${checked}`]);

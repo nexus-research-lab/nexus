@@ -5,7 +5,6 @@
  */
 "use client";
 
-import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -16,7 +15,6 @@ import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 
 import type { DefaultModelPreferenceRole } from "./default-model-preferences-model";
 import {
-  SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
@@ -28,7 +26,6 @@ interface SettingsDefaultModelRowProps {
   disabled: boolean;
   descriptionKey: TranslationKey;
   emptyPlaceholderKey: TranslationKey;
-  icon: ReactNode;
   onChange: (value: string, role: DefaultModelPreferenceRole) => void;
   options: UiSelectMenuOption[];
   providerOptionsLoading: boolean;
@@ -42,7 +39,6 @@ export function SettingsDefaultModelRow({
   disabled,
   descriptionKey,
   emptyPlaceholderKey,
-  icon,
   onChange,
   options,
   providerOptionsLoading,
@@ -56,9 +52,6 @@ export function SettingsDefaultModelRow({
   return (
     <div className={SETTINGS_DEFAULT_MODEL_ROW_CLASS_NAME}>
       <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-        <div className={SETTINGS_ICON_CLASS_NAME}>
-          {icon}
-        </div>
         <div className="min-w-0">
           <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
             {t(titleKey)}

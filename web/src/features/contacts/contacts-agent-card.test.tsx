@@ -1,4 +1,4 @@
-// INPUT: Agent 目录卡片的身份、元数据与详情/聊天/建群动作。
+// INPUT: Agent 目录卡片的身份、元数据与详情/聊天动作。
 // OUTPUT: 证明网格和列表复用共享视觉原语且动作边界互不串联。
 // POS: Contacts Agent 卡片 DOM 合同；不覆盖目录筛选或详情保存。
 
@@ -6,6 +6,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { getInitialAgentOptions } from "@/config/runtime-options";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 
@@ -28,9 +29,8 @@ const AGENT: Agent = {
   workspace_path: "/workspace/researcher",
 };
 
-function renderCard(view: "grid" | "list") {
+function renderCard(view: "grid" | "list", agent: Agent = AGENT) {
   const actions = {
-    onCreateTeam: vi.fn(),
     onOpenProfile: vi.fn(),
     onOpenRoom: vi.fn(),
   };
@@ -38,7 +38,7 @@ function renderCard(view: "grid" | "list") {
     <I18N_CONTEXT.Provider
       value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
     >
-      <ContactsAgentCard agent={AGENT} view={view} {...actions} />
+      <ContactsAgentCard agent={agent} view={view} {...actions} />
     </I18N_CONTEXT.Provider>,
   );
   return { ...result, actions };
@@ -54,23 +54,30 @@ describe("ContactsAgentCard", () => {
     expect(screen.getByText("contacts.metadata.provider").tagName).toBe("DT");
     expect(screen.getByText("Anthropic").tagName).toBe("DD");
     const chat = screen.getByRole("button", { name: "contacts.chat Researcher" });
-    const team = screen.getByRole("button", { name: "contacts.create_team Researcher" });
+    expect(screen.queryByRole("button", { name: "contacts.create_team Researcher" })).toBeNull();
     await user.click(chat);
-    act(() => team.focus());
-    await user.keyboard("{Enter}");
     expect(actions.onOpenRoom).toHaveBeenCalledOnce();
-    expect(actions.onCreateTeam).toHaveBeenCalledOnce();
     expect(actions.onOpenProfile).not.toHaveBeenCalled();
     act(() => open.focus());
     await user.keyboard("{Enter}");
     expect(actions.onOpenProfile).toHaveBeenCalledOnce();
     if (view === "grid") {
       expect(screen.getAllByRole("article")).toHaveLength(1);
-      expect(within(screen.getByRole("article")).getAllByRole("button")).toHaveLength(3);
+      expect(within(screen.getByRole("article")).getAllByRole("button")).toHaveLength(2);
     } else {
       await user.tab();
       expect(screen.getByRole("tooltip").textContent).toBe("contacts.chat");
       expect(chat.getAttribute("title")).toBeNull();
     }
+  });
+
+  it.each(["grid", "list"] as const)("hides default permission and provider in %s view", (view) => {
+    renderCard(view, {
+      ...AGENT,
+      options: { ...AGENT.options, permission_mode: getInitialAgentOptions().permission_mode, provider: "" },
+    });
+    expect(screen.queryByText("contacts.metadata.permission")).toBeNull();
+    expect(screen.queryByText("contacts.metadata.provider")).toBeNull();
+    expect(screen.queryByText("agent_options.advanced.permission.auto.label")).toBeNull();
   });
 });

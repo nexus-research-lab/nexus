@@ -19,7 +19,6 @@ function view(overrides: Partial<ComponentProps<typeof ScheduledTaskBoard>> = {}
     isPermissionLoading: false,
     items: [],
     onConfirmDeletionStopped: vi.fn(),
-    onCreate: vi.fn(),
     onCreateFromPreset: vi.fn(),
     onDelete: vi.fn(),
     onEdit: vi.fn(),

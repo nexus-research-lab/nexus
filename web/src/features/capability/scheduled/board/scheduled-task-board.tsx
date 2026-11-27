@@ -1,6 +1,6 @@
 /**
  * INPUT: 定时任务集合、资源状态、建议预设与任务命令。
- * OUTPUT: 按文字内容撑高的快速创建目录或四列真实状态看板。
+ * OUTPUT: 按文字内容撑高的常用任务建议（空白任务从页头「新建任务」创建）或四列真实状态看板。
  * POS: 定时任务主内容视图；空列由标题与数量自解释。
  */
 "use client";
@@ -10,7 +10,6 @@ import {
   BellRing,
   ClipboardList,
   MonitorCheck,
-  Plus,
   RefreshCw,
 } from "lucide-react";
 
@@ -50,7 +49,6 @@ interface ScheduledTaskBoardProps {
   isLoading: boolean;
   isPermissionLoading: boolean;
   items: ScheduledTaskItem[];
-  onCreate: () => void;
   onCreateFromPreset: (preset: TaskDialogCreatePreset) => void;
   onConfirmDeletionStopped: (task: ScheduledTaskItem) => void;
   onDelete: (task: ScheduledTaskItem) => void;
@@ -142,10 +140,8 @@ function ScheduledTaskErrorState({
 }
 
 function ScheduledTaskSuggestions({
-  onCreate,
   onSelect,
 }: {
-  onCreate: () => void;
   onSelect: (preset: TaskDialogCreatePreset) => void;
 }) {
   const { t } = useI18n();
@@ -167,12 +163,6 @@ function ScheduledTaskSuggestions({
         >
           {t("capability.scheduled_quick_start_title")}
         </h2>
-        <p className={cn(
-          "mt-1",
-          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
-        )}>
-          {t("capability.scheduled_empty_description")}
-        </p>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-2 @min-[480px]/suggestions:grid-cols-2 @min-[720px]/suggestions:grid-cols-3">
@@ -216,17 +206,6 @@ function ScheduledTaskSuggestions({
           );
         })}
       </div>
-
-      <UiButton
-        className="mt-4"
-        onClick={onCreate}
-        size="xs"
-        tone="primary"
-        variant="text"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {t("capability.scheduled_create_blank")}
-      </UiButton>
     </section>
   );
 }
@@ -354,7 +333,7 @@ function ScheduledTaskBoardColumnView({
 function ScheduledTaskReadyBoard({
   columns,
   ...props
-}: Omit<ScheduledTaskBoardProps, "isLoading" | "items" | "onCreate" | "onCreateFromPreset"> & {
+}: Omit<ScheduledTaskBoardProps, "isLoading" | "items" | "onCreateFromPreset"> & {
   columns: ScheduledTaskBoardColumn[];
 }) {
   const { t } = useI18n();
@@ -465,7 +444,6 @@ export function ScheduledTaskBoard(props: ScheduledTaskBoardProps) {
       ) : null}
       {state === "empty" ? (
         <ScheduledTaskSuggestions
-          onCreate={props.onCreate}
           onSelect={props.onCreateFromPreset}
         />
       ) : (

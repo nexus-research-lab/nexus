@@ -15,10 +15,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { notifyCapabilitySummaryMutated } from "../../capability-summary-events";
 import { useChannelControlRefresh } from "../use-channel-control-refresh";
 import type { ChannelFeedback } from "../channel-model";
-import {
-  filterChannels,
-  type ChannelFilter,
-} from "./channel-catalog-model";
+import { filterChannels } from "./channel-catalog-model";
 
 export function useChannelsController() {
   const { locale, t } = useI18n();
@@ -27,7 +24,6 @@ export function useChannelsController() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedType, setSelectedType] = useState<ImChannelType | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
   const [loading, setLoading] = useState(true);
   const [readFailed, setReadFailed] = useState(false);
   const [feedback, setFeedback] = useState<ChannelFeedback | null>(null);
@@ -92,9 +88,8 @@ export function useChannelsController() {
 
   const visibleChannels = useMemo(() => filterChannels(
     channels,
-    channelFilter,
     searchQuery,
-  ), [channelFilter, channels, searchQuery]);
+  ), [channels, searchQuery]);
   const selectedChannel = useMemo(() => channels.find(
     (item) => item.channel_type === selectedType,
   ) ?? null, [channels, selectedType]);
@@ -147,7 +142,6 @@ export function useChannelsController() {
 
   return {
     agents,
-    channelFilter,
     channels,
     clearFeedback,
     closeChannel,
@@ -160,7 +154,6 @@ export function useChannelsController() {
     saveChannel,
     searchQuery,
     selectedChannel,
-    setChannelFilter,
     setSearchQuery,
     visibleChannels,
   };

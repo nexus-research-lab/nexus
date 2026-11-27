@@ -8,7 +8,7 @@ import { DmConversationHeader } from "@/features/conversation/room/dm/dm-convers
 import type { Agent } from "@/types/agent/agent";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+import type { RoomHeaderTabAvailability, RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 
 import { GroupConversationHeader } from "../../group/header/group-conversation-header";
@@ -41,6 +41,7 @@ interface RoomSurfaceHeaderProps {
   roomMembers: Agent[];
   roomPrivateMessagesEnabled: boolean;
   roomSkillNames: string[];
+  tabAvailability?: RoomHeaderTabAvailability;
 }
 
 export function RoomSurfaceHeader({
@@ -68,6 +69,7 @@ export function RoomSurfaceHeader({
   roomMembers,
   roomPrivateMessagesEnabled,
   roomSkillNames,
+  tabAvailability,
 }: RoomSurfaceHeaderProps) {
   const handleToggleSurfaceTab = (tab: RoomSurfaceTabKey) => {
     if (tab === activeSurfaceTab) {
@@ -87,6 +89,7 @@ export function RoomSurfaceHeader({
     onDeleteConversation,
     onSelectConversation,
     onUpdateConversationTitle,
+    tabAvailability,
   };
   const header = isDm ? (
     <DmConversationHeader

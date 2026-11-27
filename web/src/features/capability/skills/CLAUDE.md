@@ -3,7 +3,7 @@
 ## 目录边界
 
 - 根目录只保留页面编排、共享正文 Header、搜索入口和导览定义；技能库/社区来源是页面内容模式，复用跨领域 `UiDirectoryTabs` 的单行线性页签并与右侧搜索控件同排，与 Connector、Pairing 目录保持一致；不得改用表单型 `UiSegmentedControl`、撑满胶囊组或重建私有筛选按钮。
-- `skills-header-actions.tsx` 在手机布局用统一 IconButton + ActionMenu 承载导入、更新、来源和引导，桌面保留完整工具栏；动作与全部等待图标复用共享 Header、Button 和 Spinner，不恢复重复的技能 Surface Header、私有按钮或水平留白。
+- `skills-header-actions.tsx` 在手机布局用统一 IconButton + ActionMenu 承载导入、更新和来源；桌面只常驻“导入”，检查更新与来源收进同一个更多菜单（导览的更新步骤指向该菜单）；动作与全部等待图标复用共享 Header、Button 和 Spinner，不恢复重复的技能 Surface Header、私有按钮或水平留白。
 - 技能目录与外部搜索结果共用 `shared/skill-directory-card.tsx` 的头像驱动卡片，在桌面统一显示三列，窄窗逐级收拢；整卡选择动作、标题、两行用途摘要和必要元数据分别复用共享 Button 与 Typography。加载、无结果使用 `UiResourceState`，更新区使用 `UiPanel + UiListRow` 的单层紧凑列表；不得在这些状态面内再次嵌套目录卡、手写可点击行、字号、字重、圆角或 Spinner。
 - `controller/` 管理目录查询、外部搜索、来源配置、异步操作与反馈状态。
 - `catalog/` 负责技能目录和更新提示；Skill 卡片、更新条目与 Agent 技能页共用按 `skill.name` 生成的静态数学曲线身份标记。已安装目录卡只投影名称、本地化说明与更新/删除动作，来源、作用域、标签和使用状态留在详情；更新条目使用 32px 身份标记与等高主动作，刷新图标只表达重新检查，更新检查仍由 `skills-catalog-model.ts` 投影。
@@ -12,7 +12,7 @@
 - `import/` 负责本地与 Git 导入表单。
 - `detail/` 按路由编排、请求控制器、展示模型和纯视图分离技能详情与 Agent 使用矩阵；Markdown 与部署失败说明留在详情域。
 - Nexus 随产品提供的 Skill 在目录与详情中共用 `lib/skill-description.ts` 的产品展示标题和双语短摘要；`execution-orchestrator` 与 `goal-manager` 分别稳定显示为 `WorkGraph Orchestrator` 和 `Goal Manager`。来源元数据和真实 Skill 内容保持不变，内部命令名与宿主协议不直接作为目录文案。
-- Nexus 已知分类通过 `lib/skill-category.ts` 按 `category_key` 投影双语名称；未知分类视为用户数据并保留服务端名称。
+- Nexus 已知分类通过 `lib/skill-category.ts` 按 `category_key` 投影双语名称；未知分类视为用户数据并保留服务端名称。分类只作为已安装目录的分区标题，不再提供分类下拉；社区模式保留来源筛选。
 - 全局技能市场不接收 Agent workspace Skill；这类 Skill 只由对应 Agent 设置页投影。
 
 ## 约定

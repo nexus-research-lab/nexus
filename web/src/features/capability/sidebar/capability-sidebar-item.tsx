@@ -26,14 +26,16 @@ export function CapabilitySidebarItemView({
     <UiListRow
       active={active}
       activeTone="sidebar"
-      className="min-h-14 gap-2.5 px-2 py-1.5 max-[559px]:min-h-18 max-[559px]:gap-3 max-[559px]:px-3 max-[559px]:py-2.5"
+      className="min-h-10 gap-2.5 px-2.5 py-1.5 max-[559px]:min-h-12 max-[559px]:gap-3 max-[559px]:px-3 max-[559px]:py-2"
       leading={(
-        <span className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center radius-control-md border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_55%,transparent)] text-(--icon-muted) max-[559px]:h-10 max-[559px]:w-10",
-          active && "border-(--divider-strong-color) bg-(--surface-interactive-hover-background) text-(--icon-strong)",
-        )}>
-          <Icon className="h-4 w-4 max-[559px]:h-5 max-[559px]:w-5" />
-        </span>
+        // 图标直接跟随行文字，不再包一层描边方块；当前项只提升图标颜色。
+        <Icon
+          aria-hidden
+          className={cn(
+            "h-4 w-4 shrink-0 text-(--icon-muted) max-[559px]:h-5 max-[559px]:w-5",
+            active && "text-(--icon-strong)",
+          )}
+        />
       )}
       onClick={handleClick}
       title={item.label}
