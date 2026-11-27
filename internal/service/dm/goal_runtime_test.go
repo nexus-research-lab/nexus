@@ -1,23 +1,300 @@
+// goal_runtime_test.go 覆盖 DM Goal 运行时、回执、中断与用量并发测试。
 package dm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"path/filepath"
 	"slices"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+type fakeGoalContextProvider struct {
+	mu                  sync.Mutex
+	plan                *protocol.GoalContinuation
+	planCalls           int
+	runtimeContext      string
+	runtimeGoal         *protocol.Goal
+	runtimeCalls        int
+	usage               []protocol.GoalUsage
+	usageGoal           *protocol.Goal
+	usageSessionKeys    []string
+	usageGoalIDs        []string
+	usageLimitReason    []string
+	progress            []bool
+	progressRevisions   []int64
+	failures            []string
+	failureRevisions    []int64
+	completionMisses    []string
+	completionRevisions []int64
+	activities          []string
+	activityRevisions   []int64
+	current             *bool
+	claimCalls          int
+	releaseCalls        int
+	reservation         bool
+	continuationCount   int
+	claimErr            error
+	onClaim             func()
+	onStarted           func()
+	beforeStarted       func()
+	startedCalls        int
+	startedErr          error
+	settledCalls        int
+	retryReasons        []string
+	userStopRoundIDs    []string
+	userStopRevisions   []int64
+}
+
+func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.runtimeCalls++
+	if p.runtimeGoal == nil {
+		return p.runtimeContext, nil, nil
+	}
+	goal := *p.runtimeGoal
+	return p.runtimeContext, &goal, nil
+}
+
+func (p *fakeGoalContextProvider) RecordUsageForSession(_ context.Context, sessionKey string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usage = append(p.usage, usage)
+	p.usageSessionKeys = append(p.usageSessionKeys, sessionKey)
+	return cloneTestGoal(p.usageGoal), nil
+}
+
+func (p *fakeGoalContextProvider) RecordUsageForGoal(_ context.Context, goalID string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usage = append(p.usage, usage)
+	p.usageGoalIDs = append(p.usageGoalIDs, goalID)
+	return cloneTestGoal(p.usageGoal), nil
+}
+
+func cloneTestGoal(item *protocol.Goal) *protocol.Goal {
+	if item == nil {
+		return nil
+	}
+	value := *item
+	return &value
+}
+
+func (p *fakeGoalContextProvider) UsageLimitForSession(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usageLimitReason = append(p.usageLimitReason, strings.TrimSpace(reason))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordContinuationProgress(_ context.Context, _ string, _ string, progressed bool, revisions ...int64) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.progress = append(p.progress, progressed)
+	p.progressRevisions = append(p.progressRevisions, firstTestRevision(revisions))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordContinuationRuntimeFailure(_ context.Context, _ string, _ goalsvc.ContinuationRuntimeIdentity, reason string, revisions ...int64) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failures = append(p.failures, strings.TrimSpace(reason))
+	p.failureRevisions = append(p.failureRevisions, firstTestRevision(revisions))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordContinuationUserStop(_ context.Context, _ string, identity goalsvc.ContinuationRuntimeIdentity, revisions ...int64) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.userStopRoundIDs = append(p.userStopRoundIDs, strings.TrimSpace(identity.ReceiptRoundID))
+	p.userStopRevisions = append(p.userStopRevisions, firstTestRevision(revisions))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordCompletionCommandMiss(_ context.Context, _ string, _ string, reason string, revisions ...int64) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.completionMisses = append(p.completionMisses, strings.TrimSpace(reason))
+	p.completionRevisions = append(p.completionRevisions, firstTestRevision(revisions))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordGoalActivity(_ context.Context, _ string, roundID string, revisions ...int64) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.activities = append(p.activities, strings.TrimSpace(roundID))
+	p.activityRevisions = append(p.activityRevisions, firstTestRevision(revisions))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.planCalls++
+	if p.planCalls > 1 || p.plan == nil {
+		return nil, nil
+	}
+	plan := *p.plan
+	return &plan, nil
+}
+
+func (p *fakeGoalContextProvider) GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.current == nil {
+		return true, nil
+	}
+	return *p.current, nil
+}
+
+func (p *fakeGoalContextProvider) ClaimContinuationPlan(context.Context, protocol.GoalContinuation) (*protocol.Goal, error) {
+	p.mu.Lock()
+	p.claimCalls++
+	p.reservation = false
+	err := p.claimErr
+	onClaim := p.onClaim
+	p.mu.Unlock()
+	if onClaim != nil {
+		onClaim()
+	}
+	return nil, err
+}
+
+func (p *fakeGoalContextProvider) ReleaseContinuationPlan(context.Context, protocol.GoalContinuation, string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.releaseCalls++
+	if p.reservation {
+		p.reservation = false
+		if p.continuationCount > 0 {
+			p.continuationCount--
+		}
+	}
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error {
+	p.mu.Lock()
+	beforeStarted := p.beforeStarted
+	p.mu.Unlock()
+	if beforeStarted != nil {
+		beforeStarted()
+	}
+	p.mu.Lock()
+	p.startedCalls++
+	err := p.startedErr
+	onStarted := p.onStarted
+	p.mu.Unlock()
+	if onStarted != nil {
+		onStarted()
+	}
+	return err
+}
+
+func (p *fakeGoalContextProvider) SettleContinuationPlan(context.Context, string, string, int64) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.settledCalls++
+	return nil
+}
+
+func (p *fakeGoalContextProvider) RetryContinuationPlan(_ context.Context, _ protocol.GoalContinuation, reason string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.retryReasons = append(p.retryReasons, strings.TrimSpace(reason))
+	return nil
+}
+
+func (p *fakeGoalContextProvider) recordedUsage() []protocol.GoalUsage {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]protocol.GoalUsage(nil), p.usage...)
+}
+
+func (p *fakeGoalContextProvider) recordedUsageLimitReasons() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.usageLimitReason...)
+}
+
+func (p *fakeGoalContextProvider) recordedProgress() []bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]bool(nil), p.progress...)
+}
+
+func firstTestRevision(revisions []int64) int64 {
+	if len(revisions) == 0 {
+		return 0
+	}
+	return revisions[0]
+}
+
+func goalToolResultAssistantMessage(
+	toolUseID string,
+	toolName string,
+	isError bool,
+	inputTokens int64,
+	outputTokens int64,
+) protocol.Message {
+	return protocol.Message{
+		"message_id": "assistant-" + toolUseID,
+		"role":       "assistant",
+		"usage": map[string]any{
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  inputTokens + outputTokens,
+		},
+		"content": []map[string]any{
+			{"type": "tool_use", "id": toolUseID, "name": toolName},
+			{"type": "tool_result", "tool_use_id": toolUseID, "is_error": isError},
+		},
+	}
+}
+
+func goalCompletionCommandMissAssistantMessage() protocol.Message {
+	return protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "任务已经完成，但无法通过 nexus.command 调用 update_goal 来标记完成。"},
+		},
+	}
+}
+
+func stageDMRuntimeCommandReceipt(runner *roundRunner, receipt nexusmcp.CommandReceipt) {
+	if runner.commandReceipts == nil {
+		runner.commandReceipts = nexusmcp.NewCommandReceiptState()
+	}
+	runner.commandReceipts.Record(receipt)
+}
+
+func stageDMAppliedGoalCommand(runner *roundRunner, operation string, goalID string, status protocol.GoalStatus) {
+	stageDMRuntimeCommandReceipt(runner, nexusmcp.CommandReceipt{
+		Domain: command.DomainGoal, Operation: operation,
+		Outcome: string(protocol.MutationResultApplied), GoalID: goalID,
+		GoalStatus: string(status),
+	})
+}
 
 type dmSettlementBoundaryContext struct {
 	context.Context
@@ -847,4 +1124,640 @@ func (r *roundRunner) recordGoalUsage(ctx context.Context, result exec.RoundExec
 		return
 	}
 	r.recordGoalUsageSnapshot(ctx, snapshot)
+}
+
+func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.T) {
+	root := t.TempDir()
+	workspacePath := filepath.Join(root, "agent-1")
+	sessionKey := "agent:agent-1:ws:dm:goal-receipt"
+	history := workspacestore.NewAgentHistoryStore(root)
+	provider := &fakeDMGoalUsageFinalizer{
+		fakeGoalContextProvider: &fakeGoalContextProvider{},
+		report: protocol.GoalUsageReport{
+			GoalID:          "goal-1",
+			SessionKey:      sessionKey,
+			Status:          protocol.GoalStatusComplete,
+			TimeUsedSeconds: 754,
+		},
+	}
+	assistant := protocol.Message{
+		"message_id":  "assistant-final",
+		"session_key": sessionKey,
+		"agent_id":    "agent-1",
+		"round_id":    "round-1",
+		"role":        "assistant",
+		"timestamp":   int64(1000),
+		"content":     []map[string]any{{"type": "text", "text": "最终交付"}},
+	}
+	runner := &roundRunner{
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager(), History: history, Permission: permissionctx.NewContext()}},
+		workspacePath:  workspacePath,
+		session:        protocol.Session{SessionKey: sessionKey, AgentID: "agent-1"},
+		sessionKey:     sessionKey,
+		roundID:        "round-1",
+		GoalRoundState: runtimehost.GoalRoundState{CompletionCandidateID: "goal-1", CompletionAssistant: assistant, CompletionReceiptStored: false},
+	}
+
+	runner.persistGoalCompletionReceipt(context.Background(), false)
+	first := readGoalCompletionReceipt(t, history, workspacePath, runner.session)
+	if first.TimeUsedSeconds == nil || *first.TimeUsedSeconds != 754 || first.ActualTokens != nil {
+		t.Fatalf("first receipt = %+v, want duration only", first)
+	}
+
+	provider.mu.Lock()
+	provider.report.UsageFinalized = true
+	provider.report.Usage = protocol.GoalUsage{ActualTotalTokens: 62762, ActualTotalKnown: true}
+	provider.mu.Unlock()
+	runner.persistGoalCompletionReceipt(context.Background(), true)
+	final := readGoalCompletionReceipt(t, history, workspacePath, runner.session)
+	if final.ActualTokens == nil || *final.ActualTokens != 62762 {
+		t.Fatalf("final receipt = %+v, want authoritative actual tokens", final)
+	}
+
+	runner.persistGoalCompletionReceipt(context.Background(), true)
+	messages, err := history.ReadMessages(workspacePath, runner.session, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if countMessagesByID(messages, "assistant-final") != 1 {
+		t.Fatalf("messages = %+v, want one merged final assistant", messages)
+	}
+}
+
+func TestRoundRunnerUsesGoalIDFromCompletionCommandReceipt(t *testing.T) {
+	receipts := nexusmcp.NewCommandReceiptState()
+	runner := &roundRunner{
+		service:         &Service{goals: &fakeGoalContextProvider{}, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
+		commandReceipts: receipts,
+	}
+	receipts.Record(nexusmcp.CommandReceipt{
+		Domain: command.DomainGoal, Operation: command.GoalOperationUpdate,
+		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-from-receipt",
+		GoalStatus: string(protocol.GoalStatusComplete),
+	})
+	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusComplete))
+	if runner.CompletionCandidateID != "goal-from-receipt" {
+		t.Fatalf("complete update candidate = %q, want exact receipt Goal ID", runner.CompletionCandidateID)
+	}
+}
+
+func goalCommandAssistantMessage(status protocol.GoalStatus) protocol.Message {
+	return protocol.Message{
+		"message_id": "assistant-update-" + string(status),
+		"role":       "assistant",
+		"content":    []map[string]any{{"type": "text", "text": "Goal command completed"}},
+	}
+}
+
+func readGoalCompletionReceipt(
+	t *testing.T,
+	history *workspacestore.AgentHistoryStore,
+	workspacePath string,
+	session protocol.Session,
+) protocol.GoalCompletionReceipt {
+	t.Helper()
+	messages, err := history.ReadMessages(workspacePath, session, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var assistant protocol.Message
+	for _, message := range messages {
+		if stringValue(message["message_id"]) == "assistant-final" {
+			assistant = message
+			break
+		}
+	}
+	if assistant == nil {
+		t.Fatalf("final assistant missing: %+v", messages)
+	}
+	raw, ok := assistant[protocol.GoalCompletionReceiptField].(map[string]any)
+	if !ok {
+		t.Fatalf("receipt missing from history: %+v", assistant)
+	}
+	receipt := protocol.GoalCompletionReceipt{
+		GoalID:  stringValue(raw["goal_id"]),
+		RoundID: stringValue(raw["round_id"]),
+	}
+	if value, ok := receiptInt64(raw["time_used_seconds"]); ok {
+		seconds := value
+		receipt.TimeUsedSeconds = &seconds
+	}
+	if value, ok := receiptInt64(raw["actual_tokens"]); ok {
+		tokens := value
+		receipt.ActualTokens = &tokens
+	}
+	return receipt
+}
+
+func stringValue(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
+func countMessagesByID(messages []protocol.Message, messageID string) int {
+	count := 0
+	for _, message := range messages {
+		if stringValue(message["message_id"]) == messageID {
+			count++
+		}
+	}
+	return count
+}
+
+func receiptInt64(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int64:
+		return typed, true
+	case float64:
+		return int64(typed), true
+	case json.Number:
+		parsed, err := typed.Int64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+// A user stop on a running Goal continuation must suspend continuation and
+// settle its launch receipt on every stop path: an exact-round stop and a
+// session stop that the provider acknowledges, and a provider that never
+// answers so the host cancels locally. A host control stop (Goal pause,
+// automation cancel) only settles the receipt and never pauses the queue.
+func TestServiceUserStopOnGoalContinuationRecordsUserStop(t *testing.T) {
+	for _, mode := range []string{"exact", "session", "silent-provider", "host-control"} {
+		t.Run(mode, func(t *testing.T) {
+			cfg := newDMTestConfig(t)
+			agentService := newDMAgentService(t, cfg)
+			client := newFakeDMClient()
+			queryStarted := make(chan struct{}, 1)
+			client.onQuery = func(context.Context, string) { queryStarted <- struct{}{} }
+			client.onInterrupt = func(context.Context) {
+				if mode == "silent-provider" {
+					return
+				}
+				go func() {
+					client.messages <- sdkprotocol.ReceivedMessage{
+						Type:      sdkprotocol.MessageTypeResult,
+						SessionID: client.sessionID,
+						UUID:      "result-user-stop-" + mode,
+						Result: &sdkprotocol.ResultMessage{
+							Subtype: "interrupted", DurationMS: 1, NumTurns: 1,
+							Result: messagepkg.InterruptWithoutMessage,
+						},
+					}
+				}()
+			}
+			runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+			service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+			service.SetInboxStore(newDMInboxStore(t, cfg))
+			sessionKey := "agent:nexus:ws:dm:user-stop-" + mode
+			t.Cleanup(func() { _ = runtimeManager.CloseSession(context.Background(), sessionKey) })
+			goal := protocol.Goal{
+				ID: "goal-user-stop", SessionKey: sessionKey, Objective: "stop means stop", Status: protocol.GoalStatusActive,
+				Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+			}
+			plan := protocol.GoalContinuation{
+				Goal: goal, RoundID: "goal_continuation_user_stop_" + mode, Prompt: "continue",
+				HiddenFromUser: true, Synthetic: true, Purpose: "goal_continuation",
+			}
+			goalProvider := &fakeGoalContextProvider{reservation: true, continuationCount: 1, runtimeContext: "ctx", runtimeGoal: &goal}
+			service.SetGoalContextProvider(goalProvider)
+
+			if err := service.DispatchGoalContinuation(context.Background(), plan); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-queryStarted:
+			case <-time.After(2 * time.Second):
+				t.Fatal("continuation did not start")
+			}
+			request := InterruptRequest{SessionKey: sessionKey, RoundID: plan.RoundID, UserStop: mode != "host-control"}
+			if mode == "session" {
+				request.RoundID = ""
+			}
+			if err := service.HandleInterrupt(context.Background(), request); err != nil {
+				t.Fatalf("interrupt: %v", err)
+			}
+			waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
+			deadline := time.Now().Add(2 * time.Second)
+			for {
+				goalProvider.mu.Lock()
+				stops := slices.Clone(goalProvider.userStopRoundIDs)
+				revisions := slices.Clone(goalProvider.userStopRevisions)
+				progress := len(goalProvider.progress)
+				failures := len(goalProvider.failures)
+				settled := goalProvider.settledCalls
+				goalProvider.mu.Unlock()
+				if mode == "host-control" && (settled > 0 || time.Now().After(deadline)) {
+					if len(stops) != 0 || progress != 0 || failures != 0 || settled == 0 {
+						t.Fatalf("host control stop: stops=%v progress=%d failures=%d settled=%d, want receipt settled only", stops, progress, failures, settled)
+					}
+					_, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, "")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if paused, err := service.InputQueue.DispatchPaused(location); err != nil || paused {
+						t.Fatalf("host control stop paused the queue: paused=%v err=%v", paused, err)
+					}
+					return
+				}
+				if mode != "host-control" && (len(stops) > 0 || time.Now().After(deadline)) {
+					if !slices.Equal(stops, []string{plan.RoundID}) || !slices.Equal(revisions, []int64{1}) {
+						t.Fatalf("user stops = %v revisions = %v, want exactly the stopped round at revision 1", stops, revisions)
+					}
+					if progress != 0 || failures != 0 {
+						t.Fatalf("progress=%d failures=%d, want a user stop never counted as progress or failure", progress, failures)
+					}
+					return
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		})
+	}
+}
+
+func TestRoundRunnerNonUserInterruptOnlySettlesContinuationReceipt(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
+		sessionKey:     "agent:nexus:ws:dm:non-user-interrupt",
+		roundID:        "goal_continuation_non_user",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-1"},
+		inputOptions:   sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
+	}
+
+	runner.recordGoalRoundInterrupted("收到新的用户消息，上一轮已停止")
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if goalProvider.settledCalls != 1 || len(goalProvider.userStopRoundIDs) != 0 || len(goalProvider.progress) != 0 {
+		t.Fatalf("settled=%d stops=%v progress=%v, want receipt settled without a user stop", goalProvider.settledCalls, goalProvider.userStopRoundIDs, goalProvider.progress)
+	}
+}
+
+func TestFailRoundKeepsProviderUsageReturnedBeforeLocalFailure(t *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		usage      sdkprotocol.TokenUsage
+		wantWrites int
+		wantActual int64
+	}{
+		{
+			name: "nonzero exact",
+			usage: sdkprotocol.TokenUsage{
+				InputTokens:  10,
+				OutputTokens: 5,
+				TotalTokens:  15,
+			},
+			wantWrites: 1,
+			wantActual: 15,
+		},
+		{
+			name: "explicit zero overrides assistant estimate",
+			usage: sdkprotocol.TokenUsage{
+				Raw: map[string]any{"total_tokens": int64(0)},
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := newDMTestConfig(t)
+			goalProvider := &fakeGoalContextProvider{}
+			sessionKey := "agent:nexus:ws:dm:terminal-local-failure"
+			roundID := "round-terminal-local-failure"
+			agentID := "agent-terminal-local-failure"
+			service := NewService(
+				cfg,
+				nil,
+				runtimectx.NewManager(),
+				permissionctx.NewContext(),
+			)
+			service.SetInboxStore(newDMInboxStore(t, cfg))
+			service.goals = goalProvider
+			runner := &roundRunner{
+				service:       service,
+				workspacePath: cfg.WorkspacePath,
+				session: protocol.Session{
+					SessionKey: sessionKey,
+					AgentID:    agentID,
+				},
+				agent: &protocol.Agent{
+					AgentID:       agentID,
+					WorkspacePath: cfg.WorkspacePath,
+				},
+				sessionKey:     sessionKey,
+				roundID:        roundID,
+				agentRoundID:   roundID,
+				client:         newFakeDMClient(),
+				mapper:         dmdomain.NewMessageMapper(sessionKey, agentID, roundID, roundID, "user-terminal-local-failure"),
+				GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-terminal-local-failure", Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageStartedAt: time.Now()},
+			}
+			runner.RememberGoalAssistantMessage(protocol.Message{
+				"message_id": "assistant-terminal-local-failure",
+				"role":       "assistant",
+				"usage": map[string]any{
+					"input_tokens":  int64(70),
+					"output_tokens": int64(30),
+					"total_tokens":  int64(100),
+				},
+			})
+
+			runner.failRound(
+				exec.RoundExecutionResult{Usage: testCase.usage},
+				errors.New("persist terminal event"),
+			)
+
+			usages := goalProvider.recordedUsage()
+			if len(usages) != testCase.wantWrites {
+				t.Fatalf("failure-settled usage = %#v, want %d writes", usages, testCase.wantWrites)
+			}
+			if len(usages) > 0 && usages[0].ActualTokens() != testCase.wantActual {
+				t.Fatalf("failure-settled usage = %#v, want actual %d", usages, testCase.wantActual)
+			}
+			if runner.Usage.Active() {
+				t.Fatal("Goal usage remains active after failure settlement")
+			}
+		})
+	}
+}
+
+type blockingDMGoalUsageProvider struct {
+	*fakeGoalContextProvider
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+type failOnceDMGoalUsageProvider struct {
+	*fakeGoalContextProvider
+	mu       sync.Mutex
+	failNext bool
+}
+
+type failNDMGoalUsageProvider struct {
+	*fakeGoalContextProvider
+	mu                sync.Mutex
+	failuresRemaining int
+}
+
+func (p *failNDMGoalUsageProvider) RecordUsageForGoal(
+	ctx context.Context,
+	goalID string,
+	usage protocol.GoalUsage,
+	roundID string,
+) (*protocol.Goal, error) {
+	p.mu.Lock()
+	if p.failuresRemaining > 0 {
+		p.failuresRemaining--
+		p.mu.Unlock()
+		return nil, errors.New("transient usage write failure")
+	}
+	p.mu.Unlock()
+	return p.fakeGoalContextProvider.RecordUsageForGoal(ctx, goalID, usage, roundID)
+}
+
+func (p *failOnceDMGoalUsageProvider) RecordUsageForGoal(
+	ctx context.Context,
+	goalID string,
+	usage protocol.GoalUsage,
+	roundID string,
+) (*protocol.Goal, error) {
+	p.mu.Lock()
+	fail := p.failNext
+	p.failNext = false
+	p.mu.Unlock()
+	if fail {
+		return nil, errors.New("transient usage write failure")
+	}
+	return p.fakeGoalContextProvider.RecordUsageForGoal(ctx, goalID, usage, roundID)
+}
+
+func (p *blockingDMGoalUsageProvider) RecordUsageForGoal(
+	ctx context.Context,
+	goalID string,
+	usage protocol.GoalUsage,
+	roundID string,
+) (*protocol.Goal, error) {
+	p.once.Do(func() { close(p.entered) })
+	<-p.release
+	return p.fakeGoalContextProvider.RecordUsageForGoal(ctx, goalID, usage, roundID)
+}
+
+func TestRoundRunnerSerializesUsageSettlementWithExternalGoalRebind(t *testing.T) {
+	provider := &blockingDMGoalUsageProvider{
+		fakeGoalContextProvider: &fakeGoalContextProvider{},
+		entered:                 make(chan struct{}),
+		release:                 make(chan struct{}),
+	}
+	runner := &roundRunner{
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
+		sessionKey:     "agent:nexus:ws:dm:rebind",
+		roundID:        "round-old",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-old", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
+	}
+
+	recorded := make(chan struct{})
+	go func() {
+		runner.recordGoalUsageSnapshot(context.Background(), goalsvc.RuntimeUsageSnapshot{
+			Usage:              protocol.GoalUsage{InputTokens: 10, OutputTokens: 2, ActualTotalTokens: 12},
+			TokenUsageObserved: true,
+			Cumulative:         true,
+			SettlementBoundary: true,
+		})
+		close(recorded)
+	}()
+	<-provider.entered
+
+	activationStarted := make(chan struct{})
+	activationDone := make(chan struct{})
+	go func() {
+		close(activationStarted)
+		_ = runner.activateGoalUsage(context.Background(), "goal-new")
+		close(activationDone)
+	}()
+	<-activationStarted
+	select {
+	case <-activationDone:
+		t.Fatal("external Goal rebind completed before old usage settlement")
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	close(provider.release)
+	select {
+	case <-recorded:
+	case <-time.After(time.Second):
+		t.Fatal("old Goal usage settlement did not finish")
+	}
+	select {
+	case <-activationDone:
+	case <-time.After(time.Second):
+		t.Fatal("external Goal rebind did not resume")
+	}
+
+	provider.mu.Lock()
+	gotIDs := append([]string(nil), provider.usageGoalIDs...)
+	provider.mu.Unlock()
+	if len(gotIDs) != 1 || gotIDs[0] != "goal-old" {
+		t.Fatalf("usage Goal IDs = %#v, want old delta fixed to goal-old", gotIDs)
+	}
+	runner.Mu.Lock()
+	gotBinding := runner.IDForUsage
+	runner.Mu.Unlock()
+	if gotBinding != "goal-new" {
+		t.Fatalf("Goal binding = %q, want goal-new after settlement", gotBinding)
+	}
+}
+
+func TestRoundRunnerRetriesUncommittedUsageAtTerminal(t *testing.T) {
+	base := &fakeGoalContextProvider{}
+	provider := &failOnceDMGoalUsageProvider{
+		fakeGoalContextProvider: base,
+		failNext:                true,
+	}
+	runner := &roundRunner{
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
+		sessionKey:     "agent:nexus:ws:dm:retry",
+		roundID:        "round-retry",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-retry", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
+	}
+	accelerateDMGoalUsageRetry(runner)
+
+	runner.recordGoalUsageSnapshot(context.Background(), goalsvc.RuntimeUsageSnapshot{
+		TurnID:         "turn-a",
+		ElapsedSeconds: 1,
+		Usage: protocol.GoalUsage{
+			InputTokens:       90,
+			OutputTokens:      10,
+			ActualTotalTokens: 100,
+			ActualTotalKnown:  true,
+		},
+	})
+	runner.recordGoalUsageSnapshot(context.Background(), goalsvc.RuntimeUsageSnapshot{
+		Usage: protocol.GoalUsage{
+			InputTokens:       140,
+			OutputTokens:      10,
+			ActualTotalTokens: 150,
+			ActualTotalKnown:  true,
+		},
+		Cumulative: true,
+		Terminal:   true,
+	})
+
+	usages := base.recordedUsage()
+	if len(usages) != 1 || usages[0].BudgetTokens() != 150 || usages[0].ActualTokens() != 150 {
+		t.Fatalf("persisted usage = %#v, want one complete terminal retry of 150", usages)
+	}
+}
+
+func TestRoundRunnerRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
+	base := &fakeGoalContextProvider{}
+	provider := &failNDMGoalUsageProvider{
+		fakeGoalContextProvider: base,
+		failuresRemaining:       runtimehost.GoalUsagePersistAttempts,
+	}
+	runner := &roundRunner{
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
+		sessionKey:     "agent:nexus:ws:dm:retry-window",
+		roundID:        "round-retry-window",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-retry-window", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
+	}
+	accelerateDMGoalUsageRetry(runner)
+	snapshot := goalsvc.RuntimeUsageSnapshot{
+		Usage: protocol.GoalUsage{
+			InputTokens:       140,
+			OutputTokens:      10,
+			ActualTotalTokens: 150,
+			ActualTotalKnown:  true,
+		},
+		Cumulative: true,
+		Terminal:   true,
+	}
+
+	runner.finalizeGoalUsage(context.Background(), exec.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  140,
+			OutputTokens: 10,
+			TotalTokens:  150,
+		},
+	}, nil)
+	if !runner.Usage.Active() {
+		t.Fatal("terminal persistence failure closed the accumulator")
+	}
+	if !runner.finalizeCompletedGoalUsageAfterSubagents(context.Background()) {
+		t.Fatal("retained terminal delta did not settle on the later retry")
+	}
+	if runner.Usage.Active() {
+		t.Fatal("settled terminal accumulator remains active")
+	}
+	usages := base.recordedUsage()
+	if len(usages) != 1 || usages[0].BudgetTokens() != snapshot.Usage.BudgetTokens() ||
+		usages[0].ActualTokens() != snapshot.Usage.ActualTokens() {
+		t.Fatalf("persisted usage = %#v, want one retained terminal delta %#v", usages, snapshot.Usage)
+	}
+}
+
+func TestRoundRunnerNewerTerminalSnapshotPreventsOlderSettlementFromClosing(t *testing.T) {
+	base := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: base, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
+		sessionKey:     "agent:nexus:ws:dm:terminal-version-handoff",
+		roundID:        "round-terminal-version-handoff",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-terminal-version-handoff", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
+	}
+	first := goalsvc.RuntimeUsageSnapshot{
+		Usage: protocol.GoalUsage{
+			InputTokens:       90,
+			OutputTokens:      10,
+			ActualTotalTokens: 100,
+			ActualTotalKnown:  true,
+		},
+		Cumulative: true,
+		Terminal:   true,
+	}
+	firstVersion := runner.rememberTerminalGoalUsageSnapshot(first)
+	if !runner.settleTerminalGoalUsageSnapshot(context.Background(), first) {
+		t.Fatal("first terminal snapshot did not settle")
+	}
+
+	second := goalsvc.RuntimeUsageSnapshot{
+		Usage: protocol.GoalUsage{
+			InputTokens:       135,
+			OutputTokens:      15,
+			ActualTotalTokens: 150,
+			ActualTotalKnown:  true,
+		},
+		Cumulative: true,
+		Terminal:   true,
+	}
+	secondVersion := runner.rememberTerminalGoalUsageSnapshot(second)
+	if runner.clearTerminalGoalUsageSnapshot(firstVersion) {
+		t.Fatal("older settlement cleared a newer terminal snapshot")
+	}
+	if runner.closeGoalUsageIfNoTerminalSnapshotPending() {
+		t.Fatal("older settlement closed accounting while a newer terminal snapshot was pending")
+	}
+	if !runner.Usage.Active() {
+		t.Fatal("newer terminal handoff did not keep the accumulator active")
+	}
+
+	if !runner.settleTerminalGoalUsageSnapshot(context.Background(), second) {
+		t.Fatal("newer terminal snapshot did not settle")
+	}
+	if !runner.clearTerminalGoalUsageSnapshot(secondVersion) {
+		t.Fatal("newer terminal snapshot could not clear its own pending version")
+	}
+	if !runner.closeGoalUsageIfNoTerminalSnapshotPending() {
+		t.Fatal("accounting did not close after the newest terminal snapshot settled")
+	}
+	if runner.Usage.Active() {
+		t.Fatal("accumulator remained active after the newest terminal settlement")
+	}
+
+	usages := base.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("terminal handoff usages = %#v, want 100 then 50", usages)
+	}
+	total := usages[0].Add(usages[1])
+	if total.BudgetTokens() != 150 || total.ActualTokens() != 150 {
+		t.Fatalf("terminal handoff total = %#v, want latest cumulative 150", total)
+	}
 }

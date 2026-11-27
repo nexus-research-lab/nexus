@@ -36,7 +36,6 @@ import {
   type AgentConversationHistoryCursor,
   type ConversationHistoryRequest,
 } from "./conversation-history-model";
-import { requestConversationHistoryPageUntilReady } from "./conversation-history-request";
 
 interface AgentConversationHistoryContext {
   activeSessionKeyRef: RefObject<string | null>;
@@ -74,21 +73,18 @@ async function requestHistoryPage(
   request: ConversationHistoryRequest,
   signal: AbortSignal,
 ): Promise<ConversationMessagePage> {
-  return requestConversationHistoryPageUntilReady({
-    loadPage: () => request.source.kind === "room"
-      ? getRoomConversationMessages(
-        request.source.roomId,
-        request.source.conversationId,
-        request.query,
-        signal,
-      )
-      : getSessionMessagesApi(
-        request.source.sessionKey,
-        request.query,
-        signal,
-      ),
-    signal,
-  });
+  return request.source.kind === "room"
+    ? getRoomConversationMessages(
+      request.source.roomId,
+      request.source.conversationId,
+      request.query,
+      signal,
+    )
+    : getSessionMessagesApi(
+      request.source.sessionKey,
+      request.query,
+      signal,
+    );
 }
 
 function isCurrentHistoryRequest(

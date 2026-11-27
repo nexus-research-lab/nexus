@@ -17,7 +17,7 @@ func getExecution(svc contract.Service, sctx contract.Context) command.Operation
 	return command.Operation{
 		Name: "get_execution",
 		Description: "Read the compact authoritative actor-specific view of the current Execution, or one explicit Execution by id. " +
-			"Verified Room members receive a shared graph observation with no assignment, review, submission, plan mutation, or coordination authority. Bound actors keep their scoped responsibility view. For the verified coordinator of the current WorkGraph, this explicit call also enters that physical round's temporary coordination scope; it does not mutate the durable graph. Historical reads do not grant coordination. There is no user-facing coordination mode switch. execution_context is XML text; read its lane and allowed_actions before mutation.",
+			"Verified Room members receive a shared graph observation with no assignment, review, submission, plan mutation, or coordination authority. Bound actors keep their scoped responsibility view. For the verified coordinator of the current WorkGraph, this explicit call also enters that physical round's temporary coordination scope; it does not mutate the durable graph. Historical reads do not grant coordination. There is no user-facing coordination mode switch. execution_context is XML text; read its lane and allowed_actions before mutation. An active assignment marked awaiting_human is blocked on the user, not stalled.",
 		SearchHint:  "execution status work item assignment dependency review blocker",
 		InputSchema: getExecutionSchema(),
 		ContextHandler: func(

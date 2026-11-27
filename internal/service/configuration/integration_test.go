@@ -1,11 +1,10 @@
-// INPUT: 完整 AppServices、owner-main Actor 与各配置域 plan/apply 请求。
-// OUTPUT: 配置控制面跨服务持久化、CAS、审计、脱敏和写后核对证明。
-// POS: nexuscfg 真实装配的端到端后端集成测试。
+// integration_test.go 覆盖配置服务主链路、对账、重启修订与会话集成测试。
 package configuration_test
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -16,7 +15,9 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
+	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	"github.com/nexus-research-lab/nexus/internal/storage"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func TestConfigurationControlPlaneAppliesAndVerifiesPreferenceChange(t *testing.T) {
@@ -528,5 +529,519 @@ func TestMemberMainAuditListingExcludesHostConfiguration(t *testing.T) {
 		20,
 	); err == nil {
 		t.Fatal("member main Agent explicitly read host audit history")
+	}
+}
+
+func TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay(t *testing.T) {
+	fixture := newScopedConfigurationFixture(t)
+	actor := configurationsvc.Actor{
+		OwnerUserID:     fixture.main.OwnerUserID,
+		AgentID:         fixture.main.AgentID,
+		IsMainAgent:     true,
+		SessionKey:      "agent:nexus:ws:dm:reconcile-review",
+		ContextKind:     configurationsvc.ContextKindAgent,
+		ContextID:       fixture.main.AgentID,
+		PrincipalRole:   authctx.RoleOwner,
+		AuthMethod:      authctx.AuthMethodLocal,
+		LocalSingleUser: true,
+	}
+	bindConfigurationTestRound(t, fixture.services, &actor)
+
+	input := json.RawMessage(`{"agent_sdk_diagnostics_enabled":true}`)
+	plan, err := fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		actor,
+		configurationsvc.ChangeRequest{
+			Domain: configurationsvc.DomainPreferences, Operation: "update", Input: input,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := configurationsvc.ChangeRequest{
+		RequestID:        "reconcile-review-0001",
+		Domain:           configurationsvc.DomainPreferences,
+		Operation:        "update",
+		Input:            input,
+		ExpectedRevision: plan.CurrentRevision,
+		PlanDigest:       plan.PlanDigest,
+	}
+	if _, err = fixture.services.Configuration.ApplyChange(fixture.ownerCtx, actor, request); err != nil {
+		t.Fatal(err)
+	}
+	preferencesBefore, err := fixture.services.Preferences.Get(t.Context(), actor.OwnerUserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate the durable recovery sweep after the executor lease expired.
+	// The test intentionally changes only the receipt; no second configuration
+	// write is allowed during review or reconcile.
+	if _, err = fixture.services.DB.ExecContext(
+		t.Context(),
+		`UPDATE configuration_changes
+		 SET status = 'reconcile_required', result_json = ?, revision_after = '',
+		     error_message = 'outcome unknown'
+		 WHERE owner_user_id = ? AND request_id = ?`,
+		`{"applied":"unknown"}`, actor.OwnerUserID, request.RequestID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	review, err := fixture.services.Configuration.ReviewChange(t.Context(), actor, request.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if review.Receipt.Status != "reconcile_required" || review.Current.Revision == "" {
+		t.Fatalf("review = %+v", review)
+	}
+	if review.Evidence.DecisionSource != "human_confirmation_required" {
+		t.Fatalf("review evidence = %+v", review.Evidence)
+	}
+	if _, err = fixture.services.Configuration.ReconcileChange(
+		t.Context(),
+		configurationsvc.Actor{
+			OwnerUserID:     fixture.main.OwnerUserID,
+			AgentID:         fixture.main.AgentID,
+			IsMainAgent:     true,
+			SessionKey:      "agent:nexus:ws:dm:stale-review",
+			ContextKind:     configurationsvc.ContextKindAgent,
+			ContextID:       fixture.main.AgentID,
+			PrincipalRole:   authctx.RoleOwner,
+			AuthMethod:      authctx.AuthMethodLocal,
+			LocalSingleUser: true,
+		},
+		configurationsvc.ReconcileRequest{
+			RequestID: request.RequestID, Decision: "applied",
+			ObservedRevision: "stale-revision", Confirmed: true,
+		},
+	); err == nil || !strings.Contains(err.Error(), "当前配置已变化") {
+		t.Fatalf("stale observed revision was accepted: %v", err)
+	}
+
+	// A round-scoped model actor cannot submit the human decision. Clearing the
+	// lease flag models the local owner configuration CLI after its confirmation
+	// boundary has been reached.
+	if _, err = fixture.services.Configuration.ReconcileChange(
+		t.Context(),
+		actor,
+		configurationsvc.ReconcileRequest{
+			RequestID: request.RequestID, Decision: "applied",
+			ObservedRevision: review.Current.Revision, Confirmed: true,
+		},
+	); err == nil {
+		t.Fatal("round-scoped Agent unexpectedly submitted human reconcile")
+	}
+
+	humanActor := actor
+	humanActor.RoundLeaseRequired = false
+	humanActor.LeaseSessionKey = ""
+	humanActor.LeaseRoundID = ""
+	reconciled, err := fixture.services.Configuration.ReconcileChange(
+		t.Context(),
+		humanActor,
+		configurationsvc.ReconcileRequest{
+			RequestID: request.RequestID, Decision: "applied",
+			ObservedRevision: review.Current.Revision, Confirmed: true,
+			Note: "人工核对当前设置",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reconciled.Receipt.Status != "reconciled" ||
+		reconciled.Evidence.DecisionSource != "human_confirmation" {
+		t.Fatalf("reconciled = %+v", reconciled)
+	}
+	if !strings.Contains(string(reconciled.Receipt.Result), `"decision":"applied"`) ||
+		strings.Contains(string(reconciled.Receipt.Result), "人工核对") {
+		t.Fatalf("reconcile receipt = %s", reconciled.Receipt.Result)
+	}
+	preferencesAfter, err := fixture.services.Preferences.Get(t.Context(), actor.OwnerUserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preferencesAfter.Version != preferencesBefore.Version {
+		t.Fatalf("reconcile replayed a settings write: before=%d after=%d", preferencesBefore.Version, preferencesAfter.Version)
+	}
+	if _, err = fixture.services.Configuration.ReconcileChange(
+		t.Context(), humanActor, configurationsvc.ReconcileRequest{
+			RequestID: request.RequestID, Decision: "applied",
+			ObservedRevision: review.Current.Revision, Confirmed: true,
+		},
+	); err == nil || !strings.Contains(err.Error(), "只有 reconcile_required") {
+		t.Fatalf("duplicate reconcile was accepted: %v", err)
+	}
+}
+
+func TestConfigurationRevisionSurvivesDatabaseReopen(t *testing.T) {
+	fixture := newScopedConfigurationFixture(t)
+	actor := configurationsvc.Actor{
+		OwnerUserID: fixture.main.OwnerUserID, AgentID: fixture.main.AgentID,
+		IsMainAgent: true, ContextKind: configurationsvc.ContextKindAgent,
+		ContextID: fixture.main.AgentID, PrincipalRole: authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal, LocalSingleUser: true,
+	}
+	change := configurationsvc.ChangeRequest{
+		RequestID: "revision-restart-0001", Domain: configurationsvc.DomainPreferences,
+		Operation: "update", Input: json.RawMessage(`{"agent_sdk_diagnostics_enabled":true}`),
+	}
+	plan, err := fixture.services.Configuration.PlanChange(t.Context(), actor, change)
+	if err != nil {
+		t.Fatal(err)
+	}
+	change.ExpectedRevision, change.PlanDigest = plan.CurrentRevision, plan.PlanDigest
+	result, err := fixture.services.Configuration.ApplyChange(t.Context(), actor, change)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Keep a durable after-revision while simulating an executor whose final
+	// outcome requires human review. Restart must not change that comparison.
+	if _, err = fixture.services.DB.ExecContext(t.Context(),
+		`UPDATE configuration_changes SET status = 'reconcile_required', result_json = '{"applied":"unknown"}'
+		 WHERE owner_user_id = ? AND request_id = ?`, actor.OwnerUserID, change.RequestID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	before, err := fixture.services.Configuration.ReviewChange(t.Context(), actor, change.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Evidence.RevisionRelation != "matches_recorded_after" {
+		t.Fatalf("pre-restart revision relation = %s", before.Evidence.RevisionRelation)
+	}
+	unapplied := configurationsvc.ChangeRequest{
+		RequestID: "revision-old-plan-0001", Domain: change.Domain, Operation: change.Operation,
+		Input: json.RawMessage(`{"agent_sdk_diagnostics_enabled":false}`),
+	}
+	oldPlan, err := fixture.services.Configuration.PlanChange(t.Context(), actor, unapplied)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = fixture.services.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err = fixture.services.DB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := storage.OpenDB(fixture.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	restarted := app.NewAppServicesWithDB(fixture.config, db, nil)
+	enableConfigurationTestPrincipalVerification(restarted)
+	t.Cleanup(func() { _ = restarted.Close(t.Context()) })
+	after, err := restarted.Configuration.ReviewChange(t.Context(), actor, change.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Current.Revision != result.RevisionAfter || after.Evidence.RevisionRelation != "matches_recorded_after" {
+		t.Fatalf("unchanged configuration lost its durable revision after database reopen: relation=%s", after.Evidence.RevisionRelation)
+	}
+	freshPlan, err := restarted.Configuration.PlanChange(t.Context(), actor, unapplied)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if freshPlan.CurrentRevision != oldPlan.CurrentRevision || freshPlan.PlanDigest == oldPlan.PlanDigest {
+		t.Fatal("revision must survive restart while the approval digest must expire")
+	}
+	unapplied.ExpectedRevision, unapplied.PlanDigest = oldPlan.CurrentRevision, oldPlan.PlanDigest
+	if _, err = restarted.Configuration.ApplyChange(t.Context(), actor, unapplied); err == nil || !strings.Contains(err.Error(), "plan_digest") {
+		t.Fatalf("pre-restart plan was not rejected: %v", err)
+	}
+	reconciled, err := restarted.Configuration.ReconcileChange(t.Context(), actor, configurationsvc.ReconcileRequest{
+		RequestID: change.RequestID, Decision: "applied", Confirmed: true,
+		ObservedRevision: before.Current.Revision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reconciled.Receipt.Status != "reconciled" || reconciled.Current.StateVersion != before.Current.StateVersion {
+		t.Fatalf("reconcile changed the configuration: status=%s version=%d", reconciled.Receipt.Status, reconciled.Current.StateVersion)
+	}
+	if _, err = restarted.Configuration.ReviewChange(t.Context(), actor, unapplied.RequestID); err == nil {
+		t.Fatal("rejected pre-restart plan created an execution receipt")
+	}
+}
+
+func TestSessionConfigurationConversationBoundaryCASAndDeletion(t *testing.T) {
+	fixture := newScopedConfigurationFixture(t)
+	worker := fixture.createAgent(t, "Session Configuration Worker")
+	targetSessionKey := "agent:" + worker.AgentID + ":ws:dm:session-config-target"
+	created, err := fixture.services.Core.Session.CreateSession(
+		fixture.ownerCtx,
+		sessionsvc.CreateRequest{
+			SessionKey: targetSessionKey,
+			AgentID:    worker.AgentID,
+			Title:      "Before",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.ConfigurationVersion != 1 {
+		t.Fatalf("new Session configuration_version=%d, want 1", created.ConfigurationVersion)
+	}
+
+	mainActor := configurationsvc.Actor{
+		OwnerUserID:     fixture.main.OwnerUserID,
+		AgentID:         fixture.main.AgentID,
+		SessionKey:      "agent:" + fixture.main.AgentID + ":ws:dm:session-config-control",
+		ContextKind:     configurationsvc.ContextKindAgent,
+		ContextID:       fixture.main.AgentID,
+		PrincipalRole:   authctx.RoleOwner,
+		AuthMethod:      authctx.AuthMethodLocal,
+		LocalSingleUser: true,
+	}
+	bindConfigurationTestRound(t, fixture.services, &mainActor)
+	if _, err = fixture.services.Configuration.Inspect(
+		fixture.ownerCtx,
+		mainActor,
+		[]string{configurationsvc.DomainSessions},
+		true,
+	); err != nil {
+		t.Fatal(err)
+	}
+	afterInspect, err := fixture.services.Core.Session.GetMutableSession(
+		fixture.ownerCtx,
+		targetSessionKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterInspect.ConfigurationVersion != created.ConfigurationVersion {
+		t.Fatalf(
+			"Sessions inspect must be read-only: before=%d after=%d",
+			created.ConfigurationVersion,
+			afterInspect.ConfigurationVersion,
+		)
+	}
+
+	updateInput := json.RawMessage(`{"title":"After"}`)
+	updatePlan, err := fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		mainActor,
+		configurationsvc.ChangeRequest{
+			Domain: configurationsvc.DomainSessions, Operation: "update_title",
+			Target: targetSessionKey, Input: updateInput,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatePlan.Scope.Kind != configurationsvc.ScopeKindAgent ||
+		updatePlan.Scope.ID != worker.AgentID ||
+		updatePlan.StateVersion != created.ConfigurationVersion ||
+		!updatePlan.RequiresConfirmation {
+		t.Fatalf("Session update plan 未绑定目标 Agent/version/human approval: %+v", updatePlan)
+	}
+	runtimeProjection := *created
+	runtimeProjection.MessageCount = 1
+	runtimeProjection.LastActivity = time.Now().UTC()
+	runtimeUpdated, err := workspacestore.NewSessionFileStore(
+		fixture.config.WorkspacePath,
+	).ForOwner(worker.OwnerUserID).PatchSessionRuntime(
+		worker.WorkspacePath,
+		runtimeProjection,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtimeUpdated.ConfigurationVersion != updatePlan.StateVersion {
+		t.Fatalf(
+			"runtime patch advanced configuration_version: before=%d after=%d",
+			updatePlan.StateVersion,
+			runtimeUpdated.ConfigurationVersion,
+		)
+	}
+	updateRequest := configurationsvc.ChangeRequest{
+		RequestID: "session-title-update-0001",
+		Domain:    configurationsvc.DomainSessions, Operation: "update_title",
+		Target: targetSessionKey, Input: updateInput,
+		ExpectedRevision: updatePlan.CurrentRevision, PlanDigest: updatePlan.PlanDigest,
+	}
+	approveConfigurationTestChange(
+		t,
+		fixture.services,
+		fixture.ownerCtx,
+		mainActor,
+		updateRequest,
+		updatePlan,
+	)
+	updateResult, err := fixture.services.Configuration.ApplyChange(
+		fixture.ownerCtx,
+		mainActor,
+		updateRequest,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasConfigurationCheck(updateResult.Checks, "session_title_verified") ||
+		!hasConfigurationCheck(updateResult.Checks, "configuration_resource_version_advanced") {
+		t.Fatalf("Session 标题更新缺少写后证明: %+v", updateResult)
+	}
+	resultPayload, err := json.Marshal(updateResult.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultText := string(resultPayload)
+	for _, forbidden := range []string{
+		`"session_id"`,
+		`"room_session_id"`,
+		`"options"`,
+		`"resume_id"`,
+	} {
+		if strings.Contains(resultText, forbidden) {
+			t.Fatalf("Session 配置结果泄漏内部字段 %s: %s", forbidden, resultText)
+		}
+	}
+	var auditResult string
+	if err = fixture.services.DB.QueryRowContext(
+		fixture.ownerCtx,
+		`SELECT result_json
+		   FROM configuration_changes
+		  WHERE owner_user_id = ? AND request_id = ?`,
+		fixture.main.OwnerUserID,
+		updateRequest.RequestID,
+	).Scan(&auditResult); err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{
+		`"session_id"`,
+		`"room_session_id"`,
+		`"options"`,
+		`"resume_id"`,
+	} {
+		if strings.Contains(auditResult, forbidden) {
+			t.Fatalf("Session 配置审计泄漏内部字段 %s: %s", forbidden, auditResult)
+		}
+	}
+	updated, err := fixture.services.Core.Session.GetMutableSession(
+		fixture.ownerCtx,
+		targetSessionKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Title != "After" ||
+		updated.ConfigurationVersion != created.ConfigurationVersion+1 {
+		t.Fatalf("Session 标题/CAS 未写入真相源: %+v", updated)
+	}
+
+	stalePlan, err := fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		mainActor,
+		configurationsvc.ChangeRequest{
+			Domain: configurationsvc.DomainSessions, Operation: "update_title",
+			Target: targetSessionKey, Input: json.RawMessage(`{"title":"Stale"}`),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleRequest := configurationsvc.ChangeRequest{
+		RequestID: "session-title-stale-0001",
+		Domain:    configurationsvc.DomainSessions, Operation: "update_title",
+		Target: targetSessionKey, Input: json.RawMessage(`{"title":"Stale"}`),
+		ExpectedRevision: stalePlan.CurrentRevision, PlanDigest: stalePlan.PlanDigest,
+	}
+	approveConfigurationTestChange(
+		t,
+		fixture.services,
+		fixture.ownerCtx,
+		mainActor,
+		staleRequest,
+		stalePlan,
+	)
+	if _, err = fixture.services.Core.Session.UpdateSessionTitle(
+		fixture.ownerCtx,
+		targetSessionKey,
+		"Concurrent",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = fixture.services.Configuration.ApplyChange(
+		fixture.ownerCtx,
+		mainActor,
+		staleRequest,
+	); err == nil || !strings.Contains(err.Error(), "plan_digest") {
+		t.Fatalf("并发推进后的旧 Session plan 必须失效: %v", err)
+	}
+
+	selfActor := configurationsvc.Actor{
+		OwnerUserID: worker.OwnerUserID,
+		AgentID:     worker.AgentID,
+		SessionKey:  targetSessionKey,
+		ContextKind: configurationsvc.ContextKindAgent,
+		ContextID:   worker.AgentID,
+	}
+	bindConfigurationTestRound(t, fixture.services, &selfActor)
+	if _, err = fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		selfActor,
+		configurationsvc.ChangeRequest{
+			Domain: configurationsvc.DomainSessions, Operation: "update_title",
+			Target: mainActor.SessionKey, Input: json.RawMessage(`{"title":"Forbidden"}`),
+		},
+	); err == nil {
+		t.Fatal("普通 Agent 不得切换 target 修改其他 Session")
+	}
+	if _, err = fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		selfActor,
+		configurationsvc.ChangeRequest{
+			Domain: configurationsvc.DomainSessions, Operation: "delete",
+			Target: targetSessionKey, Input: json.RawMessage(`{}`),
+		},
+	); err == nil {
+		t.Fatal("普通 Agent 不得删除 Session")
+	}
+	fixture.services.Runtime.MarkRoundFinished(
+		selfActor.LeaseSessionKey,
+		selfActor.LeaseRoundID,
+	)
+
+	deletePlan, err := fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		mainActor,
+		configurationsvc.ChangeRequest{
+			Domain: configurationsvc.DomainSessions, Operation: "delete",
+			Target: targetSessionKey, Input: json.RawMessage(`{}`),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteRequest := configurationsvc.ChangeRequest{
+		RequestID: "session-delete-0001",
+		Domain:    configurationsvc.DomainSessions, Operation: "delete",
+		Target: targetSessionKey, Input: json.RawMessage(`{}`),
+		ExpectedRevision: deletePlan.CurrentRevision, PlanDigest: deletePlan.PlanDigest,
+	}
+	approveConfigurationTestChange(
+		t,
+		fixture.services,
+		fixture.ownerCtx,
+		mainActor,
+		deleteRequest,
+		deletePlan,
+	)
+	deleteResult, err := fixture.services.Configuration.ApplyChange(
+		fixture.ownerCtx,
+		mainActor,
+		deleteRequest,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasConfigurationCheck(deleteResult.Checks, "configuration_target_deleted") {
+		t.Fatalf("Session 删除缺少不存在证明: %+v", deleteResult)
+	}
+	if _, err = fixture.services.Core.Session.GetMutableSession(
+		fixture.ownerCtx,
+		targetSessionKey,
+	); !errors.Is(err, sessionsvc.ErrSessionNotFound) {
+		t.Fatalf("Session 删除后仍可读取: %v", err)
 	}
 }

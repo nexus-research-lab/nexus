@@ -25,7 +25,7 @@ type AgentHistoryStore struct {
 	replyPreviews *roomrepo.SQLRepository
 	paths         *Store
 	files         *SessionFileStore
-	readModel     *historyReadModel
+	history       *conversationHistoryStore
 	ownerUserID   string
 	cache         *agentHistoryCache
 	runtimeRepair *runtimePermissionRepair
@@ -34,9 +34,9 @@ type AgentHistoryStore struct {
 // NewAgentHistoryStore 创建 DM 历史读写门面。
 func NewAgentHistoryStore(root string) *AgentHistoryStore {
 	return &AgentHistoryStore{
-		paths:     New(root),
-		files:     NewSessionFileStore(root),
-		readModel: sharedHistoryReadModel(root),
+		paths:   New(root),
+		files:   NewSessionFileStore(root),
+		history: conversationHistoryForRoot(root),
 		cache: &agentHistoryCache{
 			entries: make(map[string]transcriptCacheEntry),
 		},
@@ -53,7 +53,7 @@ func (s *AgentHistoryStore) ForOwner(ownerUserID string) *AgentHistoryStore {
 	return &AgentHistoryStore{
 		paths:         s.paths,
 		files:         s.files.ForOwner(ownerUserID),
-		readModel:     s.readModel,
+		history:       s.history,
 		ownerUserID:   ownerUserID,
 		replyPreviews: s.replyPreviews,
 		cache:         s.cache,

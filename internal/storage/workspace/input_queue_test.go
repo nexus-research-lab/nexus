@@ -1,9 +1,11 @@
+// input_queue_test.go 覆盖工作区持久化输入队列、恢复与 WorkBinding 测试。
 package workspace
 
 import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -680,5 +682,384 @@ func TestRestoreDispatchedPreservesExplicitOrderAcrossRestart(t *testing.T) {
 		if len(items) != 3 || items[0].ID != "c" || items[1].ID != "a" || items[2].ID != "b" || items[0].QueueOrder != item.QueueOrder {
 			t.Fatalf("restored order = %#v", items)
 		}
+	}
+}
+
+func TestQueueRecoveryPreservesClaimOrderAndStopAcrossRestart(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{OwnerUserID: "owner", Scope: protocol.InputQueueScopeDM, WorkspacePath: filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a"), SessionKey: "agent:agent-a:ws:dm:recover"}
+	store := NewInputQueueStore("")
+	for _, id := range []string{"first", "second"} {
+		if _, err := store.Enqueue(location, protocol.InputQueueItem{ID: id, Content: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	item, _, err := store.ClaimFirstDispatchable(location)
+	if err != nil || item == nil || item.ID != "first" || item.DispatchPending {
+		t.Fatalf("fresh claim: %+v %v", item, err)
+	}
+	store = NewInputQueueStore("")
+	items, err := store.Snapshot(location)
+	if err != nil || len(items) != 2 || items[0].ID != "first" || !items[0].DispatchPending {
+		t.Fatalf("lost claim/order: %+v %v", items, err)
+	}
+	if err := store.SetDispatchPaused(location, true); err != nil {
+		t.Fatal(err)
+	}
+	store = NewInputQueueStore("")
+	item, items, err = store.ClaimFirstDispatchable(location)
+	if err != nil || item != nil || !items[0].DispatchPaused {
+		t.Fatalf("stop lost on restart: %+v %v", items, err)
+	}
+	locations, err := store.LocationsForWorkspace("owner", location.WorkspacePath)
+	if err != nil || len(locations) != 1 || locations[0].SessionKey != location.SessionKey {
+		t.Fatalf("queue without meta not discovered: %+v %v", locations, err)
+	}
+	if err := store.SetDispatchPaused(location, false); err != nil {
+		t.Fatal(err)
+	}
+	item, _, err = store.ClaimFirstDispatchable(location)
+	if err != nil || item == nil || !item.DispatchPending || item.ID != "first" {
+		t.Fatalf("unknown claim treated fresh: %+v %v", item, err)
+	}
+	if _, err := store.Dispatch(location, item.ID); err != nil {
+		t.Fatal(err)
+	}
+	items, err = NewInputQueueStore("").Snapshot(location)
+	if err != nil || len(items) != 1 || items[0].ID != "second" {
+		t.Fatalf("acceptance not committed: %+v %v", items, err)
+	}
+}
+
+func TestExplicitWorkRecoveryPassesOnlyItsOwnStopGate(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{OwnerUserID: "owner", Scope: protocol.InputQueueScopeDM, WorkspacePath: filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a"), SessionKey: "agent:agent-a:ws:dm:explicit-recover"}
+	store := NewInputQueueStore("")
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{ID: "other", Content: "other paused work"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetDispatchPaused(location, true); err != nil {
+		t.Fatal(err)
+	}
+	target := &protocol.ExecutionRecoveryTarget{ExecutionID: "execution", WorkItemID: "work", AttemptID: "attempt"}
+	request := protocol.InputQueueItem{ID: "recover", Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: "execution", RecoveryTarget: target, Content: "inspect exact work", DeliveryPolicy: protocol.ChatDeliveryPolicyQueue}
+	revision, err := store.ContinuationPauseRevision(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.ContinuationPauseRevision = &revision
+	request.AgentID = "agent-a"
+	request.TargetAgentIDs = []string{"agent-a"}
+	request.WorkBinding = &protocol.ExecutionWorkBinding{ExecutionID: "execution", PlanID: "plan", WorkItemID: "work", SpecID: "spec", AssignmentID: "assignment", AttemptID: "attempt"}
+	first, err := store.EnqueueIdempotent(location, request, "request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.ID = "ignored"
+	duplicate, err := store.EnqueueIdempotent(location, request, "request-2")
+	if err != nil || !duplicate.Duplicate || duplicate.Item.ID != first.Item.ID {
+		t.Fatalf("coalesce=%+v %v", duplicate, err)
+	}
+	store = NewInputQueueStore("")
+	item, items, err := store.ClaimFirstDispatchable(location)
+	if err != nil || item == nil || item.ID != "recover" || !items[0].DispatchPaused {
+		t.Fatalf("recovery admission=%+v %+v %v", item, items, err)
+	}
+	if paused, err := store.DispatchPaused(location); err != nil || !paused {
+		t.Fatalf("other queue gate resumed: %v %v", paused, err)
+	}
+	if err := store.SetDispatchPaused(location, true); err != nil {
+		t.Fatal(err)
+	}
+	delayed := request
+	delayed.ID = "delayed"
+	copied := *request.RecoveryTarget
+	copied.AttemptID = "delayed-attempt"
+	delayed.RecoveryTarget = &copied
+	binding := *request.WorkBinding
+	binding.AttemptID = copied.AttemptID
+	delayed.WorkBinding = &binding
+	if _, err = store.EnqueueIdempotent(location, delayed, "delayed-request"); !errors.Is(err, ErrContinuationStopped) {
+		t.Fatalf("delayed delivery revived stopped work: %v", err)
+	}
+	// Replaying the same accepted request cannot undo a later user stop.
+	if _, err := store.EnqueueIdempotent(location, request, "request"); err != nil {
+		t.Fatal(err)
+	}
+	item, _, err = NewInputQueueStore("").ClaimFirstDispatchable(location)
+	if err != nil || item != nil {
+		t.Fatalf("later user stop lost: %+v %v", item, err)
+	}
+	accepted, ok, err := store.FindAcceptedEnqueue(location, "request")
+	if err != nil || !ok || accepted.RecoveryTarget == nil || *accepted.RecoveryTarget != *target {
+		t.Fatalf("lost durable target: %+v %v", accepted, err)
+	}
+}
+
+func TestQueueRecoveryCoalescesPendingCoordinatorWake(t *testing.T) {
+	root := t.TempDir()
+	store := NewInputQueueStore(root)
+	location := InputQueueLocation{Scope: protocol.InputQueueScopeDM, WorkspacePath: root, SessionKey: "agent:lead:ws:dm:recover"}
+	item := protocol.InputQueueItem{Source: protocol.InputQueueSourceHostRecovery, RecoveryExecutionID: "execution", Content: "inspect current work"}
+	first, err := store.EnqueueIdempotent(location, item, "startup:execution:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.EnqueueIdempotent(location, item, "failed:attempt")
+	if err != nil || !second.Duplicate || second.Item.ID != first.Item.ID || len(second.Items) != 1 {
+		t.Fatalf("duplicate coordinator turn: %+v %v", second, err)
+	}
+	if _, err := store.Dispatch(location, first.Item.ID); err != nil {
+		t.Fatal(err)
+	}
+	retry, err := NewInputQueueStore(root).EnqueueIdempotent(location, item, "failed:attempt")
+	if err != nil || !retry.Duplicate || len(retry.Items) != 0 {
+		t.Fatalf("coalesced receipt lost: %+v %v", retry, err)
+	}
+	next, err := store.EnqueueIdempotent(location, item, "startup:execution:2")
+	if err != nil || next.Duplicate || len(next.Items) != 1 {
+		t.Fatalf("new recovery suppressed: %+v %v", next, err)
+	}
+}
+
+func TestQueueDiscoverySkipsUnreadableJournalAndKeepsOthers(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	workspace := filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a")
+	good := InputQueueLocation{OwnerUserID: "owner", Scope: protocol.InputQueueScopeDM, WorkspacePath: workspace, SessionKey: "agent:agent-a:ws:dm:good"}
+	store := NewInputQueueStore("")
+	if _, err := store.Enqueue(good, protocol.InputQueueItem{ID: "x", Content: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	badDir := filepath.Join(workspace, ".agents", "sessions", "bad-session")
+	if err := os.MkdirAll(badDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "elsewhere.jsonl")
+	if err := os.WriteFile(outside, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(badDir, "input_queue.jsonl")); err != nil {
+		t.Fatal(err)
+	}
+
+	locations, err := store.LocationsForWorkspace("owner", workspace)
+
+	if err == nil {
+		t.Fatal("unreadable journal was not reported")
+	}
+	if len(locations) != 1 || locations[0].SessionKey != good.SessionKey {
+		t.Fatalf("locations = %+v, want the readable queue still discovered", locations)
+	}
+}
+
+func TestRestoreDispatchedRewindsClaimToPreDispatchState(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{OwnerUserID: "owner", Scope: protocol.InputQueueScopeDM, WorkspacePath: filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a"), SessionKey: "agent:agent-a:ws:dm:rewind"}
+	store := NewInputQueueStore("")
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{ID: "first", Content: "first"}); err != nil {
+		t.Fatal(err)
+	}
+	fresh, _, err := store.ClaimFirstDispatchable(location)
+	if err != nil || fresh == nil || fresh.DispatchPending {
+		t.Fatalf("fresh claim = %+v, %v", fresh, err)
+	}
+	items, err := store.RestoreDispatched(location, *fresh)
+	if err != nil || len(items) != 1 || items[0].DispatchPending {
+		t.Fatalf("known failure kept an unknown-outcome claim: %+v %v", items, err)
+	}
+
+	inherited, _, err := store.ClaimFirstDispatchable(location)
+	if err != nil || inherited == nil {
+		t.Fatal(err)
+	}
+	store = NewInputQueueStore("")
+	survivor, _, err := store.ClaimFirstDispatchable(location)
+	if err != nil || survivor == nil || !survivor.DispatchPending {
+		t.Fatalf("restart lost the surviving claim: %+v %v", survivor, err)
+	}
+	items, err = store.RestoreDispatched(location, *survivor)
+	if err != nil || len(items) != 1 || !items[0].DispatchPending {
+		t.Fatalf("inherited claim lost its unknown outcome: %+v %v", items, err)
+	}
+}
+
+func TestHasRoundMarkerMatchesExactRound(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	workspace := filepath.Join(appfs.UserWorkspaceRootAt(root, "owner"), "agent-a")
+	history := NewAgentHistoryStore("").ForOwner("owner")
+	sessionKey := "agent:agent-a:ws:dm:marker"
+	if found, err := history.HasRoundMarker(workspace, sessionKey, "queue_x"); err != nil || found {
+		t.Fatalf("empty history found=%v err=%v", found, err)
+	}
+	if err := history.AppendRoundMarkerWithOptions(workspace, sessionKey, "queue_x", "hello", 1, RoundMarkerOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if found, err := history.HasRoundMarker(workspace, sessionKey, "queue_x"); err != nil || !found {
+		t.Fatalf("persisted round found=%v err=%v", found, err)
+	}
+	if found, err := history.HasRoundMarker(workspace, sessionKey, "queue_y"); err != nil || found {
+		t.Fatalf("other round found=%v err=%v", found, err)
+	}
+}
+
+func TestInputQueueStoreRejectsGuidanceMutationForExecutionBinding(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{
+		OwnerUserID:    "owner-1",
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "owner-1"), "agent-worker"),
+		SessionKey:     "room:agent:conversation-1:agent-worker",
+		RoomID:         "room-1",
+		ConversationID: "conversation-1",
+	}
+	item := protocol.InputQueueItem{
+		ID:              "execution_dispatch_dispatch-1",
+		AgentID:         "agent-worker",
+		SourceAgentID:   "agent-lead",
+		SourceMessageID: "execution_dispatch_dispatch-1",
+		TargetAgentIDs:  []string{"agent-worker"},
+		Source:          protocol.InputQueueSourceAgentRoomMessage,
+		Content:         "deliver the evidence set",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+		WorkBinding: &protocol.ExecutionWorkBinding{
+			ExecutionID:  "execution-1",
+			PlanID:       "plan-1",
+			WorkItemID:   "work-1",
+			SpecID:       "spec-1",
+			AssignmentID: "assignment-1",
+			AttemptID:    "attempt-1",
+			DispatchID:   "dispatch-1",
+		},
+	}
+	store := NewInputQueueStore("")
+	if _, err := store.Enqueue(location, item); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpdateDeliveryPolicy(
+		location,
+		item.ID,
+		protocol.ChatDeliveryPolicyGuide,
+		"round-running",
+	); !errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope) {
+		t.Fatalf("guide mutation error = %v, want capability envelope error", err)
+	}
+	items, err := store.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue {
+		t.Fatalf("bound item changed after rejected guidance mutation: %+v", items)
+	}
+}
+
+func TestInputQueueStoreRejectsInvalidCapabilityEnvelopeAcrossEnqueuePaths(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{
+		OwnerUserID:    "owner-1",
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "owner-1"), "agent-worker"),
+		SessionKey:     "room:agent:conversation-1:agent-worker",
+		RoomID:         "room-1",
+		ConversationID: "conversation-1",
+	}
+	invalid := protocol.InputQueueItem{
+		ID:             "invalid-bound-guide",
+		AgentID:        "agent-worker",
+		TargetAgentIDs: []string{"agent-worker"},
+		Source:         protocol.InputQueueSourceAgentRoomMessage,
+		Content:        "must not enter an active round as guidance",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+		WorkBinding: &protocol.ExecutionWorkBinding{
+			ExecutionID:  "execution-1",
+			PlanID:       "plan-1",
+			WorkItemID:   "work-1",
+			SpecID:       "spec-1",
+			AssignmentID: "assignment-1",
+			AttemptID:    "attempt-1",
+			DispatchID:   "dispatch-1",
+		},
+	}
+	store := NewInputQueueStore("")
+	assertRejected := func(name string, err error) {
+		t.Helper()
+		if !errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope) {
+			t.Fatalf("%s error = %v, want capability envelope error", name, err)
+		}
+	}
+	_, err := store.Enqueue(location, invalid)
+	assertRejected("enqueue", err)
+	_, err = store.EnqueueIdempotent(location, invalid, "client-message-1")
+	assertRejected("idempotent enqueue", err)
+	_, _, err = store.EnqueueBounded(location, invalid, 8)
+	assertRejected("bounded enqueue", err)
+	_, err = store.EnqueueBatchWithItems([]InputQueueEnqueue{{Location: location, Item: invalid}})
+	assertRejected("batch enqueue", err)
+}
+
+func TestInputQueuePersistsIndependentExecutionReviewBinding(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{
+		OwnerUserID:    "owner-1",
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "owner-1"), "agent-lead"),
+		SessionKey:     "room:agent:conversation-1:agent-lead",
+		RoomID:         "room-1",
+		ConversationID: "conversation-1",
+	}
+	binding := &protocol.ExecutionReviewBinding{
+		ExecutionID:      "execution-1",
+		PlanID:           "plan-1",
+		WorkItemID:       "work-1",
+		SpecID:           "spec-1",
+		AssignmentID:     "assignment-1",
+		SubmissionID:     "submission-1",
+		ReviewDispatchID: "review-dispatch-1",
+		TargetAgentID:    "agent-lead",
+	}
+	store := NewInputQueueStore("")
+	if _, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID:              "execution_review_dispatch_review-dispatch-1",
+		AgentID:         "agent-lead",
+		SourceAgentID:   "agent-worker",
+		SourceMessageID: "execution_review_dispatch_review-dispatch-1",
+		TargetAgentIDs:  []string{"agent-lead"},
+		Source:          protocol.InputQueueSourceAgentRoomMessage,
+		Content:         "review the submitted evidence",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+		ReviewBinding:   binding,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := NewInputQueueStore("").Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(replayed) != 1 ||
+		replayed[0].WorkBinding != nil ||
+		!reflect.DeepEqual(replayed[0].ReviewBinding, binding) {
+		t.Fatalf("replayed ReviewBinding = %+v, want %+v", replayed, binding)
+	}
+	different := replayed[0]
+	cloned := *binding
+	cloned.SubmissionID = "submission-stale"
+	different.ReviewBinding = &cloned
+	if MatchesInputQueueEnqueueIntent(replayed[0], different) {
+		t.Fatal("different Submission review binding matched the same enqueue intent")
 	}
 }

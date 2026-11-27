@@ -53,6 +53,8 @@ func (s *AgentHistoryStore) ForkRoundMarkers(
 	} else if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
 		return readErr
 	}
+	// 直接写 overlay 绕过了常规落表入口：让新会话下一次读取整会话回填。
+	defer s.invalidateDMConversationHistory(workspacePath, targetSessionKey)
 	for _, marker := range markers {
 		if err = s.files.appendJSONLAt(workspacePath, targetPath, marker); err != nil {
 			return err

@@ -4,9 +4,7 @@
 package workspace
 
 import (
-	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -15,8 +13,6 @@ import (
 	"net/url"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const (
@@ -67,40 +63,6 @@ type historyDetailProjectionContext struct {
 	sequence   int
 	messageID  string
 	path       string
-}
-
-func projectHistoryReadModelGroup(
-	scope string,
-	generation string,
-	sequence int,
-	group historyPageIndexedGroup,
-) (historyPageIndexedGroup, []historyReadModelDetail, error) {
-	budget := historyToolResultBudget(historyMessageDetailThresholdBytes)
-	projected := group
-	projected.Items = make([]protocol.Message, 0, len(group.Items))
-	details := make([]historyReadModelDetail, 0)
-	for rowIndex, row := range group.Items {
-		cloned := protocol.Clone(row)
-		messageID := strings.TrimSpace(stringFromAny(row["message_id"]))
-		content, extracted, err := projectHistoryDetailValue(
-			row["content"],
-			historyDetailProjectionContext{
-				scope:      scope,
-				toolBudget: &budget,
-				generation: generation,
-				sequence:   sequence,
-				messageID:  messageID,
-				path:       fmt.Sprintf("items/%d/content", rowIndex),
-			},
-		)
-		if err != nil {
-			return historyPageIndexedGroup{}, nil, err
-		}
-		cloned["content"] = content
-		projected.Items = append(projected.Items, cloned)
-		details = append(details, extracted...)
-	}
-	return projected, details, nil
 }
 
 func projectHistoryDetailValue(
@@ -314,184 +276,3 @@ func withHistoryDetailPath(
 	ctx.path = path
 	return ctx
 }
-
-// historyPageBuildHasLargeDetails 优先使用重建任务已经算好的结论，避免每个等待者重复扫描全部分组。
-func historyPageBuildHasLargeDetails(built historyPageIndexBuild) bool {
-	switch built.LargeDetails {
-	case historyPageLargeDetailsAbsent:
-		return false
-	case historyPageLargeDetailsPresent:
-		return true
-	}
-	return scanHistoryPageBuildLargeDetails(built)
-}
-
-func classifyHistoryPageBuildLargeDetails(built historyPageIndexBuild) historyPageLargeDetails {
-	if scanHistoryPageBuildLargeDetails(built) {
-		return historyPageLargeDetailsPresent
-	}
-	return historyPageLargeDetailsAbsent
-}
-
-func scanHistoryPageBuildLargeDetails(built historyPageIndexBuild) bool {
-	for _, group := range built.Groups {
-		budget := historyToolResultBudget(historyMessageDetailThresholdBytes)
-		for _, row := range group.Items {
-			found, err := historyValueHasLargeDetail(row["content"], &budget)
-			if err == nil && found {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func historyValueHasLargeDetail(value any, budget *historyToolResultBudget) (bool, error) {
-	switch typed := value.(type) {
-	case []any:
-		for _, item := range typed {
-			if found, err := historyValueHasLargeDetail(item, budget); err != nil || found {
-				return found, err
-			}
-		}
-	case []map[string]any:
-		for _, item := range typed {
-			if found, err := historyValueHasLargeDetail(item, budget); err != nil || found {
-				return found, err
-			}
-		}
-	case map[string]any:
-		blockType := strings.TrimSpace(stringFromAny(typed["type"]))
-		if blockType == "tool_result" {
-			size, err := historyJSONEncodedSize(typed["content"])
-			if err != nil {
-				return false, err
-			}
-			if inline, _ := budget.reserve(size); !inline {
-				return true, nil
-			}
-		}
-		if blockType == "image" {
-			payload, _, ok := decodeHistoryInlineImage(typed)
-			if ok && len(payload) >= historyMessageDetailThresholdBytes {
-				return true, nil
-			}
-		}
-		for _, key := range []string{"content", "source"} {
-			if found, err := historyValueHasLargeDetail(typed[key], budget); err != nil || found {
-				return found, err
-			}
-		}
-	}
-	return false, nil
-}
-
-func (m *historyReadModel) loadDetail(
-	ctx context.Context,
-	access historyPageIndexAccess,
-	ref string,
-) (HistoryMessageDetail, error) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
-	}
-	db, err := m.database(ctx)
-	if err != nil {
-		return HistoryMessageDetail{}, err
-	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return HistoryMessageDetail{}, err
-	}
-	defer tx.Rollback()
-	scope, ok, err := readHistoryReadModelScope(ctx, tx, access.Scope)
-	if err != nil || !ok || scope.DisabledReason != "" {
-		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
-	}
-	valid, err := access.ValidateSources(ctx, scope.Sources)
-	if err != nil {
-		return HistoryMessageDetail{}, err
-	}
-	if !valid {
-		_ = tx.Rollback()
-		// 失效代际不会被读取（每次读取先校验 source），保留它供下一次重建复用未变化的分组前缀。
-		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
-	}
-	detail, err := readHistoryDetail(ctx, tx, access.Scope, scope.Generation, ref, historyMessageDetailMaxBytes)
-	if err != nil {
-		return HistoryMessageDetail{}, err
-	}
-	if err = tx.Commit(); err != nil {
-		return HistoryMessageDetail{}, err
-	}
-	return detail, nil
-}
-
-func readHistoryDetail(ctx context.Context, tx *sql.Tx, scope, generation, ref string, budget int64) (HistoryMessageDetail, error) {
-	var detail HistoryMessageDetail
-	var digest string
-	err := tx.QueryRowContext(
-		ctx,
-		`SELECT kind, media_type, byte_size, payload, payload_digest
-		 FROM history_read_details
-		 WHERE scope = ? AND generation = ? AND detail_ref = ? AND byte_size <= ?`,
-		scope, generation, ref, budget,
-	).Scan(&detail.Kind, &detail.MediaType, &detail.ByteSize, &detail.Payload, &digest)
-	if err != nil {
-		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
-	}
-	actual := sha256.Sum256(detail.Payload)
-	if detail.ByteSize != int64(len(detail.Payload)) ||
-		detail.ByteSize <= 0 || detail.ByteSize > historyMessageDetailMaxBytes ||
-		hex.EncodeToString(actual[:]) != digest {
-		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
-	}
-	detail.Ref = ref
-	return detail, nil
-}
-
-// historyJSONEncodedSize 返回 json.Marshal(value) 的字节数；字符串按 encoding/json 的
-// 转义规则直接计数，不为大型工具输出分配一份编码副本。
-func historyJSONEncodedSize(value any) (int, error) {
-	if text, ok := value.(string); ok {
-		return historyJSONStringEncodedSize(text), nil
-	}
-	payload, err := json.Marshal(value)
-	return len(payload), err
-}
-
-// historyJSONStringEncodedSize 与 encoding/json 的字符串编码一致（含 HTML 转义）：
-// 引号、反斜杠和 \b\f\n\r\t 占 2 字节，其余控制字符、<>&、U+2028/U+2029
-// 与非法 UTF-8 字节占 6 字节（\u00XX 或 \ufffd）。
-func historyJSONStringEncodedSize(text string) int {
-	size := 2
-	for index := 0; index < len(text); {
-		if b := text[index]; b < utf8.RuneSelf {
-			size += int(historyJSONASCIIEncodedSize[b])
-			index++
-			continue
-		}
-		r, width := utf8.DecodeRuneInString(text[index:])
-		if (r == utf8.RuneError && width == 1) || r == '\u2028' || r == '\u2029' {
-			size += 6
-		} else {
-			size += width
-		}
-		index += width
-	}
-	return size
-}
-
-var historyJSONASCIIEncodedSize = func() (sizes [utf8.RuneSelf]uint8) {
-	for b := range sizes {
-		switch {
-		case b == '"' || b == '\\' || b == '\b' || b == '\f' || b == '\n' || b == '\r' || b == '\t':
-			sizes[b] = 2
-		case b < 0x20 || b == '<' || b == '>' || b == '&':
-			sizes[b] = 6
-		default:
-			sizes[b] = 1
-		}
-	}
-	return sizes
-}()

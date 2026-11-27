@@ -1,6 +1,6 @@
 /**
- * INPUT: 共享 WebSocket、Session/Room 订阅身份、reliability controller 与重连对账回调。
- * OUTPUT: 自动重连的发送面、binding/subscription replay 和连接恢复后的 durable Session 对账触发。
+ * INPUT: 共享 WebSocket、Session/Room 订阅身份、页面可见性、reliability controller 与重连对账回调。
+ * OUTPUT: 自动重连的发送面、binding/subscription replay、长时间隐藏恢复后的 Room 权威快照重取，以及连接恢复后的 durable Session 对账触发。
  * POS: Agent Conversation transport 生命周期边界；不重发业务命令。
  */
 import {
@@ -24,6 +24,18 @@ import {
 import type { ConversationReliabilityController } from "../reliability/use-conversation-reliability";
 
 type ConversationSocketSend = (payload: WebSocketMessage) => WebSocketSendResult;
+
+// 窗口最小化/WebView 挂起期间可能丢失 resolved 等瞬时事件；隐藏超过该时长后恢复可见时
+// 重发 subscribe_room 换取后端权威快照（pending slot 与 pending 人工交互全集）并补放 durable 事件。
+const ROOM_RESUME_RESUBSCRIBE_MIN_HIDDEN_MS = 5_000;
+
+export function shouldResubscribeRoomAfterVisibilityResume(
+  hiddenAt: number | null,
+  now: number,
+): boolean {
+  return hiddenAt !== null
+    && now - hiddenAt >= ROOM_RESUME_RESUBSCRIBE_MIN_HIDDEN_MS;
+}
 
 interface UseAgentConversationSocketOptions {
   wsUrl: string;
@@ -198,6 +210,44 @@ export function useAgentConversationSocket({
         room_id: roomId,
         conversation_id: conversationId,
       }));
+    };
+  }, [conversationId, roomId, roomSeqCursorRef, wsSend, wsState]);
+
+  useEffect(() => {
+    if (!roomId || wsState !== "connected" || typeof document === "undefined") {
+      return;
+    }
+
+    let hiddenAt: number | null = document.visibilityState === "hidden"
+      ? Date.now()
+      : null;
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === "hidden") {
+        if (hiddenAt === null) {
+          hiddenAt = Date.now();
+        }
+        return;
+      }
+      const shouldResubscribe = shouldResubscribeRoomAfterVisibilityResume(
+        hiddenAt,
+        Date.now(),
+      );
+      hiddenAt = null;
+      if (!shouldResubscribe) {
+        return;
+      }
+      // 订阅在后端按 sender 幂等；这里只换取权威快照与游标之后的 durable 回放。
+      wsSend(buildRoomSubscriptionMessage({
+        type: "subscribe_room",
+        room_id: roomId,
+        conversation_id: conversationId,
+        last_seen_room_seq: roomSeqCursorRef.current,
+      }));
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [conversationId, roomId, roomSeqCursorRef, wsSend, wsState]);
 

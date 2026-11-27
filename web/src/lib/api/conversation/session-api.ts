@@ -24,6 +24,7 @@ import { assertStructuredSessionKey } from "@/lib/conversation/session-key";
 
 import {
   buildConversationMessagesQuerySuffix,
+  CONVERSATION_HISTORY_REQUEST_TIMEOUT_MS,
   normalizeConversationMessagePage,
 } from "./message-page-model";
 import {
@@ -99,6 +100,7 @@ export async function getSessionMessagesApi(
     {
       method: "GET",
       signal,
+      timeout_ms: CONVERSATION_HISTORY_REQUEST_TIMEOUT_MS,
     },
   );
   return normalizeConversationMessagePage(result);
@@ -154,41 +156,15 @@ export async function getSessionRoundIndexApi(
   const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
   const params = new URLSearchParams();
   params.set("session_key", normalizedSessionKey);
-  params.set("defer_index", "true");
-  for (;;) {
-    const result = await requestApi<ApiSessionRoundIndex>(
-      `${AGENT_API_BASE_URL}/sessions/rounds?${params.toString()}`,
-      {
-        method: "GET",
-        signal,
-      },
-    );
-    if (!result.indexing) {
-      return transformApiSessionRoundIndex(result);
-    }
-    await waitForSessionRoundIndex(result.retry_after_ms ?? 0, signal);
-  }
-}
-
-function waitForSessionRoundIndex(
-  retryAfterMs: number,
-  signal?: AbortSignal,
-): Promise<void> {
-  if (signal?.aborted) {
-    return Promise.reject(new DOMException("Aborted", "AbortError"));
-  }
-  const delay = Math.min(Math.max(retryAfterMs, 100), 5_000);
-  return new Promise((resolve, reject) => {
-    const timeout = globalThis.setTimeout(() => {
-      signal?.removeEventListener("abort", handleAbort);
-      resolve();
-    }, delay);
-    const handleAbort = (): void => {
-      globalThis.clearTimeout(timeout);
-      reject(new DOMException("Aborted", "AbortError"));
-    };
-    signal?.addEventListener("abort", handleAbort, {once: true});
-  });
+  const result = await requestApi<ApiSessionRoundIndex>(
+    `${AGENT_API_BASE_URL}/sessions/rounds?${params.toString()}`,
+    {
+      method: "GET",
+      signal,
+      timeout_ms: CONVERSATION_HISTORY_REQUEST_TIMEOUT_MS,
+    },
+  );
+  return transformApiSessionRoundIndex(result);
 }
 
 export async function getSessionRuntimeSettingsApi(

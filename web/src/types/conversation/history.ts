@@ -7,7 +7,6 @@ export interface ConversationMessagesQuery {
   before_round_id?: string | null;
   before_round_timestamp?: number | null;
   limit?: number;
-  defer_index?: boolean;
 }
 
 export interface ApiConversationMessagePage {
@@ -15,8 +14,6 @@ export interface ApiConversationMessagePage {
   has_more: boolean;
   next_before_round_id?: string | null;
   next_before_round_timestamp?: number | null;
-  indexing?: boolean;
-  retry_after_ms?: number;
 }
 
 export interface ConversationMessagePage {
@@ -24,8 +21,6 @@ export interface ConversationMessagePage {
   has_more: boolean;
   next_before_round_id: string | null;
   next_before_round_timestamp: number | null;
-  indexing: boolean;
-  retry_after_ms: number;
 }
 
 export interface MessageDetailResponse {
@@ -48,8 +43,6 @@ export interface ApiSessionRoundIndexItem {
 
 export interface ApiSessionRoundIndex {
   items?: ApiSessionRoundIndexItem[];
-  indexing?: boolean;
-  retry_after_ms?: number;
 }
 
 export interface SessionRoundIndexItem {

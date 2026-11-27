@@ -1,3 +1,4 @@
+// service_test.go 覆盖编排主服务、显式 Goal、重定目标、人工交互与证据测试。
 package orchestration
 
 import (
@@ -11,6 +12,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
+
+// projectExecutionGraphView 是只给无 Repository 单测使用的窄入口。
+func projectExecutionGraphView(
+	items []protocol.ExecutionWorkItemView,
+) protocol.ExecutionGraphView {
+	return projectExecutionGraphViewWithHistory(items, protocol.ExecutionWorkGraphHistory{})
+}
 
 func TestServiceEnsureMintsExecutionAndScopesCommand(t *testing.T) {
 	var created orchestrationstore.CreateCommand
@@ -2109,4 +2117,655 @@ func (g goalPromotionGatewayWithAvailability) ReadGoalPromotionAvailability(
 	GoalPromotionAvailabilityRequest,
 ) (GoalPromotionAvailability, error) {
 	return g.availability, g.err
+}
+
+func TestEnsureCreatesExecutionOnActiveExplicitGoalChain(t *testing.T) {
+	var created orchestrationstore.CreateCommand
+	repository := &fakeRepository{
+		create: func(
+			_ context.Context,
+			command orchestrationstore.CreateCommand,
+		) (*protocol.ExecutionSnapshot, error) {
+			created = command
+			item := command.Execution
+			item.Version = 1
+			return &protocol.ExecutionSnapshot{Execution: item}, nil
+		},
+	}
+	service := testService(repository)
+	service.SetExplicitGoalBindingGateway(explicitGoalGatewayFunc(func(
+		_ context.Context,
+		request ExplicitGoalBindingRequest,
+	) (*ExplicitGoalBinding, error) {
+		if request.ExistingExecution ||
+			request.CandidateExecutionID != "execution-1" ||
+			request.Objective != "Ship orchestration" {
+			t.Fatalf("binding request = %#v", request)
+		}
+		return &ExplicitGoalBinding{
+			ExecutionID:           "execution-reserved",
+			GoalID:                "goal-explicit",
+			GoalObjectiveRevision: 3,
+			ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
+			ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
+		}, nil
+	}))
+	result, err := service.Ensure(context.Background(), coordinatorActor(), EnsureInput{
+		CommandID:          "plan-command",
+		Objective:          "Ship orchestration",
+		CompletionCriteria: []string{"accepted"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied ||
+		created.Execution.ID != "execution-reserved" ||
+		created.Execution.GoalID != "goal-explicit" ||
+		created.Execution.GoalObjectiveRevision != 3 ||
+		created.Execution.GoalActivationOrigin != protocol.GoalActivationOriginUserExplicit ||
+		created.Execution.GoalActivationReason != protocol.GoalActivationReasonPersistenceRequested {
+		t.Fatalf("result=%#v created=%#v", result, created.Execution)
+	}
+}
+
+func TestEnsureBindsCurrentTransientExecutionToExplicitGoal(t *testing.T) {
+	snapshot := executionSnapshot()
+	var bound orchestrationstore.BindGoalCommand
+	repository := &fakeRepository{
+		snapshot: snapshot,
+		bindGoal: func(
+			_ context.Context,
+			command orchestrationstore.BindGoalCommand,
+		) (*protocol.ExecutionSnapshot, error) {
+			bound = command
+			updated := cloneExecutionSnapshot(snapshot)
+			updated.Execution.Version++
+			updated.Execution.GoalID = command.Execution.GoalID
+			updated.Execution.GoalObjectiveRevision = command.Execution.GoalObjectiveRevision
+			updated.Execution.GoalActivationOrigin = command.Execution.GoalActivationOrigin
+			updated.Execution.GoalActivationReason = command.Execution.GoalActivationReason
+			return updated, nil
+		},
+	}
+	service := testService(repository)
+	gateway := &confirmingGoalBindingGateway{
+		binding: ExplicitGoalBinding{
+			ExecutionID:           snapshot.Execution.ID,
+			GoalID:                "goal-explicit",
+			GoalObjectiveRevision: 1,
+			ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
+			ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
+		},
+	}
+	service.SetExplicitGoalBindingGateway(gateway)
+	result, err := service.Ensure(context.Background(), coordinatorActor(), EnsureInput{
+		CommandID: "create-goal-command",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied ||
+		bound.ExpectedExecutionVersion != snapshot.Execution.Version ||
+		bound.Meta.CommandID != "create-goal-command:bind-explicit-goal" ||
+		bound.Execution.GoalID != "goal-explicit" {
+		t.Fatalf("result=%#v command=%#v", result, bound)
+	}
+	if gateway.prepareCalls != 1 || gateway.confirmCalls != 1 ||
+		gateway.lastConfirmation.ExecutionID != snapshot.Execution.ID {
+		t.Fatalf("binding gateway = %#v", gateway)
+	}
+}
+
+func TestEnsureRejectsIncompatibleExplicitGoalWithoutCreatingExecution(t *testing.T) {
+	created := false
+	service := testService(&fakeRepository{
+		create: func(
+			context.Context,
+			orchestrationstore.CreateCommand,
+		) (*protocol.ExecutionSnapshot, error) {
+			created = true
+			return nil, nil
+		},
+	})
+	service.SetExplicitGoalBindingGateway(explicitGoalGatewayFunc(func(
+		context.Context,
+		ExplicitGoalBindingRequest,
+	) (*ExplicitGoalBinding, error) {
+		return nil, fmtExplicitGoalObjectiveConflict()
+	}))
+	result, err := service.Ensure(context.Background(), coordinatorActor(), EnsureInput{
+		CommandID:          "plan-command",
+		Objective:          "Different objective",
+		CompletionCriteria: []string{"accepted"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationRejected ||
+		result.ReasonCode != ErrorCodeGoalObjectiveConflict ||
+		created {
+		t.Fatalf("result=%#v created=%t", result, created)
+	}
+}
+
+func TestGoalRevisionSuccessorPlanUsesReservedIdentityAndRepairsConfirmationOnRetry(t *testing.T) {
+	confirmationFailure := errors.New("confirmation temporarily unavailable")
+	gateway := &confirmingGoalBindingGateway{
+		binding: ExplicitGoalBinding{
+			ExecutionID:           "execution-reserved-successor",
+			GoalID:                "goal-adaptive",
+			GoalObjectiveRevision: 2,
+			ActivationOrigin:      protocol.GoalActivationOriginAdaptivePromoted,
+			ActivationReason:      protocol.GoalActivationReasonObservedBoundary,
+			ReplacesExecutionID:   "execution-old-revision",
+		},
+		confirmErrOnce: confirmationFailure,
+	}
+	createCalls := 0
+	var repository *fakeRepository
+	repository = &fakeRepository{
+		createWithPlan: func(
+			_ context.Context,
+			command orchestrationstore.CreateWithPlanCommand,
+		) (*protocol.ExecutionSnapshot, error) {
+			createCalls++
+			repository.snapshot = snapshotFromInitialPlan(command.Execution, command.Plan)
+			return repository.snapshot, nil
+		},
+	}
+	service := testService(repository)
+	service.SetExplicitGoalBindingGateway(gateway)
+	input := PlanExecutionInput{
+		CommandID:          "plan-goal-successor",
+		Objective:          "Deliver the revised Goal result",
+		CompletionCriteria: []string{"revised result accepted"},
+		Draft:              validPlanDraft(),
+	}
+
+	if _, err := service.PlanExecution(
+		context.Background(),
+		coordinatorActor(),
+		input,
+	); !errors.Is(err, confirmationFailure) {
+		t.Fatalf("first plan error = %v, want confirmation failure", err)
+	}
+	if createCalls != 1 || repository.snapshot == nil ||
+		repository.snapshot.Execution.ID != gateway.binding.ExecutionID ||
+		repository.snapshot.Execution.GoalID != gateway.binding.GoalID ||
+		repository.snapshot.Execution.GoalObjectiveRevision != gateway.binding.GoalObjectiveRevision ||
+		repository.snapshot.Execution.GoalActivationOrigin != gateway.binding.ActivationOrigin ||
+		repository.snapshot.Execution.GoalActivationReason != gateway.binding.ActivationReason ||
+		repository.snapshot.Execution.ReplacesExecutionID != gateway.binding.ReplacesExecutionID ||
+		repository.snapshot.Plan == nil {
+		t.Fatalf(
+			"successor snapshot=%#v createCalls=%d",
+			repository.snapshot,
+			createCalls,
+		)
+	}
+
+	replayed, err := service.PlanExecution(
+		context.Background(),
+		coordinatorActor(),
+		input,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed.Outcome != MutationNoOp ||
+		createCalls != 1 ||
+		gateway.prepareCalls != 1 ||
+		gateway.confirmCalls != 2 ||
+		gateway.lastConfirmation.ExecutionID != gateway.binding.ExecutionID ||
+		gateway.lastConfirmation.GoalObjectiveRevision != gateway.binding.GoalObjectiveRevision {
+		t.Fatalf(
+			"replay=%#v createCalls=%d gateway=%#v",
+			replayed,
+			createCalls,
+			gateway,
+		)
+	}
+}
+
+func TestGoalExecutionCompletionBlockerSeparatesReservationFromConfirmedBinding(t *testing.T) {
+	service := testService(&fakeRepository{})
+	blocker, err := service.GoalExecutionCompletionBlocker(context.Background(), protocol.Goal{
+		ID:         "goal-explicit",
+		SessionKey: "session-1",
+		Metadata: map[string]any{
+			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocker != "" {
+		t.Fatalf("unbound explicit Goal blocker = %q, want empty", blocker)
+	}
+	legacyGoal := protocol.Goal{
+		ID:         "goal-explicit-legacy",
+		SessionKey: "session-legacy",
+		Metadata: map[string]any{
+			protocol.GoalMetadataExplicitCommand:  "explicit_goal_legacy",
+			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
+			protocol.GoalMetadataActivationReason: string(protocol.GoalActivationReasonPersistenceRequested),
+		},
+	}
+	blocker, err = service.GoalExecutionCompletionBlocker(context.Background(), legacyGoal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocker != "" {
+		t.Fatalf("legacy reserved Goal blocker = %q, want empty", blocker)
+	}
+
+	snapshot := executionSnapshot()
+	snapshot.Execution.GoalID = "goal-explicit"
+	snapshot.Execution.GoalObjectiveRevision = 1
+	snapshot.CompletionBlockers = []string{"work_item:W1:required_not_accepted"}
+	service = testService(&fakeRepository{snapshot: snapshot})
+	goal := protocol.Goal{
+		ID:         "goal-explicit",
+		SessionKey: "session-1",
+		Metadata: map[string]any{
+			protocol.GoalMetadataExecutionID: snapshot.Execution.ID,
+			protocol.GoalMetadataExecutionBindingState: string(
+				protocol.GoalExecutionBindingStateConfirmed,
+			),
+			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
+		},
+	}
+	blocker, err = service.GoalExecutionCompletionBlocker(context.Background(), goal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocker != "execution_work_graph:execution-1:work_item:W1:required_not_accepted" {
+		t.Fatalf("bound blocker = %q", blocker)
+	}
+	snapshot.Execution.Status = protocol.ExecutionStatusCompleted
+	snapshot.CompletionBlockers = nil
+	blocker, err = service.GoalExecutionCompletionBlocker(context.Background(), goal)
+	if err != nil || blocker != "" {
+		t.Fatalf("completed blocker = %q, err=%v", blocker, err)
+	}
+}
+
+type explicitGoalGatewayFunc func(
+	context.Context,
+	ExplicitGoalBindingRequest,
+) (*ExplicitGoalBinding, error)
+
+func (f explicitGoalGatewayFunc) PrepareExplicitGoalBinding(
+	ctx context.Context,
+	request ExplicitGoalBindingRequest,
+) (*ExplicitGoalBinding, error) {
+	return f(ctx, request)
+}
+
+type confirmingGoalBindingGateway struct {
+	binding          ExplicitGoalBinding
+	prepareCalls     int
+	confirmCalls     int
+	confirmErrOnce   error
+	lastConfirmation GoalExecutionBindingConfirmation
+}
+
+func (g *confirmingGoalBindingGateway) PrepareExplicitGoalBinding(
+	_ context.Context,
+	_ ExplicitGoalBindingRequest,
+) (*ExplicitGoalBinding, error) {
+	g.prepareCalls++
+	result := g.binding
+	return &result, nil
+}
+
+func (g *confirmingGoalBindingGateway) ConfirmGoalExecutionBinding(
+	_ context.Context,
+	confirmation GoalExecutionBindingConfirmation,
+) error {
+	g.confirmCalls++
+	g.lastConfirmation = confirmation
+	if g.confirmErrOnce != nil {
+		err := g.confirmErrOnce
+		g.confirmErrOnce = nil
+		return err
+	}
+	return nil
+}
+
+func fmtExplicitGoalObjectiveConflict() error {
+	return errors.Join(
+		ErrExplicitGoalObjectiveConflict,
+		errors.New("active Goal and Execution objectives differ"),
+	)
+}
+
+func TestServiceGoalRevisionSupersedeFencesDanglingExecutionBinding(t *testing.T) {
+	var fenced bool
+	service := testService(&fakeRepository{
+		fenceGoalIdentity: func(
+			_ context.Context,
+			command orchestrationstore.FenceGoalExecutionIdentityCommand,
+		) (bool, error) {
+			fenced = command.ExecutionID == "execution-missing" &&
+				command.GoalID == "goal-1" &&
+				command.GoalObjectiveRevision == 1 &&
+				command.SuccessorExecutionID == "execution-successor"
+			return true, nil
+		},
+	})
+	snapshot, err := service.SupersedeGoalRevision(context.Background(), GoalRevisionSupersedeInput{
+		ExecutionID:              "execution-missing",
+		GoalID:                   "goal-1",
+		OldGoalObjectiveRevision: 1,
+		NewGoalObjectiveRevision: 2,
+		SuccessorExecutionID:     "execution-successor",
+		CommandID:                "goal-retarget",
+		Reason:                   "user changed the Goal objective",
+	})
+	if err != nil || snapshot != nil || !fenced {
+		t.Fatalf("fenced snapshot=%#v err=%v fenced=%t", snapshot, err, fenced)
+	}
+}
+
+func TestServiceGoalRevisionSupersedeFailsClosedIfMaterializationClaimHasNoRow(t *testing.T) {
+	service := testService(&fakeRepository{
+		fenceGoalIdentity: func(
+			context.Context,
+			orchestrationstore.FenceGoalExecutionIdentityCommand,
+		) (bool, error) {
+			return false, nil
+		},
+	})
+	_, err := service.SupersedeGoalRevision(context.Background(), GoalRevisionSupersedeInput{
+		ExecutionID:              "execution-missing",
+		GoalID:                   "goal-1",
+		OldGoalObjectiveRevision: 1,
+		NewGoalObjectiveRevision: 2,
+		SuccessorExecutionID:     "execution-successor",
+		CommandID:                "goal-retarget",
+		Reason:                   "user changed the Goal objective",
+	})
+	var domainErr *DomainError
+	if !errors.As(err, &domainErr) ||
+		domainErr.Code != ErrorCodeGoalBindingConflict {
+		t.Fatalf("dangling materialization error = %v", err)
+	}
+}
+
+func TestMatchAwaitingHumanAttemptsBindsOnlyRunningRootAttemptOfSameAgent(t *testing.T) {
+	createdAt := time.Date(2026, 11, 27, 3, 49, 6, 0, time.UTC)
+	attempts := []protocol.WorkAttempt{
+		{ID: "running", Status: protocol.WorkAttemptStatusRunning, ExecutorAgentID: "owner", RuntimeSessionKey: "rt-owner"},
+		{ID: "finished", Status: protocol.WorkAttemptStatusInterrupted, ExecutorAgentID: "owner", RuntimeSessionKey: "rt-owner"},
+		{ID: "child", Status: protocol.WorkAttemptStatusRunning, ExecutorAgentID: "owner", ParentAttemptID: "running"},
+		{ID: "other", Status: protocol.WorkAttemptStatusRunning, ExecutorAgentID: "other", RuntimeSessionKey: "rt-other"},
+	}
+	interactions := []PendingHumanInteraction{
+		{RequestID: "perm_owner", AgentID: "owner", RuntimeSessionKey: "rt-owner", ToolName: "AskUserQuestion", CreatedAt: createdAt},
+		{RequestID: "perm_foreign_session", AgentID: "owner", RuntimeSessionKey: "rt-elsewhere", ToolName: "Bash", CreatedAt: createdAt},
+	}
+
+	matched := matchAwaitingHumanAttempts(attempts, interactions)
+
+	if len(matched) != 1 {
+		t.Fatalf("matched attempts = %v, want only the running root attempt", matched)
+	}
+	got := matched["running"]
+	if len(got) != 1 || got[0].RequestID != "perm_owner" {
+		t.Fatalf("running attempt interactions = %+v, want perm_owner only", got)
+	}
+	if awaitingHumanKind(got) != HumanInteractionQuestion {
+		t.Fatalf("kind = %q, want question", awaitingHumanKind(got))
+	}
+}
+
+func TestRenderAwaitingHumanWarnsCoordinatorAgainstTakeover(t *testing.T) {
+	var output strings.Builder
+	renderAwaitingHuman(&output, []PendingHumanInteraction{{
+		RequestID:    "perm_1",
+		ToolName:     "AskUserQuestion",
+		AgentRoundID: "agent_round_b837",
+		CreatedAt:    time.Date(2026, 11, 27, 3, 49, 6, 0, time.UTC),
+	}}, 6)
+
+	rendered := output.String()
+	for _, want := range []string{
+		`<awaiting_human count="1">`,
+		`<interaction kind="question" tool="AskUserQuestion" request_id="perm_1" agent_round_id="agent_round_b837" since="2026-11-27T03:49:06Z" />`,
+		"Do not take_over_work",
+		"</awaiting_human>",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("rendered awaiting_human lacks %q:\n%s", want, rendered)
+		}
+	}
+}
+
+func TestRenderAwaitingHumanIsEmptyWithoutInteractions(t *testing.T) {
+	var output strings.Builder
+	renderAwaitingHuman(&output, nil, 6)
+	if output.Len() != 0 {
+		t.Fatalf("expected no output, got %q", output.String())
+	}
+}
+
+type evidenceTestRepository struct {
+	*fakeRepository
+	recordCalls []orchestrationstore.RecordEvidenceCommand
+	currentID   string
+	snapshots   map[string]*protocol.ExecutionSnapshot
+}
+
+func (r *evidenceTestRepository) FindCurrent(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+) (*protocol.Execution, error) {
+	if r.currentID == "" {
+		return r.fakeRepository.FindCurrent(ctx, ownerUserID, sessionKey)
+	}
+	snapshot := r.snapshots[r.currentID]
+	if snapshot == nil {
+		return nil, nil
+	}
+	item := snapshot.Execution
+	return &item, nil
+}
+
+func (r *evidenceTestRepository) GetSnapshot(
+	ctx context.Context,
+	executionID string,
+) (*protocol.ExecutionSnapshot, error) {
+	if r.snapshots == nil {
+		return r.fakeRepository.GetSnapshot(ctx, executionID)
+	}
+	return r.snapshots[executionID], nil
+}
+
+func (r *evidenceTestRepository) RecordEvidence(
+	_ context.Context,
+	command orchestrationstore.RecordEvidenceCommand,
+) (*protocol.ExecutionSnapshot, error) {
+	r.recordCalls = append(r.recordCalls, command)
+	snapshot := r.snapshot
+	if r.snapshots != nil {
+		snapshot = r.snapshots[command.ExecutionID]
+	}
+	snapshot.Execution.Version++
+	if snapshot.Execution.Metadata == nil {
+		snapshot.Execution.Metadata = map[string]any{}
+	}
+	snapshot.Execution.Metadata[command.MetadataKey] = true
+	return snapshot, nil
+}
+
+func TestServiceRecordPersistenceEvidenceUsesRuntimeActorAndSuppressesDuplicates(t *testing.T) {
+	snapshot := executionSnapshot()
+	repository := &evidenceTestRepository{
+		fakeRepository: &fakeRepository{snapshot: snapshot},
+	}
+	service := testService(repository)
+	actor := coordinatorActor()
+	actor.RootRoundID = "round-1"
+	actor.RuntimeRoundID = "round-1"
+	actor.AgentRoundID = "agent-round-1"
+	snapshot.Execution.RootRoundID = actor.RootRoundID
+
+	if err := service.RecordPersistenceEvidence(
+		context.Background(),
+		actor,
+		PersistenceEvidenceContextBoundary,
+		"runtime:agent-round-1:compact-boundary",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.recordCalls) != 1 {
+		t.Fatalf("record calls = %#v", repository.recordCalls)
+	}
+	command := repository.recordCalls[0]
+	if command.MetadataKey != ExecutionMetadataContextBoundaryEvidence ||
+		command.Meta.ActorKind != protocol.ExecutionActorRuntime ||
+		command.Meta.CommandID != "runtime:agent-round-1:compact-boundary:record-context_boundary" {
+		t.Fatalf("record command = %#v", command)
+	}
+	if err := service.RecordPersistenceEvidence(
+		context.Background(),
+		actor,
+		PersistenceEvidenceContextBoundary,
+		"runtime:agent-round-1:compact-boundary",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.recordCalls) != 1 {
+		t.Fatalf("duplicate boundary wrote again: %#v", repository.recordCalls)
+	}
+}
+
+func TestServiceRecordPersistenceEvidenceIgnoresUnboundConversationRound(t *testing.T) {
+	snapshot := executionSnapshot()
+	snapshot.Execution.RootRoundID = "execution-root"
+	repository := &evidenceTestRepository{
+		fakeRepository: &fakeRepository{snapshot: snapshot},
+	}
+	service := testService(repository)
+	actor := coordinatorActor()
+	actor.RootRoundID = "casual-chat-root"
+	actor.RuntimeRoundID = "casual-chat-root"
+	actor.AgentRoundID = "casual-agent-round"
+
+	if err := service.RecordPersistenceEvidence(
+		context.Background(),
+		actor,
+		PersistenceEvidenceContextBoundary,
+		"runtime:casual-agent-round:compact-boundary",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.recordCalls) != 0 {
+		t.Fatalf("casual round wrote background Execution evidence: %#v", repository.recordCalls)
+	}
+}
+
+func TestServiceRecordPersistenceEvidenceNeverRetargetsPredecessorToSuccessor(t *testing.T) {
+	predecessor := executionSnapshot()
+	predecessor.Execution.ID = "execution-old"
+	predecessor.Execution.RootRoundID = "old-root"
+	predecessor.Execution.Status = protocol.ExecutionStatusSuperseded
+	successor := executionSnapshot()
+	successor.Execution.ID = "execution-new"
+	successor.Execution.RootRoundID = "new-root"
+	repository := &evidenceTestRepository{
+		fakeRepository: &fakeRepository{snapshot: successor},
+		currentID:      successor.Execution.ID,
+		snapshots: map[string]*protocol.ExecutionSnapshot{
+			predecessor.Execution.ID: predecessor,
+			successor.Execution.ID:   successor,
+		},
+	}
+	service := testService(repository)
+	actor := coordinatorActor()
+	actor.ExecutionID = predecessor.Execution.ID
+	actor.RootRoundID = predecessor.Execution.RootRoundID
+	actor.RuntimeRoundID = "old-runtime-round"
+	actor.AgentRoundID = "old-agent-round"
+
+	if err := service.RecordPersistenceEvidence(
+		context.Background(),
+		actor,
+		PersistenceEvidenceContextBoundary,
+		"runtime:old-agent-round:compact-boundary",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.recordCalls) != 0 {
+		t.Fatalf("late predecessor evidence reached successor: %#v", repository.recordCalls)
+	}
+	if metadataBool(
+		successor.Execution.Metadata,
+		ExecutionMetadataContextBoundaryEvidence,
+	) {
+		t.Fatal("successor was marked by predecessor compact boundary")
+	}
+}
+
+func TestAdaptiveEvidenceIgnoresOptionalWaitingWork(t *testing.T) {
+	snapshot := roomPromotionSnapshot()
+	snapshot.WorkItemStates = []protocol.WorkItemState{{
+		WorkItemID:    "work-optional",
+		CurrentSpecID: "spec-optional",
+		Status:        protocol.WorkItemStatusWaitingInput,
+	}}
+
+	evidence := adaptiveEvidenceFromSnapshot(snapshot, ActorContext{AgentID: "agent-lead"})
+	if evidence.RequiredExternalWait {
+		t.Fatalf("optional waiting work became required external wait: %#v", evidence)
+	}
+
+	snapshot.WorkItemStates = append(snapshot.WorkItemStates, protocol.WorkItemState{
+		WorkItemID:    "work-produce",
+		CurrentSpecID: "spec-produce",
+		Status:        protocol.WorkItemStatusWaitingInput,
+	})
+	evidence = adaptiveEvidenceFromSnapshot(snapshot, ActorContext{AgentID: "agent-lead"})
+	if !evidence.RequiredExternalWait {
+		t.Fatalf("required waiting work did not become durable external wait: %#v", evidence)
+	}
+}
+
+func roomPromotionSnapshot() *protocol.ExecutionSnapshot {
+	return &protocol.ExecutionSnapshot{
+		Execution: protocol.Execution{
+			ID:                 "execution-1",
+			ScopeKind:          protocol.ExecutionScopeRoom,
+			CoordinatorAgentID: "agent-lead",
+			Objective:          "deliver verified result",
+			CompletionCriteria: []string{"verified"},
+			Status:             protocol.ExecutionStatusActive,
+		},
+		Plan: &protocol.ExecutionPlanRevision{
+			ID:     "plan-1",
+			Status: protocol.PlanRevisionStatusActive,
+		},
+		PlanItems: []protocol.ExecutionPlanItem{
+			{
+				PlanID:     "plan-1",
+				WorkItemID: "work-produce",
+				SpecID:     "spec-produce",
+				Required:   true,
+			},
+			{
+				PlanID:     "plan-1",
+				WorkItemID: "work-verify",
+				SpecID:     "spec-verify",
+				Required:   true,
+				Terminal:   true,
+			},
+			{
+				PlanID:     "plan-1",
+				WorkItemID: "work-optional",
+				SpecID:     "spec-optional",
+			},
+		},
+	}
 }

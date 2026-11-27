@@ -44,7 +44,6 @@ type MessagePageRequest struct {
 	BeforeRoundTimestamp int64
 	AroundRoundID        string
 	AroundLimit          int
-	DeferIndex           bool
 }
 
 // MessageDetail 是消息页中大型 Tool result / 图片引用的完整内容。

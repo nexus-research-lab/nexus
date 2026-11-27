@@ -31,7 +31,7 @@ func (s *AgentHistoryStore) ReadMessages(
 	})
 }
 
-// ReadMessagesPageContext 按 round 真分页读取 DM 历史，并允许请求取消索引校验与回建。
+// ReadMessagesPageContext 按 round 分页读取 DM 历史；会话未就绪时同步整会话回填。
 func (s *AgentHistoryStore) ReadMessagesPageContext(
 	ctx context.Context,
 	workspacePath string,
@@ -40,15 +40,37 @@ func (s *AgentHistoryStore) ReadMessagesPageContext(
 	query HistoryPageQuery,
 ) (protocol.MessagePage, error) {
 	return withRuntimePermissionRepair(s, func() (protocol.MessagePage, error) {
-		return readHistoryPageWithIndex(ctx, s.historyPageAccess(workspacePath, sessionValue), historyPageIndexRequest{
+		request := historyPageIndexRequest{
 			Limit:                query.Limit,
 			BeforeRoundID:        query.BeforeRoundID,
 			BeforeRoundTimestamp: query.BeforeRoundTimestamp,
 			AroundRoundID:        query.AroundRoundID,
 			AroundLimit:          query.AroundLimit,
 			ActiveRoundIDs:       activeRoundIDs,
-			DeferIndex:           query.DeferIndex,
-		})
+		}
+		failure := errConversationHistoryNotReady
+		for attempt := 0; attempt < 2; attempt++ {
+			scope, identity, covered, err := s.readyDMConversationHistory(ctx, workspacePath, sessionValue)
+			if err != nil {
+				failure = err
+				break
+			}
+			if !covered {
+				return s.readCanonicalHistoryPage(ctx, workspacePath, sessionValue, request)
+			}
+			page, ok, err := s.history.readPage(ctx, scope, identity, request)
+			if err != nil {
+				failure = err
+				break
+			}
+			if ok {
+				return page, nil
+			}
+		}
+		if !canonicalHistoryFallback(ctx, sessionValue.SessionKey, failure) {
+			return protocol.MessagePage{}, failure
+		}
+		return s.readCanonicalHistoryPage(ctx, workspacePath, sessionValue, request)
 	})
 }
 
@@ -64,7 +86,7 @@ func (s *AgentHistoryStore) readHistoryRowsContext(
 	workspacePath string,
 	sessionValue protocol.Session,
 ) ([]protocol.Message, error) {
-	parts, err := s.readHistoryRowPartsContext(ctx, workspacePath, sessionValue, false)
+	parts, err := s.readHistoryRowPartsContext(ctx, workspacePath, sessionValue)
 	if err != nil {
 		return nil, err
 	}
@@ -75,23 +97,19 @@ func (s *AgentHistoryStore) readHistoryRowsContext(
 // transcript、marker、overlay。
 type agentHistoryRowParts struct {
 	Transcript []protocol.Message
-	// Markers 是全部 round marker 物化出的行及其 marker 下标。
-	Markers historyTailPart
+	// Markers 是全部可见 round marker 物化出的用户行。
+	Markers []protocol.Message
 	Overlay []protocol.Message
-	// Replay 是 transcript 投影的检查点候选；只有调用方要求且读取的是单个非 fork
-	// transcript 时才非空，读模型据此持久化投影位置。
-	Replay *transcriptReplay
 }
 
 func (p agentHistoryRowParts) merged() []protocol.Message {
-	return mergeTranscriptAndOverlayRows(p.Transcript, p.Overlay, p.Markers.rows)
+	return mergeTranscriptAndOverlayRows(p.Transcript, p.Overlay, p.Markers)
 }
 
 func (s *AgentHistoryStore) readHistoryRowPartsContext(
 	ctx context.Context,
 	workspacePath string,
 	sessionValue protocol.Session,
-	withReplay bool,
 ) (agentHistoryRowParts, error) {
 	parts, overlayState, err := s.readOverlayRowPartsContext(ctx, workspacePath, sessionValue)
 	if err != nil {
@@ -114,7 +132,7 @@ func (s *AgentHistoryStore) readHistoryRowPartsContext(
 		return parts, err
 	}
 	_, forkMessageID := pendingForkTranscript(sessionValue)
-	rows, replay, readErr := s.readTranscriptReplayContext(
+	rows, readErr := s.readTranscriptProjectionContext(
 		ctx,
 		workspacePath,
 		sessionValue.SessionKey,
@@ -122,7 +140,6 @@ func (s *AgentHistoryStore) readHistoryRowPartsContext(
 		sessionIDs[0],
 		overlayState.RoundMarkers,
 		forkMessageID,
-		withReplay,
 	)
 	if readErr != nil {
 		if !errors.Is(readErr, os.ErrNotExist) {
@@ -131,7 +148,6 @@ func (s *AgentHistoryStore) readHistoryRowPartsContext(
 		return parts, nil
 	}
 	parts.Transcript = rows
-	parts.Replay = replay
 	return parts, nil
 }
 
@@ -145,16 +161,10 @@ func (s *AgentHistoryStore) readOverlayRowPartsContext(
 	if err != nil {
 		return agentHistoryRowParts{}, overlayHistoryState{}, err
 	}
-	markers, _ := appendedHistoryTailPositions(len(overlayState.RoundMarkers), nil, 0)
 	return agentHistoryRowParts{
 		Transcript: []protocol.Message{},
-		Markers: roundMarkerHistoryTailPart(
-			sessionValue.SessionKey,
-			sessionValue.AgentID,
-			overlayState.RoundMarkers,
-			markers,
-		),
-		Overlay: overlayState.MessageRows,
+		Markers:    materializeRoundMarkerRows(sessionValue.SessionKey, sessionValue.AgentID, overlayState.RoundMarkers),
+		Overlay:    overlayState.MessageRows,
 	}, overlayState, nil
 }
 
@@ -237,21 +247,15 @@ func mergeTranscriptAndOverlayRows(
 	return combined
 }
 
-// roundMarkerHistoryTailPart 物化 positions 指定的 round marker（下标指 roundMarkers）。
-func roundMarkerHistoryTailPart(
-	sessionKey string,
-	agentID string,
-	roundMarkers []transcriptRoundMarker,
-	positions []int,
-) historyTailPart {
-	part := historyTailPart{rows: make([]protocol.Message, 0, len(positions)), total: len(roundMarkers)}
-	for _, position := range positions {
-		if row, ok := materializeRoundMarkerMessage(sessionKey, agentID, roundMarkers[position]); ok {
-			part.rows = append(part.rows, row)
-			part.positions = append(part.positions, position)
+// materializeRoundMarkerRows 把全部 round marker 物化成用户行，跳过隐藏或没有 round_id 的 marker。
+func materializeRoundMarkerRows(sessionKey string, agentID string, roundMarkers []transcriptRoundMarker) []protocol.Message {
+	rows := make([]protocol.Message, 0, len(roundMarkers))
+	for _, marker := range roundMarkers {
+		if row, ok := materializeRoundMarkerMessage(sessionKey, agentID, marker); ok {
+			rows = append(rows, row)
 		}
 	}
-	return part
+	return rows
 }
 
 // materializeRoundMarkerMessage 把一个 round marker 物化成用户消息行；隐藏或没有 round_id 的 marker 不产生行。
@@ -305,9 +309,8 @@ func materializeRoundMarkerMessage(sessionKey string, agentID string, marker tra
 	return row, true
 }
 
-// readTranscriptReplayContext 返回完整投影；withReplay 时额外返回读模型检查点候选
-// （fork 截断读取、没有用户轮次或主链乱序时为 nil）。
-func (s *AgentHistoryStore) readTranscriptReplayContext(
+// readTranscriptProjectionContext 返回一个 transcript 的完整投影；throughMessageID 非空时只投影到该条目（fork）。
+func (s *AgentHistoryStore) readTranscriptProjectionContext(
 	ctx context.Context,
 	workspacePath string,
 	sessionKey string,
@@ -315,51 +318,37 @@ func (s *AgentHistoryStore) readTranscriptReplayContext(
 	sessionID string,
 	roundMarkers []transcriptRoundMarker,
 	throughMessageID string,
-	withReplay bool,
-) ([]protocol.Message, *transcriptReplay, error) {
+) ([]protocol.Message, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	transcriptPath, err := s.resolveTranscriptPathContext(ctx, workspacePath, sessionID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	root, relative, _, err := s.openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer root.Close()
 
 	throughMessageID = strings.TrimSpace(throughMessageID)
 	entries, cachePath, lineage, err := s.readTranscriptEntriesLineageAtContext(ctx, root, relative)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	chain := buildPrimaryTranscriptChain(entries)
 	if throughMessageID != "" {
 		var found bool
 		chain, found = transcriptChainThroughMessage(chain, throughMessageID)
 		if !found {
-			return nil, nil, fmt.Errorf("fork transcript boundary %s not found", throughMessageID)
+			return nil, fmt.Errorf("fork transcript boundary %s not found", throughMessageID)
 		}
-		return projectTranscriptChain(workspacePath, sessionKey, agentID, cloneTranscriptEntries(chain), roundMarkers), nil, nil
+		return projectTranscriptChain(workspacePath, sessionKey, agentID, cloneTranscriptEntries(chain), roundMarkers), nil
 	}
-	// 长会话每轮只追加一个用户轮次，检查点让重建只投影最后一轮之后的条目。
+	// 长会话每轮只追加一个用户轮次，进程内检查点让重读只投影最后一轮之后的条目。
 	projection := s.projectTranscriptChainCheckpointed(cachePath, lineage, workspacePath, sessionKey, agentID, chain, roundMarkers)
-	if !withReplay {
-		return projection.Rows, nil, nil
-	}
-	file, err := s.openTranscriptReadFile(root, relative)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, nil, err
-	}
-	replay, err := newTranscriptReplay(ctx, file, info.Size(), entries, chain, projection)
-	return projection.Rows, replay, err
+	return projection.Rows, nil
 }
 
 func transcriptChainThroughMessage(chain []transcriptEntry, messageID string) ([]transcriptEntry, bool) {

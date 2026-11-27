@@ -13,5 +13,6 @@ L4 | 父级: ../CLAUDE.md
 流式载荷只按 `requestAnimationFrame` 合并同一可见帧；合并后的消息写入保持普通优先级，禁止再包 `startTransition` 延迟中间进度。同帧 `message_start + content delta` 的首个 text/thinking 必须先以本地 reveal 标记提交，下一 RAF 再清标记；完整 snapshot 同任务到达时沿用同一边界。
 WebSocket 首次 `onerror` 只是传输恢复信号，不得创建终态会话故障；只有五次有界退避失败后才进入 unavailable。真实重连必须先重放 Session binding，再执行 durable Session reload/reconcile；客户端不重发用户消息或工具调用。
 Room 权威活动快照携带捕获时的 `snapshot_room_seq`；前端必须在应用快照前推进 Room 游标，并丢弃小于等于该栅栏的迟到/重放事件，否则空快照收口的 execution 会被旧事件复活。
+页面隐藏（窗口最小化、WebView 挂起）超过 5 秒后恢复可见时，在已连接的 socket 上重发 `subscribe_room`（带当前 Room 游标）换取权威快照与 durable 回放；后端订阅按 sender 幂等，不重发任何业务命令。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

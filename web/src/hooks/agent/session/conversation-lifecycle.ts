@@ -28,7 +28,6 @@ import {
 } from "../message/message-collection-model";
 import type { ConversationReliabilityController } from "../reliability/use-conversation-reliability";
 import { boundLoadedMessages } from "../message/message-window-model";
-import { requestConversationHistoryPageUntilReady } from "./conversation-history-request";
 
 interface AgentConversationLifecycleRefs {
   activeSessionKey: RefObject<string | null>;
@@ -153,17 +152,14 @@ export async function readAgentSessionMessagePage(
   signal?: AbortSignal,
 ): Promise<ConversationMessagePage> {
   const query = { limit: getMessageHistoryRoundPageSize() };
-  return requestConversationHistoryPageUntilReady({
-    loadPage: () => identity?.room_id && identity.conversation_id
-      ? getRoomConversationMessages(
-        identity.room_id,
-        identity.conversation_id,
-        query,
-        signal,
-      )
-      : getSessionMessagesApi(sessionKey, query, signal),
-    signal,
-  });
+  return identity?.room_id && identity.conversation_id
+    ? getRoomConversationMessages(
+      identity.room_id,
+      identity.conversation_id,
+      query,
+      signal,
+    )
+    : getSessionMessagesApi(sessionKey, query, signal);
 }
 
 /** ACK recovery 只读取捕获的原 Session；调用者可选地持有取消所有权。 */

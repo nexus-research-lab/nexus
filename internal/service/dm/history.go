@@ -105,7 +105,7 @@ func (s *Service) appendRuntimeHistoryMessageForOwner(
 	message protocol.Message,
 ) error {
 	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
-		s.History.ForOwner(ownerUserID).RecordReplyPreview(sessionValue.SessionKey, message)
+		s.History.ForOwner(ownerUserID).RecordTranscriptNativeMessage(workspacePath, sessionValue.SessionKey, message)
 		return nil
 	}
 	return s.History.ForOwner(ownerUserID).AppendOverlayMessage(

@@ -137,8 +137,6 @@ type MessagePage struct {
 	HasMore                  bool      `json:"has_more"`
 	NextBeforeRoundID        *string   `json:"next_before_round_id,omitempty"`
 	NextBeforeRoundTimestamp *int64    `json:"next_before_round_timestamp,omitempty"`
-	Indexing                 bool      `json:"indexing,omitempty"`
-	RetryAfterMS             int       `json:"retry_after_ms,omitempty"`
 }
 
 // MessageDetailResponse 是非图片 detail 的按需 JSON 响应。
@@ -151,9 +149,7 @@ type MessageDetailResponse struct {
 
 // SessionRoundIndex 表示 session 级 round 导航索引。
 type SessionRoundIndex struct {
-	Items        []SessionRoundIndexItem `json:"items"`
-	Indexing     bool                    `json:"indexing,omitempty"`
-	RetryAfterMS int                     `json:"retry_after_ms,omitempty"`
+	Items []SessionRoundIndexItem `json:"items"`
 }
 
 // SessionRoundIndexItem 表示一个 round 的轻量导航元数据。

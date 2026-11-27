@@ -1,5 +1,5 @@
-// INPUT: 待确认请求、历史消息与权威轮次终态。
-// OUTPUT: 仅依据过期、轮次终态或精确工具结果清理的待确认队列。
+// INPUT: 待确认请求、历史消息、权威轮次终态与 Room 订阅快照中的待响应请求全集。
+// OUTPUT: 仅依据过期、轮次终态、精确工具结果或后端权威 pending 全集清理的待确认队列。
 // POS: DM/Room 共用的权限历史对账与过期策略。
 import type { Message } from "@/types/conversation/message/entity";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
@@ -48,6 +48,35 @@ export function filterPendingPermissionsFromSnapshot(
     const toolUseId = permission.tool_use_id?.trim();
     return !toolUseId || !resolvedToolUseIds.has(toolUseId);
   });
+}
+
+/**
+ * Room 订阅快照的 `pending_interaction_request_ids` 是后端此刻仍在等待的人工交互全集。
+ * 本地队列中不在全集内的请求已在后端收口，只是 `permission_request_resolved` 在断线、
+ * WebView 挂起或回放缓冲溢出期间丢失，必须移除。快照之后新建的请求会以更大的 room_seq
+ * 在快照后回放，因此不会被误删。自动化确认可能因读取失败缺席快照，交给其独立生命周期。
+ */
+export function reconcilePendingPermissionsWithAuthoritativeIds(
+  currentPermissions: PendingPermission[],
+  authoritativeRequestIds: readonly unknown[],
+): PendingPermission[] {
+  if (currentPermissions.length === 0) {
+    return currentPermissions;
+  }
+  const liveRequestIds = new Set(
+    authoritativeRequestIds.flatMap((requestId) => (
+      typeof requestId === "string" && requestId.trim()
+        ? [requestId.trim()]
+        : []
+    )),
+  );
+  const nextPermissions = currentPermissions.filter((permission) => (
+    permission.source === "automation"
+    || liveRequestIds.has(permission.request_id)
+  ));
+  return nextPermissions.length === currentPermissions.length
+    ? currentPermissions
+    : nextPermissions;
 }
 
 export function pruneExpiredPendingPermissions(

@@ -11,11 +11,17 @@ func (s *AgentHistoryStore) RemoveOverlayRounds(
 	workspacePath string,
 	sessionKey string,
 	roundIDs []string,
-) (int, error) {
+) (removedRows int, resultErr error) {
 	removeSet := buildRoundRemoveSet(roundIDs)
 	if len(removeSet) == 0 {
 		return 0, nil
 	}
+	// overlay 裁剪成功（含没有可裁的行）后，同步删掉写时投影表里这些轮次：transcript 原生回复只在表里有副本。
+	defer func() {
+		if resultErr == nil {
+			s.removeDMConversationRounds(workspacePath, sessionKey, removeSet)
+		}
+	}()
 
 	overlayPath := s.paths.SessionOverlayPath(workspacePath, sessionKey)
 	rows, err := s.files.readJSONLAt(workspacePath, overlayPath)

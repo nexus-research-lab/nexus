@@ -368,6 +368,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	orchestrationService.SetExecutionCancellationConsumer(
 		appexecution.NewCancellationConsumer(roomRealtime, runtimeManager),
 	)
+	orchestrationService.SetPendingHumanInteractionReader(newExecutionHumanInteractionReader(permission))
 	goalService.SetRoomGoalCompletionReadiness(roomRealtime)
 	goalService.SetGuidanceDispatcher(appgoal.NewGuidanceDispatcher(runtimeManager, roomRealtime))
 	goalService.SetRuntimeInterrupter(appgoal.NewInterruptDispatcher(dmService, roomRealtime))

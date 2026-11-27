@@ -83,7 +83,7 @@
 | `transport_request_id` | 可选诊断关联号，仅用于排障 |
 
 - `FailureCore` 只有上述五个字段，不包含用户文案、恢复动作、URL、命令或重试等待时间。
-- 限流/排队等领域的等待信息使用所属协议；Conversation 历史索引的 `retry_after_ms` 属于该读取协议，不属于 FailureCore。
+- 限流/排队等领域的等待信息使用所属协议，不属于 FailureCore。
 - `transport_request_id` 只能复用经过限长和字符校验的当前 `X-Request-ID`。它不能成为幂等键、授权、路由、缓存键或业务身份，也不能替代任何领域 request ID。
 
 ## 4. 后端边界

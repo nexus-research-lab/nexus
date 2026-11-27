@@ -1,12 +1,18 @@
+// transcript_marker_test.go 覆盖 Transcript 标记、压缩边界、空 Goal 与投影检查点测试。
 package workspace
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -765,4 +771,764 @@ func writeAgentTranscriptFixture(t *testing.T, workspacePath string, sessionID s
 			t.Fatalf("写入 transcript fixture 失败: %v", err)
 		}
 	}
+}
+
+// 自动压缩后 compact_boundary 的 parentUuid 为 null；主链必须沿 logicalParentUuid
+// 续接压缩前的历史，压缩摘要不能成为用户轮次，但要挂回边界供时间线展开。
+func TestPrimaryTranscriptChainCrossesCompactBoundary(t *testing.T) {
+	entries := []transcriptEntry{
+		{Index: 0, Data: map[string]any{
+			"type": "user", "uuid": "user-1", "timestamp": "2026-11-19T01:00:00Z",
+			"message": map[string]any{"role": "user", "content": "生成 PPT"},
+		}},
+		{Index: 1, Data: map[string]any{
+			"type": "assistant", "uuid": "assistant-1", "parentUuid": "user-1",
+			"message": map[string]any{"id": "msg-1", "role": "assistant", "content": []any{
+				map[string]any{"type": "text", "text": "请打开 127.0.0.1 确认"},
+			}},
+		}},
+		{Index: 2, Data: map[string]any{
+			"type": "system", "subtype": "compact_boundary", "uuid": "boundary",
+			"parentUuid": nil, "logicalParentUuid": "assistant-1",
+			"content": "Conversation compacted",
+		}},
+		{Index: 3, Data: map[string]any{
+			"type": "user", "uuid": "summary", "parentUuid": "boundary", "isCompactSummary": true,
+			"isVisibleInTranscriptOnly": true,
+			"message":                   map[string]any{"role": "user", "content": "This session is being continued from a previous conversation..."},
+		}},
+		{Index: 4, Data: map[string]any{
+			"type": "assistant", "uuid": "assistant-2", "parentUuid": "summary",
+			"message": map[string]any{"id": "msg-2", "role": "assistant", "content": []any{
+				map[string]any{"type": "text", "text": "PPT 已完成"},
+			}},
+		}},
+	}
+
+	chain := buildPrimaryTranscriptChain(entries)
+	uuids := make([]string, 0, len(chain))
+	for _, entry := range chain {
+		uuids = append(uuids, stringFromAny(entry.Data["uuid"]))
+	}
+	if got := strings.Join(uuids, ","); got != "user-1,assistant-1,boundary,summary,assistant-2" {
+		t.Fatalf("chain = %s, 压缩前历史被截断", got)
+	}
+
+	turns := collectTranscriptUserTurns(chain, shouldSkipTranscriptEntry)
+	if len(turns) != 1 || turns[0].Content != transcriptUserContentKey("生成 PPT") {
+		t.Fatalf("user turns = %+v, 压缩摘要不应成为用户轮次", turns)
+	}
+
+	rows := projectTranscriptChain("/workspace", "agent:a:ws:dm:c", "a", chain, nil)
+	var texts []string
+	var boundarySummary string
+	for _, row := range rows {
+		if metadata, _ := row["metadata"].(map[string]any); metadata["subtype"] == "compact_boundary" {
+			boundarySummary = stringFromAny(metadata["summary"])
+		}
+		if row["role"] == "user" && strings.Contains(stringFromAny(row["content"]), "continued from a previous") {
+			t.Fatalf("压缩摘要被投影为用户消息: %+v", row)
+		}
+		for _, block := range normalizeMessageContentBlocks(row["content"]) {
+			if block["type"] == "text" {
+				texts = append(texts, stringFromAny(block["text"]))
+			}
+		}
+	}
+	if !strings.Contains(boundarySummary, "continued from a previous") {
+		t.Fatalf("compact_boundary summary = %q, 历史标记缺少摘要", boundarySummary)
+	}
+	if stringFromAny(entries[2].Data["summary"]) != "" {
+		t.Fatal("挂回摘要不能改写原始 transcript 条目")
+	}
+	joined := strings.Join(texts, "|")
+	if !strings.Contains(joined, "127.0.0.1") || !strings.Contains(joined, "PPT 已完成") {
+		t.Fatalf("texts = %q, 需要同时保留压缩前后的正文", joined)
+	}
+}
+
+// transcript 与 overlay 对同一 message_id 的快照合并时，不同正文的 text 块不能互相覆盖。
+func TestCompactMessagesKeepsDistinctTextBlocks(t *testing.T) {
+	first := protocol.Message{
+		"message_id": "msg-1", "role": "assistant", "timestamp": int64(1),
+		"content": []any{
+			map[string]any{"type": "text", "text": "确认页面已打开：127.0.0.1"},
+			map[string]any{"type": "tool_use", "id": "tool-1", "name": "Bash"},
+		},
+	}
+	second := protocol.Message{
+		"message_id": "msg-1", "role": "assistant", "timestamp": int64(2),
+		"content": []any{
+			map[string]any{"type": "text", "text": "确认页面已打开：127.0.0.1"},
+			map[string]any{"type": "tool_use", "id": "tool-1", "name": "Bash"},
+			map[string]any{"type": "text", "text": "如果页面没打开，也可以直接回复"},
+		},
+	}
+
+	compacted := compactMessages([]protocol.Message{first, second})
+	if len(compacted) != 1 {
+		t.Fatalf("compacted = %+v", compacted)
+	}
+	var texts []string
+	for _, block := range normalizeMessageContentBlocks(compacted[0]["content"]) {
+		if block["type"] == "text" {
+			texts = append(texts, stringFromAny(block["text"]))
+		}
+	}
+	if len(texts) != 2 || !strings.Contains(texts[0], "127.0.0.1") {
+		t.Fatalf("texts = %q, 先前正文被后续 text 块覆盖", texts)
+	}
+}
+
+func TestAgentHistoryStoreEmptyGoalTurnKeepsReportInItsOwnRound(t *testing.T) {
+	root := t.TempDir()
+	workspaceRoot := filepath.Join(root, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Nova")
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, "runtime"))
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:nova:ws:dm:empty-goal"
+	sessionID := "empty-goal-transcript"
+	const goalRound = "goal-continuation"
+	const report = "M3 report delivered"
+	const formula = `Formula rendered: $$K_D = \frac{[A][B]}{[AB]}$$`
+	for _, marker := range []struct {
+		id      string
+		content string
+		ts      int64
+		options RoundMarkerOptions
+	}{
+		{"old-round", "Render the formula", 1000, RoundMarkerOptions{}},
+		{"goal-command", "/goal Research M3", 86401000, RoundMarkerOptions{ControlOnly: true, Purpose: "goal_command"}},
+		{goalRound, "", 86401100, RoundMarkerOptions{HiddenFromUser: true, Synthetic: true, Purpose: "goal_continuation"}},
+		{"next-round", "Thanks", 86405000, RoundMarkerOptions{}},
+	} {
+		if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, marker.id, marker.content, marker.ts, marker.options); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{"type": "user", "uuid": "old-user", "sessionId": sessionID, "timestamp": "1970-01-01T00:00:01.005Z", "message": map[string]any{"role": "user", "content": "Render the formula"}},
+		{"type": "assistant", "uuid": "old-answer", "parentUuid": "old-user", "sessionId": sessionID, "timestamp": "1970-01-01T00:00:02Z", "message": map[string]any{"role": "assistant", "stop_reason": "end_turn", "content": []map[string]any{{"type": "text", "text": formula}}}},
+		// nxs extracts the hidden Goal reminder before writing this empty user turn.
+		{"type": "user", "uuid": "goal-user", "parentUuid": "old-answer", "sessionId": sessionID, "timestamp": "1970-01-02T00:00:01.105Z", "message": map[string]any{"role": "user", "content": ""}},
+		{"type": "assistant", "uuid": "goal-progress", "parentUuid": "goal-user", "sessionId": sessionID, "timestamp": "1970-01-02T00:00:02Z", "message": map[string]any{"role": "assistant", "content": []map[string]any{{"type": "text", "text": "Researching M3"}}}},
+		{"type": "assistant", "uuid": "goal-answer", "parentUuid": "goal-progress", "sessionId": sessionID, "timestamp": "1970-01-02T00:00:03Z", "message": map[string]any{"role": "assistant", "stop_reason": "end_turn", "content": []map[string]any{{"type": "text", "text": report}}}},
+		{"type": "user", "uuid": "next-user", "parentUuid": "goal-answer", "sessionId": sessionID, "timestamp": "1970-01-02T00:00:05.005Z", "message": map[string]any{"role": "user", "content": "Thanks"}},
+		{"type": "assistant", "uuid": "next-answer", "parentUuid": "next-user", "sessionId": sessionID, "timestamp": "1970-01-02T00:00:06Z", "message": map[string]any{"role": "assistant", "stop_reason": "end_turn", "content": []map[string]any{{"type": "text", "text": "Welcome"}}}},
+	})
+	for _, row := range []protocol.Message{
+		{"message_id": "goal-result", "round_id": goalRound, "role": "result", "subtype": "success", "result": report, "timestamp": int64(86404000)},
+		{"message_id": "goal-answer", "round_id": goalRound, "role": "assistant", "content": []map[string]any{{"type": "text", "text": report}}, "timestamp": int64(86403000), protocol.GoalCompletionReceiptField: protocol.GoalCompletionReceipt{GoalID: "goal-1", RoundID: goalRound}},
+	} {
+		if err := history.AppendOverlayMessage(workspacePath, sessionKey, row); err != nil {
+			t.Fatal(err)
+		}
+	}
+	session := protocol.Session{SessionKey: sessionKey, AgentID: "Nova", SessionID: &sessionID, Options: map[string]any{}}
+	assertRows := func(t *testing.T, rows []protocol.Message) {
+		t.Helper()
+		reports := 0
+		formulas := 0
+		for _, row := range rows {
+			id := stringFromAny(row["message_id"])
+			wantRound := map[string]string{"old-answer": "old-round", "goal-progress": goalRound, "goal-answer": goalRound, "next-answer": "next-round"}[id]
+			if wantRound != "" && row["round_id"] != wantRound {
+				t.Errorf("%s round = %v, want %s", id, row["round_id"], wantRound)
+			}
+			if row["role"] == "user" && row["round_id"] == goalRound {
+				t.Error("hidden Goal input must not become a visible user message")
+			}
+			for _, block := range normalizeMessageContentBlocks(row["content"]) {
+				if block["text"] == report {
+					reports++
+				}
+				if block["text"] == formula && row["round_id"] == "old-round" {
+					formulas++
+				}
+			}
+			if id == "goal-answer" && (row["result_summary"] == nil || row[protocol.GoalCompletionReceiptField] == nil) {
+				t.Error("Goal result and completion receipt must attach to the original report")
+			}
+		}
+		if reports != 1 {
+			t.Errorf("report copies = %d, want 1", reports)
+		}
+		if formulas != 1 {
+			t.Errorf("formula replies in the original round = %d, want 1", formulas)
+		}
+	}
+	rows, err := history.ReadMessages(workspacePath, session, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRows(t, rows)
+	for range 2 { // Both freshly built and cached pagination must preserve the boundary.
+		page, err := history.ReadMessagesPageContext(context.Background(), workspacePath, session, nil, HistoryPageQuery{Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertRows(t, page.Items)
+	}
+	tail, err := history.ResolveTranscriptRoundTail(workspacePath, sessionKey, sessionID, goalRound)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tail.TargetMessageUUID != "goal-user" || tail.TargetRoundEndUUID != "goal-answer" {
+		t.Fatalf("Goal rewrite boundary = %+v", tail)
+	}
+}
+
+func TestEmptyTranscriptGoalMarkerMatchingBoundaries(t *testing.T) {
+	goalMarker := transcriptRoundMarker{RoundID: "goal", Timestamp: 86401000, HiddenFromUser: true, Synthetic: true, Purpose: "goal_continuation"}
+	for _, tc := range []struct {
+		name       string
+		timestamps []string
+		markers    []transcriptRoundMarker
+		wantIndex  int
+	}{
+		{"empty_goal", []string{"1970-01-02T00:00:01.005Z"}, []transcriptRoundMarker{goalMarker}, 0},
+		{"ordinary_empty_without_marker", []string{"1970-01-02T00:00:01.005Z"}, nil, -1},
+		{"visible_marker", []string{"1970-01-02T00:00:01.005Z"}, []transcriptRoundMarker{{RoundID: "visible", Timestamp: 86401000}}, -1},
+		{"other_hidden_input", []string{"1970-01-02T00:00:01.005Z"}, []transcriptRoundMarker{{RoundID: "echo", Timestamp: 86401000, HiddenFromUser: true, Synthetic: true, Purpose: "echo_followup"}}, -1},
+		{"missing_timestamp", []string{""}, []transcriptRoundMarker{goalMarker}, -1},
+		{"stale_marker", []string{"1970-01-03T00:00:01.005Z"}, []transcriptRoundMarker{goalMarker}, -1},
+		{"future_marker", []string{"1970-01-01T00:00:01.005Z"}, []transcriptRoundMarker{goalMarker}, -1},
+		{"ambiguous_markers", []string{"1970-01-02T00:00:01.005Z"}, []transcriptRoundMarker{goalMarker, goalMarker}, -1},
+		{"incidental_empty_before_goal", []string{"1970-01-02T00:00:00Z", "1970-01-02T00:00:01.005Z"}, []transcriptRoundMarker{goalMarker}, 1},
+		{"ambiguous_empty_inputs", []string{"1970-01-02T00:00:01.005Z", "1970-01-02T00:00:01.005Z"}, []transcriptRoundMarker{goalMarker}, -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			chain := make([]transcriptEntry, len(tc.timestamps))
+			for i, timestamp := range tc.timestamps {
+				chain[i] = transcriptEntry{Index: i, Data: map[string]any{"type": "user", "timestamp": timestamp, "message": map[string]any{"role": "user", "content": ""}}}
+			}
+			aligned := alignTranscriptRoundMarkers(chain, tc.markers)
+			for i := range chain {
+				got := i < len(aligned) && transcriptRoundMarkerPresent(aligned[i])
+				if got != (i == tc.wantIndex) {
+					t.Errorf("empty input %d matched = %v, want %v", i, got, i == tc.wantIndex)
+				}
+			}
+		})
+	}
+}
+
+func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "4035f197-ca97-43fc-b9ae-06ac04903213"
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-1", "写一个五子棋游戏", 1000); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-1",
+			"sessionId": sessionID,
+			"timestamp": "2026-04-27T11:40:00.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "写一个五子棋游戏",
+			},
+		},
+		{
+			"type":       "attachment",
+			"uuid":       "transcript-guidance-1",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-1",
+			"timestamp":  "2026-04-27T11:41:00.000Z",
+			"attachment": map[string]any{
+				"type": "hook_additional_context",
+				"content": []string{
+					"<nexus_guidance>\n用户在你执行当前 round 时补充了以下引导。请在继续下一步前结合这些要求；如果与原任务冲突，以最新引导为准。\n1. round_id=queue_guide_1: 需要可以与 bot 对战\n</nexus_guidance>",
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+
+	var guidance *protocol.Message
+	for index := range rows {
+		if rows[index]["message_id"] == "queue_guide_1" {
+			guidance = &rows[index]
+			break
+		}
+	}
+	if guidance == nil {
+		t.Fatalf("runtime hook additionalContext 应投影成引导系统消息: %+v", rows)
+	}
+	if (*guidance)["role"] != "system" || (*guidance)["round_id"] != "round-1" {
+		t.Fatalf("引导系统消息应归入当前 round: %+v", *guidance)
+	}
+	if stringFromAny((*guidance)["content"]) != "需要可以与 bot 对战" {
+		t.Fatalf("引导内容解析错误: %+v", *guidance)
+	}
+	metadata, _ := (*guidance)["metadata"].(map[string]any)
+	if metadata["subtype"] != message.SystemMessageSubtypeGuidedInput ||
+		metadata["source_round_id"] != "queue_guide_1" {
+		t.Fatalf("引导 metadata 不正确: %+v", *guidance)
+	}
+}
+
+func TestAgentHistoryStoreProjectsWorkspaceFileArtifactFromTranscriptToolResult(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "6a855871-4614-4032-b0b3-62d2358fad99"
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-game", "写一个简单的游戏，html的", 1000); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+
+	targetPath := filepath.Join(workspacePath, "snake-game.html")
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-game",
+			"sessionId": sessionID,
+			"timestamp": "2026-05-20T01:07:51.493Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "写一个简单的游戏，html的",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-write",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-game",
+			"timestamp":  "2026-05-20T01:08:39.805Z",
+			"message": map[string]any{
+				"id":          "msg_game_write",
+				"type":        "message",
+				"role":        "assistant",
+				"stop_reason": "tool_use",
+				"content": []map[string]any{
+					{
+						"type": "text",
+						"text": "好的，我来写一个 HTML 游戏。",
+					},
+					{
+						"type": "tool_use",
+						"id":   "tool-write-game",
+						"name": "Write",
+						"input": map[string]any{
+							"file_path": targetPath,
+							"content":   "<!doctype html><html><body>game</body></html>",
+						},
+					},
+				},
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "transcript-tool-result",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-assistant-write",
+			"timestamp":  "2026-05-20T01:08:39.850Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":        "tool_result",
+						"tool_use_id": "tool-write-game",
+						"content":     "File created successfully at: " + targetPath,
+					},
+				},
+			},
+			"toolUseResult": map[string]any{
+				"type":     "create",
+				"filePath": targetPath,
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-final",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-tool-result",
+			"timestamp":  "2026-05-20T01:08:47.315Z",
+			"message": map[string]any{
+				"id":          "msg_game_final",
+				"type":        "message",
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{
+						"type": "text",
+						"text": "游戏写好了，文件在 `snake-game.html`。",
+					},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+
+	for _, row := range rows {
+		blocks, _ := row["content"].([]map[string]any)
+		for _, block := range blocks {
+			if block["type"] != protocol.ContentBlockTypeWorkspaceFileArtifact {
+				continue
+			}
+			if block["path"] != "snake-game.html" || block["source_tool_use_id"] != "tool-write-game" {
+				t.Fatalf("workspace file artifact 内容不正确: %+v", block)
+			}
+			return
+		}
+	}
+	t.Fatalf("transcript tool_result 应投影出 workspace_file_artifact: %+v", rows)
+}
+
+func TestAgentHistoryStorePreservesParallelToolResultsFromTranscriptBranches(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:parallel-tools"
+	sessionID := "d758d942-aced-4952-a2cb-ff2835e22cfc"
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-parallel", "再试一下刚才两个工具", 1000); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-parallel",
+			"sessionId": sessionID,
+			"timestamp": "2026-06-02T10:13:43.870Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "再试一下刚才两个工具",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-tool-connectors",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-parallel",
+			"timestamp":  "2026-06-02T10:13:48.717Z",
+			"message": map[string]any{
+				"id":          "msg_parallel_tools",
+				"type":        "message",
+				"role":        "assistant",
+				"model":       "glm-5.1",
+				"stop_reason": "tool_use",
+				"content": []map[string]any{
+					{
+						"type":  "tool_use",
+						"id":    "call-connectors",
+						"name":  "mcp__nexus_feishu_docx__search",
+						"input": map[string]any{},
+					},
+				},
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-tool-automation",
+			"sessionId":  sessionID,
+			"parentUuid": "assistant-tool-connectors",
+			"timestamp":  "2026-06-02T10:13:48.722Z",
+			"message": map[string]any{
+				"id":          "msg_parallel_tools",
+				"type":        "message",
+				"role":        "assistant",
+				"model":       "glm-5.1",
+				"stop_reason": "tool_use",
+				"content": []map[string]any{
+					{
+						"type":  "tool_use",
+						"id":    "call-automation",
+						"name":  "mcp__nexus_automation__automation_query",
+						"input": map[string]any{"operation": "list"},
+					},
+				},
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "tool-result-connectors",
+			"sessionId":  sessionID,
+			"parentUuid": "assistant-tool-connectors",
+			"timestamp":  "2026-06-02T10:14:19.799Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":        "tool_result",
+						"tool_use_id": "call-connectors",
+						"content": []map[string]any{
+							{"type": "text", "text": "[]"},
+						},
+					},
+				},
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "tool-result-automation",
+			"sessionId":  sessionID,
+			"parentUuid": "assistant-tool-automation",
+			"timestamp":  "2026-06-02T10:14:20.927Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":        "tool_result",
+						"tool_use_id": "call-automation",
+						"content": []map[string]any{
+							{"type": "text", "text": "[]"},
+						},
+					},
+				},
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-final",
+			"sessionId":  sessionID,
+			"parentUuid": "tool-result-automation",
+			"timestamp":  "2026-06-02T10:14:31.746Z",
+			"message": map[string]any{
+				"id":          "msg_parallel_final",
+				"type":        "message",
+				"role":        "assistant",
+				"model":       "glm-5.1",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "两个工具调用都正常返回。"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+
+	var toolAssistant protocol.Message
+	for _, row := range rows {
+		if row["message_id"] == "msg_parallel_tools" {
+			toolAssistant = row
+			break
+		}
+	}
+	if toolAssistant == nil {
+		t.Fatalf("历史缺少并行工具 assistant: %+v", rows)
+	}
+
+	blocks, _ := toolAssistant["content"].([]map[string]any)
+	toolUseIDs := make(map[string]struct{})
+	toolResultIDs := make(map[string]struct{})
+	for _, block := range blocks {
+		switch block["type"] {
+		case "tool_use":
+			toolUseIDs[stringFromAny(block["id"])] = struct{}{}
+		case "tool_result":
+			toolResultIDs[stringFromAny(block["tool_use_id"])] = struct{}{}
+		}
+	}
+	for _, id := range []string{"call-connectors", "call-automation"} {
+		if _, exists := toolUseIDs[id]; !exists {
+			t.Fatalf("历史缺少 tool_use %s: %+v", id, blocks)
+		}
+		if _, exists := toolResultIDs[id]; !exists {
+			t.Fatalf("历史缺少 tool_result %s: %+v", id, blocks)
+		}
+	}
+}
+
+func TestTranscriptProjectionCheckpointMatchesFullProjection(t *testing.T) {
+	// 无 marker 时 marker 前缀恒等，分叉只能由主链前缀比对发现。
+	for _, withMarkers := range []bool{true, false} {
+		t.Run(fmt.Sprintf("markers=%v", withMarkers), func(t *testing.T) {
+			testTranscriptProjectionCheckpoint(t, withMarkers)
+		})
+	}
+}
+
+func testTranscriptProjectionCheckpoint(t *testing.T, withMarkers bool) {
+	f := newLongSessionFixture(t, 0, 64)
+	sessionID := *f.session.SessionID
+	markers := []transcriptRoundMarker{}
+	appendRows := func(rows ...map[string]any) {
+		t.Helper()
+		file, err := os.OpenFile(f.transcript, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoder := json.NewEncoder(file)
+		for _, row := range rows {
+			if err := encoder.Encode(row); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	userRow := func(round int, parent string) map[string]any {
+		timestamp := int64(1_700_000_000_000 + round*10_000)
+		if withMarkers {
+			markers = append(markers, transcriptRoundMarker{RoundID: fmt.Sprintf("round-%d", round), Content: fmt.Sprintf("q%d", round), Timestamp: timestamp})
+		}
+		return map[string]any{"type": "user", "uuid": fmt.Sprintf("u-%d", round), "parentUuid": nilIfEmpty(parent), "sessionId": sessionID,
+			"timestamp": time.UnixMilli(timestamp).UTC().Format(time.RFC3339Nano), "message": map[string]any{"role": "user", "content": fmt.Sprintf("q%d", round)}}
+	}
+	toolUse := func(round int) map[string]any {
+		return map[string]any{"type": "assistant", "uuid": fmt.Sprintf("a1-%d", round), "parentUuid": fmt.Sprintf("u-%d", round), "sessionId": sessionID,
+			"message": map[string]any{"id": fmt.Sprintf("m1-%d", round), "role": "assistant", "stop_reason": "tool_use",
+				"content": []map[string]any{{"type": "tool_use", "id": fmt.Sprintf("t-%d", round), "name": "Bash", "input": map[string]any{"command": "ls"}}}}}
+	}
+	toolResultAndAnswer := func(round int) []map[string]any {
+		return []map[string]any{
+			{"type": "user", "uuid": fmt.Sprintf("r-%d", round), "parentUuid": fmt.Sprintf("a1-%d", round), "sessionId": sessionID,
+				"message": map[string]any{"role": "user", "content": []map[string]any{{"type": "tool_result", "tool_use_id": fmt.Sprintf("t-%d", round), "content": "ok"}}}},
+			{"type": "assistant", "uuid": fmt.Sprintf("a2-%d", round), "parentUuid": fmt.Sprintf("r-%d", round), "sessionId": sessionID,
+				"message": map[string]any{"id": fmt.Sprintf("m2-%d", round), "role": "assistant", "stop_reason": "end_turn",
+					"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("answer %d", round)}}}},
+		}
+	}
+	appendRound := func(round int, parent string) {
+		appendRows(userRow(round, parent), toolUse(round))
+		appendRows(toolResultAndAnswer(round)...)
+	}
+
+	sessionKey, agentID := f.session.SessionKey, "amy"
+	check := func(label string) {
+		t.Helper()
+		got, err := f.history.readTranscriptMessages(f.workspacePath, sessionKey, agentID, sessionID, markers, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := os.Open(f.transcript)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries, err := readTranscriptEntriesFileContext(context.Background(), file)
+		_ = file.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := projectTranscriptChain(f.workspacePath, sessionKey, agentID, buildPrimaryTranscriptChain(entries), markers)
+		if strings.HasPrefix(label, "marker") && !strings.Contains(fmt.Sprint(want), "rewritten") {
+			t.Fatalf("%s: markers did not align, fixture is not exercising marker checks", label)
+		}
+		if len(want) == 0 || !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s: checkpointed projection diverged\ngot  %v\nwant %v", label, got, want)
+		}
+		// 调用方随意修改结果，不能影响下一次从检查点恢复的输出。
+		for _, row := range got {
+			row["round_id"] = "mutated"
+			if content, ok := row["content"].([]map[string]any); ok && len(content) > 0 {
+				content[0]["type"] = "mutated"
+			}
+		}
+	}
+	checkpointRows := func() int {
+		path, err := f.history.resolveTranscriptPath(f.workspacePath, sessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.history.cache.mu.Lock()
+		defer f.history.cache.mu.Unlock()
+		if projection := f.history.cache.entries[path].Projection; projection != nil {
+			return len(projection.Rows)
+		}
+		return 0
+	}
+
+	appendRound(0, "")
+	check("first round")
+	for round := 1; round < 6; round++ {
+		appendRound(round, fmt.Sprintf("a2-%d", round-1))
+		check(fmt.Sprintf("append round %d", round))
+	}
+	if checkpointRows() == 0 {
+		t.Fatal("append path did not keep a projection checkpoint")
+	}
+	check("unchanged")
+
+	// 半轮：用户输入和工具调用已写入，工具结果稍后到达。
+	appendRows(userRow(6, "a2-5"), toolUse(6))
+	check("half round")
+	appendRows(toolResultAndAnswer(6)...)
+	check("half round completed")
+
+	// 从较早的回答分叉，主链前缀改变，检查点必须失效。
+	// 分叉后连续追加多轮，新主链比检查点更长，只能靠逐个比对前缀条目发现。
+	appendRound(7, "a2-3")
+	appendRound(70, "a2-7")
+	appendRound(71, "a2-70")
+	check("branch")
+	appendRound(8, "a2-71")
+	check("append after branch")
+
+	// marker 被改写、投影身份改变都只能用完整投影。
+	if withMarkers {
+		markers[1].RoundID = "rewritten"
+		check("marker rewrite")
+	}
+	agentID = "other-agent"
+	check("identity change")
+	agentID = "amy"
+
+	// 原地改写（非纯追加）使解析代系失效。
+	content, err := os.ReadFile(f.transcript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(f.transcript, []byte(strings.Replace(string(content), "answer 2", "answer two", 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	check("rewrite")
+	appendRound(9, "a2-8")
+	check("append after rewrite")
 }
