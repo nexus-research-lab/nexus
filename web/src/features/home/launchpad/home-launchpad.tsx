@@ -1,17 +1,19 @@
 // INPUT: Home 启动台控制器。
-// OUTPUT: 字标下方以输入壳为左基线的窄列：问候、复用共享 Composer 的主智能体输入框、接下来的定时任务、新手示例与进行中的会话行。
+// OUTPUT: 字标下方以输入壳为左基线的窄列：问候、复用共享 Composer 的主智能体输入框、接下来的定时任务、新手提示词分类与进行中的会话行。
 // POS: Home 启动台视图；数据与导航全部来自 useHomeLaunchController。
 "use client";
 
 import {
   CalendarClock,
-  FileText,
-  FolderGit2,
-  Sunrise,
+  ChevronRight,
+  Code2,
+  Lightbulb,
+  PenLine,
   Users,
+  X,
   type LucideIcon,
 } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import { focusComposerInputAtEnd } from "@/features/conversation/shared/composer/controller/composer-textarea";
@@ -29,9 +31,11 @@ import type { CommandCatalogData } from "@/types/generated/protocol";
 
 import type { SidebarConversationItem } from "../sidebar/sidebar-conversation-model";
 import {
-  HOME_LAUNCH_SAMPLES,
+  HOME_LAUNCH_CATEGORIES,
+  pickMixedPrompts,
   type HomeDayPeriod,
-  type HomeLaunchSample,
+  type HomeLaunchPickerId,
+  type HomeLaunchPrompt,
 } from "./home-launch-model";
 import {
   HOME_LAUNCH_DRAFT_SCOPE,
@@ -56,18 +60,24 @@ const GREETING_KEYS: Record<HomeDayPeriod, TranslationKey> = {
   night: "home.launch.greeting_night",
 };
 
-const SAMPLE_ICONS: Record<HomeLaunchSample["id"], LucideIcon> = {
-  room: Users,
-  brief: Sunrise,
-  repo: FolderGit2,
-  doc: FileText,
+const PICKER_ICONS: Record<HomeLaunchPickerId, LucideIcon> = {
+  collab: Users,
+  automate: CalendarClock,
+  code: Code2,
+  write: PenLine,
+  mix: Lightbulb,
 };
+
+const PICKER_IDS: readonly HomeLaunchPickerId[] = [...HOME_LAUNCH_CATEGORIES.map((category) => category.id), "mix"];
 
 export function HomeLaunchpad() {
   const controller = useHomeLaunchController();
   const composerRef = useRef<HTMLDivElement | null>(null);
+  // 悬停提示词时把完整内容预览在输入框占位处；只在草稿为空时可见，不改动用户已输入的内容。
+  const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
 
   const fillSample = (prompt: string) => {
+    setPreviewPrompt(null);
     controller.fillDraft(prompt);
     // 示例只填入草稿，让用户改完再发；光标放到末尾方便继续输入。
     window.requestAnimationFrame(() => {
@@ -81,10 +91,10 @@ export function HomeLaunchpad() {
   // 字标居中，下方内容统一以输入壳左边缘为基线左对齐；不重复侧栏的会话列表与导航入口。
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-8 px-4 pb-12">
-      <HomeLaunchComposer composerRef={composerRef} controller={controller} />
+      <HomeLaunchComposer composerRef={composerRef} controller={controller} previewPrompt={previewPrompt} />
       {controller.showSamples || controller.activeItems.length > 0 ? (
         <div className={cn("flex flex-col gap-8", CONTENT_INSET_CLASS)}>
-          {controller.showSamples ? <HomeSampleSection onPick={fillSample} /> : null}
+          {controller.showSamples ? <HomePromptPicker onPick={fillSample} onPreview={setPreviewPrompt} /> : null}
           {controller.activeItems.length > 0 ? <HomeActiveSection controller={controller} /> : null}
         </div>
       ) : null}
@@ -95,9 +105,11 @@ export function HomeLaunchpad() {
 function HomeLaunchComposer({
   composerRef,
   controller,
+  previewPrompt,
 }: {
   composerRef: React.RefObject<HTMLDivElement | null>;
   controller: HomeLaunchController;
+  previewPrompt: string | null;
 }) {
   const { t } = useI18n();
 
@@ -112,7 +124,7 @@ function HomeLaunchComposer({
           compact={false}
           contextUsage={null}
           defaultDeliveryPolicy="queue"
-          defaultPlaceholder={t("home.launch.placeholder")}
+          defaultPlaceholder={previewPrompt ?? t("home.launch.placeholder")}
           draftScopeKey={HOME_LAUNCH_DRAFT_SCOPE}
           goalScopeLabel="Nexus"
           historyScopeKey={HOME_LAUNCH_DRAFT_SCOPE}
@@ -150,35 +162,117 @@ function HomeLaunchComposer({
   );
 }
 
-function HomeSampleSection({ onPick }: { onPick: (prompt: string) => void }) {
+/**
+ * 新手提示词：收起时是一排分类胶囊；点开一个分类后整排换成该分类的提示词列表。
+ * 悬停或键盘聚焦某条提示词时在输入框预览全文，点击才填入草稿。
+ */
+function HomePromptPicker({
+  onPick,
+  onPreview,
+}: {
+  onPick: (prompt: string) => void;
+  onPreview: (prompt: string | null) => void;
+}) {
   const { t } = useI18n();
-  return (
-    <section className="flex flex-col gap-3">
-      <HomeSectionHeader title={t("home.launch.samples_title")} />
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {HOME_LAUNCH_SAMPLES.map((sample) => {
-          const Icon = SAMPLE_ICONS[sample.id];
+  const [openId, setOpenId] = useState<HomeLaunchPickerId | null>(null);
+  const [prompts, setPrompts] = useState<HomeLaunchPrompt[]>([]);
+
+  const open = (id: HomeLaunchPickerId) => {
+    setOpenId(id);
+    // 「随便看看」每次打开重新抽一组，其余分类按固定顺序。
+    setPrompts(id === "mix" ? pickMixedPrompts() : [...(HOME_LAUNCH_CATEGORIES.find((category) => category.id === id)?.prompts ?? [])]);
+  };
+
+  const close = () => {
+    setOpenId(null);
+    onPreview(null);
+  };
+
+  // Esc 收起列表；预览随之清空。
+  useEffect(() => {
+    if (!openId) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenId(null);
+        onPreview(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onPreview, openId]);
+
+  if (!openId) {
+    return (
+      <div aria-label={t("home.launch.samples_title")} className="flex flex-wrap gap-2" role="group">
+        {PICKER_IDS.map((id) => {
+          const Icon = PICKER_ICONS[id];
           return (
             <button
-              className="home-launch-card radius-control-lg flex items-start gap-3 p-3.5 text-left"
-              key={sample.id}
-              onClick={() => onPick(t(sample.promptKey))}
+              className={cn(
+                "home-launch-chip flex h-8 items-center gap-1.5 rounded-full px-3",
+                getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" }),
+              )}
+              key={id}
+              onClick={() => open(id)}
               type="button"
             >
-              {/* 图标直接贴着标题行，不再包着着色方块。 */}
-              <Icon aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-(--icon-muted)" />
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" })}>
-                  {t(sample.titleKey)}
-                </span>
-                <span className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
-                  {t(sample.descriptionKey)}
-                </span>
-              </span>
+              <Icon aria-hidden className="h-3.5 w-3.5 text-(--icon-muted)" />
+              {t(`home.launch.category_${id}`)}
             </button>
           );
         })}
       </div>
+    );
+  }
+
+  const Icon = PICKER_ICONS[openId];
+  return (
+    <section className="home-launch-panel radius-control-lg flex flex-col p-1.5" onMouseLeave={() => onPreview(null)}>
+      <header className="flex items-center gap-1.5 py-1 pl-2.5 pr-1">
+        <Icon aria-hidden className="h-3.5 w-3.5 text-(--icon-muted)" />
+        <h3 className={cn("flex-1", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }))}>
+          {t(`home.launch.category_${openId}`)}
+        </h3>
+        <button
+          aria-label={t("home.launch.prompts_close")}
+          className="home-launch-row radius-control-md flex h-7 w-7 items-center justify-center text-(--icon-muted)"
+          onClick={close}
+          type="button"
+        >
+          <X aria-hidden className="h-4 w-4" />
+        </button>
+      </header>
+      <ul className="flex flex-col">
+        {prompts.map((item) => {
+          const fullPrompt = t(item.promptKey);
+          return (
+            <li className="home-launch-prompt-item" key={item.id}>
+              <button
+                className={cn(
+                  "home-launch-row radius-control-md group flex w-full items-center gap-2 px-2.5 py-2 text-left",
+                  getUiTypographyClassName({ role: "supporting", tone: "default" }),
+                )}
+                onBlur={() => onPreview(null)}
+                onClick={() => {
+                  setOpenId(null);
+                  onPick(fullPrompt);
+                }}
+                onFocus={() => onPreview(fullPrompt)}
+                onMouseEnter={() => onPreview(fullPrompt)}
+                type="button"
+              >
+                <span className="min-w-0 flex-1 truncate">{t(item.titleKey)}</span>
+                <ChevronRight
+                  aria-hidden
+                  className="h-4 w-4 shrink-0 text-(--icon-muted) opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

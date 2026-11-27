@@ -918,6 +918,42 @@
     outline-offset: 2px;
   }
 
+  /* 提示词分类胶囊：无边框的浅底，悬停加深；与输入框下方的留白保持轻量。 */
+  .home-launch-chip {
+    background: var(--surface-muted-background);
+    transition: background var(--motion-duration-fast);
+  }
+
+  .home-launch-chip:hover {
+    background: var(--interaction-hover-background);
+  }
+
+  .home-launch-chip:active { background: var(--interaction-active-background); }
+
+  .home-launch-chip:focus-visible {
+    outline: 2px solid var(--material-input-focus-border);
+    outline-offset: 2px;
+  }
+
+  /* 展开后的提示词列表：静态卡片，行间用细分隔线，悬停行自身出底色。 */
+  .home-launch-panel {
+    background: var(--surface-card-background);
+    border: 1px solid color-mix(in srgb, var(--divider-subtle-color) 90%, transparent);
+    box-shadow: var(--surface-card-shadow);
+  }
+
+  .home-launch-prompt-item + .home-launch-prompt-item {
+    border-top: 1px solid var(--divider-subtle-color);
+  }
+
+  /* 悬停行的底色盖住上下分隔线，和行边缘一起读成一个整体。 */
+  .home-launch-prompt-item:hover,
+  .home-launch-prompt-item:hover + .home-launch-prompt-item,
+  .home-launch-prompt-item:focus-within,
+  .home-launch-prompt-item:focus-within + .home-launch-prompt-item {
+    border-top-color: transparent;
+  }
+
   /*
    * 首页 Composer 没有消息流需要羽化遮挡，背板透明。
    * 首页一打开输入框就处于聚焦态，品牌蓝聚焦框会常亮；这里把聚焦边框收回普通边框色，只保留背景的聚焦变化。
