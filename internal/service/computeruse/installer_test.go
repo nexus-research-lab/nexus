@@ -16,7 +16,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -109,6 +111,28 @@ func TestCUAInstallerRejectsChecksumMismatch(t *testing.T) {
 	}
 	if installer.InstalledBinaryPath() != "" {
 		t.Fatal("checksum failure left an installed binary")
+	}
+}
+
+func TestPinnedCUAVersionMatchesGoModule(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := regexp.MustCompile(`(?m)^\s*github\.com/nexus-research-lab/nexus-cua/sdk/go\s+v(\S+)`).FindSubmatch(data)
+	if match == nil {
+		t.Fatal("go.mod does not require the nexus-cua Go SDK")
+	}
+	if string(match[1]) != pinnedCUAVersion {
+		t.Fatalf("pinnedCUAVersion = %q, go.mod SDK = %q; bump them together", pinnedCUAVersion, match[1])
+	}
+	for name, digest := range pinnedCUAArchiveSHA256 {
+		if !strings.Contains(name, "-"+pinnedCUAVersion+"-") || !sha256Pattern.MatchString(digest) {
+			t.Fatalf("pinned archive %q does not belong to %s or has an invalid digest", name, pinnedCUAVersion)
+		}
+	}
+	if !strings.HasSuffix(pinnedCUAReleaseAPIURL(), "/releases/tags/v"+pinnedCUAVersion) {
+		t.Fatalf("default release URL is not tag-pinned: %s", pinnedCUAReleaseAPIURL())
 	}
 }
 

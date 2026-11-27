@@ -19,6 +19,41 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+// TestProcessPolicyIncludesHostSandboxRequirements 不因 json:"-" 丢失初始化权威。
+func TestProcessPolicyIncludesHostSandboxRequirements(t *testing.T) {
+	base := agentclient.Options{Sandbox: &agentclient.SandboxSettings{RequireSandbox: true}}
+	previous := managedRuntimeProcessPolicyFingerprint(base)
+	for _, change := range []func(){
+		func() { base.Sandbox.RequireFileTools = true },
+		func() { base.Sandbox.RequireSearchTools = true },
+		func() { base.Sandbox.RequireMediaFiles = true },
+		func() { base.Sandbox.RequireMediaNetwork = true },
+		func() { base.Sandbox.RequireMCPNetwork = true },
+		func() { base.Sandbox.RequireMCPHelpers = true },
+		func() { base.Sandbox.RequireMCPStdio = true },
+		func() { base.MCP.StrictConfig = true },
+		func() { base.Sandbox.RequireNotebookFiles = true },
+		func() { base.Sandbox.RequireSkillFiles = true },
+		func() { base.Sandbox.RequireContextFiles = true },
+		func() { base.Sandbox.RequireProjectFiles = true },
+		func() { base.Sandbox.RequireManagedPolicy = true },
+		func() { base.Sandbox.RequireSettingsFiles = true },
+		func() { base.Sandbox.RequireSettingsWrites = true },
+		func() {
+			base.Sandbox.Resources = &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeReadOnly, ScratchRoot: t.TempDir()}
+		},
+		func() { base.Sandbox.Resources.WriteScope = agentclient.SandboxWriteScopeWorkspaceWrite },
+		func() { base.Sandbox.Resources.ScratchRoot = t.TempDir() },
+	} {
+		change()
+		next := managedRuntimeProcessPolicyFingerprint(base)
+		if next == previous {
+			t.Fatal("host sandbox requirement did not change process identity")
+		}
+		previous = next
+	}
+}
+
 func TestProviderOwnershipChangeReplacesRuntime(t *testing.T) {
 	for _, key := range []string{"NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE", "NEXUS_MEMORY_DIR", "NEXUS_ENABLE_REMOTE_MEMORY", "NEXUS_REMOTE_MEMORY_DIR"} {
 		t.Run(key, func(t *testing.T) {
@@ -326,5 +361,41 @@ func TestManagerHandlesSandboxModeReplacementAsExpectedTransition(t *testing.T) 
 	}
 	if stale.disconnectCalls != 1 || manager.HasSession(key) {
 		t.Fatal("old runtime remained available")
+	}
+}
+
+func TestManagerReplacesRuntimeForSandboxTransitions(t *testing.T) {
+	for _, startRestricted := range []bool{false, true} {
+		name := "enable"
+		if startRestricted {
+			name = "disable"
+		}
+		t.Run(name, func(t *testing.T) {
+			stale, fresh := &fakeRuntimeClient{}, &fakeRuntimeClient{}
+			manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+			enabled := true
+			restricted := &agentclient.SandboxSettings{Enabled: &enabled, FailIfUnavailable: &enabled}
+			before := agentclient.Options{CWD: t.TempDir()}
+			if startRestricted {
+				before.Sandbox = restricted
+			}
+			key := "agent:nexus:ws:dm:sandbox-transition"
+			if _, err := manager.GetOrCreate(context.Background(), key, before); err != nil {
+				t.Fatal(err)
+			}
+			after := before
+			if startRestricted {
+				after.Sandbox = nil
+			} else {
+				after.Sandbox = restricted
+			}
+			got, err := manager.GetOrCreate(context.Background(), key, after)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != fresh || stale.disconnectCalls != 1 || stale.reconfigureCalls != 0 {
+				t.Fatalf("sandbox transition reused stale runtime: got=%p fresh=%p disconnect=%d reconfigure=%d", got, fresh, stale.disconnectCalls, stale.reconfigureCalls)
+			}
+		})
 	}
 }

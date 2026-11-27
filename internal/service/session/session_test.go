@@ -471,7 +471,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 		t.Fatalf("已取消的 Room 分页请求应在进入存储前退出: %v", err)
 	}
 
-	dmStorageCtx := newCancelOnSecondErrContext(ctx)
+	dmStorageCtx := newCancelAfterEntryCheckContext(ctx)
 	if _, err = sessionService.GetSessionMessagesPage(
 		dmStorageCtx,
 		dmKey,
@@ -479,7 +479,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	); !errors.Is(err, context.Canceled) {
 		t.Fatalf("DM 存储分页应观察原请求取消信号: %v", err)
 	}
-	roomStorageCtx := newCancelOnSecondErrContext(ctx)
+	roomStorageCtx := newCancelAfterEntryCheckContext(ctx)
 	if _, err = sessionService.GetSessionMessagesPage(
 		roomStorageCtx,
 		protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID),
@@ -530,20 +530,24 @@ INSERT INTO automation_delivery_routes (
 	}
 }
 
-type cancelOnSecondErrContext struct {
+type cancelAfterEntryCheckContext struct {
 	context.Context
 	cancel context.CancelFunc
 	checks atomic.Int32
 }
 
-func newCancelOnSecondErrContext(parent context.Context) *cancelOnSecondErrContext {
+func newCancelAfterEntryCheckContext(parent context.Context) *cancelAfterEntryCheckContext {
 	ctx, cancel := context.WithCancel(parent)
-	return &cancelOnSecondErrContext{Context: ctx, cancel: cancel}
+	return &cancelAfterEntryCheckContext{Context: ctx, cancel: cancel}
 }
 
-func (c *cancelOnSecondErrContext) Err() error {
-	if c.checks.Add(1) == 2 {
+// Err 让服务入口的第一次检查通过并随即取消，之后进入存储的任何读取
+// （无论是 Err 还是 QueryContext 监听的 Done）都必须观察到取消；
+// 不依赖存储层恰好再调用一次 Err（读模型已打开时不会再调用）。
+func (c *cancelAfterEntryCheckContext) Err() error {
+	if c.checks.Add(1) == 1 {
 		c.cancel()
+		return nil
 	}
 	return c.Context.Err()
 }

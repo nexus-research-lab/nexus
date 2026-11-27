@@ -17,6 +17,8 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	"github.com/nexus-research-lab/nexus/internal/storage"
+	"github.com/pressly/goose/v3"
 )
 
 func TestRuntimeCapabilityBindsStableSessionToActiveRound(t *testing.T) {
@@ -68,6 +70,31 @@ func TestRuntimeCapabilityBindsStableSessionToActiveRound(t *testing.T) {
 	resolved, err = service.ResolveRuntimeCapability(token)
 	if err != nil || resolved.LeaseRoundID != next.LeaseRoundID {
 		t.Fatalf("successor actor = %+v, err=%v", resolved, err)
+	}
+}
+
+func newAuditTestService(t *testing.T) (*Service, Actor, *resolvedActor) {
+	t.Helper()
+	cfg := config.Config{
+		DatabaseDriver: "sqlite",
+		DatabaseURL:    filepath.Join(t.TempDir(), "nexus.db"),
+	}
+	db, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(cfg, db, nil, nil, nil, nil, nil, nil, nil)
+	actor := Actor{OwnerUserID: "owner", AgentID: "nexus", IsMainAgent: true}
+	return service, actor, &resolvedActor{
+		Actor: actor, Authority: AuthorityOwnerMain,
+		Context: ScopeRef{Kind: ScopeKindOwner, ID: actor.OwnerUserID},
 	}
 }
 
@@ -286,6 +313,57 @@ func TestUpdatePreferencesRestoresOnlyWrittenWebSearchVersion(t *testing.T) {
 	}
 	if stored.Version != initial.Version+2 {
 		t.Fatalf("写入和条件回滚应各推进一次 version: got=%d want=%d", stored.Version, initial.Version+2)
+	}
+}
+
+func TestConfigurationRevisionBindsScopeAndSecrets(t *testing.T) {
+	service, _, _ := newAuditTestService(t)
+	scope := ScopeRef{Kind: ScopeKindOwner, ID: "owner-one"}
+	values := map[string]any{"api_key": "secret-one"}
+	before, err := service.snapshotRevision(t.Context(), DomainProviders, scope, "provider", 1, values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []string{"scope", "domain", "target", "version", "secret"} {
+		t.Run(scenario, func(t *testing.T) {
+			domain, currentScope, target, version := DomainProviders, scope, "provider", int64(1)
+			currentValues := map[string]any{"api_key": "secret-one"}
+			switch scenario {
+			case "scope":
+				currentScope.ID = "owner-two"
+			case "domain":
+				domain = DomainPreferences
+			case "target":
+				target = "another-provider"
+			case "version":
+				version++
+			case "secret":
+				currentValues["api_key"] = "secret-two"
+			}
+			after, err := service.snapshotRevision(t.Context(), domain, currentScope, target, version, currentValues)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after == before || !strings.HasPrefix(after, durableRevisionPrefix) || strings.Contains(after, "secret") {
+				t.Fatal("revision did not bind the changed identity/state without exposing the secret")
+			}
+		})
+	}
+}
+
+func TestConfigurationRevisionLegacyReceiptIsIncomparable(t *testing.T) {
+	current := DomainSnapshot{Revision: durableRevisionPrefix + strings.Repeat("a", 64)}
+	record := AuditRecord{RevisionBefore: "hmac-sha256:legacy-process-key", Status: "reconcile_required"}
+	if got := reconciliationEvidence(record, current); got.RevisionRelation != "incomparable" || got.DecisionSource != "human_confirmation_required" {
+		t.Fatalf("legacy evidence = %+v", got)
+	}
+	record.RevisionAfter = current.Revision
+	if got := reconciliationEvidence(record, current); got.RevisionRelation != "matches_recorded_after" {
+		t.Fatalf("current-format after revision was not usable: %+v", got)
+	}
+	record.RevisionAfter = durableRevisionPrefix + strings.Repeat("b", 64)
+	if got := reconciliationEvidence(record, current); got.RevisionRelation != "different" {
+		t.Fatalf("current-format difference was hidden: %+v", got)
 	}
 }
 

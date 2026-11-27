@@ -799,3 +799,17 @@ func TestRoomSandboxTransitionCancelsApprovalAndClosesWithoutReplay(t *testing.T
 		t.Fatal("transition affected sibling Agent")
 	}
 }
+
+func TestRoomSandboxTransitionDoesNotHideCleanupFailure(t *testing.T) {
+	failure := errors.New("exit not confirmed")
+	client := &sandboxTransitionClient{closeErr: failure}
+	slot := &activeRoomSlot{}
+	slot.setStatus("running")
+	service := &Service{}
+	if err := service.closeSlotForSandboxPolicyChange(context.Background(), slot, client); !errors.Is(err, failure) {
+		t.Fatalf("cleanup failure hidden: %v", err)
+	}
+	if !slot.isTerminal() || client.queries != 0 {
+		t.Fatal("failed cleanup resumed old work")
+	}
+}

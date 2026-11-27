@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -17,6 +18,72 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestBuildAgentClientOptionsInstallsClaudeNativeContract(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: t.TempDir(), RuntimeKind: "claude", AppMode: "desktop", DesktopSandboxEnabled: true, PermissionMode: sdkpermission.ModeDefault,
+	})
+	if runtime.GOOS == "windows" {
+		if err == nil {
+			t.Fatalf("Windows must reject the restricted Claude sandbox contract: options=%#v err=%v", options.Sandbox, err)
+		}
+		return
+	}
+	if runtime.GOOS != "darwin" {
+		if err == nil {
+			t.Fatal("unsupported Claude native sandbox was accepted")
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Sandbox == nil || !options.Sandbox.RequireClaudeNativeSandbox {
+		t.Fatalf("Claude native sandbox contract missing: %#v", options.Sandbox)
+	}
+	if options.Sandbox.RequireClaudeRestricted || options.Sandbox.RequireSandbox || options.Sandbox.RequireFileTools || options.Sandbox.RequireSearchTools || options.Sandbox.Enabled == nil || !*options.Sandbox.Enabled || options.Sandbox.FailIfUnavailable == nil || !*options.Sandbox.FailIfUnavailable || options.Sandbox.AllowUnsandboxedCommands == nil || *options.Sandbox.AllowUnsandboxedCommands {
+		t.Fatalf("Claude claimed nxs sandbox capabilities: %#v", options.Sandbox)
+	}
+}
+
+func TestDesktopSandboxPolicySeparatesGrantsAndFullAccess(t *testing.T) {
+	input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true,
+		SkillDirectories: []string{"/skills"}, AdditionalDirectories: []string{"/mounted"}}
+	for _, platform := range []string{"darwin"} {
+		for _, mode := range []sdkpermission.Mode{sdkpermission.ModeDefault, sdkpermission.ModeAuto, sdkpermission.ModeBypassPermissions} {
+			before := agentclient.Options{Env: map[string]string{"existing": "value"}, Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: mode}}
+			got, err := applyDesktopSandboxForPlatform(before, input, platform)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Env[protocol.NexusDesktopSandboxPolicyEnvName] != "1" || before.Env[protocol.NexusDesktopSandboxPolicyEnvName] != "" {
+				t.Fatal("host policy marker missing or caller map mutated")
+			}
+			if got.Runtime.PermissionMode != mode {
+				t.Fatal("sandbox changed approval mode")
+			}
+			if mode == sdkpermission.ModeBypassPermissions {
+				if got.Sandbox != nil || !got.MCP.StrictConfig {
+					t.Fatal("Full Access must retain strict MCP configuration without a sandbox file executor")
+				}
+				continue
+			}
+			if got.Sandbox == nil || !got.Sandbox.RequireSandbox || !got.Sandbox.RequireFileTools || !got.Sandbox.RequireSearchTools || !got.Sandbox.RequireMediaFiles || !got.Sandbox.RequireMediaNetwork || !got.Sandbox.RequireNotebookFiles || !got.Sandbox.RequireSkillFiles || !got.Sandbox.RequireContextFiles || !got.Sandbox.RequireProjectFiles || !got.Sandbox.RequireManagedPolicy || !got.Sandbox.RequireSettingsFiles || !got.Sandbox.RequireSettingsWrites || !*got.Sandbox.FailIfUnavailable {
+				t.Fatal("mandatory execution requirement lost")
+			}
+			if got.Sandbox.Resources != nil || got.Sandbox.AllowUnsandboxedCommands == nil || !*got.Sandbox.AllowUnsandboxedCommands {
+				t.Fatal("restricted nxs must keep the approval-gated escape and carry no host scratch contract")
+			}
+			if !reflect.DeepEqual(got.Sandbox.Filesystem.AllowRead, input.SkillDirectories) || !reflect.DeepEqual(got.Sandbox.Filesystem.AllowWrite, input.AdditionalDirectories) {
+				t.Fatal("resource/write grants were conflated")
+			}
+			got.Sandbox.Filesystem.AllowWrite[0] = "/changed"
+			if input.AdditionalDirectories[0] != "/mounted" {
+				t.Fatal("policy aliases caller grants")
+			}
+		}
+	}
+}
 
 func TestDesktopSandboxClaudeRestrictedPreservesOrdinarySettingsButRejectsNXSContract(t *testing.T) {
 	enabled := true

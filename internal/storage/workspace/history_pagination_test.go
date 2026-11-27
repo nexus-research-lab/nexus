@@ -151,6 +151,51 @@ func TestHistoryReadModelRoundIndexMatchesCanonicalProjection(t *testing.T) {
 	})
 }
 
+// TestHistoryPageKeepsInterleavedRoundsWhole 固定一个有意偏离 canonical 的语义：Room 里上一轮成员还在回复时
+// 用户又发了新消息，两轮的行按时间交错。canonical 先全局排序再按相邻 round 分组，会把两轮拆成碎片，一页里
+// 可能只有半轮（只有回复没有提问）；表按根轮次分组，一页总是完整轮次，与前端按 round 驻留和淘汰的窗口一致。
+// 同起点的两轮按追加顺序排（root-z 先于 root-a），游标翻页不能因 round_id 字典序跳过 root-z。
+func TestHistoryPageKeepsInterleavedRoundsWhole(t *testing.T) {
+	root := t.TempDir()
+	history := newRoomHistoryTestStore(t, root)
+	owner, conversation := testRoomOwnerUserID, "room-interleaved"
+	appendRoomHistoryIndexRound(t, history, owner, conversation, "root-1", "amy", 1000)
+	appendRoomHistoryIndexRound(t, history, owner, conversation, "root-z", "amy", 2000)
+	appendRoomHistoryIndexRound(t, history, owner, conversation, "root-a", "amy", 2000)
+
+	latest, err := history.ReadMessagesPageContext(context.Background(), owner, conversation, nil, HistoryPageQuery{Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, 0, len(latest.Items))
+	for _, item := range latest.Items {
+		if stringFromAny(item["round_id"]) != "root-a" {
+			t.Fatalf("最新一页混入了其他轮次: %+v", latest.Items)
+		}
+		ids = append(ids, stringFromAny(item["message_id"]))
+	}
+	if len(ids) == 0 || ids[0] != "user-root-a" {
+		t.Fatalf("最新一页应从 root-a 的提问开始: %v", ids)
+	}
+	if !latest.HasMore || derefString(latest.NextBeforeRoundID) != "root-a" || derefInt64(latest.NextBeforeRoundTimestamp) != 2000 {
+		t.Fatalf("游标应指向 root-a 的起点: %+v", latest)
+	}
+	previous, err := history.ReadMessagesPageContext(context.Background(), owner, conversation, nil, HistoryPageQuery{
+		Limit: 1, BeforeRoundID: "root-a", BeforeRoundTimestamp: 2000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(previous.Items) == 0 || stringFromAny(previous.Items[0]["message_id"]) != "user-root-z" {
+		t.Fatalf("上一页应是完整的 root-z: %+v", previous.Items)
+	}
+	for _, item := range previous.Items {
+		if stringFromAny(item["round_id"]) != "root-z" {
+			t.Fatalf("上一页混入了其他轮次: %+v", previous.Items)
+		}
+	}
+}
+
 func appendAgentHistoryIndexRound(
 	t *testing.T,
 	history *AgentHistoryStore,

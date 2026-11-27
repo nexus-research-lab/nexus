@@ -454,6 +454,31 @@ func TestManagerUpdateEnvironmentAttemptsEveryMatchingRuntime(t *testing.T) {
 	}
 }
 
+func TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange(t *testing.T) {
+	base := agentclient.Options{
+		CWD: "/srv/nexus/users/owner/workspace",
+		Env: map[string]string{
+			"NEXUS_RUNTIME_USER_ID":        "owner",
+			"NEXUS_RUNTIME_ISOLATION_MODE": "enforce",
+			"OPENAI_API_KEY":               "old-secret",
+		},
+	}
+	providerUpdate := base
+	providerUpdate.Env = maps.Clone(base.Env)
+	providerUpdate.Env["OPENAI_API_KEY"] = "new-secret"
+	if managedRuntimeProcessPolicyFingerprint(base) !=
+		managedRuntimeProcessPolicyFingerprint(providerUpdate) {
+		t.Fatal("provider credential hot update unexpectedly changed process-policy fingerprint")
+	}
+	isolationUpdate := base
+	isolationUpdate.Env = maps.Clone(base.Env)
+	isolationUpdate.Env["NEXUS_RUNTIME_ISOLATION_MODE"] = "audit"
+	if managedRuntimeProcessPolicyFingerprint(base) ==
+		managedRuntimeProcessPolicyFingerprint(isolationUpdate) {
+		t.Fatal("isolation change did not change process-policy fingerprint")
+	}
+}
+
 func TestManagerStartRoundCancellationWhileWaitingForIdleDrain(t *testing.T) {
 	messages := make(chan sdkprotocol.ReceivedMessage, 1)
 	client := &fakeRuntimeClient{messages: messages}
@@ -896,6 +921,19 @@ func TestAgentClientCleanupFailureBlocksReconnect(t *testing.T) {
 	}
 }
 
+// TestCleanupFailureIsNotAnOrdinaryClosedTransport 防止批量回收把 joined 断管错误整体忽略。
+func TestCleanupFailureIsNotAnOrdinaryClosedTransport(t *testing.T) {
+	want := &agentclient.ProcessCleanupError{SessionID: 9000, Err: io.ErrClosedPipe}
+	for _, err := range []error{want, errors.Join(agentclient.ErrNotConnected, want)} {
+		if IsRuntimeTransportClosedError(err) {
+			t.Fatalf("cleanup failure classified as ordinary transport closure: %v", err)
+		}
+	}
+	if !IsRuntimeTransportClosedError(io.ErrClosedPipe) {
+		t.Fatal("ordinary closed-pipe classification changed")
+	}
+}
+
 // TestManagerBulkCleanupReportsAndRetainsFailure 批量关闭仍报告清理错误并保留原 Session 栅栏。
 func TestManagerBulkCleanupReportsAndRetainsFailure(t *testing.T) {
 	for _, entry := range []string{"owner", "idle", "agent_revocation"} {
@@ -969,6 +1007,41 @@ func TestAgentClientStaleStartupCleanupFailureStopsRetry(t *testing.T) {
 	}
 	if opened.Load() != 1 || client.cleanup == nil {
 		t.Fatal("stale process cleanup failure permitted retry")
+	}
+}
+
+// TestManagerCleanupFailureRetainsSessionFence 同步失败和超时后失败都保留原状态与精确关闭结果。
+func TestManagerCleanupFailureRetainsSessionFence(t *testing.T) {
+	for _, delayed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "synchronous", true: "after_timeout"}[delayed], func(t *testing.T) {
+			want := errors.New("runtime descendants unconfirmed")
+			var calls atomic.Int32
+			client := &fakeRuntimeClient{disconnectFn: func(context.Context) error {
+				if delayed && calls.Add(1) == 1 {
+					return context.DeadlineExceeded
+				}
+				return want
+			}}
+			manager := NewManager()
+			state := &sessionState{Client: client}
+			manager.sessions["cleanup-failed"] = state
+			if err := manager.CloseSession(context.Background(), "cleanup-failed"); err == nil {
+				t.Fatal("close failure not reported")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := manager.CloseSession(ctx, "cleanup-failed"); !errors.Is(err, want) {
+				t.Fatalf("repeat close lost failure: %v", err)
+			}
+			if _, err := manager.GetOrCreate(ctx, "cleanup-failed", agentclient.Options{}); !errors.Is(err, ErrRuntimeSessionClosing) {
+				t.Fatalf("failed cleanup allowed replacement: %v", err)
+			}
+			manager.mu.RLock()
+			defer manager.mu.RUnlock()
+			if manager.sessions["cleanup-failed"] != state || !errors.Is(state.CloseError, want) {
+				t.Fatal("cleanup failure evidence removed")
+			}
+		})
 	}
 }
 

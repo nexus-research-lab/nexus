@@ -119,6 +119,40 @@ func TestMergeAgentMCPServersRejectsInvalidConfigWithServerName(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsPreservesHostProviderOwnership(t *testing.T) {
+	for _, source := range []string{"extra", "configuration"} {
+		t.Run(source, func(t *testing.T) {
+			input := AgentClientOptionsInput{RuntimeKind: runtimeKindNXS, WorkspacePath: t.TempDir()}
+			override := map[string]string{nexusProviderManagedByHostEnvName: "0", nexusAutoDreamWakeModeEnvName: "task"}
+			if source == "extra" {
+				input.ExtraEnv = override
+			} else {
+				input.ConfigurationEnv = map[string]string{
+					protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:8010/configuration",
+					protocol.NexusConfigCapabilityTokenEnvName: "test-capability",
+				}
+			}
+			options, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if options.Env[nexusProviderManagedByHostEnvName] != "1" || options.Env[nexusAutoDreamWakeModeEnvName] != "host" {
+				t.Fatal("runtime environment revoked host provider or wake ownership")
+			}
+		})
+	}
+}
+
+func TestBuildClaudeOptionsDoNotClaimNXSProviderOwnership(t *testing.T) {
+	options, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{RuntimeKind: runtimeKindClaude, WorkspacePath: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Env[nexusProviderManagedByHostEnvName] == "1" || options.Env[nexusAutoDreamWakeModeEnvName] == "host" {
+		t.Fatal("Claude received an nxs-specific ownership contract")
+	}
+}
+
 func TestBuildAgentClientOptionsRejectsUnknownConfigurationEnvironment(t *testing.T) {
 	_, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind:   runtimeKindNXS,

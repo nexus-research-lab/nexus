@@ -44,6 +44,52 @@ func migrateRevisionKey(t *testing.T, db *sql.DB) {
 	}
 }
 
+func TestRevisionKeyConcurrentInitialization(t *testing.T) {
+	cfg, db := newRevisionKeyDatabase(t)
+	migrateRevisionKey(t, db)
+	otherDB, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = otherDB.Close() })
+	stores := []*RevisionKeyStore{NewRevisionKeyStore(cfg, db), NewRevisionKeyStore(cfg, otherDB)}
+	keys := make([][]byte, len(stores))
+	errs := make([]error, len(stores))
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	for index, store := range stores {
+		workers.Go(func() {
+			<-start
+			keys[index], errs[index] = store.Key(t.Context())
+		})
+	}
+	close(start)
+	workers.Wait()
+	for _, err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(keys[0]) != 32 || !bytes.Equal(keys[0], keys[1]) {
+		t.Fatal("competing hosts did not load the same persisted revision key")
+	}
+	if err = db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = otherDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	key, err := NewRevisionKeyStore(cfg, reopened).Key(t.Context())
+	if err != nil || !bytes.Equal(key, keys[0]) {
+		t.Fatalf("revision key did not survive database reopen: %v", err)
+	}
+}
+
 func TestRevisionKeyRejectsMissingOrCorruptState(t *testing.T) {
 	for _, scenario := range []string{"missing", "malformed", "empty", "unknown_version", "invalid_bootstrap"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -69,6 +115,32 @@ func TestRevisionKeyRejectsMissingOrCorruptState(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRevisionKeyMigrationPreservesReceipts(t *testing.T) {
+	cfg, db := newRevisionKeyDatabase(t)
+	if _, err := db.ExecContext(t.Context(), `INSERT INTO configuration_changes
+		(request_id, owner_user_id, actor_agent_id, domain, operation, status, revision_before)
+		VALUES ('legacy-receipt', 'owner', 'agent', 'preferences', 'update', 'reconcile_required', 'hmac-sha256:legacy')`); err != nil {
+		t.Fatal(err)
+	}
+	migrateRevisionKey(t, db)
+	key, err := NewRevisionKeyStore(cfg, db).Key(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrateRevisionKey(t, db)
+	again, err := NewRevisionKeyStore(cfg, db).Key(t.Context())
+	if err != nil || !bytes.Equal(key, again) {
+		t.Fatalf("repeat migration changed key: %v", err)
+	}
+	var revision, status string
+	if err = db.QueryRowContext(t.Context(), `SELECT revision_before, status FROM configuration_changes WHERE request_id = 'legacy-receipt'`).Scan(&revision, &status); err != nil {
+		t.Fatal(err)
+	}
+	if revision != "hmac-sha256:legacy" || status != "reconcile_required" {
+		t.Fatal("migration rewrote the legacy receipt or inferred an outcome")
 	}
 }
 
