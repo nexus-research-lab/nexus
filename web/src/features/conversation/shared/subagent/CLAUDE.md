@@ -10,7 +10,7 @@
 - `subagent-task-list.tsx` 只装配运行、历史和未知状态分组与选择命令；任务整行必须复用 `UiListRow` 的 `dense` 密度，标题、时间、摘要和说明必须选择 App Typography 角色。Humation 头像通过 `UiSeededAvatar variant="humation" state="running"` 表达执行态，业务层不得复制行 hover/focus、字号/行高或品牌色 ring。
 - `use-scoped-resource.ts` 统一来源/任务作用域、请求代次和原子快照提交，不解释业务状态。
 - `use-subagent-task-realtime-refresh.ts` 独占 `subagent_task_changed` 的作用域过滤、短合并、后台延迟刷新与断线重连补拉；不得启动 HTTP 定时轮询。
-- `use-subagent-tasks.ts` 只管理来源级列表加载；实时事件必须按精确 Session/Room/Conversation 与可选 host Agent 失效当前列表。
+- `use-subagent-tasks.ts` 只管理来源级列表加载，来源缺省时不读取也不订阅；实时事件必须按精确 Session/Room/Conversation 与可选 host Agent 失效当前列表。`use-has-subagent-tasks.ts` 只把同一目录投影为 Header 入口可见性：首次读取中与空目录为 false，读取失败且无快照为 null。
 - `thread/` 按纯投影、transcript 资源、mutation controller 和视图拆分单任务线程；服务端返回的独立 Agent transcript 必须复用普通对话消息投影，隐藏父 Agent 下发的 user 任务提示，只保留子 Agent 的思考、回复、工具调用与结果。控制项严格由 task capability 决定：运行中可停止，nxs 可补充指令或沿同一 task 恢复；unsupported 必须解释，不能渲染无效动作。
 - `subagent-task-surface.tsx` 只负责任务列表与线程之间的页面选择，并接收上游提供的调用者过滤条件、精确 ToolUse 导航请求和头部插槽；移动任务目录使用 `WorkspaceSurfaceView` 的共享 `mobile` Header 与返回语义，不能复用桌面 Page Header 或写死高度。同一请求由 key 与精确 ToolUse 身份识别；只自动进入一次，手动选任务或返回均消耗等待中的旧请求。调用者切换同步清空任务选择，外层 source key 负责卸载旧资源；用户返列表时只补拉一次，不得再次强制打开。来源请求归属由 Room 入口绑定，不得反向依赖 Room 成员组件。
 

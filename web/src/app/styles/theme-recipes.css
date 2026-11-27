@@ -927,11 +927,6 @@
     --input-shell-focus-border: var(--input-shell-border);
   }
 
-  .home-launch-glyph {
-    color: var(--home-ascii-hero-ink, var(--primary));
-    background: color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 10%, transparent);
-  }
-
   /* 首页画布避开原生标题栏，保留控件下方的呼吸空间。 */
   :root[data-desktop-platform="macos"] .home-workspace-frame {
     padding-block-start: var(--workspace-header-height);

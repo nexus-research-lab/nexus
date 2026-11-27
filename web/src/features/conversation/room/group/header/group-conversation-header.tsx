@@ -17,7 +17,7 @@ import type { FinalConversationReplacementHandler } from "@/features/navigation/
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+import type { RoomHeaderTabAvailability, RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 
@@ -39,6 +39,7 @@ interface GroupConversationHeaderProps {
   onOpenMemberManager: () => Promise<void>;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
+  tabAvailability?: RoomHeaderTabAvailability;
   roomAvatar?: string | null;
   roomHostAgentId?: string | null;
   roomHostAutoReplyEnabled: boolean;
@@ -63,6 +64,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   onOpenMemberManager,
   onSelectConversation,
   onUpdateConversationTitle,
+  tabAvailability,
   roomAvatar,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
@@ -75,7 +77,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const memberManager = useRoomMemberManager(roomId, onOpenMemberManager);
   const headerTitle = currentRoomTitle?.trim() || t("room.untitled_collaboration");
-  const roomTabs = buildRoomHeaderTabs(t);
+  const roomTabs = buildRoomHeaderTabs(t, { activeTab, availability: tabAvailability });
 
   return (
     <>

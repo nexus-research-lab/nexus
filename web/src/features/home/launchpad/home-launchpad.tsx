@@ -165,9 +165,8 @@ function HomeSampleSection({ onPick }: { onPick: (prompt: string) => void }) {
               onClick={() => onPick(t(sample.promptKey))}
               type="button"
             >
-              <span className="home-launch-glyph radius-control-md flex h-9 w-9 shrink-0 items-center justify-center">
-                <Icon aria-hidden className="h-4 w-4" />
-              </span>
+              {/* 图标直接贴着标题行，不再包着着色方块。 */}
+              <Icon aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-(--icon-muted)" />
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" })}>
                   {t(sample.titleKey)}

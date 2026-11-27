@@ -150,7 +150,7 @@ export const zhNavigationMessages = {
   "home.launch.greeting_evening": "晚上好",
   "home.launch.greeting_night": "夜深了",
   "home.launch.attachments_only": "看看这些附件。",
-  "home.launch.placeholder": "交给 Nexus：描述你想完成的事，Enter 发送",
+  "home.launch.placeholder": "交给 Nexus：描述你想完成的事",
   "home.launch.submit_failed": "暂时无法打开主智能体对话，请稍后重试。",
   "home.launch.activity_title": "正在进行",
   "home.launch.status_waiting": "等你回复",

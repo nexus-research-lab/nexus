@@ -36,8 +36,11 @@ interface TaskListSnapshot {
   scopeKey: string;
 }
 
+// 无来源时作用域为空串：不发起读取，实时订阅也保持关闭。
+const NO_SOURCE: SubagentTaskSource = { kind: "session", session_key: "" };
+
 export function useSubagentTasks(
-  source: SubagentTaskSource,
+  source: SubagentTaskSource | null,
   observeChanges: boolean,
   hostAgentId?: string | null,
 ): UseSubagentTasksResult {
@@ -54,7 +57,7 @@ export function useSubagentTasks(
 
   const refresh = useCallback(async (silent = false) => {
     const currentSource = sourceRef.current;
-    if (!scopeKey || subagentTaskSourceKey(currentSource) !== scopeKey) {
+    if (!scopeKey || !currentSource || subagentTaskSourceKey(currentSource) !== scopeKey) {
       return;
     }
     const requestId = beginRequest(scopeKey);
@@ -103,10 +106,10 @@ export function useSubagentTasks(
   const refreshFromRealtime = useCallback(() => refresh(true), [refresh]);
 
   useSubagentTaskRealtimeRefresh({
-    enabled: observeChanges,
+    enabled: observeChanges && Boolean(scopeKey),
     hostAgentId,
     onChanged: refreshFromRealtime,
-    source,
+    source: source ?? NO_SOURCE,
   });
 
   const tasks = snapshot.data?.items ?? EMPTY_TASKS;
