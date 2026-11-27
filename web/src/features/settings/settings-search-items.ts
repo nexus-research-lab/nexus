@@ -28,7 +28,7 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
     ["settings.reading.font"],
     ["settings.reading.size"],
     ["settings.reading.spacing"],
-    ["settings.appearance.reset", "settings.appearance.reset_description"],
+    ["settings.appearance.reset"],
   ],
   permissions: [
     ["settings.general.agent_defaults_title", "agent_options.advanced.permission.default.description", "agent_options.advanced.permission.plan.description", "agent_options.advanced.permission.auto.description", "agent_options.advanced.permission.accept_edits.description", "agent_options.advanced.permission.bypass.description", "agent_options.advanced.permission.dont_ask.description"],

@@ -1,5 +1,5 @@
 // INPUT: Reading size drafts below and above the supported range.
-// OUTPUT: Range feedback precedes clamping, and changes persist only within bounds.
+// OUTPUT: No idle range hint; range feedback appears for out-of-range drafts, precedes clamping, and changes persist only within bounds.
 // POS: Appearance number field interaction regression.
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
@@ -14,8 +14,10 @@ it.each([[10, 12], [30, 26]])("warns about %s before clamping to %s on blur", (e
  render(<SettingsAppearanceSection />, { wrapper: I18nProvider });
  const input = screen.getAllByRole("spinbutton")[0] as HTMLInputElement;
  const hint = document.getElementById(input.getAttribute("aria-describedby")!)!;
- expect(hint.textContent).toContain("12"); expect(hint.textContent).toContain("26");
+ // 合法值不常驻范围说明；越界时才提示范围。
+ expect(hint.textContent).toBe("");
  fireEvent.change(input, { target: { value: String(entered) } });
+ expect(hint.textContent).toContain("12"); expect(hint.textContent).toContain("26");
  expect(input.value).toBe(String(entered));
  expect(input.getAttribute("aria-invalid")).toBe("true");
  expect(useChatTypography.getState().typography.fontSize).toBe(DEFAULT_CHAT_TYPOGRAPHY.fontSize);

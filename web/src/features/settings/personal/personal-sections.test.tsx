@@ -1,5 +1,5 @@
 // INPUT: 个人用量汇总与密码提交状态。
-// OUTPUT: 验证用量明细不重复，密码表单按需展开并保留提交行为。
+// OUTPUT: 验证用量明细不重复、每日图表与密码表单按需展开，本机单用户不显示所有者徽标。
 // POS: 个人页重排的局部交互回归，不调用账户 API。
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -87,6 +87,10 @@ it("shows daily values and switches to the exact table", async () => {
   await user.click(activityModes.getByRole("button", { name: "累计" }));
   expect(activity.getByLabelText("2026-09-08: 5 Token", { selector: "button" })).toBeTruthy();
   expect(activity.getByLabelText("2026-09-09: 40 Token", { selector: "button" })).toBeTruthy();
+  const daily = document.querySelector("details")!;
+  expect(daily.open).toBe(false);
+  await user.click(daily.querySelector("summary")!);
+  expect(daily.open).toBe(true);
   await user.click(dailyViews.getByRole("button", { name: "图表" }));
   expect(screen.getByLabelText("2026-09-09: 35", { selector: "button" })).toBeTruthy();
   expect(screen.getByText("输入 Token · 10")).toBeTruthy();
@@ -116,4 +120,19 @@ it("associates password guidance with each form independently and exposes saving
     });
     expect(form.getAttribute("aria-busy")).toBe(String(index === 1));
   });
+});
+
+it("hides the owner badge for the local single-user profile but keeps it for accounts", async () => {
+  const { buildPersonalProfilePresentation } = await import("./personal-settings-model");
+  const t = (key: TranslationKey) => MESSAGES.zh[key];
+  const profile = (auth_method: string, plan_name?: string) => ({
+    user: { user_id: "u", username: "local", display_name: "Local", role: "owner", avatar: "", auth_method },
+    token_usage: { cache_creation_input_tokens: 0, cache_read_input_tokens: 0, input_tokens: 0, message_count: 0, output_tokens: 0, quota_limit_tokens: null, session_count: 0, total_tokens: 0, updated_at: "" },
+    subscription: plan_name ? { plan_name } as never : null,
+    can_change_password: false,
+    can_update_profile: true,
+  });
+  expect(buildPersonalProfilePresentation(profile("local"), t).showIdentityBadge).toBe(false);
+  expect(buildPersonalProfilePresentation(profile("local", "Pro"), t).showIdentityBadge).toBe(true);
+  expect(buildPersonalProfilePresentation(profile("password"), t).showIdentityBadge).toBe(true);
 });

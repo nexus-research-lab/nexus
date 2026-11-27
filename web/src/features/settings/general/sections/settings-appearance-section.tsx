@@ -112,9 +112,6 @@ export function SettingsAppearanceSection() {
 
       <div className={`${SETTINGS_CARD_CLASS_NAME} px-5`}>
         <div className="nexus-chat-feed h-48 overflow-y-auto border-b border-(--divider-subtle-color) py-5">
-          <p className={cn("mb-3", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
-            {t("settings.appearance.preview")}
-          </p>
           <UiMarkdownContent content={t("settings.reading.preview")} />
         </div>
         <AppearanceRow label={t("settings.reading.font")}>
@@ -139,10 +136,7 @@ export function SettingsAppearanceSection() {
           />
         </AppearanceRow>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <p className={getUiTypographyClassName({ role: "supporting", tone: "soft" })}>
-            {t("settings.appearance.reset_description")}
-          </p>
+        <div className="flex items-center justify-end py-4">
           <UiButton
             className="shrink-0"
             onClick={resetAppearance}
@@ -185,12 +179,12 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
   const [adjusted, setAdjusted] = useState<number | null>(null);
   const numericDraft = draft === null || draft === "" ? null : Number(draft);
   const outOfRange = numericDraft !== null && Number.isFinite(numericDraft) && (numericDraft < min || numericDraft > max);
-  const range = t("settings.appearance.value_range", { min, max, unit });
+  // 合法值不常驻范围提示；只在越界或刚被收口时说明，范围本身由原生 min/max 表达。
   const hint = outOfRange
     ? t("settings.appearance.range_warning", { min, max, unit })
     : adjusted !== null && adjusted === value
       ? t("settings.appearance.range_adjusted", { min, max, unit, value: adjusted })
-      : range;
+      : "";
   return (
     <div>
       <div className="relative">
@@ -233,7 +227,7 @@ function AppearanceNumberInput({ label, value, min, max, step, unit, onChange }:
         </span>
       )}
       </div>
-      <p id={hintId} role="status" className={cn("mt-1.5", getUiTypographyClassName({ role: "caption", tone: outOfRange ? "warning" : "muted" }))}>
+      <p id={hintId} role="status" className={cn(hint && "mt-1.5", getUiTypographyClassName({ role: "caption", tone: outOfRange ? "warning" : "muted" }))}>
         {hint}
       </p>
     </div>
