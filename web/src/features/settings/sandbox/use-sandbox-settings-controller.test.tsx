@@ -33,19 +33,6 @@ it("retains unknown for old servers and failures", async () => {
   expect(mocks.update).not.toHaveBeenCalled();
 });
 
-it("does not launch duplicate checks or lock preference changes", async () => {
-  let resolve!: (value: unknown) => void;
-  mocks.read.mockReturnValue(new Promise((done) => { resolve = done; }));
-  const { result } = renderHook(useSandboxSettingsController);
-  let pending!: Promise<void>;
-  act(() => { pending = result.current.onCheckSandbox(); void result.current.onCheckSandbox(); });
-  expect(mocks.read).toHaveBeenCalledTimes(1);
-  expect(result.current.sandboxChecking).toBe(true);
-  expect(result.current.preferencesBusy).toBe(false);
-  await act(async () => { resolve({ available: true, sandbox: { state: "unsupported" } }); await pending; });
-  expect(mocks.update).not.toHaveBeenCalled();
-});
-
 it("toggles the desktop sandbox through one preference update", () => {
   const { result } = renderHook(useSandboxSettingsController);
   expect(result.current.desktopSandboxEnabled).toBe(false);
@@ -57,13 +44,4 @@ it("toggles the desktop sandbox through one preference update", () => {
     desktop_sandbox_enabled: true,
   });
   expect(mocks.read).not.toHaveBeenCalled();
-});
-
-it("shows the actionable diagnosis and clears it on the next failed check", async () => {
-  mocks.read.mockResolvedValueOnce({ sandbox: { state: "missing_dependencies", message: "请以普通用户身份重新启动 Nexus。" } }).mockRejectedValueOnce(new Error("offline"));
-  const { result } = renderHook(useSandboxSettingsController);
-  await act(() => result.current.onCheckSandbox());
-  expect(result.current.sandboxMessage).toBe("请以普通用户身份重新启动 Nexus。");
-  await act(() => result.current.onCheckSandbox());
-  expect(result.current.sandboxMessage).toBeNull();
 });

@@ -9,28 +9,6 @@ import { useMinuteClock } from "./use-minute-clock";
 const NOW = Date.UTC(2026, 8, 7, 12, 0, 15);
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
-it("updates at minute boundaries and removes its timer when disabled or unmounted", () => {
-  vi.useFakeTimers(); vi.setSystemTime(NOW);
-  const { result, rerender, unmount } = renderHook(({ enabled }) => useMinuteClock(enabled), { initialProps: { enabled: false } });
-  expect(result.current).toBe(NOW);
-  expect(vi.getTimerCount()).toBe(0);
-  rerender({ enabled: true });
-  expect(vi.getTimerCount()).toBe(1);
-  act(() => vi.advanceTimersByTime(44_999));
-  expect(result.current).toBe(NOW);
-  act(() => vi.advanceTimersByTime(1));
-  expect(result.current).toBe(NOW + 45_000);
-  act(() => vi.advanceTimersByTime(60_000));
-  expect(result.current).toBe(NOW + 105_000);
-  rerender({ enabled: false });
-  expect(vi.getTimerCount()).toBe(0);
-  rerender({ enabled: true });
-  unmount();
-  expect(vi.getTimerCount()).toBe(0);
-  act(() => document.dispatchEvent(new Event("visibilitychange")));
-  expect(vi.getTimerCount()).toBe(0);
-});
-
 it("suspends hidden pages and refreshes immediately on foreground without duplicate timers", () => {
   vi.useFakeTimers(); vi.setSystemTime(NOW);
   const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");

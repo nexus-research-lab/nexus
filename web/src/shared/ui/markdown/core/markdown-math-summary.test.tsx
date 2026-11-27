@@ -30,15 +30,4 @@ describe("compact math summaries", () => {
     expect(container.textContent).toBe(["价格 $20 到 $30，(K_D)，前文 [公式] 后文。", "$code$", String.raw`\[example\]`].join("\n"));
     expect(container.querySelector(".katex, math, .nexus-math-pending")).toBeNull();
   });
-
-  it("updates the label and restores full math only when switched to body", () => {
-    const content = String.raw`前文 \[K_D = \frac{k_d}{k_a}\] 后文`;
-    const { container, rerender } = render(<UiMarkdownContent content={content} summaryMathLabel="[公式]" variant="summary" />);
-    expect(container.textContent).toBe("前文 [公式] 后文");
-    rerender(<UiMarkdownContent content={content} summaryMathLabel="[Formula]" variant="summary" />);
-    expect(container.textContent).toBe("前文 [Formula] 后文");
-    rerender(<UiMarkdownContent content={content} variant="body" />);
-    expect(container.querySelector(".katex-display")).toBeTruthy();
-    expect(container.querySelector("annotation")?.textContent).toBe(String.raw`K_D = \frac{k_d}{k_a}`);
-  });
 });

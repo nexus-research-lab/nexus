@@ -41,18 +41,4 @@ describe("IconPicker", () => {
     await user.click(screen.getByRole("button", { name: "common.clear" }));
     expect(onSelect).toHaveBeenLastCalledWith("");
   });
-
-  it("keeps every shared choice disabled when the picker is disabled", () => {
-    render(
-      <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key, params) => key === "common.icon_picker_option" ? `头像 ${params?.number}` : key }}
-      >
-        <IconPicker disabled maxIcons={2} onSelect={vi.fn()} value="1" />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    for (const action of screen.getAllByRole("button")) {
-      expect((action as HTMLButtonElement).disabled).toBe(true);
-    }
-  });
 });

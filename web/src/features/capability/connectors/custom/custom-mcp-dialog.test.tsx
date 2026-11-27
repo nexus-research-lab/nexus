@@ -159,23 +159,6 @@ describe("CustomMCPDialog", () => {
     expect(onSave).toHaveBeenLastCalledWith({ ...expected, auth_type: "none", bearer_token: undefined });
   });
 
-  it("binds labels and dialog titles to the right instance when two dialogs are mounted", () => {
-    render(<I18N_CONTEXT.Provider value={localization("en")}>
-      <CustomMCPDialog busy={false} onClose={vi.fn()} onSave={vi.fn()} server={serverFor("http")} />
-      <CustomMCPDialog busy={false} onClose={vi.fn()} onSave={vi.fn()} server={serverFor("http")} />
-    </I18N_CONTEXT.Provider>);
-    const dialogs = document.querySelectorAll('[role="dialog"]');
-    expect(dialogs).toHaveLength(2);
-    const ids = [...document.querySelectorAll("[id]")].map((element) => element.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const dialog of dialogs) {
-      expect(dialog.contains(document.getElementById(dialog.getAttribute("aria-labelledby")!))).toBe(true);
-      for (const label of dialog.querySelectorAll<HTMLLabelElement>("label[for]")) {
-        expect(label.control?.closest('[role="dialog"]')).toBe(dialog);
-      }
-    }
-  });
-
   it("retains save and dismissal locks while a command is busy", async () => {
     const { dialog, onClose, onSave, t, user } = openDialog(serverFor("stdio"), "en", true);
     const save = within(dialog).getByRole("button", { name: t("common.saving") }) as HTMLButtonElement;

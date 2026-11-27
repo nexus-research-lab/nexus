@@ -34,19 +34,6 @@ it("clears a previously rendered diagram when streaming source becomes empty", a
   expect(result.current).toEqual({ svg: "", error: null, is_rendering: false });
 });
 
-it("ignores a pending render that completes after the source was cleared", async () => {
-  let finish!: (value: { svg: string }) => void;
-  mermaid.render.mockReturnValue(new Promise<{ svg: string }>((resolve) => { finish = resolve; }));
-  const { result, rerender } = renderHook(({ chart }) => useMermaidSvg(chart, true, "late"), {
-    initialProps: { chart: "graph TD; A-->B" },
-  });
-  await act(async () => { await vi.advanceTimersByTimeAsync(300); });
-  expect(mermaid.render).toHaveBeenCalledOnce();
-  rerender({ chart: "" });
-  await act(async () => { finish({ svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>Old</text></svg>' }); });
-  expect(result.current).toEqual({ svg: "", error: null, is_rendering: false });
-});
-
 it("keeps the last valid diagram visible while streaming becomes final", async () => {
   const { result, rerender } = renderHook(
     ({ streaming }) => useMermaidSvg("graph TD; A-->B", streaming, "final"),

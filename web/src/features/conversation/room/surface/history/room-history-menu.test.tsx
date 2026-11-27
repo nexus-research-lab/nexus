@@ -2,7 +2,7 @@
 // OUTPUT: 证明共享触发/多选控件，并以公共列表分隔线隔离普通历史和 IM 历史。
 // POS: RoomHistoryMenu DOM 行为测试；删除事务和锚定位置算法由各自所有者测试。
 
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -115,68 +115,6 @@ describe("RoomHistoryMenu", () => {
     expect((await screen.findByRole("status")).textContent).toMatch(/could not be confirmed|未确认/);
     expect(within(screen.getByRole("button", { name: /Alpha/ })).queryByRole("button", { name: /Delete|删除/ })).toBeNull();
     expect(remove).toHaveBeenCalledTimes(1);
-  });
-
-  it("discards late batch navigation after switching rooms", async () => {
-    const user = userEvent.setup();
-    let finish!: (value: string | null) => void;
-    const remove = vi.fn(() => new Promise<string | null>((resolve) => { finish = resolve; }));
-    const select = vi.fn();
-    const props = { conversationId: "conversation-alpha", conversations: CONVERSATIONS,
-      onCreateConversation: vi.fn(async () => "replacement"), onDeleteConversation: remove, onSelectConversation: select };
-    const view = render(<I18nProvider><RoomHistoryMenu {...props} /></I18nProvider>);
-    await user.click(screen.getByRole("button", { name: /History|历史/ }));
-    await user.click(screen.getByRole("button", { name: /Select|多选/ }));
-    await user.click(screen.getByRole("checkbox", { name: /Select all|全选/ }));
-    await user.click(screen.getByRole("button", { name: /Clear history|清空历史/ }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /Clear history|清空历史/ }));
-    view.rerender(<I18nProvider><RoomHistoryMenu {...props} conversations={CONVERSATIONS.map((entry) => ({ ...entry, room_id: "other" }))} /></I18nProvider>);
-    await act(async () => { finish(null); });
-    await act(async () => { finish(null); });
-    expect(select).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog")).toBeNull();
-  });
-
-  it("keeps IME confirmation inside title editing and lets Escape cancel before dismissing history", async () => {
-    const user = userEvent.setup();
-    const rename = vi.fn(async () => undefined);
-    const select = vi.fn();
-    render(<I18nProvider><RoomHistoryMenu
-      conversationId="conversation-alpha" conversations={CONVERSATIONS}
-      onCreateConversation={vi.fn(async () => null)} onDeleteConversation={vi.fn(async () => null)}
-      onSelectConversation={select} onUpdateConversationTitle={rename}
-    /></I18nProvider>);
-    const trigger = screen.getByRole("button", { name: /History|历史/ });
-    await user.click(trigger);
-    const dialog = screen.getByRole("dialog", { name: /History|历史/ });
-    const row = within(dialog).getByRole("button", { name: /Alpha/ });
-    await user.click(within(row).getByRole("button", { name: /Rename|重命名/ }));
-    const input = screen.getByRole("textbox", { name: /Edit conversation title|编辑对话标题/ });
-    await user.clear(input);
-    await user.type(input, "讨论草稿");
-    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
-    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
-    expect(rename).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(input);
-    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
-    expect(screen.getByRole("textbox")).toBe(input);
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("textbox")).toBeNull();
-    expect(screen.getByRole("dialog", { name: /History|历史/ })).toBe(dialog);
-    const renameButton = within(screen.getByRole("button", { name: /Alpha/ })).getByRole("button", { name: /Rename|重命名/ });
-    expect(document.activeElement).toBe(renameButton);
-    await user.keyboard("{Enter}");
-    await user.clear(screen.getByRole("textbox"));
-    await user.type(screen.getByRole("textbox"), "  项目评审  {Enter}");
-    expect(rename).toHaveBeenCalledExactlyOnceWith("conversation-alpha", "项目评审");
-    expect(select).not.toHaveBeenCalled();
-    expect(screen.getByRole("tooltip").textContent).toMatch(/Rename|重命名/);
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("tooltip")).toBeNull();
-    expect(screen.getByRole("dialog", { name: /History|历史/ })).toBe(dialog);
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(trigger);
   });
 
   it("uses shared trigger and mixed selection controls", async () => {

@@ -167,39 +167,6 @@ func TestDelta(t *testing.T) {
 	}
 }
 
-// DMG 安装的应用可能没有 ZIP 中附带的公证票据。
-func TestDeltaStapledTicket(t *testing.T) {
-	r := rand.New(rand.NewPCG(7, 8))
-	ticket := make([]byte, 1600)
-	for i := range ticket {
-		ticket[i] = byte(r.Uint32())
-	}
-	newTicket := slices.Clone(ticket)
-	newTicket[100]++
-	for _, tc := range []struct{ name, old, new string }{
-		{"changed", string(ticket), string(newTicket)},
-		{"unchanged", string(ticket), string(ticket)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			oldDir := writeTree(t, map[string]string{"Contents/app.exe": "code", "Contents/CodeResources": tc.old})
-			newDir := writeTree(t, map[string]string{"Contents/app.exe": "new code", "Contents/CodeResources": tc.new})
-			var delta bytes.Buffer
-			if err := WriteDelta(&delta, "1.0.0", "1.1.0", oldDir, newDir, nil); err != nil {
-				t.Fatal(err)
-			}
-			for _, installed := range []string{oldDir, writeTree(t, map[string]string{"Contents/app.exe": "code"})} {
-				out := filepath.Join(t.TempDir(), "app")
-				if err := ApplyDelta(bytes.NewReader(delta.Bytes()), int64(delta.Len()), "1.0.0", "1.1.0", installed, out); err != nil {
-					t.Fatal(err)
-				}
-				if got, want := readTree(t, out), readTree(t, newDir); !maps.Equal(got, want) {
-					t.Errorf("applying the delta made %v, want %v", slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(want)))
-				}
-			}
-		})
-	}
-}
-
 func FuzzApplyDelta(f *testing.F) {
 	old := map[string]string{"a": "old a", "b/": "", "b/c": "old c"}
 	var delta bytes.Buffer

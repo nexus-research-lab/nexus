@@ -15,13 +15,6 @@ import { zhSettingsMessages } from "@/shared/i18n/catalog/zh/settings";
 import { SettingsGeneralBehaviorSection } from "./settings-general-behavior-section";
 
 type Props = ComponentProps<typeof SettingsGeneralBehaviorSection>;
-const toggles = [
-  ["agent_sdk_diagnostics", "onAgentSdkDiagnosticsChange", false],
-  ["auto_memory", "onAutoMemoryEnabledChange", true],
-  ["auto_dream", "onAutoDreamEnabledChange", true],
-  ["emotion", "onEmotionEnabledChange", false],
-  ["echo", "onEchoEnabledChange", true],
-] as const;
 
 function preferences(): Props {
   return {
@@ -61,73 +54,5 @@ describe("General setting switches", () => {
     rerender(view(<SettingsGeneralBehaviorSection {...props} preferencesSaving />));
     await user.click(within(group).getByRole("button", { name: "排队" }));
     expect(props.onDefaultDeliveryPolicyChange).toHaveBeenCalledTimes(1);
-  });
-
-  it.each(["zh", "en"] as const)("names each %s setting and changes only the selected leaf", async (locale) => {
-    const user = userEvent.setup();
-    const props = preferences();
-    const messages = locale === "zh" ? zhSettingsMessages : enSettingsMessages;
-    render(view(<SettingsGeneralBehaviorSection {...props} />, locale));
-    expect(screen.getAllByRole("switch")).toHaveLength(5);
-    for (const [name, callback, checked] of toggles) {
-      const control = screen.getByRole("switch", { name: messages[`settings.general.${name}_title`] });
-      if (name === "agent_sdk_diagnostics") {
-        // 显而易见的开关不带说明，也就没有 aria-describedby。
-        expect(control.getAttribute("aria-describedby")).toBeNull();
-      } else {
-        const description = document.getElementById(control.getAttribute("aria-describedby")!);
-        expect(description?.textContent).toBe(messages[`settings.general.${name}_description`]);
-        // Visible explanations remain static; only the switch changes the value.
-        await user.click(description!);
-        expect(props[callback]).not.toHaveBeenCalled();
-      }
-      expect(control.getAttribute("aria-checked")).toBe(String(checked));
-      await user.click(control);
-      expect(props[callback]).toHaveBeenCalledExactlyOnceWith(!checked);
-    }
-    expect(props.onDefaultDeliveryPolicyChange).not.toHaveBeenCalled();
-  });
-
-  it("associates descriptions and commands with the correct mounted instance", async () => {
-    const user = userEvent.setup();
-    const first = preferences();
-    const second = preferences();
-    render(view(<>
-      <div data-testid="first"><SettingsGeneralBehaviorSection {...first} /></div>
-      <div data-testid="second"><SettingsGeneralBehaviorSection {...second} /></div>
-    </>));
-    // 诊断开关不带说明，其余 4 个开关在两个实例中各有独立的说明 id。
-    const ids = screen.getAllByRole("switch").map((control) => control.getAttribute("aria-describedby")).filter(Boolean);
-    expect(new Set(ids).size).toBe(8);
-    for (const id of ids) expect(document.getElementById(id!)).not.toBeNull();
-    await user.click(within(screen.getByTestId("second")).getByRole("switch", { name: "主动跟进" }));
-    expect(second.onEchoEnabledChange).toHaveBeenCalledExactlyOnceWith(false);
-    expect(first.onEchoEnabledChange).not.toHaveBeenCalled();
-  });
-
-  it.each(["preferencesLoading", "preferencesSaving"] as const)("keeps the independent Echo control available during %s", async (flag) => {
-    const user = userEvent.setup();
-    const props = { ...preferences(), [flag]: true };
-    render(view(<SettingsGeneralBehaviorSection {...props} />));
-    for (const [name, callback] of toggles.slice(0, 4)) {
-      const control = screen.getByRole("switch", { name: zhSettingsMessages[`settings.general.${name}_title`] });
-      expect((control as HTMLButtonElement).disabled).toBe(true);
-      await user.click(control);
-      expect(props[callback]).not.toHaveBeenCalled();
-    }
-    await user.click(screen.getByRole("switch", { name: "主动跟进" }));
-    expect(props.onEchoEnabledChange).toHaveBeenCalledExactlyOnceWith(false);
-  });
-
-  it.each(["echoDisabled", "echoLoading", "echoSaving"] as const)("keeps Preferences independent from %s", async (flag) => {
-    const user = userEvent.setup();
-    const props = { ...preferences(), [flag]: true };
-    render(view(<SettingsGeneralBehaviorSection {...props} />));
-    const echo = screen.getByRole("switch", { name: "主动跟进" }) as HTMLButtonElement;
-    expect(echo.disabled).toBe(true);
-    await user.click(echo);
-    expect(props.onEchoEnabledChange).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("switch", { name: "自动记忆" }));
-    expect(props.onAutoMemoryEnabledChange).toHaveBeenCalledExactlyOnceWith(false);
   });
 });

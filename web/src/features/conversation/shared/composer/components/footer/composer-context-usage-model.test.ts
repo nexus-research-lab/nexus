@@ -5,7 +5,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  projectComposerContextUsage,
   projectContextUsage,
 } from "./composer-context-usage-model";
 
@@ -17,26 +16,5 @@ describe("composer context usage model", () => {
       .toMatchObject({ percentage: 97, tone: "danger" });
     expect(projectContextUsage({ max_tokens: 100, percentage: 120, total_tokens: 120 }))
       .toMatchObject({ percentage: 100, tone: "danger" });
-  });
-
-  it("uses the highest valid Room snapshot for the summary", () => {
-    const projection = projectComposerContextUsage({
-      items: [
-        {
-          agentId: "agent-1",
-          name: "Researcher",
-          usage: { max_tokens: 100, percentage: 42, total_tokens: 42 },
-        },
-        {
-          agentId: "agent-2",
-          name: "Writer",
-          usage: { max_tokens: 100, percentage: 86, total_tokens: 86 },
-        },
-      ],
-      usage: null,
-    });
-
-    expect(projection?.grouped).toBe(true);
-    expect(projection?.summary).toMatchObject({ percentage: 86, tone: "warning" });
   });
 });

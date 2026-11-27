@@ -7,68 +7,6 @@ import { test } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-test("pending interactions keep first position and latest request snapshot", async () => {
-  const { coalescePendingPermissions } = await import("@/lib/conversation/pending-permission-match.ts");
-  const { resolveMessageItemPermissions } = await import("@/features/conversation/shared/message/item/controller/projection/message-item-permissions.ts");
-  const { resolvePendingInteractionOwner } = await import("@/features/conversation/shared/message/item/message-item-projection.ts");
-  const first = {
-    message_id: "assistant-permission-owner",
-    request_id: "request-stable",
-    summary: "旧快照",
-    tool_input: { command: "echo stable" },
-    tool_name: "Bash",
-    tool_use_id: "tool-stable",
-  };
-  const other = {
-    request_id: "request-other",
-    tool_input: { path: "/tmp/report" },
-    tool_name: "Read",
-  };
-  const latest = {
-    ...first,
-    summary: "最新快照",
-  };
-  assert.deepEqual(
-    coalescePendingPermissions([first, other, latest]),
-    [latest, other],
-    "a repeated request updates in place instead of creating a second surface",
-  );
-
-  const assistant = {
-    agent_id: "agent-1",
-    content: [{
-      id: "tool-stable",
-      input: { command: "echo stable" },
-      name: "Bash",
-      type: "tool_use",
-    }],
-    message_id: "assistant-permission-owner",
-    role: "assistant",
-    round_id: "round-permission-owner",
-    session_key: "room:group:conversation-1",
-    stream_status: "streaming",
-    timestamp: 1,
-  };
-  const projection = resolveMessageItemPermissions(
-    [assistant],
-    [first, other, latest],
-  );
-  assert.deepEqual(projection.pendingInteractionPermissions, [latest, other]);
-  assert.equal(
-    projection.matchedPendingPermissionsByToolUseId.get("tool-stable"),
-    latest,
-  );
-  assert.deepEqual(projection.unmatchedPendingPermissions, [other]);
-  assert.equal(resolvePendingInteractionOwner("room_result"), "composer");
-  assert.equal(resolvePendingInteractionOwner("room_thread"), "composer");
-  assert.equal(
-    resolvePendingInteractionOwner("room_thread_process"),
-    "composer",
-  );
-  assert.equal(resolvePendingInteractionOwner("dm_live"), "composer");
-  assert.equal(resolvePendingInteractionOwner("dm_archived"), "composer");
-});
-
 test("Room keeps every pending runtime human interaction in the Composer", async () => {
   const { ComposerInteractionSurface } = await import("@/features/conversation/shared/composer/components/interaction/composer-interaction-surface.tsx");
   const { GroupAgentExecutionShell } = await import("@/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx");

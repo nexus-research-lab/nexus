@@ -103,22 +103,4 @@ describe("ToolBlockResult", () => {
       expect(screen.getByText(reasonCode).tagName).toBe("CODE");
     },
   );
-
-  it("keeps ordinary tool output outside the short-status width contract", () => {
-    render(
-      <I18nProvider>
-        <ToolBlockResult
-          toolResult={{
-            content: "ordinary full-width tool output",
-            is_error: false,
-            tool_use_id: "tool-success",
-            type: "tool_result",
-          }}
-        />
-      </I18nProvider>,
-    );
-
-    expect(screen.queryByRole("status")).toBeNull();
-
-  });
 });

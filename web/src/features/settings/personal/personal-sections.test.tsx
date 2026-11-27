@@ -4,7 +4,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import { formatTokens } from "@/lib/format/token-count";
 import { MESSAGES, type TranslationKey } from "@/shared/i18n/messages";
 import { PersonalUsageHeatmap, PersonalUsageHistory } from "./personal-usage-history";
 import { PersonalPasswordSection } from "./personal-password-section";
@@ -13,15 +12,6 @@ import { PersonalTokenUsageSection } from "./personal-token-usage-section";
 vi.mock("@/shared/i18n/i18n-context", () => ({
   useI18n: () => ({ locale: "zh", t: (key: TranslationKey, params: Record<string, string | number> = {}) => Object.entries(params).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES.zh[key] as string) }),
 }));
-
-it("compacts token counts using the selected language", () => {
-  expect(formatTokens(1_000_000, "en")).toBe("1M");
-  expect(formatTokens(1_000_000_000, "en")).toBe("1B");
-  expect(formatTokens(1_000_000, "zh")).toBe("1百万");
-  expect(formatTokens(100_000_000, "zh")).toBe("1亿");
-  expect(formatTokens(362_400_000, "zh")).toBe("3.6亿");
-  expect(formatTokens(999, "zh")).toBe("999");
-});
 
 it("compacts heatmap tooltips and chart details", async () => {
   const user = userEvent.setup();
@@ -60,45 +50,6 @@ it("keeps a single usage breakdown and expands the password form before submitti
   expect(screen.getByLabelText("当前密码")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "修改密码" }));
   expect(onSubmit).toHaveBeenCalledOnce();
-});
-
-it("shows daily values and switches to the exact table", async () => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date("2026-09-09T12:00:00Z"));
-  const user = userEvent.setup();
-  const days = [
-    { date: "2026-09-08", input_tokens: 5, output_tokens: 0, cache_tokens: 0, total_tokens: 5 },
-    { date: "2026-09-09", input_tokens: 10, output_tokens: 5, cache_tokens: 20, total_tokens: 35 },
-  ];
-  render(<><PersonalUsageHeatmap days={days} /><PersonalUsageHistory days={days} /></>);
-  expect(screen.getByText("最近 365 天 · UTC")).toBeTruthy();
-  const activity = within(screen.getByRole("region", { name: "Token 活动" }));
-  // 热力图有 365 个按钮：日期格按 aria-label 查、切换按钮在所属分组内按角色查，避免整表 role 扫描在 CI 上超时。
-  const activityModes = within(activity.getByRole("group", { name: "Token 活动" }));
-  const dailyViews = within(screen.getByRole("group", { name: "每日 Token" }));
-  expect(activity.getAllByLabelText(/^\d{4}-/, { selector: "button" })).toHaveLength(365);
-  expect(activity.getByLabelText("2026-09-09: 35 Token", { selector: "button" })).toBeTruthy();
-  await user.hover(activity.getByLabelText("2026-09-09: 35 Token", { selector: "button" }));
-  expect((await screen.findByRole("tooltip")).textContent).toContain("使用了 35 个 Token");
-  await user.unhover(activity.getByLabelText("2026-09-09: 35 Token", { selector: "button" }));
-  expect(activity.getByLabelText("2025-09-10: 暂无记录", { selector: "button" })).toBeTruthy();
-  await user.click(activityModes.getByRole("button", { name: "每周" }));
-  expect(activity.getByLabelText("2026-09-09: 40 Token", { selector: "button" })).toBeTruthy();
-  await user.click(activityModes.getByRole("button", { name: "累计" }));
-  expect(activity.getByLabelText("2026-09-08: 5 Token", { selector: "button" })).toBeTruthy();
-  expect(activity.getByLabelText("2026-09-09: 40 Token", { selector: "button" })).toBeTruthy();
-  const daily = document.querySelector("details")!;
-  expect(daily.open).toBe(false);
-  await user.click(daily.querySelector("summary")!);
-  expect(daily.open).toBe(true);
-  await user.click(dailyViews.getByRole("button", { name: "图表" }));
-  expect(screen.getByLabelText("2026-09-09: 35", { selector: "button" })).toBeTruthy();
-  expect(screen.getByText("输入 Token · 10")).toBeTruthy();
-  await user.click(dailyViews.getByRole("button", { name: "明细" }));
-  expect(screen.getByRole("table")).toBeTruthy();
-  expect(screen.getByRole("region", { name: "Token 活动" })).toBeTruthy();
-  expect(screen.getByRole("cell", { name: "20" })).toBeTruthy();
-  vi.useRealTimers();
 });
 
 

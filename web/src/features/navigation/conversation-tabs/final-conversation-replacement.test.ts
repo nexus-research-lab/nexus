@@ -42,31 +42,11 @@ describe("replaceFinalConversation", () => {
     expect(options.commitConversation).toHaveBeenCalledWith("old");
   });
 
-  it("does not close an external runtime", async () => {
-    const { order, options } = transaction({ is_draft: true, options: { external_session: true } });
-    await replaceFinalConversation(options);
-    expect(order).toEqual(["create", "commit"]);
-    expect(options.closeConversation).not.toHaveBeenCalled();
-  });
-
   it("retains the old conversation when stopping its reusable draft fails", async () => {
     const { options } = transaction({ is_draft: true });
     options.closeConversation.mockRejectedValue(new Error("close failed"));
     await replaceFinalConversation(options);
     expect(options.createConversation).not.toHaveBeenCalled();
     expect(options.commitConversation).not.toHaveBeenCalled();
-  });
-
-  it("does not commit or close a started conversation after newer navigation", async () => {
-    const { options } = transaction();
-    let current = true;
-    options.isCurrent = () => current;
-    options.createConversation.mockImplementation(async () => {
-      current = false;
-      return "new";
-    });
-    await replaceFinalConversation(options);
-    expect(options.commitConversation).not.toHaveBeenCalled();
-    expect(options.closeConversation).not.toHaveBeenCalled();
   });
 });

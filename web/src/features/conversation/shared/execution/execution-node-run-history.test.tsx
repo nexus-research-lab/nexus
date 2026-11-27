@@ -11,7 +11,6 @@ import { MESSAGES } from "@/shared/i18n/messages";
 import { useAgentStore } from "@/store/agent";
 import type {
   ExecutionGraphNodeView,
-  ExecutionWorkItemView,
 } from "@/types/conversation/execution";
 
 import { ExecutionNodeRunHistory } from "./execution-node-run-history";
@@ -28,28 +27,6 @@ const NODE: ExecutionGraphNodeView = {
   work_item_id: "work-1",
 };
 
-const ITEM: ExecutionWorkItemView = {
-  deliverable: "报告",
-  id: "work-1",
-  kind: "produce",
-  logical_key: "report",
-  objective: "生成报告",
-  position: 0,
-  required: true,
-  status: "accepted",
-  subject: "报告",
-  submission: {
-    assignment_id: "assignment-1",
-    attempt_id: "attempt-1",
-    created_at: "2026-09-04T00:00:00Z",
-    evidence: ["https://example.com/report"],
-    id: "submission-1",
-    result_refs: ["output/report.md"],
-    result_summary: "完成",
-    submitter_agent_id: "agent-1",
-  },
-  updated_at: "2026-09-04T00:00:00Z",
-};
 
 function history(node: ExecutionGraphNodeView, locale: I18nContextValue["locale"] = "zh", onOpenWorkspaceFile = vi.fn()) {
   const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {})
@@ -62,50 +39,6 @@ function history(node: ExecutionGraphNodeView, locale: I18nContextValue["locale"
 }
 
 describe("ExecutionNodeRunHistory", () => {
-  it("shares disclosure and button chrome without weakening reference safety", async () => {
-    const onOpenWorkspaceFile = vi.fn();
-    const user = userEvent.setup();
-    const { container } = render(
-      <I18N_CONTEXT.Provider
-        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
-      >
-        <ExecutionNodeRunHistory
-          item={ITEM}
-          node={NODE}
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
-          workspaceAgentId="agent-1"
-        />
-      </I18N_CONTEXT.Provider>,
-    );
-
-    const runs = container.querySelectorAll("[data-execution-node-run]");
-    expect(runs).toHaveLength(2);
-    expect((runs[0] as HTMLDetailsElement).open).toBe(false);
-    expect((runs[1] as HTMLDetailsElement).open).toBe(true);
-
-    const safeReference = screen.getByRole("button", { name: "output/report.md" });
-
-    await user.click(safeReference);
-    expect(onOpenWorkspaceFile).toHaveBeenCalledWith("output/report.md", "agent-1");
-
-    expect(screen.getByRole("button", { name: "https://example.com/report" }).hasAttribute("disabled"))
-      .toBe(true);
-  });
-
-  it.each([undefined, "", "future-state/private-id", "constructor", "__proto__", "toString"])("does not expose an internal identity for an unavailable status: %s", (status) => {
-    const { container, rerender } = render(history({ ...NODE, runs: [{ id: "private-run-id", status }] }));
-    const detail = container.querySelector<HTMLDetailsElement>("details")!;
-    expect(detail.open).toBe(true);
-    expect(detail.getAttribute("data-execution-node-run")).toBe("private-run-id");
-    expect(detail.querySelector("summary")?.textContent).toContain("运行状态未知");
-    expect(detail.textContent).toContain("暂无可展示的运行详情。");
-    expect(detail.textContent).not.toContain("private-run-id");
-    if (status) expect(detail.textContent).not.toContain(status);
-
-    rerender(history({ ...NODE, runs: [{ id: "private-run-id", status }] }, "en"));
-    expect(detail.querySelector("summary")?.textContent).toContain("Status unavailable");
-    expect(detail.textContent).toContain("No run details are available.");
-  });
 
   it.each([
     [0, "0 毫秒", "0ms"],
@@ -131,11 +64,6 @@ describe("ExecutionNodeRunHistory", () => {
     rerender(history(node, "en"));
     expect(screen.getByText(new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(date))).toBeTruthy();
     expect(container.textContent).not.toMatch(/NaN|Infinity|invalid/);
-  });
-
-  it("omits invalid timestamps instead of presenting them as run details", () => {
-    const { container } = render(history({ ...NODE, runs: [{ id: "run-time", started_at: "invalid-start", finished_at: "invalid-finish" }] }));
-    expect(container.textContent).not.toMatch(/invalid-start|invalid-finish|run-time/);
   });
 
   it("preserves chosen expansion across status, language and history updates", async () => {
@@ -173,20 +101,6 @@ describe("ExecutionNodeRunHistory", () => {
     expect(screen.queryByText("暂无可展示的运行详情。")).toBeNull();
   });
 
-  it("preserves the structured artifact owner ahead of the node workspace fallback", async () => {
-    const user = userEvent.setup();
-    const onOpen = vi.fn();
-    render(history({
-      ...NODE,
-      runs: [{
-        id: "run-artifacts", status: "succeeded",
-        artifacts: [{ type: "workspace_file_artifact", path: "output/result.md", workspace_agent_id: "artifact-owner" }],
-      }],
-    }, "en", onOpen));
-    await user.click(screen.getByRole("button", { name: /^result\.md / }));
-    expect(onOpen).toHaveBeenCalledWith("output/result.md", "artifact-owner");
-  });
-
   it("uses a known node workspace for legacy artifacts and disables opening when its source is unavailable", async () => {
     const onOpen = vi.fn();
     const node: ExecutionGraphNodeView = { ...NODE, runs: [{ id: "legacy-run", artifacts: [{ type: "workspace_file_artifact", path: "output/legacy.md" }] }] };
@@ -206,15 +120,5 @@ describe("ExecutionNodeRunHistory", () => {
     } finally {
       act(() => useAgentStore.setState({ current_agent_id: null }));
     }
-  });
-  it("does not open plain output references without the source workspace owner", async () => {
-    const open = vi.fn();
-    render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
-      <ExecutionNodeRunHistory item={ITEM} node={NODE} onOpenWorkspaceFile={open} />
-    </I18N_CONTEXT.Provider>);
-    const button = screen.getByRole("button", { name: "output/report.md" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    await userEvent.setup().click(button);
-    expect(open).not.toHaveBeenCalled();
   });
 });

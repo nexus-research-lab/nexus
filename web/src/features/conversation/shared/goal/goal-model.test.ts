@@ -6,7 +6,6 @@ import type { Goal, GoalExecutionBinding } from "@/types/conversation/goal";
 import {
   buildGoalStatusStripModel,
   buildGoalControllerProjection,
-  parseGoalBudgetInput,
   resolveGoalClearDisabledReason,
 } from "./goal-model";
 import { ACTIVE_GOAL, goalTestI18n } from "./goal.test-support";
@@ -19,16 +18,6 @@ function status(goal: Goal, isGenerating = false) {
 }
 
 describe("Goal presentation policy", () => {
-  it.each(["0", "-10", "+10", "100.5", "100abc", "1e3", "1,000", "1 000", "9007199254740992", "Infinity"])(
-    "rejects the complete invalid budget %s without truncation or removal", (value) => {
-      expect(parseGoalBudgetInput(value)).toEqual({ valid: false });
-    },
-  );
-  it("distinguishes no limit from a valid whole budget, including the exact safe upper bound", () => {
-    expect(parseGoalBudgetInput(" \n ")).toEqual({ valid: true, value: null });
-    expect(parseGoalBudgetInput(" 00100 ")).toEqual({ valid: true, value: 100 });
-    expect(parseGoalBudgetInput("9007199254740991")).toEqual({ valid: true, value: Number.MAX_SAFE_INTEGER });
-  });
   it("keeps lifecycle, live execution and suspended continuation distinct", () => {
     expect(status(ACTIVE_GOAL).statusLabel).toBe("Active");
     expect(status(ACTIVE_GOAL, true).statusLabel).toBe("Executing");

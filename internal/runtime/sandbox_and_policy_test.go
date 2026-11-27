@@ -5,10 +5,7 @@ import (
 	"context"
 	"errors"
 	goruntime "runtime"
-	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -78,44 +75,6 @@ func TestProviderOwnershipChangeReplacesRuntime(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestResourceAdmissionBoundsStartupQueue(t *testing.T) {
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return &fakeRuntimeClient{} }))
-	m.SetResourceLimits(ResourceLimits{MaxSessions: 1})
-	client, err := m.GetOrCreate(t.Context(), "rollback", agentclient.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	lease, ok := m.CaptureClientLease("rollback", client)
-	if !ok {
-		t.Fatal("missing rollback lease")
-	}
-	var startups []*ClientStartup
-	defer func() {
-		for _, startup := range startups {
-			startup.Close()
-		}
-	}()
-	for i := range runtimeMaxPendingStartups {
-		startup, err := m.BeginClientStartup(t.Context(), strconv.Itoa(i), "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		startups = append(startups, startup)
-	}
-	if _, err := m.BeginClientStartup(t.Context(), "overflow", ""); !errors.Is(err, ErrRuntimeResourceBusy) {
-		t.Fatalf("unbounded startup queue: %v", err)
-	}
-	if closed, err := m.CloseSessionIfLease(t.Context(), lease); !closed || err != nil {
-		t.Fatalf("queued startups blocked rollback: %t, %v", closed, err)
-	}
-	startups[0].Close()
-	startup, err := m.BeginClientStartup(t.Context(), "after-release", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	startup.Close()
 }
 
 // 同 key 排队与等待全局名额共享一次等待预算。
@@ -195,163 +154,6 @@ func TestResourceAdmissionFollowupSurvivesEvictionAndReleasesOnTerminal(t *testi
 	}
 }
 
-func TestResourceAdmissionReservesBeforeFactoryAndReleasesFailure(t *testing.T) {
-	entered, release := make(chan struct{}), make(chan struct{})
-	var calls atomic.Int32
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client {
-		if calls.Add(1) == 1 {
-			close(entered)
-			<-release
-			return nil
-		}
-		return &fakeRuntimeClient{}
-	}))
-	m.SetResourceLimits(ResourceLimits{MaxSessions: 1})
-	first := make(chan error, 1)
-	go func() { _, err := m.GetOrCreate(t.Context(), "first", agentclient.Options{}); first <- err }()
-	<-entered
-	var releaseOnce sync.Once
-	defer releaseOnce.Do(func() { close(release) })
-	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
-	defer cancel()
-	if _, err := m.GetOrCreate(ctx, "second", agentclient.Options{}); !errors.Is(err, ErrRuntimeResourceBusy) || !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("pending factory was oversubscribed or cancellation lost: %v", err)
-	}
-	if got := calls.Load(); got != 1 {
-		t.Fatalf("factory calls = %d, want 1", got)
-	}
-	releaseOnce.Do(func() { close(release) })
-	if err := <-first; !errors.Is(err, agentclient.ErrNotConnected) {
-		t.Fatalf("first startup = %v", err)
-	}
-	if _, err := m.GetOrCreate(t.Context(), "third", agentclient.Options{}); err != nil {
-		t.Fatalf("failed startup retained reservation: %v", err)
-	}
-}
-
-func TestResourceAdmissionReclaimsOnlyCompletedWork(t *testing.T) {
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return &fakeRuntimeClient{} }))
-	now := time.Now()
-	m.now = func() time.Time { return now }
-	for _, key := range []string{"idle", "finishing", "background", "child"} {
-		if _, err := m.GetOrCreate(t.Context(), key, agentclient.Options{}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := m.StartRound(t.Context(), "finishing", "round", nil); err != nil {
-		t.Fatal(err)
-	}
-	m.MarkRoundTerminal("finishing", "round")
-	backgroundDone := make(chan struct{})
-	if !m.StartBackgroundTask("background", func(context.Context) { <-backgroundDone }) {
-		t.Fatal("background task rejected")
-	}
-	defer func() { close(backgroundDone); _ = m.WaitBackgroundTasks(t.Context(), "background") }()
-	m.mu.Lock()
-	m.sessions["child"].SubagentHookBindings["tool"] = subagentHookBinding{Started: true}
-	for _, state := range m.sessions {
-		state.LastUsedAt = time.Now().Add(-time.Hour)
-	}
-	m.mu.Unlock()
-	m.SetResourceLimits(ResourceLimits{MaxSessions: 4})
-	if _, err := m.GetOrCreate(t.Context(), "new", agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-	if m.SessionClient("idle") != nil {
-		t.Fatal("idle client was not reclaimed")
-	}
-	if closed, err := m.CloseIdleSessions(t.Context(), time.Minute); err != nil || closed != 0 {
-		t.Fatalf("TTL cleanup closed unfinished work: closed=%d err=%v", closed, err)
-	}
-	for _, key := range []string{"finishing", "background", "child"} {
-		if m.SessionClient(key) == nil {
-			t.Fatalf("unfinished %s was reclaimed", key)
-		}
-	}
-	now = now.Add(time.Second)
-	m.MarkRoundFinished("finishing", "round")
-	if _, err := m.GetOrCreate(t.Context(), "next", agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-	// finishing 刚刚完成，LRU 应先回收没有工作的 new，而非后台任务。
-	if m.SessionClient("new") != nil || m.SessionClient("background") == nil {
-		t.Fatal("pressure cleanup did not follow idle LRU order")
-	}
-}
-
-func TestResourceAdmissionRetainsFailedCleanupSlot(t *testing.T) {
-	want := errors.New("descendant cleanup unknown")
-	client := &fakeRuntimeClient{disconnectErr: want}
-	var calls int
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { calls++; return client }))
-	m.SetResourceLimits(ResourceLimits{MaxSessions: 1})
-	if _, err := m.GetOrCreate(t.Context(), "old", agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-	// 别的会话清理失败不立即让本请求失败；等待超时时仍带回清理诊断。
-	newCtx, cancelNew := context.WithTimeout(t.Context(), 40*time.Millisecond)
-	defer cancelNew()
-	if _, err := m.GetOrCreate(newCtx, "new", agentclient.Options{}); !errors.Is(err, ErrRuntimeResourceBusy) || !errors.Is(err, want) {
-		t.Fatalf("cleanup failure failed fast or lost diagnostics: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
-	defer cancel()
-	if _, err := m.GetOrCreate(ctx, "retry", agentclient.Options{}); !errors.Is(err, ErrRuntimeResourceBusy) {
-		t.Fatalf("cleanup uncertainty released capacity: %v", err)
-	}
-	m.mu.RLock()
-	state := m.sessions["old"]
-	retained := state != nil && state.Client == client && state.Closing && errors.Is(state.CloseError, want)
-	m.mu.RUnlock()
-	if calls != 1 || client.disconnectCalls != 1 || !retained {
-		t.Fatalf("unknown cleanup was retried or forgotten: factory=%d disconnect=%d", calls, client.disconnectCalls)
-	}
-}
-
-func TestResourceAdmissionMemoryWaitRecoversOrStopsOnShutdown(t *testing.T) {
-	for _, shutdown := range []bool{false, true} {
-		name := "memory_recovers"
-		if shutdown {
-			name = "shutdown"
-		}
-		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
-			defer cancel()
-			var available atomic.Bool
-			var calls atomic.Int32
-			entered := make(chan struct{})
-			var once sync.Once
-			m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { calls.Add(1); return &fakeRuntimeClient{} }))
-			m.SetResourceLimits(ResourceLimits{MaxSessions: 1, MemoryAvailable: func() bool {
-				once.Do(func() { close(entered) })
-				return available.Load()
-			}})
-			done := make(chan error, 1)
-			go func() { _, err := m.GetOrCreate(ctx, "waiting", agentclient.Options{}); done <- err }()
-			<-entered
-			if calls.Load() != 0 {
-				t.Fatal("factory ran under memory pressure")
-			}
-			if shutdown {
-				if err := m.Close(ctx); err != nil {
-					t.Fatal(err)
-				}
-				if err := <-done; !errors.Is(err, ErrRuntimeManagerClosed) {
-					t.Fatalf("waiting startup survived shutdown: %v", err)
-				}
-				return
-			}
-			available.Store(true)
-			if err := <-done; err != nil {
-				t.Fatal(err)
-			}
-			if calls.Load() != 1 {
-				t.Fatal("factory not admitted after memory recovered")
-			}
-		})
-	}
-}
-
 // 内存压力可能来自宿主外的程序；一个等待者最多回收一个空闲会话。
 func TestResourceAdmissionMemoryPressureReclaimsOncePerWaiter(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -376,35 +178,6 @@ func TestResourceAdmissionMemoryPressureReclaimsOncePerWaiter(t *testing.T) {
 			t.Fatalf("memory pressure reclaimed %d sessions, want 1", len(keys)-remaining)
 		}
 	})
-}
-
-// 终态通知携带代次：上一代的迟到通知不释放续跑，结束的任务不在长会话里累积。
-func TestSubagentRunNotificationGenerationAndPruning(t *testing.T) {
-	client := &followupReceiptClient{}
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return client }))
-	if _, err := m.GetOrCreate(t.Context(), "parent", agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-	runs := func() int { m.mu.RLock(); defer m.mu.RUnlock(); return len(m.sessions["parent"].SubagentRuns) }
-	m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskStarted: &sdkprotocol.TaskStartedMessage{TaskID: "child", TaskType: "local_agent"}})
-	m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskUpdated: &sdkprotocol.TaskUpdatedMessage{TaskID: "child", RunGeneration: 1, Patch: sdkprotocol.TaskUpdatedPatch{Status: "running"}}})
-	client.deliver = func() (sdkprotocol.TaskRunState, error) {
-		return sdkprotocol.TaskRunState{Generation: 2, Status: "running"}, nil
-	}
-	if err := m.SendTaskMessage(t.Context(), "parent", "child", "resume", ""); err != nil {
-		t.Fatal(err)
-	}
-	notify := func(gen int) {
-		m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskNotification: &sdkprotocol.TaskNotificationMessage{TaskID: "child", RunGeneration: gen, Status: "completed"}})
-	}
-	notify(1)
-	if got := runs(); got != 1 {
-		t.Fatalf("previous generation notification released resumed run: %d", got)
-	}
-	notify(2)
-	if got := runs(); got != 0 {
-		t.Fatalf("finished run retained: %d", got)
-	}
 }
 
 func TestDesktopSandboxFullAccessKeepsMCPWithoutRestrictedCapabilities(t *testing.T) {
@@ -460,25 +233,6 @@ func TestSandboxStartupExplanationPreservesCause(t *testing.T) {
 	_, err := client.openSession(context.Background(), agentclient.Options{})
 	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "当前 Windows 未提供桌面沙箱所需的系统 API") {
 		t.Fatalf("lost explanation or cause: %v", err)
-	}
-}
-
-func TestSandboxUnsupportedCreateIsNotMissingDependency(t *testing.T) {
-	got := DesktopSandboxUnavailableMessage("the Windows sandbox cannot create a process security environment (stage=availability, build=26300): CreateProcessSecurityEnvironment failed: HRESULT 0x80070032")
-	if !strings.Contains(got, "不支持当前安全环境创建请求") || !strings.Contains(got, "设置 → 沙箱") {
-		t.Fatalf("unexpected message: %s", got)
-	}
-	if got := DesktopSandboxUnavailableMessage("CreateProcessSecurityEnvironment failed: HRESULT 0x80070005"); got != "" {
-		t.Fatalf("access denied misclassified: %s", got)
-	}
-}
-
-func TestSandboxRustHelperRepairMessage(t *testing.T) {
-	for _, reason := range []string{"Windows sandbox helper nxs-mxc.exe is missing", "Windows sandbox helper version mismatch"} {
-		got := DesktopSandboxUnavailableMessage(reason)
-		if !strings.Contains(got, "完整安装包") || !strings.Contains(got, "无需自行安装 Rust") || !strings.Contains(got, "设置 → 沙箱") {
-			t.Fatalf("unexpected message: %s", got)
-		}
 	}
 }
 

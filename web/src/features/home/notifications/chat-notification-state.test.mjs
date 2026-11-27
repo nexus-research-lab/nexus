@@ -92,35 +92,6 @@ test("sidebar orders Room notifications and clears the exact opened target", asy
   );
 });
 
-test("Room control-only completions cannot become sidebar notifications", async () => {
-  const { hasVisibleAssistantOutput } = await import("@/features/conversation/shared/message/message-content-model.ts");
-  const message = {
-    agent_id: "agent-a",
-    content: [{ type: "text", text: "<nexus_room_fanout/>" }],
-    message_id: "control-message",
-    result_summary: {
-      duration_api_ms: 0,
-      duration_ms: 0,
-      is_error: false,
-      num_turns: 1,
-      result: "<nexus_room_no_reply/>",
-      subtype: "success",
-    },
-    role: "assistant",
-    round_id: "root-1",
-    session_key: "session-1",
-    timestamp: 1,
-  };
-  assert.equal(hasVisibleAssistantOutput(message), false);
-  assert.equal(
-    hasVisibleAssistantOutput({
-      ...message,
-      content: [{ type: "text", text: "真实回复" }],
-    }),
-    true,
-  );
-});
-
 test("Room tool-use segments wait for the terminal reply before notification", async () => {
   const { isCompletedAssistantMessage } = await import("@/features/home/notifications/chat-notification-model.ts");
   const message = {

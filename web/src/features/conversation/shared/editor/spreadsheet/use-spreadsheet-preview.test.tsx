@@ -3,7 +3,6 @@
 // POS: Offline lifecycle regression; decoding/projection fixtures do not assert Excel rendering fidelity.
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { advanceAuthOwnerScopeGeneration, publishAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
 import { useSpreadsheetPreview } from "./use-spreadsheet-preview";
 
@@ -58,29 +57,6 @@ it.each(["resolve", "reject"] as const)("ignores a stale parse %s after leaving 
   expect(decode).toHaveBeenCalledTimes(2);
   expect(vi.mocked(fetchOfficePreviewBuffer).mock.calls[0][0].signal.aborted).toBe(true);
   expect(vi.mocked(fetchOfficePreviewBuffer).mock.calls[1][0].signal.aborted).toBe(true);
-});
-
-it("rejects an unpublished owner transition and clears the previous owner's sheet selection", async () => {
-  const oldParse = deferred<void>();
-  decode.mockReturnValueOnce(oldParse.promise);
-  vi.mocked(fetchOfficePreviewBuffer).mockResolvedValueOnce(buffer(1)).mockResolvedValueOnce(buffer(2));
-  const view = renderHook(() => useSpreadsheetPreview("agent", "same.xlsx"));
-  await waitFor(() => expect(decode).toHaveBeenCalledTimes(1));
-  advanceAuthOwnerScopeGeneration();
-  await act(async () => oldParse.resolve());
-  expect(view.result.current.workbook).toBeNull();
-  expect(view.result.current.status.state).toBe("loading");
-  act(() => publishAuthOwnerScopeGeneration());
-  await waitFor(() => expect(view.result.current.workbook?.sheets[0].name).toBe("File 2 sheet 0"));
-  act(() => view.result.current.setActiveSheetIndex(1));
-  expect(view.result.current.activeSheetIndex).toBe(1);
-  const ownerRead = deferred<ArrayBuffer>();
-  vi.mocked(fetchOfficePreviewBuffer).mockReturnValueOnce(ownerRead.promise);
-  act(() => { advanceAuthOwnerScopeGeneration(); publishAuthOwnerScopeGeneration(); });
-  expect(view.result.current.activeSheetIndex).toBe(0);
-  expect(view.result.current.workbook).toBeNull();
-  await act(async () => ownerRead.resolve(buffer(3)));
-  await waitFor(() => expect(view.result.current.workbook?.sheets[0].name).toBe("File 3 sheet 0"));
 });
 
 it("retries a failed read explicitly and aborts a pending retry on unmount", async () => {

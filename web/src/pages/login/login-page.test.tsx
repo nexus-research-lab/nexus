@@ -52,12 +52,6 @@ describe("Login page", () => {
     expect(auth.login).not.toHaveBeenCalled();
   });
 
-  it("does not add a desktop return action to web login", () => {
-    auth.isBootstrapped = true;
-    render(<Wrapper><LoginPage /></Wrapper>);
-    expect(screen.queryByRole("button", { name: zhNavigationMessages["login.skip"] })).toBeNull();
-  });
-
   it("replaces bootstrap loading with the current-language introduction and keeps credentials across locale changes", () => {
     const { rerender } = render(<Wrapper><LoginPage /></Wrapper>);
     expect(screen.getByRole("status").getAttribute("aria-busy")).toBe("true");

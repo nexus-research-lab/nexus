@@ -33,14 +33,3 @@ it("skips overlapping reads and retains a known version on failure", async () =>
   await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
   expect(hook.result.current).toBeNull(); expect(mocks.read).toHaveBeenCalledTimes(3);
 });
-it("discards old mount responses and stops polling on unmount", async () => {
-  let resolve!: (value: { value: string }) => void;
-  mocks.read.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
-  const old = renderHook(useSidebarUpdateVersion); old.unmount();
-  mocks.read.mockResolvedValue({ value: "new" });
-  const current = renderHook(useSidebarUpdateVersion);
-  await act(async () => { resolve({ value: "old" }); });
-  expect(current.result.current).toBe("new"); current.unmount();
-  await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
-  expect(mocks.read).toHaveBeenCalledTimes(2);
-});

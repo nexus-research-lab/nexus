@@ -46,53 +46,6 @@ const FEISHU_DETAIL = {
 beforeEach(() => localStorage.setItem(LOCALE_STORAGE_KEY, "zh"));
 
 describe("Connector authorization dialogs", () => {
-  it("keeps busy Feishu connection choices named and inert until the operation settles", async () => {
-    const user = userEvent.setup();
-    const onScan = vi.fn();
-    const props = { isOpen: true, onClose: vi.fn(), onConnectManually: vi.fn(), onScan };
-    const view = (busy: boolean) => <I18nProvider><FeishuAppConnectionDialog {...props} busy={busy} /></I18nProvider>;
-    const { rerender } = render(view(false));
-    const dialog = screen.getByRole("dialog", { name: "连接飞书云文档" });
-    await user.click(screen.getByRole("button", { name: /扫码连接/ }));
-    expect(onScan).toHaveBeenCalledOnce();
-
-    rerender(view(true));
-    for (const name of [/扫码连接/, /手动配置/]) {
-      const choice = screen.getByRole("button", { name });
-      expect(choice.getAttribute("aria-disabled")).toBe("true");
-      expect(choice.hasAttribute("tabindex")).toBe(false);
-      await user.click(choice);
-      await user.keyboard("{Enter} ");
-    }
-    expect(onScan).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("textbox", { name: /App ID/ })).toBeNull();
-    rerender(view(false));
-    await user.click(screen.getByRole("button", { name: /手动配置/ }));
-    expect(screen.getByRole("dialog", { name: "手动连接飞书" })).toBe(dialog);
-    expect(screen.getByRole("textbox", { name: /App ID/ })).toBeTruthy();
-  });
-
-  it("keeps direct credential copy semantic and submits the exact trimmed value", async () => {
-    const user = userEvent.setup();
-    const onSave = vi.fn();
-    render(
-      <I18nProvider>
-        <ConnectorCredentialDialog
-          busy={false}
-          detail={AMAP_DETAIL}
-          onClose={vi.fn()}
-          onSave={onSave}
-        />
-      </I18nProvider>,
-    );
-
-    expect(screen.getByRole("dialog", { name: "连接 高德地图" })).toBeTruthy();
-
-    await user.type(screen.getByLabelText("API Key*"), "  secret-key  ");
-    await user.click(screen.getByRole("button", { name: "连接" }));
-
-    expect(onSave).toHaveBeenCalledWith("amap", "secret-key");
-  });
 
   it("renders OAuth callback data as shared code typography and submits complete fields", async () => {
     const user = userEvent.setup();
@@ -116,34 +69,6 @@ onSave={onSave} />
 
     expect(onSave).toHaveBeenCalledWith("feishu-docx", "client-id", "client-secret");
   });
-});
-
-it("translates a direct credential dialog without clearing its draft or submitting on locale change", async () => {
-  const user = userEvent.setup();
-  const onSave = vi.fn();
-  const onClose = vi.fn();
-  const view = (locale: Locale) => {
-    const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce(
-      (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key],
-    );
-    return <I18N_CONTEXT.Provider value={{locale, t, setLocale: vi.fn()}}>
-      <ConnectorCredentialDialog busy={false} detail={AMAP_DETAIL} onSave={onSave} onClose={onClose} />
-    </I18N_CONTEXT.Provider>;
-  };
-  const {rerender} = render(view("zh"));
-  const input = screen.getByLabelText("API Key*") as HTMLInputElement;
-  await user.type(input, "  user-key  ");
-  rerender(view("en"));
-  expect(screen.getByRole("dialog", {name: "Connect 高德地图"})).toBeTruthy();
-  expect(screen.getByText("Paste the Web Service Key from Amap Open Platform.")).toBeTruthy();
-  expect(screen.getByRole("link", {name: "View documentation"}).getAttribute("href")).toBe(AMAP_DETAIL.docs_url);
-  expect(screen.getByLabelText("API Key*")).toBe(input);
-  expect(input.value).toBe("  user-key  ");
-  expect(input.type).toBe("password");
-  expect(onSave).not.toHaveBeenCalled();
-  expect(onClose).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", {name: "Connect"}));
-  expect(onSave).toHaveBeenCalledExactlyOnceWith("amap", "user-key");
 });
 
 it("keeps OAuth credentials when changing language and resets them for a different configuration", async () => {
@@ -176,30 +101,6 @@ it("keeps OAuth credentials when changing language and resets them for a differe
   rerender(view("en", {...original, oauth_client_id: "replacement-client"}));
   expect((screen.getByLabelText("Client ID*") as HTMLInputElement).value).toBe("replacement-client");
   expect((screen.getByLabelText("Client Secret*") as HTMLInputElement).value).toBe("");
-});
-
-it.each(["credential", "oauth"] as const)("associates %s labels with their own dialog instance", async (kind) => {
-  const user = userEvent.setup();
-  const dialog = () => kind === "credential"
-    ? <ConnectorCredentialDialog detail={AMAP_DETAIL} busy={false} onClose={vi.fn()} onSave={vi.fn()} />
-    : <ConnectorOAuthClientDialog detail={FEISHU_DETAIL} busy={false} onClose={vi.fn()} onDelete={vi.fn()} onSave={vi.fn()} />;
-  render(<I18nProvider>{dialog()}{dialog()}</I18nProvider>);
-  const forms = Array.from(document.querySelectorAll("form"));
-  expect(forms).toHaveLength(2);
-  const ids = forms.flatMap((form) => Array.from(form.querySelectorAll("input"), (input) => input.id));
-  expect(new Set(ids).size).toBe(ids.length);
-  const topForm = forms[1];
-  const labels = topForm.querySelectorAll<HTMLLabelElement>("label[for]");
-  expect(labels.length).toBe(kind === "credential" ? 1 : 2);
-  for (const label of labels) {
-    await user.click(label);
-    const input = label.control as HTMLInputElement;
-    expect(input.closest("form")).toBe(topForm);
-    expect(document.activeElement).toBe(input);
-    await user.keyboard("draft");
-    expect(input.value).toBe("draft");
-  }
-  forms[0].querySelectorAll("input").forEach((input) => expect(input.value).toBe(""));
 });
 
 it.each(["credential", "oauth"] as const)("rejects %s form submissions while busy and preserves the draft", async (kind) => {

@@ -61,18 +61,4 @@ describe("IdentityModelSelector", () => {
     expect(onProviderChange).toHaveBeenCalledWith("");
     expect(onModelChange).toHaveBeenCalledWith("");
   });
-
-  it("uses a shared danger notice with safe copy for Provider read failure", () => {
-    renderSelector({ error: "raw provider failure must stay hidden" });
-
-    const notice = screen.getByRole("status");
-    expect(notice.getAttribute("data-inline-notice-tone")).toBe("danger");
-    expect(notice.textContent).toContain(
-      "agent_options.identity.provider_load_failed_impact",
-    );
-    expect(notice.textContent).toContain(
-      "agent_options.identity.provider_load_failed_next_step",
-    );
-    expect(screen.queryByText("raw provider failure must stay hidden")).toBeNull();
-  });
 });

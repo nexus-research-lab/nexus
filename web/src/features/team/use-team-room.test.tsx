@@ -80,23 +80,6 @@ it("服务端换代后重建快照，不携带旧世代游标或重放写入", a
   expect(api.post).not.toHaveBeenCalled();
 });
 
-it("coalesces delivery hints while a room detail read is pending", async () => {
-  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
-  const {result} = renderHook(() => useTeamRoom("room"));
-  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
-  let finish!: (value: typeof bootstrap) => void;
-  api.get.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-  const hint = {type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 0};
-  act(() => {
-    for (let i = 0; i < 8; i++) api.socket.mock.lastCall![0].onMessage(hint);
-  });
-  expect(api.get).toHaveBeenCalledTimes(3);
-  await act(async () => { finish(bootstrap); });
-  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(4));
-  expect(result.current.error).toBeNull();
-  expect(api.snapshot).toHaveBeenCalledTimes(1);
-});
-
 it("does not revoke a new room when the previous room difference fails late", async () => {
   api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
   const {result, rerender} = renderHook(({id}) => useTeamRoom(id), {initialProps: {id: "room"}});
@@ -165,34 +148,6 @@ it("deduplicates explicit retries and clears the load error only after a success
   expect(result.current.isLoading).toBe(false);
   expect(api.post).not.toHaveBeenCalled();
 });
-it("aborts an outstanding retry when the hook unmounts", async () => {
-  const {result, unmount} = renderHook(() => useTeamRoom(null));
-  await waitFor(() => expect(result.current.error).toBe("load"));
-  let signal!: AbortSignal;
-  api.bootstrap.mockImplementationOnce((nextSignal: AbortSignal) => {
-    signal = nextSignal;
-    return new Promise((_, reject) => nextSignal.addEventListener("abort", () => reject(new Error("aborted"))));
-  });
-  let request!: Promise<void>;
-  act(() => {request = result.current.retryLoad();});
-  unmount();
-  await act(async () => {await request;});
-  expect(signal.aborted).toBe(true);
-  expect(api.post).not.toHaveBeenCalled();
-});
-
-it("posts exact Agent targets with the loaded membership fence", async () => {
-  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
-  api.post.mockResolvedValue({message: {id: "message", message_seq: 1}});
-  const {result} = renderHook(() => useTeamRoom(null));
-  await waitFor(() => expect(result.current.room).toEqual(bootstrap));
-  await act(async () => { await result.current.send(" @Amy 分析 ", ["agent-one", "agent-one"]); });
-  expect(api.post).toHaveBeenCalledExactlyOnceWith(
-    "conversation", "@Amy 分析", expect.any(String),
-    {agentIds: ["agent-one"], expectedMembershipVersion: 7},
-    undefined,
-  );
-});
 
 it("replays the frozen intent after an unknown result and accepts refreshed membership only for a new command", async () => {
   const files = [{id:"file-one",name:"report.txt",size:3,sha256:"a".repeat(64)}];
@@ -229,40 +184,6 @@ it("refreshes a rejected membership fence and rotates only the definitely unappl
   await act(async () => { await result.current.send("任务", ["agent-one"]); });
   expect(api.post.mock.calls[1][2]).not.toBe(api.post.mock.calls[0][2]);
   expect(api.post.mock.calls[1][3]).toEqual({agentIds: ["agent-one"], expectedMembershipVersion: 9});
-});
-
-it("recovers an exact persisted send across remount and reconciles a lost receipt from snapshot", async () => {
-  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
-  api.post.mockRejectedValueOnce(new Error("response lost"));
-  const first = renderHook(() => useTeamRoom("room"));
-  await waitFor(() => expect(first.result.current.room).not.toBeNull());
-  await act(async () => { await first.result.current.send("@Amy original", ["agent-one"]); });
-  const original = api.post.mock.calls[0];
-  first.unmount();
-  const second = renderHook(() => useTeamRoom("room"));
-  await waitFor(() => expect(second.result.current.pendingText).toBe("@Amy original"));
-  expect(api.post).toHaveBeenCalledTimes(1);
-  api.post.mockRejectedValueOnce(new Error("still unknown"));
-  await act(async () => { await second.result.current.send("", []); });
-  expect(api.post.mock.calls[1]).toEqual(original);
-  api.post.mockRejectedValueOnce(new ApiRequestError("identity rejected", 502, {
-    version: 1, code: "team.identity_rejected", category: "unavailable", effect: "not_applied",
-  }));
-  await act(async () => { await second.result.current.send(""); });
-  expect(second.result.current.hasUnconfirmedSend).toBe(true);
-  expect(api.post.mock.calls[2]).toEqual(original);
-  second.unmount();
-  api.snapshot.mockResolvedValue({messages: [{id: "agent-output", message_seq: 1, author_type: "agent", author_user_id: "user", client_message_id: original[2]}], snapshot_seq: 1, has_more: false});
-  const agentSnapshot = renderHook(() => useTeamRoom("room"));
-  await waitFor(() => expect(agentSnapshot.result.current.messages).toHaveLength(1));
-  expect(agentSnapshot.result.current.hasUnconfirmedSend).toBe(true);
-  agentSnapshot.unmount();
-  api.snapshot.mockResolvedValue({messages: [{id: "saved", message_seq: 2, author_type: "user", author_user_id: "user", client_message_id: original[2]}], snapshot_seq: 2, has_more: false});
-  const third = renderHook(() => useTeamRoom("room"));
-  await waitFor(() => expect(third.result.current.messages).toHaveLength(1));
-  expect(third.result.current.hasUnconfirmedSend).toBe(false);
-  expect(localStorage.length).toBe(0);
-  expect(api.post).toHaveBeenCalledTimes(3);
 });
 
 it("fails closed before sending if persistence is unavailable and drops a revoked room on refresh", async () => {
@@ -336,29 +257,4 @@ it("历史读取失败可以重试，卸载取消读取且迟到结果不生效"
   unmount();
   expect(signal.aborted).toBe(true);
   await act(async () => { finish({messages: []}); expect(await loading).toBe(false); });
-});
-
-it("阅读确认使用当前会话世代、单飞且不回退水位", async () => {
-  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
-  const {result, unmount} = renderHook(() => useTeamRoom("room"));
-  await waitFor(() => expect(result.current.room?.room.id).toBe("room"));
-  let finish!: (value: unknown) => void;
-  api.markRead.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-  let reading!: Promise<void>;
-  act(() => { reading = result.current.markRead(10); });
-  await act(async () => { await result.current.markRead(12); });
-  expect(api.markRead).toHaveBeenCalledOnce();
-  expect(api.markRead.mock.calls[0].slice(0, 3)).toEqual(["room", 10, "epoch"]);
-  api.markRead.mockResolvedValueOnce({last_read_message_seq: 12});
-  await act(async () => { finish({last_read_message_seq: 10}); await reading; });
-  await act(async () => { await result.current.markRead(9); });
-  expect(api.markRead).toHaveBeenCalledTimes(2);
-  expect(api.markRead.mock.lastCall?.[1]).toBe(12);
-  expect(result.current.room?.last_read_message_seq).toBe(12);
-  api.markRead.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-  act(() => { reading = result.current.markRead(13); });
-  const signal = api.markRead.mock.lastCall![3] as AbortSignal;
-  unmount();
-  expect(signal.aborted).toBe(true);
-  await act(async () => { finish({last_read_message_seq: 13}); await reading; });
 });

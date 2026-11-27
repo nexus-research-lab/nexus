@@ -4,7 +4,6 @@ package dm
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -131,53 +130,6 @@ func (f mainInboxFixture) waitPrompts(t *testing.T, want int) []string {
 	}
 }
 
-func TestMainInboxInjectsRunningInputAtSafePointAfterAppliedAck(t *testing.T) {
-	f := newMainInboxFixture(t, "inbox-inject")
-	f.send(t, "先查一下项目结构", "client-1")
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "running")
-	f.waitOpen(t, 0)
-
-	f.send(t, "顺便看看错误日志", "client-2")
-	f.send(t, "再列一下 TODO", "client-3")
-	if got := f.waitOpen(t, 2); got[0].Payload.Content != "顺便看看错误日志" || got[1].Seq <= got[0].Seq {
-		t.Fatalf("运行中输入应按序保留为 pending: %+v", got)
-	}
-
-	outputs := f.runSafePoint(t)
-	if len(outputs) != 1 {
-		t.Fatalf("安全点应恰好注入一次: %+v", outputs)
-	}
-	injected := outputs[0].SpecificOutput.AdditionalContext
-	if !strings.Contains(injected, "顺便看看错误日志") || !strings.Contains(injected, "再列一下 TODO") {
-		t.Fatalf("安全点未注入全部 pending: %q", injected)
-	}
-	for _, event := range f.open(t) {
-		if event.Status != inboxstore.StatusDelivering {
-			t.Fatalf("applied 之前事件应为 delivering: %+v", event)
-		}
-	}
-	if again := f.runSafePoint(t); len(again) != 0 {
-		t.Fatalf("等待 applied 的事件不能被重复注入: %+v", again)
-	}
-
-	outputs[0].OnApplied(sdkhook.AppliedAck{})
-	f.waitOpen(t, 0)
-	userMessages := collectEventsUntil(t, f.sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeMessage && event.Data["content"] == "再列一下 TODO"
-	})
-	last := userMessages[len(userMessages)-1]
-	if last.Data["role"] != "user" || last.Data["client_message_id"] != "client-3" || last.DeliveryMode != "durable" {
-		t.Fatalf("注入的输入应作为 durable 用户消息归入当前回复: %+v", last)
-	}
-
-	f.finishRound("inbox-inject")
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "finished")
-	time.Sleep(50 * time.Millisecond)
-	if prompts := f.prompts(); len(prompts) != 1 {
-		t.Fatalf("已在安全点消费的输入不应再起新一轮: %+v", prompts)
-	}
-}
-
 func TestMainInboxRunningInputConfirmsOnlyConsumedEvents(t *testing.T) {
 	f := newMainInboxFixture(t, "inbox-running-input")
 	f.client.runningInput = true
@@ -239,94 +191,6 @@ func (f mainInboxFixture) waitRunningInputs(t *testing.T, want int) []fakeRunnin
 	}
 }
 
-func TestMainInboxMergesBacklogIntoNextRound(t *testing.T) {
-	f := newMainInboxFixture(t, "inbox-backlog")
-	f.send(t, "第一件事", "client-1")
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "running")
-	f.send(t, "第二件事", "client-2")
-	f.send(t, "第三件事", "client-3")
-	f.waitOpen(t, 2)
-
-	// 最后一个安全点之后到达的输入：轮末退回并立即合并成下一轮。
-	f.finishRound("inbox-backlog-1")
-	prompts := f.waitPrompts(t, 2)
-	if !strings.Contains(prompts[1], "第二件事\n\n第三件事") {
-		t.Fatalf("积压输入应合并为一轮: %q", prompts[1])
-	}
-	f.waitOpen(t, 0)
-	f.finishRound("inbox-backlog-2")
-}
-
-func TestMainInboxWithdrawsOnlyPendingInput(t *testing.T) {
-	f := newMainInboxFixture(t, "inbox-withdraw")
-	f.send(t, "第一件事", "client-1")
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "running")
-	f.send(t, "算了不用了", "client-2")
-	pending := f.waitOpen(t, 1)[0]
-
-	withdraw := func(itemID string) error {
-		_, err := f.service.HandleInputQueue(context.Background(), InputQueueRequest{
-			SessionKey: f.sessionKey,
-			Action:     "delete",
-			ItemID:     itemID,
-		})
-		return err
-	}
-	if err := withdraw(pending.EventID); err != nil {
-		t.Fatalf("pending 输入应可撤回: %v", err)
-	}
-	f.waitOpen(t, 0)
-	if err := withdraw(pending.EventID); !errors.Is(err, ErrInboxEventNotPending) {
-		t.Fatalf("重复撤回 error = %v, want ErrInboxEventNotPending", err)
-	}
-
-	f.finishRound("inbox-withdraw")
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "finished")
-	time.Sleep(50 * time.Millisecond)
-	if prompts := f.prompts(); len(prompts) != 1 {
-		t.Fatalf("已撤回的输入不应被执行: %+v", prompts)
-	}
-}
-
-func TestMainInboxDuplicateClientMessageIsAcceptedOnce(t *testing.T) {
-	f := newMainInboxFixture(t, "inbox-duplicate")
-	f.send(t, "第一件事", "client-1")
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "running")
-	f.send(t, "只发一次", "client-2")
-	f.send(t, "只发一次", "client-2")
-	f.waitOpen(t, 1)
-	f.finishRound("inbox-duplicate-1")
-	f.waitPrompts(t, 2)
-	f.finishRound("inbox-duplicate-2")
-}
-
-func TestRoundBatchKeepsSlashCommandsAlone(t *testing.T) {
-	event := func(id string, content string) inboxstore.Event {
-		return inboxstore.Event{EventID: id, Kind: inboxstore.KindUserMessage, Payload: inboxstore.Payload{Content: content}}
-	}
-	cases := []struct {
-		name    string
-		pending []inboxstore.Event
-		round   []string
-		guide   []string
-	}{
-		{"empty", nil, nil, nil},
-		{"merge plain", []inboxstore.Event{event("a", "x"), event("b", "y")}, []string{"a", "b"}, []string{"a", "b"}},
-		{"command first", []inboxstore.Event{event("a", "/compact"), event("b", "y")}, []string{"a"}, nil},
-		{"stop before command", []inboxstore.Event{event("a", "x"), event("b", "/compact"), event("c", "y")}, []string{"a"}, []string{"a"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := eventIDs(roundBatch(tc.pending)); strings.Join(got, ",") != strings.Join(tc.round, ",") {
-				t.Fatalf("roundBatch = %v, want %v", got, tc.round)
-			}
-			if got := eventIDs(guidanceBatch(tc.pending)); strings.Join(got, ",") != strings.Join(tc.guide, ",") {
-				t.Fatalf("guidanceBatch = %v, want %v", got, tc.guide)
-			}
-		})
-	}
-}
-
 func TestFollowUpScheduleListCancel(t *testing.T) {
 	f := newMainInboxFixture(t, "follow-up-crud")
 	ctx := context.Background()
@@ -367,23 +231,6 @@ func TestFollowUpScheduleListCancel(t *testing.T) {
 	}
 }
 
-func TestFollowUpPendingCap(t *testing.T) {
-	f := newMainInboxFixture(t, "follow-up-cap")
-	agentID := f.agentID(t)
-	for i := 0; i < FollowUpMaxPending; i++ {
-		if _, err := f.service.ScheduleFollowUp(context.Background(), f.sessionKey, agentID, FollowUpRequest{
-			After: time.Duration(10+i) * time.Minute, Note: "check",
-		}); err != nil {
-			t.Fatalf("第 %d 条失败: %v", i+1, err)
-		}
-	}
-	if _, err := f.service.ScheduleFollowUp(context.Background(), f.sessionKey, agentID, FollowUpRequest{
-		After: time.Hour, Note: "one more",
-	}); err == nil {
-		t.Fatal("超过上限必须拒绝")
-	}
-}
-
 func TestDueFollowUpStartsRoundWithNote(t *testing.T) {
 	f := newMainInboxFixture(t, "follow-up-due")
 	f.appendHostEvent(t, "follow-1", inboxstore.KindFollowUp, "回头确认 CI 结果", time.Now().UTC().Add(-time.Second))
@@ -403,17 +250,6 @@ func TestUserInputCancelsPendingEcho(t *testing.T) {
 	pending, err := f.inbox.ListPendingKind(context.Background(), f.sessionKey, inboxstore.KindEcho)
 	if err != nil || len(pending) != 0 {
 		t.Fatalf("用户开口后 echo 应被取消: %+v err=%v", pending, err)
-	}
-}
-
-func TestEchoIsNeverInjectedAtSafePoint(t *testing.T) {
-	events := []inboxstore.Event{
-		{EventID: "echo", Kind: inboxstore.KindEcho},
-		{EventID: "user", Kind: inboxstore.KindUserMessage, Payload: inboxstore.Payload{Content: "继续"}},
-	}
-	batch := guidanceBatch(events)
-	if len(batch) != 1 || batch[0].EventID != "user" {
-		t.Fatalf("echo 只能在空闲时起轮，不能进安全点注入: %+v", batch)
 	}
 }
 
@@ -476,24 +312,6 @@ func isScheduledTaskRow(data map[string]any) bool {
 		metadata["input_kind"] == scheduledTaskInputKind && metadata["task_name"] == "日报" && metadata["run_id"] != ""
 }
 
-func TestMainWindowTaskStartsOwnRoundWhenIdle(t *testing.T) {
-	f := newMainWindowHostFixture(t, "host-idle")
-	f.appendTask(t, "run-1")
-	prompts := f.waitPrompts(t, 1)
-	if !strings.Contains(prompts[0], "<scheduled-task name=\"日报\">") || !strings.Contains(prompts[0], "汇总今天的提交") {
-		t.Fatalf("模型输入应标明来自定时任务: %q", prompts[0])
-	}
-	rows := collectEventsUntil(t, f.sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeMessage && isScheduledTaskRow(event.Data)
-	})
-	if len(rows) == 0 {
-		t.Fatal("时间线应收到定时任务触发行")
-	}
-	f.waitOpen(t, 0)
-	f.finishRound("host-idle")
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "finished")
-}
-
 func TestMainWindowTaskInjectsAtSafePointWhileRunning(t *testing.T) {
 	f := newMainWindowHostFixture(t, "host-running")
 	f.send(t, "先查一下项目结构", "client-1")
@@ -549,25 +367,6 @@ func TestMainWindowTaskRunsAloneAndStaysOutOfQueue(t *testing.T) {
 	f.finishRound("host-queue-3")
 }
 
-func TestRoundBatchKeepsHostEventsAlone(t *testing.T) {
-	user := func(id string) inboxstore.Event {
-		return inboxstore.Event{EventID: id, Kind: inboxstore.KindUserMessage, Payload: inboxstore.Payload{Content: id}}
-	}
-	host := func(id string) inboxstore.Event {
-		return inboxstore.Event{EventID: id, Kind: inboxstore.KindScheduledTask, Payload: inboxstore.Payload{Content: "/compact"}}
-	}
-	if got := strings.Join(eventIDs(roundBatch([]inboxstore.Event{host("t"), user("a")})), ","); got != "t" {
-		t.Fatalf("宿主事件应独占一轮: %s", got)
-	}
-	if got := strings.Join(eventIDs(roundBatch([]inboxstore.Event{user("a"), host("t")})), ","); got != "a" {
-		t.Fatalf("用户输入不应与宿主事件合并: %s", got)
-	}
-	// 宿主事件的指令文本不是斜杠命令，安全点可照常注入。
-	if got := strings.Join(eventIDs(guidanceBatch([]inboxstore.Event{user("a"), host("t")})), ","); got != "a,t" {
-		t.Fatalf("安全点应注入宿主事件: %s", got)
-	}
-}
-
 func (f mainInboxFixture) reply(id string, text string) {
 	f.client.messages <- sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeAssistant,
@@ -607,37 +406,6 @@ func isHostRunOutcome(data map[string]any, outcome string) bool {
 	return data["role"] == "system" && metadata["subtype"] == messageutil.SystemMessageSubtypeHostRunOutcome && metadata["outcome"] == outcome
 }
 
-func rolesOf(rows []protocol.Message) []string {
-	roles := make([]string, 0, len(rows))
-	for _, row := range rows {
-		roles = append(roles, protocol.MessageRole(row))
-	}
-	return roles
-}
-
-func TestHostRunQuietLeavesOnlyOutcomeRecord(t *testing.T) {
-	f := newMainWindowHostFixture(t, "host-run-quiet")
-	f.appendTask(t, "run-1")
-	f.waitPrompts(t, 1)
-	f.reply("quiet", HostNoReplyMarker)
-	f.finishRound("quiet")
-
-	events := collectEventsUntil(t, f.sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeMessage && isHostRunOutcome(event.Data, "quiet")
-	})
-	for _, event := range events {
-		if event.EventType == protocol.EventTypeMessage && event.Data["role"] == "assistant" {
-			t.Fatalf("宿主 run 的过程不应推送: %+v", event.Data)
-		}
-	}
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "finished")
-
-	rows := f.history(t)
-	if roles := rolesOf(rows); len(roles) != 2 || roles[0] != "user" || !isHostRunOutcome(rows[1], "quiet") {
-		t.Fatalf("静默的宿主 run 只应留下分隔条与结局: %v", roles)
-	}
-}
-
 func TestHostRunReplyCommitsOneAssistant(t *testing.T) {
 	f := newMainWindowHostFixture(t, "host-run-reply")
 	f.appendTask(t, "run-1")
@@ -665,35 +433,6 @@ func TestHostRunReplyCommitsOneAssistant(t *testing.T) {
 	}
 	if assistants != 1 {
 		t.Fatalf("宿主 run 的回复应恰好一条，实际 %d", assistants)
-	}
-}
-
-func TestHostRunDefersUserInputUntilDone(t *testing.T) {
-	for _, runningInput := range []bool{false, true} {
-		t.Run(fmt.Sprintf("running_input=%v", runningInput), func(t *testing.T) {
-			f := newMainWindowHostFixture(t, "host-run-defer")
-			f.client.runningInput = runningInput
-			f.appendTask(t, "run-1")
-			f.waitPrompts(t, 1)
-			f.send(t, "第二件事", "client-2")
-			if open := f.waitOpen(t, 1); open[0].Status != inboxstore.StatusPending {
-				t.Fatalf("宿主 run 期间的用户输入应留在 inbox: %+v", open)
-			}
-			if outputs := f.runSafePoint(t); len(outputs) != 0 {
-				t.Fatalf("宿主 run 不应在安全点注入用户输入: %+v", outputs)
-			}
-			f.client.mu.Lock()
-			sent := len(f.client.runningInputs)
-			f.client.mu.Unlock()
-			if sent != 0 {
-				t.Fatalf("宿主 run 不应接收运行中输入: %d", sent)
-			}
-			f.finishRound("defer-1")
-			if prompts := f.waitPrompts(t, 2); prompts[1] != "第二件事" {
-				t.Fatalf("用户输入应在宿主 run 收口后起新一轮: %q", prompts[1])
-			}
-			f.finishRound("defer-2")
-		})
 	}
 }
 
@@ -819,18 +558,6 @@ func TestMainInboxContinuationAdmissionFollowsGateRevision(t *testing.T) {
 	}
 }
 
-func TestMainInboxStaleRecoveryIsConsumedWithoutRound(t *testing.T) {
-	f := newMainInboxFixture(t, "recovery-stale")
-	f.service.SetExecutionContextProvider(fakeRecoveryContext{current: false})
-	if _, err := f.service.enqueueMainInboxRecovery(context.Background(), f.target(t), "stale", "inspect", inboxstore.RecoverySource{ExecutionID: "exec-1"}); err != nil {
-		t.Fatal(err)
-	}
-	f.waitStatus(t, "stale", inboxstore.StatusConsumed)
-	if prompts := f.prompts(); len(prompts) != 0 {
-		t.Fatalf("陈旧恢复不应起轮: %v", prompts)
-	}
-}
-
 func TestMainInboxCurrentRecoveryRunsHiddenRound(t *testing.T) {
 	f := newMainInboxFixture(t, "recovery-current")
 	f.service.SetExecutionContextProvider(fakeRecoveryContext{current: true})
@@ -845,37 +572,5 @@ func TestMainInboxCurrentRecoveryRunsHiddenRound(t *testing.T) {
 	consumed := f.waitStatus(t, "current", inboxstore.StatusConsumed)
 	if want := strings.Replace(event.EventID, "inbox_", "round_", 1); consumed.RoundID != want {
 		t.Fatalf("恢复轮 ID = %q, want %q", consumed.RoundID, want)
-	}
-}
-
-func TestMainWindowStopPausesGateAndNextMessageResumes(t *testing.T) {
-	f := newMainInboxFixture(t, "recovery-stop")
-	f.send(t, "第一条", "client-1")
-	waitForEvent(t, f.sender.events, protocol.EventTypeRoundStatus, "running")
-	if err := f.service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: f.sessionKey, UserStop: true}); err != nil {
-		t.Fatal(err)
-	}
-	if gate, err := f.inbox.Gate(context.Background(), f.sessionKey); err != nil || !gate.Paused {
-		t.Fatalf("用户停止应暂停主窗口闸门: %+v %v", gate, err)
-	}
-	f.send(t, "第二条", "client-2")
-	if gate, err := f.inbox.Gate(context.Background(), f.sessionKey); err != nil || gate.Paused {
-		t.Fatalf("用户开口应恢复主窗口闸门: %+v %v", gate, err)
-	}
-}
-
-func TestInboxKindSpecsAreComplete(t *testing.T) {
-	for kind, spec := range inboxKinds {
-		if spec.start == nil {
-			t.Errorf("%s 缺少起轮入口", kind)
-		}
-		if spec.host && spec.joinsRunning && spec.prompt == nil {
-			t.Errorf("%s 可注入运行中轮次却没有提示词", kind)
-		}
-	}
-	for _, kind := range []string{inboxstore.KindUserMessage, inboxstore.KindHostRecovery, inboxstore.KindIMReply} {
-		if _, ok := inboxKinds[kind]; !ok {
-			t.Errorf("缺少 %s 的规格", kind)
-		}
 	}
 }

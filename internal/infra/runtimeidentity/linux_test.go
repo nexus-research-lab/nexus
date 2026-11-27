@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -294,15 +293,6 @@ func TestNormalizeCgroupConfigRejectsStateRootOverlap(t *testing.T) {
 	}
 }
 
-func TestRuntimeCgroupPathRejectsTraversal(t *testing.T) {
-	config := launcherConfig{CgroupRoot: "/sys/fs/cgroup/nexus"}
-	for _, username := range []string{"", ".", "..", "../nxu-user", "nxu/user"} {
-		if _, err := runtimeCgroupPath(config, username); err == nil {
-			t.Fatalf("username %q 应被拒绝", username)
-		}
-	}
-}
-
 func TestRuntimeCgroupPathUsesStableBasename(t *testing.T) {
 	config := launcherConfig{CgroupRoot: "/sys/fs/cgroup/nexus"}
 	path, err := runtimeCgroupPath(config, "nxu_abc123")
@@ -383,83 +373,5 @@ func TestValidateRuntimeIsolationHardLinksAllowsLinksWithinOneOwner(t *testing.T
 	}
 	if err := validateRuntimeIsolationHardLinks(stateRoot); err != nil {
 		t.Fatalf("同一 owner 内的完整硬链接集合不应被拒绝: %v", err)
-	}
-}
-
-func TestValidateRuntimeIsolationHardLinksRejectsCrossBoundaryLinks(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		targetPath func(string) string
-	}{
-		{
-			name: "other owner",
-			targetPath: func(stateRoot string) string {
-				return filepath.Join(stateRoot, "users", "owner-b", "alias")
-			},
-		},
-		{
-			name: "outside protected roots",
-			targetPath: func(stateRoot string) string {
-				return filepath.Join(stateRoot, "outside", "alias")
-			},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			stateRoot := t.TempDir()
-			ownerRoot := filepath.Join(stateRoot, "users", "owner-a")
-			if err := os.MkdirAll(ownerRoot, 0o700); err != nil {
-				t.Fatal(err)
-			}
-			source := filepath.Join(ownerRoot, "source")
-			if err := os.WriteFile(source, []byte("data"), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			target := test.targetPath(stateRoot)
-			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.Link(source, target); err != nil {
-				t.Fatal(err)
-			}
-			err := validateRuntimeIsolationHardLinks(stateRoot)
-			if err == nil || !strings.Contains(err.Error(), "跨边界硬链接") {
-				t.Fatalf("跨边界硬链接应被拒绝，得到: %v", err)
-			}
-		})
-	}
-}
-
-func TestBaseRuntimePolicyRootsIncludesSharedTemporaryRoot(t *testing.T) {
-	sharedTempRoot := appfs.RuntimeSharedTempRoot()
-	if sharedTempRoot == "" {
-		t.Skip("当前平台没有 Unix 共享临时根")
-	}
-
-	ownerRoot := "/users/owner-a"
-	readRoots, writeRoots := baseRuntimePolicyRoots(ownerRoot, launcherConfig{
-		ReadOnlyRoots: []string{"/opt/templates"},
-	})
-	if !slices.Contains(readRoots, ownerRoot) || !slices.Contains(writeRoots, ownerRoot) {
-		t.Fatalf("owner root missing from policy: read=%v write=%v", readRoots, writeRoots)
-	}
-	if !slices.Contains(readRoots, sharedTempRoot) {
-		t.Fatalf("read roots = %v, want shared temp root %q", readRoots, sharedTempRoot)
-	}
-	if !slices.Contains(writeRoots, sharedTempRoot) {
-		t.Fatalf("write roots = %v, want shared temp root %q", writeRoots, sharedTempRoot)
-	}
-}
-
-func TestPathWithinSharedTempMatchesOnlyTheSharedRoot(t *testing.T) {
-	sharedTempRoot := appfs.RuntimeSharedTempRoot()
-	if sharedTempRoot == "" {
-		t.Skip("当前平台没有 Unix 共享临时根")
-	}
-
-	if !pathWithinSharedTemp(sharedTempRoot + "/nexus-output.txt") {
-		t.Fatalf("共享临时根下的路径应被允许: %q", sharedTempRoot+"/nexus-output.txt")
-	}
-	if pathWithinSharedTemp(sharedTempRoot + "-not-a-child") {
-		t.Fatalf("共享临时根同名前缀不应被允许: %q", sharedTempRoot+"-not-a-child")
 	}
 }

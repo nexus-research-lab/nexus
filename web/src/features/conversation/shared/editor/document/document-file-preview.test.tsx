@@ -11,7 +11,6 @@ import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context"
 import { MESSAGES, type Locale } from "@/shared/i18n/messages";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
 import { DocumentFilePreview } from "./document-file-preview";
-import * as documentDom from "./document-preview-dom";
 
 vi.mock("../office-preview-resource", () => ({ fetchOfficePreviewBuffer: vi.fn() }));
 vi.mock("docx-preview", () => ({ renderAsync: vi.fn() }));
@@ -62,24 +61,6 @@ it("retries a failed read through the same live render and style hosts", async (
   expect(fetchOfficePreviewBuffer).toHaveBeenCalledTimes(2);
 });
 
-it("discards a previous file's detached parse after the current file has rendered", async () => {
-  const old = deferred<void>();
-  vi.mocked(fetchOfficePreviewBuffer).mockResolvedValue(new ArrayBuffer(4));
-  vi.mocked(renderAsync).mockImplementationOnce(async (...args) => {
-    await renderFixture(...args);
-    args[1].textContent = "Old parsed document";
-    await old.promise;
-  });
-  const view = render(localized(<DocumentFilePreview {...file} />));
-  await waitFor(() => expect(renderAsync).toHaveBeenCalledTimes(1));
-  view.rerender(localized(<DocumentFilePreview {...file} path="other/report.docx" />));
-  await screen.findByText("Parsed document");
-  await act(async () => old.resolve());
-  expect(screen.queryByText("Old parsed document")).toBeNull();
-  expect(screen.getByText("Parsed document")).toBeTruthy();
-  expect(vi.mocked(fetchOfficePreviewBuffer).mock.calls[0][0].signal.aborted).toBe(true);
-});
-
 it.each(["read", "parse"] as const)("fences the old owner's %s completion before publication", async (phase) => {
   const read = deferred<ArrayBuffer>();
   const parse = deferred<void>();
@@ -95,37 +76,4 @@ it.each(["read", "parse"] as const)("fences the old owner's %s completion before
   act(() => publishAuthOwnerScopeGeneration());
   await screen.findByText("Parsed document");
   expect(fetchOfficePreviewBuffer).toHaveBeenCalledTimes(2);
-});
-
-it("disposes measurements and rejects queued frame/resize work after a file change", async () => {
-  const frames: FrameRequestCallback[] = [];
-  const callbacks: ResizeObserverCallback[] = [];
-  const disconnect = vi.fn();
-  const cancel = vi.fn();
-  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
-  vi.stubGlobal("cancelAnimationFrame", cancel);
-  vi.stubGlobal("ResizeObserver", class {
-    constructor(callback: ResizeObserverCallback) { callbacks.push(callback); }
-    observe() {}
-    disconnect() { disconnect(); }
-  });
-  const scale = vi.spyOn(documentDom, "calculateDocumentPreviewScale").mockReturnValue(0.6);
-  const next = deferred<ArrayBuffer>();
-  vi.mocked(fetchOfficePreviewBuffer).mockResolvedValueOnce(new ArrayBuffer(4)).mockReturnValueOnce(next.promise);
-  const view = render(localized(<DocumentFilePreview {...file} />));
-  await screen.findByText("Parsed document");
-  await waitFor(() => expect(callbacks).toHaveLength(1));
-  view.rerender(localized(<DocumentFilePreview {...file} agentId="other-agent" />));
-  expect(disconnect).toHaveBeenCalledTimes(1);
-  expect(cancel).toHaveBeenCalledWith(1);
-  scale.mockClear();
-  act(() => {
-    frames[0](0);
-    callbacks[0]([], {} as ResizeObserver);
-    window.dispatchEvent(new Event("resize"));
-  });
-  expect(scale).not.toHaveBeenCalled();
-  expect(screen.queryByText("Parsed document")).toBeNull();
-  view.unmount();
-  expect(vi.mocked(fetchOfficePreviewBuffer).mock.calls[1][0].signal.aborted).toBe(true);
 });

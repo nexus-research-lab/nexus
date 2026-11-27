@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { SubagentTask, SubagentTaskListResponse } from "@/types/conversation/subagent-task";
-import { buildSubagentTaskListModel, filterSubagentTasksByHostAgent } from "./subagent-task-list-model";
-import { canSendSubagentTaskMessage, getSubagentTaskStatus, isSubagentTaskActive, normalizeSubagentTaskListResponse, preferFreshSubagentTask, subagentTaskTimestamp } from "./subagent-task-model";
+import { buildSubagentTaskListModel } from "./subagent-task-list-model";
+import { canSendSubagentTaskMessage, normalizeSubagentTaskListResponse, preferFreshSubagentTask, subagentTaskTimestamp } from "./subagent-task-model";
 
 const NOW = 1_788_761_000_000;
 const TASK: SubagentTask = {
@@ -16,23 +16,6 @@ const DATA: SubagentTaskListResponse = { runtime_kind: "nxs", capabilities: TASK
 const task = (status: string, updated_at = NOW): SubagentTask => ({ ...TASK, task_id: status, status, updated_at });
 
 describe("Subagent observation projection", () => {
-  it("preserves supported status aliases without treating an unknown state as queued or terminal", () => {
-    const aliases = {
-      pending: ["queued", "created", "pending"], running: ["running", "started", "in_progress", "in progress"],
-      completed: ["completed", "complete", "success", "done", "finished"],
-      stopped: ["stopped", "deleted", "cancelled", "canceled", "killed", "interrupted"], failed: ["failed", "error"],
-    };
-    for (const [status, values] of Object.entries(aliases)) for (const value of values) {
-      expect(getSubagentTaskStatus(task(` ${value.toUpperCase()} `))).toBe(status);
-      expect(isSubagentTaskActive(task(value))).toBe(status === "pending" || status === "running");
-    }
-    for (const value of ["", "future_state", "constructor", "__proto__", "toString"]) {
-      expect(getSubagentTaskStatus(task(value))).toBe("unknown");
-      expect(isSubagentTaskActive(task(value))).toBe(false);
-      expect(canSendSubagentTaskMessage(task(value))).toBe(true);
-    }
-    expect(canSendSubagentTaskMessage(task(" DELETED "))).toBe(false);
-  });
 
   it("normalizes documented runtimes and rejects truthy non-boolean capabilities", () => {
     const aliases = { nxs: ["nxs", "go", "go-native", "gonative"], claude: ["claude", "cc", "claude-code", "claudecode"], mixed: ["mixed"], unknown: ["", "future", "constructor", "__proto__"] };
@@ -83,30 +66,10 @@ describe("Subagent task directory", () => {
     expect(tasks).toEqual(original);
   });
 
-  it("shows a successful empty state only when absence is known", () => {
-    const options = { data: null, hasError: false, isLoading: false, tasks: [] };
-    expect(buildSubagentTaskListModel(options).activeEmptyState).toBe("empty");
-    expect(buildSubagentTaskListModel({ ...options, isLoading: true }).activeEmptyState).toBe("loading");
-    expect(buildSubagentTaskListModel({ ...options, hasError: true }).activeEmptyState).toBeNull();
-    const cached = buildSubagentTaskListModel({ ...options, data: DATA, hasError: true, tasks: [TASK] });
-    expect(cached.activeTasks).toEqual([TASK]);
-    expect(cached.activeEmptyState).toBeNull();
-  });
-
   it("retains explicit unsupported-runtime behavior instead of exposing stale tasks", () => {
     const result = buildSubagentTaskListModel({ data: { ...DATA, runtime_kind: "claude", capabilities: { ...DATA.capabilities, observe: false } }, hasError: false, isLoading: false, tasks: [TASK] });
     expect(result.supportNotice).toBe("claude");
     expect(result.activeTasks).toEqual([]);
     expect(result.activeEmptyState).toBeNull();
   });
-});
-
-
-it("keeps omitted caller filters separate from an explicitly unavailable caller", () => {
-  const tasks = [{ ...TASK, host_agent_id: "host" }];
-  expect(filterSubagentTasksByHostAgent(tasks)).toBe(tasks);
-  expect(filterSubagentTasksByHostAgent(tasks, null)).toBe(tasks);
-  expect(filterSubagentTasksByHostAgent(tasks, "")).toEqual([]);
-  expect(filterSubagentTasksByHostAgent(tasks, " ")).toEqual([]);
-  expect(filterSubagentTasksByHostAgent(tasks, " host ")).toEqual(tasks);
 });

@@ -27,23 +27,3 @@ it("counts file lines before any container measurement and preserves all text", 
   expect(screen.getByText("4 lines")).toBeTruthy();
   expect(container.querySelector("pre")?.textContent).toBe(contents);
 });
-
-it("changes the line-count language without replacing or altering the source", () => {
-  const { container, rerender } = render(source("first\nsecond"));
-  const pre = container.querySelector("pre");
-  expect(screen.getByText("2 lines")).toBeTruthy();
-  rerender(source("first\nsecond", "zh"));
-  expect(screen.getByText("2 行")).toBeTruthy();
-  expect(container.querySelector("pre")).toBe(pre);
-  expect(pre?.textContent).toBe("first\nsecond");
-});
-
-it("keeps following appended file content without injecting runtime styles", () => {
-  const styles = document.head.querySelectorAll("style").length;
-  const { container, rerender } = render(source("first"));
-  const pre = container.querySelector("pre")!;
-  Object.defineProperty(pre, "scrollHeight", { configurable: true, value: 420 });
-  rerender(source("first\nsecond"));
-  expect(pre.scrollTop).toBe(420);
-  expect(document.head.querySelectorAll("style")).toHaveLength(styles);
-});

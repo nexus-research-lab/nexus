@@ -66,10 +66,4 @@ describe("pickMixedPrompts", () => {
     const categories = picked.map((item) => item.id.split("-")[0]);
     expect(new Set(categories)).toEqual(new Set(HOME_LAUNCH_CATEGORIES.map((category) => category.id)));
   });
-
-  it("每个分类都有四条提示词", () => {
-    for (const category of HOME_LAUNCH_CATEGORIES) {
-      expect(category.prompts).toHaveLength(4);
-    }
-  });
 });

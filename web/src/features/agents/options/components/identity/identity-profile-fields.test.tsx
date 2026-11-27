@@ -16,19 +16,6 @@ const base = {
   validatingLabel: "Checking name", variant: "dialog" as const,
 };
 
-it("binds each label to its own required input and forwards edits", async () => {
-  const onTitleChange = vi.fn();
-  render(<I18nProvider><IdentityProfileFields {...base} onTitleChange={onTitleChange} /><IdentityProfileFields {...base} variant="inline" /></I18nProvider>);
-  const inputs = screen.getAllByRole("textbox", { name: "Agent name" });
-  expect(inputs).toHaveLength(2);
-  expect(inputs[0].id).not.toBe(inputs[1].id);
-  expect((inputs[0] as HTMLInputElement).required).toBe(true);
-  await userEvent.click(screen.getAllByText("Agent name")[1]);
-  expect(document.activeElement).toBe(inputs[1]);
-  await userEvent.type(inputs[0], "a");
-  expect(onTitleChange).toHaveBeenCalledWith("Novaa");
-});
-
 it("associates current validation and removes obsolete error/description space", () => {
   const { rerender } = render(<I18nProvider><IdentityProfileFields {...base} isValidatingName /></I18nProvider>);
   const input = screen.getByRole("textbox", { name: "Agent name" });

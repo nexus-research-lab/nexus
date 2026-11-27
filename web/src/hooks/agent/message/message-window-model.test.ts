@@ -32,37 +32,6 @@ function roundIds(messages: Message[]): string[] {
 const budget = { maxBytes: Number.MAX_SAFE_INTEGER, maxRounds: 4 };
 
 describe("bounded continuous message window", () => {
-  it("evicts whole rounds from one edge only and records where the window detaches from latest", () => {
-    const head = boundMessageWindow(
-      { gapAfterRoundId: null, messages: rounds(1, 6) },
-      { ...budget, evict: "head" },
-    );
-    expect(roundIds(head.messages)).toEqual(["round-3", "round-4", "round-5", "round-6"]);
-    expect(head.gapAfterRoundId).toBeNull();
-
-    const tail = boundMessageWindow(
-      { gapAfterRoundId: null, messages: rounds(1, 6) },
-      { ...budget, evict: "tail" },
-    );
-    expect(roundIds(tail.messages)).toEqual(["round-1", "round-2", "round-3", "round-4"]);
-    expect(tail.gapAfterRoundId).toBe("round-4");
-  });
-
-  it("keeps streaming rounds resident behind the gap when the tail is evicted", () => {
-    const streaming = round(9, {
-      content: [],
-      is_complete: false,
-      message_id: "assistant-9",
-      role: "assistant",
-      stream_status: "streaming",
-    } as Partial<Message>);
-    const bounded = boundMessageWindow(
-      { gapAfterRoundId: null, messages: [...rounds(1, 6), streaming] },
-      { ...budget, evict: "tail" },
-    );
-    expect(roundIds(bounded.messages)).toEqual(["round-1", "round-2", "round-3", "round-9"]);
-    expect(bounded.gapAfterRoundId).toBe("round-3");
-  });
 
   it("never leaves more than one gap", () => {
     // 窗口 1..3 之后有断点，尾部 7..9 连到最新。

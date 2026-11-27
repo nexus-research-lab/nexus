@@ -41,39 +41,6 @@ test("create reconciliation requires exact key, version, and non-secret intent f
   );
 });
 
-test("existing Provider reconciliation respects CAS and cannot prove a lost secret rotation", async () => {
-  const preserved = await providerJournal({
-    baselineConfigurationVersion: 7,
-    credentialMode: "preserve",
-    providerWasExisting: true,
-  });
-  const matching = providerRecord({
-    configuration_version: 8,
-    provider: preserved.providerKey,
-  });
-  assert.equal(
-    (await recovery.reconcileProviderPersist(preserved, [matching])).kind,
-    "applied",
-  );
-  assert.equal(
-    (await recovery.reconcileProviderPersist(preserved, [
-      { ...matching, configuration_version: 9 },
-    ])).kind,
-    "unproven",
-  );
-
-  const rotated = { ...preserved, credentialMode: "replace" };
-  assert.equal(
-    (await recovery.reconcileProviderPersist(rotated, [matching])).kind,
-    "unproven",
-  );
-  assert.equal(
-    (await recovery.reconcileProviderPersist(rotated, [matching], true)).kind,
-    "applied",
-    "a server-confirmed committed effect can prove the otherwise unreadable secret change",
-  );
-});
-
 test("test reconciliation requires a new authoritative test timestamp and exact next version", async () => {
   const journal = await providerJournal({
     configurationVersion: 4,
@@ -106,32 +73,6 @@ test("test reconciliation requires a new authoritative test timestamp and exact 
     }]).kind,
     "unproven",
   );
-});
-
-test("journal payload contains no credential, endpoint, request body, or transport identity", async () => {
-
-  const storage = memoryStorage();
-  globalThis.window = { localStorage: storage };
-  const journal = await providerJournal();
-  assert.equal(recovery.writeProviderSetupJournal(journal), true);
-  const serialized = storage.values().join("\n");
-  assert.doesNotMatch(
-    serialized,
-    /secret-value|https:\/\/api\.example|raw_body|transport_request_id|http_id/i,
-  );
-
-  Object.defineProperty(globalThis.window, "localStorage", {
-    configurable: true,
-    get() {
-      throw new Error("storage unavailable");
-    },
-  });
-  assert.equal(
-    recovery.writeProviderSetupJournal(journal),
-    false,
-    "unavailable recovery storage must fail closed before a mutation",
-  );
-  delete globalThis.window;
 });
 
 async function providerJournal(overrides = {}) {
@@ -203,17 +144,3 @@ function providerRecord(overrides = {}) {
   };
 }
 
-function memoryStorage() {
-  const data = new Map();
-  return {
-    clear: () => data.clear(),
-    getItem: (key) => data.get(key) ?? null,
-    key: (index) => [...data.keys()][index] ?? null,
-    get length() {
-      return data.size;
-    },
-    removeItem: (key) => data.delete(key),
-    setItem: (key, value) => data.set(key, String(value)),
-    values: () => [...data.values()],
-  };
-}

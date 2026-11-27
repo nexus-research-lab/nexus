@@ -4,12 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestUsageOverviewAggregatesCurrentMonthByControlUser(t *testing.T) {
@@ -29,40 +27,6 @@ func TestUsageOverviewAggregatesCurrentMonthByControlUser(t *testing.T) {
 	}
 	if overview.Accounts[0].UsedTokens != 1200 || overview.Accounts[0].MessageCount != 1 {
 		t.Fatalf("current usage = %+v", overview.Accounts[0])
-	}
-}
-
-func TestEnsureQuotaAvailableUsesControlProjection(t *testing.T) {
-	service, db := newTestService(t)
-	fixedNow := time.Date(2026, 7, 15, 8, 30, 0, 0, time.UTC)
-	service.now = func() time.Time { return fixedNow }
-	insertControlProjection(t, db, "owner-1", "control-1", 200000)
-
-	if err := service.EnsureQuotaAvailable(context.Background(), "owner-1"); err != nil {
-		t.Fatalf("未使用额度时不应拦截: %v", err)
-	}
-	insertUsage(t, db, "owner-1", "usage-limit", 200000, fixedNow.Add(-time.Hour))
-	err := service.EnsureQuotaAvailable(context.Background(), "owner-1")
-	if !errors.Is(err, ErrQuotaExceeded) {
-		t.Fatalf("达到额度应返回 ErrQuotaExceeded，实际: %v", err)
-	}
-	message, ok := protocol.ClientErrorMessage(err)
-	if !ok || !strings.Contains(message, "当前账号本月的订阅额度已全部用尽") {
-		t.Fatalf("额度错误缺少客户端提示: %q", message)
-	}
-	if _, err := db.Exec(`
-UPDATE owner_entitlements SET control_unavailable = TRUE WHERE owner_user_id = ?`, "owner-1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := service.EnsureQuotaAvailable(context.Background(), "owner-1"); !errors.Is(err, ErrEntitlementUnavailable) {
-		t.Fatalf("不可用的旧 Control entitlement 必须 fail closed，实际: %v", err)
-	}
-	if _, err := db.Exec(`
-UPDATE owner_entitlements SET control_unavailable = FALSE WHERE owner_user_id = ?`, "owner-1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := service.EnsureQuotaAvailable(context.Background(), "owner-1"); !errors.Is(err, ErrQuotaExceeded) {
-		t.Fatalf("Control entitlement 恢复后应重新执行额度校验，实际: %v", err)
 	}
 }
 

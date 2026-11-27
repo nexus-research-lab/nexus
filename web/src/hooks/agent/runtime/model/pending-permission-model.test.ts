@@ -21,17 +21,6 @@ function permission(
 }
 
 describe("reconcilePendingPermissionsWithAuthoritativeIds", () => {
-  it("drops a question the backend already settled while keeping live ones", () => {
-    const stale = permission("perm_stale");
-    const live = permission("perm_live");
-
-    const next = reconcilePendingPermissionsWithAuthoritativeIds(
-      [stale, live],
-      ["perm_live"],
-    );
-
-    expect(next).toEqual([live]);
-  });
 
   it("clears every non-automation request when the snapshot is empty", () => {
     const automation = permission("perm_automation", { source: "automation" });

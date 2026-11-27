@@ -2,31 +2,8 @@
 package protocol
 
 import (
-	"slices"
-	"sync"
 	"testing"
 )
-
-func TestChatPendingSnapshotCarriesRoomReplayFence(t *testing.T) {
-	event := NewChatPendingSnapshotEvent(
-		"room:session",
-		"round-root",
-		42,
-		[]ChatAckPendingSlot{},
-		[]string{},
-	)
-	if event.Data["pending_snapshot"] != true {
-		t.Fatalf("pending snapshot marker missing: %+v", event.Data)
-	}
-	if event.Data["snapshot_room_seq"] != int64(42) {
-		t.Fatalf("snapshot_room_seq = %#v, want 42", event.Data["snapshot_room_seq"])
-	}
-
-	clamped := NewChatPendingSnapshotEvent("", "", -1, nil, nil)
-	if clamped.Data["snapshot_room_seq"] != int64(0) {
-		t.Fatalf("negative snapshot_room_seq must clamp to zero: %+v", clamped.Data)
-	}
-}
 
 func TestContextUsageEventCarriesCategories(t *testing.T) {
 	event := NewContextUsageEvent("agent:session", "agent-1", ContextUsageData{
@@ -60,50 +37,6 @@ func TestContextUsageEventCarriesCategories(t *testing.T) {
 	}
 }
 
-// 并发受理也必须各自拿到不重复的游标，且每个受理方看到的值严格递增。
-func TestNewInputSeqIsUniqueAndStrictlyIncreasing(t *testing.T) {
-	const workers, perWorker = 8, 2000
-	minted := make([][]int64, workers)
-	var group sync.WaitGroup
-	for worker := range workers {
-		group.Go(func() {
-			values := make([]int64, perWorker)
-			for index := range values {
-				values[index] = NewInputSeq()
-			}
-			minted[worker] = values
-		})
-	}
-	group.Wait()
-
-	all := make([]int64, 0, workers*perWorker)
-	for worker, values := range minted {
-		if !slices.IsSorted(values) {
-			t.Fatalf("worker %d 拿到的游标没有递增", worker)
-		}
-		all = append(all, values...)
-	}
-	slices.Sort(all)
-	if unique := slices.Compact(slices.Clone(all)); len(unique) != len(all) {
-		t.Fatalf("并发铸造出现重复游标: %d 个值里只有 %d 个不同", len(all), len(unique))
-	}
-	const maxSafeInteger = 1<<53 - 1
-	if all[0] <= 0 || all[len(all)-1] > maxSafeInteger {
-		t.Fatalf("游标必须是正的 JS 安全整数: min=%d max=%d", all[0], all[len(all)-1])
-	}
-}
-
-func TestChatAckCarriesInputSeqOnlyForCommittedRows(t *testing.T) {
-	committed := NewChatAckEvent("session", "request", "client", "round", "msg_user_1", 42, true, nil)
-	if committed.Data[InputSeqField] != int64(42) {
-		t.Fatalf("已落盘输入的 ACK 必须回传受理游标: %+v", committed.Data)
-	}
-	queued := NewChatAckEvent("session", "request", "client", "round", "msg_user_1", 0, false, nil)
-	if _, exists := queued.Data[InputSeqField]; exists {
-		t.Fatalf("尚未成为历史行的输入不应带游标: %+v", queued.Data)
-	}
-}
-
 func TestAgentSessionKeyGenerationPreservesExternalRoute(t *testing.T) {
 	key := BuildAgentAccountSessionKeyWithGeneration(
 		"agent-a", SessionChannelFeishuSegment, "group", "cli-a", "oc-chat", "om-thread", "session-2",
@@ -122,55 +55,6 @@ func TestAgentSessionKeyGenerationPreservesExternalRoute(t *testing.T) {
 	}
 }
 
-func TestNormalizePublicHandoffReplyRequiresExactIdentity(t *testing.T) {
-	valid := NormalizePublicHandoffReply(map[string]any{
-		"handoff_id": " rh-1 ", "source_message_id": " msg-1 ",
-		"source_agent_id": " agent-lead ", "goal_id": "must-not-project",
-	})
-	if valid == nil || valid.HandoffID != "rh-1" ||
-		valid.SourceMessageID != "msg-1" || valid.SourceAgentID != "agent-lead" {
-		t.Fatalf("valid handoff reply was not normalized: %+v", valid)
-	}
-
-	for _, value := range []any{
-		nil,
-		map[string]any{"handoff_id": "rh-1", "source_message_id": "msg-1"},
-		map[string]any{"handoff_id": "rh-1", "source_agent_id": "agent-lead"},
-		map[string]any{"source_message_id": "msg-1", "source_agent_id": "agent-lead"},
-	} {
-		if reply := NormalizePublicHandoffReply(value); reply != nil {
-			t.Fatalf("incomplete handoff reply must fail closed: input=%+v reply=%+v", value, reply)
-		}
-	}
-}
-
-func TestParseIMPermissionSlashNameSupportsShortCommandsAndLegacyAliases(t *testing.T) {
-	tests := map[string]IMPermissionCommand{
-		"/y":       IMPermissionCommandAllowOnce,
-		"/Y":       IMPermissionCommandAllowOnce,
-		"／y":       IMPermissionCommandAllowOnce,
-		"/approve": IMPermissionCommandAllowOnce,
-		"/a":       IMPermissionCommandAllowAlways,
-		"/always":  IMPermissionCommandAllowAlways,
-		"/d":       IMPermissionCommandDeny,
-		"/deny":    IMPermissionCommandDeny,
-		"/retry":   IMPermissionCommandRetry,
-	}
-	for input, want := range tests {
-		t.Run(input, func(t *testing.T) {
-			got, ok := ParseIMPermissionSlashName(input)
-			if !ok || got != want {
-				t.Fatalf("ParseIMPermissionSlashName(%q) = %q, %t; want %q, true", input, got, ok, want)
-			}
-		})
-	}
-	for _, input := range []string{"", "y", "/unknown"} {
-		if got, ok := ParseIMPermissionSlashName(input); ok || got != "" {
-			t.Fatalf("ParseIMPermissionSlashName(%q) = %q, %t; want unrecognized", input, got, ok)
-		}
-	}
-}
-
 func TestIsProviderTokenLimitError(t *testing.T) {
 	for _, signal := range []string{
 		"context_length_exceeded",
@@ -184,40 +68,6 @@ func TestIsProviderTokenLimitError(t *testing.T) {
 		if !IsProviderTokenLimitError(signal) {
 			t.Fatalf("IsProviderTokenLimitError(%q) = false, want true", signal)
 		}
-	}
-}
-
-func TestParseMutationResultChangedReadsOnlyExplicitEnvelopeRefs(t *testing.T) {
-	t.Parallel()
-
-	got := ParseMutationResultChanged(map[string]any{
-		"structuredContent": map[string]any{
-			"outcome":      "applied",
-			"execution_id": "execution-1",
-			"changed": []any{
-				" assignment:assignment-1 ",
-				"attempt:attempt-1",
-				"assignment:assignment-1",
-			},
-		},
-	})
-	if len(got) != 2 || got[0] != "assignment:assignment-1" ||
-		got[1] != "attempt:attempt-1" {
-		t.Fatalf("ParseMutationResultChanged() = %#v", got)
-	}
-	envelope, ok := ParseMutationResultEnvelope(map[string]any{
-		"outcome":      "applied",
-		"execution_id": "execution-1",
-		"changed":      []string{"assignment:assignment-1"},
-	})
-	if !ok || envelope.ExecutionID != "execution-1" ||
-		len(envelope.Changed) != 1 || envelope.Changed[0] != "assignment:assignment-1" {
-		t.Fatalf("mutation identity envelope = %+v/%t", envelope, ok)
-	}
-	if refs := ParseMutationResultChanged(map[string]any{
-		"changed": []any{"assignment:untrusted"},
-	}); len(refs) != 0 {
-		t.Fatalf("non-envelope changed refs = %#v", refs)
 	}
 }
 

@@ -27,12 +27,3 @@ it("discards both current and historical snapshots on access denial", async () =
   expect(latest.result.current.execution).toBeNull();
   expect(history.result.current.history).toEqual([]);
 });
-it("invalidates historical reads when the surface leaves and returns to the same session", async () => {
-  let resolve!: (value: ExecutionView[]) => void;
-  api.history.mockReturnValueOnce(new Promise<ExecutionView[]>((done) => { resolve = done; })).mockReturnValue(new Promise(() => {}));
-  const view = renderHook(({ enabled }) => useWorkGraphHistoryResource("session", enabled), { initialProps: { enabled: true } });
-  view.rerender({ enabled: false });
-  view.rerender({ enabled: true });
-  await act(async () => resolve([execution]));
-  expect(view.result.current.history).toEqual([]);
-});

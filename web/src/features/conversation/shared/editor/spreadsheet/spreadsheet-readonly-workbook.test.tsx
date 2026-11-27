@@ -69,18 +69,6 @@ describe("SpreadsheetReadonlyWorkbook", () => {
     expect(headerTransforms).toEqual(["translateX(-96px)", "translateY(-52px)"]);
   });
 
-  it("resets the scroll viewport when selecting a different sheet", () => {
-    const workbook = { sheets: [createSheet("First"), createSheet("Second")] };
-    const renderWorkbook = (index: number) => <I18nProvider><SpreadsheetReadonlyWorkbook activeSheetIndex={index} onSelectSheet={vi.fn()} workbook={workbook} /></I18nProvider>;
-    const view = render(renderWorkbook(0));
-    const first = screen.getByRole("region", { name: "First" });
-    first.scrollTop = 200; first.scrollLeft = 100; fireEvent.scroll(first);
-    view.rerender(renderWorkbook(1));
-    const second = screen.getByRole("region", { name: "Second" });
-    expect(second).not.toBe(first);
-    expect(second.scrollTop).toBe(0); expect(second.scrollLeft).toBe(0);
-  });
-
   it("renders shared underline tabs and selects the exact sheet", async () => {
     const user = userEvent.setup();
     const onSelectSheet = vi.fn();

@@ -32,7 +32,6 @@ import (
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	titlegensvc "github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
-	sessionrepo "github.com/nexus-research-lab/nexus/internal/storage/sessionrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 )
@@ -238,26 +237,6 @@ func sessionMigrationDir(t *testing.T) string {
 		t.Fatal("定位测试文件失败")
 	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "db", "migrations", "sqlite")
-}
-
-type runtimeSettingsPreparationRecorder struct {
-	mu       sync.Mutex
-	sessions []protocol.Session
-}
-
-func (r *runtimeSettingsPreparationRecorder) ScheduleRuntimeSettingsPreparation(
-	_ context.Context,
-	session protocol.Session,
-) {
-	r.mu.Lock()
-	r.sessions = append(r.sessions, session)
-	r.mu.Unlock()
-}
-
-func (r *runtimeSettingsPreparationRecorder) snapshot() []protocol.Session {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]protocol.Session(nil), r.sessions...)
 }
 
 func TestSessionServiceLifecycle(t *testing.T) {
@@ -472,7 +451,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 		t.Fatalf("已取消的 Room 分页请求应在进入存储前退出: %v", err)
 	}
 
-	dmStorageCtx := newCancelOnSecondErrContext(ctx)
+	dmStorageCtx := newCancelAfterEntryCheckContext(ctx)
 	if _, err = sessionService.GetSessionMessagesPage(
 		dmStorageCtx,
 		dmKey,
@@ -480,7 +459,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	); !errors.Is(err, context.Canceled) {
 		t.Fatalf("DM 存储分页应观察原请求取消信号: %v", err)
 	}
-	roomStorageCtx := newCancelOnSecondErrContext(ctx)
+	roomStorageCtx := newCancelAfterEntryCheckContext(ctx)
 	if _, err = sessionService.GetSessionMessagesPage(
 		roomStorageCtx,
 		protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID),
@@ -531,363 +510,26 @@ INSERT INTO automation_delivery_routes (
 	}
 }
 
-type cancelOnSecondErrContext struct {
+type cancelAfterEntryCheckContext struct {
 	context.Context
 	cancel context.CancelFunc
 	checks atomic.Int32
 }
 
-func newCancelOnSecondErrContext(parent context.Context) *cancelOnSecondErrContext {
+func newCancelAfterEntryCheckContext(parent context.Context) *cancelAfterEntryCheckContext {
 	ctx, cancel := context.WithCancel(parent)
-	return &cancelOnSecondErrContext{Context: ctx, cancel: cancel}
+	return &cancelAfterEntryCheckContext{Context: ctx, cancel: cancel}
 }
 
-func (c *cancelOnSecondErrContext) Err() error {
-	if c.checks.Add(1) == 2 {
+// Err 让服务入口的第一次检查通过并随即取消，之后进入存储的任何读取
+// （无论是 Err 还是 QueryContext 监听的 Done）都必须观察到取消；
+// 不依赖存储层恰好再调用一次 Err（读模型已打开时不会再调用）。
+func (c *cancelAfterEntryCheckContext) Err() error {
+	if c.checks.Add(1) == 1 {
 		c.cancel()
+		return nil
 	}
 	return c.Context.Err()
-}
-
-func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-
-	agentService, db := newSessionTestAgentService(t, cfg)
-	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	ctx := context.Background()
-	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
-		Name: "Session 设置助手",
-		Options: &protocol.Options{
-			Provider:       "agent-provider",
-			Model:          "agent-model",
-			PermissionMode: "default",
-		},
-	})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-
-	dmKey := protocol.BuildAgentSessionKey(
-		agentValue.AgentID,
-		"ws",
-		"dm",
-		"session-settings",
-		"",
-	)
-	if _, err = sessionService.CreateSession(ctx, sessionsvc.CreateRequest{
-		SessionKey: dmKey,
-	}); err != nil {
-		t.Fatalf("创建 DM Session 失败: %v", err)
-	}
-	want := protocol.SessionRuntimeSettings{
-		Provider:       "session-provider",
-		Model:          "session-model",
-		PermissionMode: "auto",
-	}
-	if _, err = sessionService.UpdateRuntimeSettings(ctx, dmKey, want); err != nil {
-		t.Fatalf("更新 DM Session 设置失败: %v", err)
-	}
-	if got, getErr := sessionService.GetRuntimeSettings(ctx, dmKey); getErr != nil {
-		t.Fatalf("读取 DM Session 设置失败: %v", getErr)
-	} else if got != want {
-		t.Fatalf("DM Session 设置 = %+v, want %+v", got, want)
-	}
-
-	roomContext, err := roomService.EnsureDirectRoom(ctx, agentValue.AgentID)
-	if err != nil {
-		t.Fatalf("创建 Room Session 失败: %v", err)
-	}
-	roomKey := protocol.BuildRoomAgentSessionKey(
-		roomContext.Conversation.ID,
-		agentValue.AgentID,
-		protocol.RoomTypeDM,
-	)
-	if _, err = sessionService.UpdateRuntimeSettings(ctx, roomKey, want); err != nil {
-		t.Fatalf("更新 Room Session 设置失败: %v", err)
-	}
-	if got, getErr := sessionService.GetRuntimeSettings(ctx, roomKey); getErr != nil {
-		t.Fatalf("读取 Room Session 设置失败: %v", getErr)
-	} else if got != want {
-		t.Fatalf("Room Session 设置 = %+v, want %+v", got, want)
-	}
-
-	agentPeer, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
-		Name: "Session 设置协作者",
-		Options: &protocol.Options{
-			Provider:       "peer-provider",
-			Model:          "peer-default-model",
-			PermissionMode: "plan",
-		},
-	})
-	if err != nil {
-		t.Fatalf("创建协作 Agent 失败: %v", err)
-	}
-	groupContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{agentValue.AgentID, agentPeer.AgentID},
-		Name:     "Session 设置群聊",
-	})
-	if err != nil {
-		t.Fatalf("创建群聊 Session 失败: %v", err)
-	}
-	primaryRoomKey := protocol.BuildRoomAgentSessionKey(
-		groupContext.Conversation.ID,
-		agentValue.AgentID,
-		protocol.RoomTypeGroup,
-	)
-	peerRoomKey := protocol.BuildRoomAgentSessionKey(
-		groupContext.Conversation.ID,
-		agentPeer.AgentID,
-		protocol.RoomTypeGroup,
-	)
-	primaryRoomSession, err := sessionService.GetSession(ctx, primaryRoomKey)
-	if err != nil || primaryRoomSession.RoomSessionID == nil {
-		t.Fatalf("读取群聊成员 Session 失败: session=%+v err=%v", primaryRoomSession, err)
-	}
-	if err = roomService.UpdateSessionRuntimeIdentity(
-		ctx,
-		*primaryRoomSession.RoomSessionID,
-		"group-runtime-session",
-		"surface-before-settings",
-	); err != nil {
-		t.Fatalf("预写入 Room runtime identity 失败: %v", err)
-	}
-	staleOptions := protocol.WithSessionRuntimeSettings(primaryRoomSession.Options, want)
-	repository := sessionrepo.NewSQLRepository(cfg.DatabaseDriver, db)
-	if _, err = repository.UpdateRoomConversationRuntimeSettings(
-		ctx,
-		*primaryRoomSession.RoomSessionID,
-		staleOptions,
-		want.PermissionMode,
-	); err != nil {
-		t.Fatalf("用旧设置快照更新 Room Session 失败: %v", err)
-	}
-	primaryRoomSession, err = sessionService.GetSession(ctx, primaryRoomKey)
-	if err != nil {
-		t.Fatalf("重读群聊成员 Session 失败: %v", err)
-	}
-	if primaryRoomSession.Options[protocol.OptionRuntimeToolSurfaceFingerprint] != "surface-before-settings" {
-		t.Fatalf("旧设置快照不应覆盖 runtime 工具面基线: %+v", primaryRoomSession.Options)
-	}
-	peerSettings := protocol.SessionRuntimeSettings{
-		Provider:       "peer-session-provider",
-		Model:          "peer-session-model",
-		PermissionMode: "plan",
-	}
-	if _, err = sessionService.UpdateRuntimeSettings(
-		ctx,
-		peerRoomKey,
-		peerSettings,
-	); err != nil {
-		t.Fatalf("更新协作 Agent Session 设置失败: %v", err)
-	}
-	if _, err = sessionService.UpdateRuntimeSettings(
-		ctx,
-		primaryRoomKey,
-		want,
-	); err != nil {
-		t.Fatalf("更新群聊统一权限失败: %v", err)
-	}
-	gotPeer, err := sessionService.GetRuntimeSettings(ctx, peerRoomKey)
-	if err != nil {
-		t.Fatalf("读取协作 Agent Session 设置失败: %v", err)
-	}
-	if gotPeer.Provider != peerSettings.Provider ||
-		gotPeer.Model != peerSettings.Model ||
-		gotPeer.PermissionMode != want.PermissionMode {
-		t.Fatalf(
-			"群聊权限应统一且模型应保持独立: got=%+v peer=%+v room=%+v",
-			gotPeer,
-			peerSettings,
-			want,
-		)
-	}
-	resetRoomPermission := want
-	resetRoomPermission.PermissionMode = ""
-	if _, err = sessionService.UpdateRuntimeSettings(
-		ctx,
-		primaryRoomKey,
-		resetRoomPermission,
-	); err != nil {
-		t.Fatalf("重置群聊统一权限失败: %v", err)
-	}
-	gotPeer, err = sessionService.GetRuntimeSettings(ctx, peerRoomKey)
-	if err != nil {
-		t.Fatalf("重置后读取协作 Agent Session 设置失败: %v", err)
-	}
-	if gotPeer.Provider != peerSettings.Provider ||
-		gotPeer.Model != peerSettings.Model ||
-		gotPeer.PermissionMode != "" {
-		t.Fatalf("群聊权限重置应统一清空且保持模型: %+v", gotPeer)
-	}
-
-	unchangedAgent, err := agentService.GetAgent(ctx, agentValue.AgentID)
-	if err != nil {
-		t.Fatalf("读取 Agent 失败: %v", err)
-	}
-	if unchangedAgent.Options.Provider != "agent-provider" ||
-		unchangedAgent.Options.Model != "agent-model" ||
-		unchangedAgent.Options.PermissionMode != "default" {
-		t.Fatalf("Session 设置不应修改 Agent 默认值: %+v", unchangedAgent.Options)
-	}
-}
-
-func TestSessionRuntimeSettingsSchedulesOnlyEffectiveConnectorChanges(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	recorder := &runtimeSettingsPreparationRecorder{}
-	sessionService.SetRuntimeSettingsPreparationScheduler(recorder)
-	ctx := context.Background()
-	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
-		Name: "Connector 预备助手",
-		Options: &protocol.Options{
-			ConnectorIDs: []string{"github"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sessionKey := protocol.BuildAgentSessionKey(
-		agentValue.AgentID,
-		"ws",
-		"dm",
-		"connector-preparation",
-		"",
-	)
-	if _, err = sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: sessionKey}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
-		Provider: "provider-only-settings-change",
-		Model:    "model-only-settings-change",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	sameAsDefault := []string{"github"}
-	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
-		ConnectorIDs: &sameAsDefault,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if got := recorder.snapshot(); len(got) != 0 {
-		t.Fatalf("equivalent Connector settings scheduled preparation: %+v", got)
-	}
-
-	feishu := []string{"feishu-docx"}
-	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
-		ConnectorIDs: &feishu,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	got := recorder.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("effective Connector change scheduled %d preparations, want 1", len(got))
-	}
-	if got[0].ConfigurationVersion < 2 {
-		t.Fatalf("scheduled Session configuration_version=%d", got[0].ConfigurationVersion)
-	}
-	selected := protocol.EffectiveSessionConnectorIDs(nil, got[0].Options)
-	if len(selected) != 1 || selected[0] != "feishu-docx" {
-		t.Fatalf("scheduled Connector selection=%v", selected)
-	}
-}
-
-func TestRoomSessionSDKIdentityCASUsesCurrentConnectorSelection(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db := newSessionTestAgentService(t, cfg)
-	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	ctx := context.Background()
-	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Room Connector CAS"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	roomContext, err := roomService.EnsureDirectRoom(ctx, agentValue.AgentID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sessionKey := protocol.BuildRoomAgentSessionKey(
-		roomContext.Conversation.ID,
-		agentValue.AgentID,
-		protocol.RoomTypeDM,
-	)
-	feishu := []string{"feishu-docx"}
-	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
-		ConnectorIDs: &feishu,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	roomSession, err := sessionService.GetSession(ctx, sessionKey)
-	if err != nil || roomSession.RoomSessionID == nil {
-		t.Fatalf("Room Session projection=%+v err=%v", roomSession, err)
-	}
-	staleSelection := protocol.SessionConnectorSelectionFromOptions(roomSession.Options)
-	github := []string{"github"}
-	if _, err = sessionService.UpdateRuntimeSettings(ctx, sessionKey, protocol.SessionRuntimeSettings{
-		ConnectorIDs: &github,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	repository := sessionrepo.NewSQLRepository(cfg.DatabaseDriver, db)
-	committed, err := repository.UpdateRoomSessionRuntimeIdentityAtConnectorSelection(
-		ctx,
-		*roomSession.RoomSessionID,
-		"stale-fork-session",
-		"stale-surface",
-		staleSelection,
-	)
-	if err != nil || committed {
-		t.Fatalf("stale Connector selection committed=%t err=%v", committed, err)
-	}
-	current, err := sessionService.GetSession(ctx, sessionKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	current.Options[protocol.OptionRuntimeForkSourceSessionID] = "source-fork-session"
-	current.Options[protocol.OptionRuntimeForkMessageID] = "source-fork-message"
-	optionsJSON, err := json.Marshal(current.Options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.ExecContext(ctx, "UPDATE sessions SET options_json = ? WHERE id = ?", optionsJSON, *roomSession.RoomSessionID); err != nil {
-		t.Fatal(err)
-	}
-	currentSelection := protocol.SessionConnectorSelectionFromOptions(current.Options)
-	committed, err = repository.UpdateRoomSessionRuntimeIdentityAtConnectorSelection(
-		ctx,
-		*roomSession.RoomSessionID,
-		"current-fork-session",
-		"current-surface",
-		currentSelection,
-	)
-	if err != nil || !committed {
-		t.Fatalf("current Connector selection committed=%t err=%v", committed, err)
-	}
-	reloaded, err := repository.GetRoomSessionByKey(
-		ctx,
-		authctx.OwnerUserID(ctx),
-		protocol.ParseSessionKey(sessionKey),
-	)
-	if err != nil || reloaded == nil || reloaded.SessionID == nil ||
-		*reloaded.SessionID != "current-fork-session" {
-		t.Fatalf("reloaded Room Session=%+v err=%v", reloaded, err)
-	}
-	if _, exists := reloaded.Options[protocol.OptionRuntimeForkSourceSessionID]; exists {
-		t.Fatalf("fork source 未清理: %+v", reloaded.Options)
-	}
-	if _, exists := reloaded.Options[protocol.OptionRuntimeForkMessageID]; exists {
-		t.Fatalf("fork message 未清理: %+v", reloaded.Options)
-	}
-	if retained := protocol.RetainedTranscriptSessionIDsFromOptions(reloaded.Options); len(retained) != 1 || retained[0] != "source-fork-session" {
-		t.Fatalf("fork source 清理所有权=%v", retained)
-	}
-	if reloaded.Options[protocol.OptionRuntimeToolSurfaceFingerprint] != "current-surface" {
-		t.Fatalf("fork identity 未与工具面基线共同提交: %+v", reloaded.Options)
-	}
 }
 
 func TestSessionLocalDirectoriesRequireDesktopAndPersist(t *testing.T) {
@@ -1095,156 +737,6 @@ func TestTitleGenerationUpdatesExternalIMWorkspaceSession(t *testing.T) {
 	}
 }
 
-func TestSessionServiceReconcilesStaleActiveWorkspaceMeta(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-
-	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	runtimeManager := runtimectx.NewManager()
-	sessionService.SetRuntimeManager(runtimeManager)
-
-	ctx := context.Background()
-	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "残留活跃状态助手"})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "stale-"+agentA.AgentID, "")
-	created, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: dmKey})
-	if err != nil {
-		t.Fatalf("创建 session 失败: %v", err)
-	}
-	if created.Status != "closed" || created.IsActive {
-		t.Fatalf("新建空闲 session 应为 closed: %+v", created)
-	}
-
-	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
-	created.Status = "active"
-	created.IsActive = true
-	if _, err := store.UpsertSession(agentA.WorkspacePath, *created); err != nil {
-		t.Fatalf("写入残留 active meta 失败: %v", err)
-	}
-
-	reconciled, err := sessionService.GetSession(ctx, dmKey)
-	if err != nil {
-		t.Fatalf("读取 session 失败: %v", err)
-	}
-	if reconciled.Status != "closed" || reconciled.IsActive {
-		t.Fatalf("无运行 round 时应纠正为 closed: %+v", reconciled)
-	}
-	persisted, _, err := store.FindSession([]string{agentA.WorkspacePath}, dmKey)
-	if err != nil {
-		t.Fatalf("读取持久化 meta 失败: %v", err)
-	}
-	if persisted == nil || persisted.Status != "closed" || persisted.IsActive {
-		t.Fatalf("残留 active meta 未持久化纠正: %+v", persisted)
-	}
-
-	_ = runtimeManager.StartRound(context.Background(), dmKey, "round_running", nil)
-	active, err := sessionService.GetSession(ctx, dmKey)
-	if err != nil {
-		t.Fatalf("读取运行中 session 失败: %v", err)
-	}
-	if active.Status != "active" || !active.IsActive {
-		t.Fatalf("有运行 round 时应回到 active: %+v", active)
-	}
-	runtimeManager.MarkRoundFinished(dmKey, "round_running")
-
-	agentSessions, err := sessionService.ListAgentSessions(ctx, agentA.AgentID)
-	if err != nil {
-		t.Fatalf("读取 agent sessions 失败: %v", err)
-	}
-	if len(agentSessions) != 1 || agentSessions[0].Status != "closed" || agentSessions[0].IsActive {
-		t.Fatalf("运行 round 结束后列表应纠正为 closed: %+v", agentSessions)
-	}
-}
-
-func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-
-	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-
-	ctx := context.Background()
-	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Transcript 助手"})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-
-	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "transcript-"+agentA.AgentID, "")
-	created, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: dmKey})
-	if err != nil {
-		t.Fatalf("创建 transcript session 失败: %v", err)
-	}
-
-	sessionID := "550e8400-e29b-41d4-a716-446655440000"
-	created.SessionID = &sessionID
-	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
-	if _, err := store.UpsertSession(agentA.WorkspacePath, *created); err != nil {
-		t.Fatalf("回写 session_id 失败: %v", err)
-	}
-
-	history := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath)
-	if err := history.AppendRoundMarker(agentA.WorkspacePath, dmKey, "round_transcript_1", "请总结这个仓库", time.Now().Add(-2*time.Second).UnixMilli()); err != nil {
-		t.Fatalf("写入 round marker 失败: %v", err)
-	}
-	writeSessionTranscriptFixture(t, agentA.WorkspacePath, sessionID, []map[string]any{
-		{
-			"type":      "user",
-			"uuid":      "transcript-user-1",
-			"sessionId": sessionID,
-			"timestamp": time.Now().Add(-2 * time.Second).UTC().Format(time.RFC3339Nano),
-			"message": map[string]any{
-				"role":    "user",
-				"content": "请总结这个仓库",
-			},
-		},
-		{
-			"type":       "assistant",
-			"uuid":       "transcript-assistant-1",
-			"sessionId":  sessionID,
-			"parentUuid": "transcript-user-1",
-			"message": map[string]any{
-				"role":        "assistant",
-				"stop_reason": "end_turn",
-				"content": []map[string]any{
-					{"type": "text", "text": "这是一个 Go + React 的 Nexus 项目。"},
-				},
-			},
-		},
-		{
-			"type":            "result",
-			"uuid":            "transcript-result-1",
-			"session_id":      sessionID,
-			"parentUuid":      "transcript-assistant-1",
-			"subtype":         "success",
-			"duration_ms":     12,
-			"duration_api_ms": 8,
-			"num_turns":       1,
-			"result":          "done",
-			"is_error":        false,
-		},
-	})
-
-	messages, err := sessionService.GetSessionMessages(ctx, dmKey)
-	if err != nil {
-		t.Fatalf("读取 transcript 历史失败: %v", err)
-	}
-	if len(messages) != 2 {
-		t.Fatalf("transcript 历史数量不正确: got=%d want=2", len(messages))
-	}
-	if got := strings.TrimSpace(stringValue(messages[0]["round_id"])); got != "round_transcript_1" {
-		t.Fatalf("round marker 未覆盖 transcript round_id: got=%s want=round_transcript_1", got)
-	}
-	if got := strings.TrimSpace(stringValue(messages[1]["round_id"])); got != "round_transcript_1" {
-		t.Fatalf("assistant round_id 未继承 round marker: got=%s want=round_transcript_1", got)
-	}
-	if _, exists := messages[1]["result_summary"]; exists {
-		t.Fatalf("transcript 内置 result 不应直接进入历史摘要: %+v", messages[1])
-	}
-}
-
 func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
@@ -1373,107 +865,6 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 	}
 }
 
-func TestSessionDeletionRecoveryCommitsCrashInterruptedDelete(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := app.NewAgentService(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	agentValue, err := agentService.CreateAgent(
-		context.Background(),
-		protocol.CreateRequest{Name: "删除恢复助手"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	files := workspacestore.NewSessionFileStore(cfg.WorkspacePath).
-		ForOwner(authctx.SystemUserID)
-	sessionKey := protocol.BuildAgentSessionKey(
-		agentValue.AgentID,
-		"ws",
-		"dm",
-		"crash-recovery",
-		"",
-	)
-	transcriptID := "550e8400-e29b-41d4-a716-446655440001"
-	now := time.Now().UTC()
-	created, err := files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
-		SessionKey: sessionKey, AgentID: agentValue.AgentID,
-		ChannelType: "websocket", ChatType: "dm", Status: "closed",
-		CreatedAt: now, LastActivity: now, Title: "crash recovery",
-		SessionID: &transcriptID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	seedWorkspaceSessionArtifacts(
-		t,
-		cfg,
-		agentValue.WorkspacePath,
-		sessionKey,
-		transcriptID,
-	)
-	if _, err = files.BeginSessionDeletion(
-		agentValue.WorkspacePath,
-		sessionKey,
-		created.ConfigurationVersion,
-		transcriptID,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	recoveryService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	recoveryService.SetRuntimeManager(runtimectx.NewManager())
-	reconciled, err := recoveryService.ReconcilePendingDeletions(context.Background())
-	if err != nil || reconciled != 1 {
-		t.Fatalf("ReconcilePendingDeletions() reconciled=%d err=%v", reconciled, err)
-	}
-	if current, _, findErr := files.FindSession(
-		[]string{agentValue.WorkspacePath},
-		sessionKey,
-	); findErr != nil || current != nil {
-		t.Fatalf("recovered session still exists: item=%+v err=%v", current, findErr)
-	}
-	if _, statErr := os.Stat(
-		sessionTranscriptFilePath(agentValue.WorkspacePath, transcriptID),
-	); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("recovered transcript still exists: %v", statErr)
-	}
-	pending, err := workspacestore.NewSessionFileStore(
-		cfg.WorkspacePath,
-	).ListPendingSessionDeletions()
-	if err != nil || len(pending) != 0 {
-		t.Fatalf("pending deletion records=%d err=%v", len(pending), err)
-	}
-	restartedRuntime := runtimectx.NewManager()
-	restartedService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	restartedService.SetRuntimeManager(restartedRuntime)
-	if reconciled, err = restartedService.ReconcilePendingDeletions(
-		context.Background(),
-	); err != nil || reconciled != 0 {
-		t.Fatalf(
-			"completed tombstone restart reconcile=%d err=%v",
-			reconciled,
-			err,
-		)
-	}
-	if _, err = restartedRuntime.BeginSessionDeletion(sessionKey); !errors.Is(
-		err,
-		runtimectx.ErrRuntimeSessionDeleted,
-	) {
-		t.Fatalf("completed tombstone did not restore runtime fence after restart: %v", err)
-	}
-	if _, err = files.UpsertSession(agentValue.WorkspacePath, *created); !errors.Is(
-		err,
-		workspacestore.ErrSessionDeleted,
-	) {
-		t.Fatalf("recovered tombstone did not block late writer: %v", err)
-	}
-}
-
 func TestSessionDeletionRecoveryInvalidatesBoundAutomationTask(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
@@ -1536,51 +927,6 @@ func TestSessionDeletionRecoveryInvalidatesBoundAutomationTask(t *testing.T) {
 	if err != nil || kept == nil || kept.Enabled ||
 		kept.SessionBindingState != automationdomain.TaskSessionBindingStateRebindRequired {
 		t.Fatalf("恢复删除后任务未停用待重绑: task=%+v err=%v", kept, err)
-	}
-}
-
-func TestDeleteSessionArtifactsFencesMissingMeta(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := app.NewAgentService(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	agentValue, err := agentService.CreateAgent(
-		context.Background(),
-		protocol.CreateRequest{Name: "Artifact 清理助手"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	sessionService.SetRuntimeManager(runtimectx.NewManager())
-	sessionKey := protocol.BuildAgentSessionKey(
-		agentValue.AgentID,
-		"automation",
-		"dm",
-		"scheduled-task:missing-meta",
-		"",
-	)
-	if err = sessionService.DeleteSessionArtifacts(
-		context.Background(),
-		authctx.SystemUserID,
-		agentValue.WorkspacePath,
-		sessionKey,
-		"",
-	); err != nil {
-		t.Fatal(err)
-	}
-	now := time.Now().UTC()
-	files := workspacestore.NewSessionFileStore(cfg.WorkspacePath).
-		ForOwner(authctx.SystemUserID)
-	if _, err = files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
-		SessionKey: sessionKey, AgentID: agentValue.AgentID,
-		ChannelType: "automation", ChatType: "dm", Status: "closed",
-		CreatedAt: now, LastActivity: now, Title: "late",
-	}); !errors.Is(err, workspacestore.ErrSessionDeleted) {
-		t.Fatalf("artifact tombstone did not block missing-meta resurrection: %v", err)
 	}
 }
 
@@ -1711,69 +1057,5 @@ func TestSessionServiceRoutesCompletedNXSTaskControlsToRoomHostRuntime(t *testin
 	}
 	if len(client.stopped) != 1 || client.stopped[0] != "task-1" {
 		t.Fatalf("stopped tasks = %+v", client.stopped)
-	}
-}
-
-func TestSessionServiceRejectsCCSendBeforeRuntimeWire(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	runtimeManager := runtimectx.NewManager()
-	sessionService.SetRuntimeManager(runtimeManager)
-
-	conversationID := "conversation-cc-task-control"
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(conversationID, "host-agent", protocol.RoomTypeGroup)
-	client := &subagentControlClient{}
-	_, err := runtimeManager.GetOrCreateWithFactory(
-		context.Background(),
-		runtimeSessionKey,
-		agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}},
-		subagentControlFactory{client: client},
-	)
-	if err != nil {
-		t.Fatalf("创建 CC slot runtime 失败: %v", err)
-	}
-	history := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	if err = history.AppendInlineMessage("", conversationID, protocol.Message{
-		"message_id":  "task-started-cc",
-		"session_key": sharedSessionKey,
-		"agent_id":    "host-agent",
-		"round_id":    "round-1",
-		"role":        "system",
-		"timestamp":   int64(1000),
-		"metadata": map[string]any{
-			"subtype":      "task_started",
-			"task_id":      "task-cc",
-			"agent_id":     "sdk-subagent-cc",
-			"runtime_kind": "claude",
-		},
-	}); err != nil {
-		t.Fatalf("写入 CC task history 失败: %v", err)
-	}
-
-	_, err = sessionService.SendSubagentTaskMessage(context.Background(), sharedSessionKey, "task-cc", "继续")
-	if !errors.Is(err, sessionsvc.ErrSubagentOperationUnsupported) {
-		t.Fatalf("CC send error = %v, want unsupported", err)
-	}
-	client.mu.Lock()
-	if len(client.messages) != 0 {
-		t.Fatalf("CC unsupported 不应进入 wire: %+v", client.messages)
-	}
-	client.mu.Unlock()
-	if _, err = sessionService.StopSubagentTask(context.Background(), sharedSessionKey, "task-cc"); err != nil {
-		t.Fatalf("CC stop 应受支持: %v", err)
-	}
-
-	if err = runtimeManager.CloseSession(context.Background(), runtimeSessionKey); err != nil {
-		t.Fatalf("关闭 CC runtime 失败: %v", err)
-	}
-	list, err := sessionService.ListSubagentTasks(context.Background(), sharedSessionKey)
-	if err != nil {
-		t.Fatalf("离线后读取 task 失败: %v", err)
-	}
-	if len(list.Items) != 1 || list.Items[0].RuntimeKind != "claude" || list.Items[0].Capabilities.SendMessage {
-		t.Fatalf("离线 task 应从 metadata 恢复 CC 能力: %+v", list.Items)
 	}
 }

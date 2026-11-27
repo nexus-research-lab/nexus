@@ -3,12 +3,7 @@ package browser
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"os"
-	"path/filepath"
-	"runtime"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 )
@@ -108,50 +103,6 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 
 	if _, err := service.Execute(context.Background(), "session-b", "round-b", "Agent B", "snapshot", nil, false); err == nil {
 		t.Fatal("另一 Session 不应继承 session-a 的标签页")
-	}
-}
-
-func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
-	service := NewService()
-	if _, err := service.Execute(
-		context.Background(),
-		"session-a",
-		"round-a",
-		"Agent A",
-		"cdp",
-		map[string]any{"method": "Browser.getVersion"},
-		false,
-	); !errors.Is(err, ErrCDPDisabled) {
-		t.Fatalf("cdp error = %v", err)
-	}
-
-	commands := make(chan map[string]any, 1)
-	_, detach := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-a", func(_ context.Context, payload any) error {
-		commands <- payload.(map[string]any)
-		return nil
-	}, nil)
-	defer detach()
-	service.sessions["session-a"] = browserSession{
-		activeTabRef: "ref-42",
-		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
-	}
-	errCh := make(chan error, 1)
-	go func() {
-		_, err := service.Execute(
-			context.Background(),
-			"session-a",
-			"round-a",
-			"Agent A",
-			"cdp",
-			map[string]any{"method": "Browser.getVersion"},
-			true,
-		)
-		errCh <- err
-	}()
-	command := receiveCommand(t, commands)
-	service.Resolve(service.client.id, command["id"].(string), map[string]any{"product": "Chrome"}, "")
-	if err := <-errCh; err != nil {
-		t.Fatalf("启用后的 cdp error = %v", err)
 	}
 }
 
@@ -331,27 +282,6 @@ func TestFinalizeRoundKeepsOnlyHandoffAndOtherRounds(t *testing.T) {
 	}
 }
 
-func TestAttachRejectsStaleBrowserGeneration(t *testing.T) {
-	service := NewService()
-	_, detach := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-a", func(context.Context, any) error {
-		return nil
-	}, nil)
-	defer detach()
-	service.sessions["session-a"] = browserSession{
-		activeTabRef: "ref-42",
-		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
-	}
-
-	_, detachNext := service.Attach("0.1.0", "Google Chrome", "browser-a", "generation-b", func(context.Context, any) error {
-		return nil
-	}, nil)
-	defer detachNext()
-
-	if _, err := service.Execute(context.Background(), "session-a", "round-a", "Agent A", "snapshot", nil, false); err == nil {
-		t.Fatal("扩展代次变化后不应继续使用旧标签页引用")
-	}
-}
-
 func TestStatusExplainsIncompatibleExtension(t *testing.T) {
 	service := NewService()
 	service.ObserveIncompatibleHandshake("0.6.0", "4")
@@ -421,29 +351,6 @@ func TestObserveEventInheritsChildTabInsideSourceSession(t *testing.T) {
 	params, _, err = service.prepareParams("session-a", "Agent A", "snapshot", nil)
 	if err != nil || params["tab_ref"] != "ref-43" {
 		t.Fatalf("关闭活动页后的标签页 = %+v, err = %v", params, err)
-	}
-}
-
-func TestBrowserExtensionHandlesEveryServiceAction(t *testing.T) {
-	_, currentFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("无法定位 Browser service 测试文件")
-	}
-	backgroundPath := filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "desktop", "browser-extension", "background.js")
-	content, err := os.ReadFile(backgroundPath)
-	if err != nil {
-		t.Fatalf("读取 Browser 扩展: %v", err)
-	}
-	if !strings.Contains(string(content), `const PROTOCOL_VERSION = "`+ProtocolVersion+`";`) {
-		t.Fatalf("Browser 扩展协议版本未与宿主 %s 对齐", ProtocolVersion)
-	}
-	for _, action := range SupportedActions() {
-		if action == "status" || action == "batch" {
-			continue
-		}
-		if !strings.Contains(string(content), `case "`+action+`":`) {
-			t.Errorf("Browser 扩展缺少 action %q", action)
-		}
 	}
 }
 

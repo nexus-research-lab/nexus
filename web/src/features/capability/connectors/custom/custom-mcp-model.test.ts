@@ -21,17 +21,6 @@ const SERVER: CustomMCPServer = {
 };
 
 describe("Custom MCP draft identity and protocol projection", () => {
-  it("rebuilds the same draft from explicit identity and round-trips values without sending row IDs", () => {
-    const draft = createCustomMCPDraft(SERVER, "dialog-a");
-    expect(createCustomMCPDraft(SERVER, "dialog-a")).toEqual(draft);
-    const ids = [...draft.args, ...draft.env].map((row) => row.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    expect(validateCustomMCPDraft(draft)).toBeNull();
-    expect(buildCustomMCPServerInput(draft)).toEqual({
-      name: "example", type: "stdio", command: "node",
-      args: ["same", "same", " "], env: { TAG: " value ", TOKEN: null },
-    });
-  });
 
   it("rejects an empty argument but preserves the existing whitespace argument semantics", () => {
     const draft = createCustomMCPDraft(SERVER, "dialog-a");

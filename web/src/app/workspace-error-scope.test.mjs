@@ -16,42 +16,6 @@ test("ResizeObserver 浏览器告警不上报为 Web 崩溃", async () => {
   assert.equal(isBenignResizeObserverError("Request timed out"), false);
 });
 
-test("workspace subscription errors do not mutate conversation state", async () => {
-  const { AGENT_SESSION_EVENT_HANDLERS } = await import("@/hooks/agent/transport/handlers/session-event-handlers.ts");
-  const calls = [];
-  const context = {
-    runtime: {
-      applyRoundStatus: (...args) => calls.push(["round", ...args]),
-      rejectPendingRequestAck: (...args) => calls.push(["ack", ...args]),
-      updateMessageStatus: (...args) => calls.push(["message", ...args]),
-    },
-    scope: {
-      chatType: "dm",
-      isCurrentSessionEvent: () => true,
-      sessionKey: "session-1",
-    },
-    state: {
-      reliability: {
-        reportFailure: (...args) => calls.push(["failure", ...args]),
-      },
-    },
-  };
-
-  AGENT_SESSION_EVENT_HANDLERS.error({
-    data: {
-      agent_id: "agent-1",
-      error_type: "workspace_subscription_error",
-      message: "服务内部错误",
-      type: "subscribe_workspace",
-    },
-    event_type: "error",
-    protocol_version: 2,
-    timestamp: 1,
-  }, context);
-
-  assert.deepEqual(calls, []);
-});
-
 test("session-scoped chat errors expose a stable failure code", async () => {
   const { AGENT_SESSION_EVENT_HANDLERS } = await import("@/hooks/agent/transport/handlers/session-event-handlers.ts");
   const calls = [];

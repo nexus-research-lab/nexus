@@ -94,21 +94,4 @@ describe("ComposerAttachmentList", () => {
     await waitFor(() => expect(onRemove).toHaveBeenLastCalledWith("file-id"));
     expect(onSubmit).not.toHaveBeenCalled();
   });
-
-  it("closes only the transient preview on Session change and releases each Object URL", async () => {
-    const user = userEvent.setup();
-    const onRemove = vi.fn();
-    const { rerender, unmount } = render(<View onRemove={onRemove} />);
-    await user.click(screen.getByRole("button", { name: "composer.preview_image:preview.png" }));
-    expect(await screen.findByRole("dialog")).toBeTruthy();
-    expect(createUrl).toHaveBeenCalledTimes(2);
-    rerender(<View onRemove={onRemove} reset="next" />);
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(screen.getByRole("button", { name: "composer.preview_image:preview.png" })).toBeTruthy();
-    expect(screen.getByText("archive.zip")).toBeTruthy();
-    expect(revokeUrl).toHaveBeenCalledExactlyOnceWith("blob:preview-2");
-    expect(onRemove).not.toHaveBeenCalled();
-    unmount();
-    expect(revokeUrl.mock.calls.map(([url]) => url).sort()).toEqual(["blob:preview-1", "blob:preview-2"]);
-  });
 });

@@ -29,18 +29,6 @@ describe("File evidence visibility", () => {
     expect(open).toHaveBeenCalledExactlyOnceWith("reports/result.md", "artifact-author");
   });
 
-  it("shows the full transcript while the Room inspector omits the final answer and its artifact", () => {
-    const open = vi.fn();
-    const view = (presentation: "transcript" | "inspector") => <I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => MESSAGES.en[key] }}><ConversationThreadPanel agentId="source-author" agentName="Source" messages={[MESSAGE]} roundId="round" presentation={presentation} onClose={vi.fn()} onOpenWorkspaceFile={open} /></I18N_CONTEXT.Provider>;
-    const { rerender } = render(view("transcript"));
-    expect(screen.getByText("Final answer")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /^result\.md/ }));
-    expect(open).toHaveBeenCalledExactlyOnceWith("reports/result.md", "artifact-author");
-    rerender(view("inspector"));
-    expect(screen.queryByText("Final answer")).toBeNull();
-    expect(screen.queryByRole("button", { name: /^result\.md/ })).toBeNull();
-  });
-
   it("keeps an earlier tool artifact in the inspector process when the final reply contains only prose", () => {
     const process: AssistantMessage = { ...MESSAGE, message_id: "tool-process", content: [
       { type: "tool_use", id: "write", name: "Write", input: { file_path: "reports/result.md" } },

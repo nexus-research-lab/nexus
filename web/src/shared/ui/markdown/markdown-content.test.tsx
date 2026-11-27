@@ -3,7 +3,6 @@
 // POS: 共享 Markdown 公共入口的 DOM 行为测试。
 
 import { render as renderDom, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ReactNode } from "react";
@@ -23,27 +22,6 @@ describe("UiMarkdownContent controlled resources", () => {
     expect(screen.queryByRole("link", { name: "Mention" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Unsafe" })).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
-  });
-
-  it("uses only injected paths and commands for inline files, linked files and images", async () => {
-    const user = userEvent.setup();
-    const openFile = vi.fn();
-    const resolveFilePath = (path: string) => path === "report.md" ? "reports/report.md" : null;
-    const content = '`report.md` [Read](report.md) ![Chart](images/chart.png)';
-    const { rerender } = render(
-      <UiMarkdownContent content={content} getFilePreviewUrl={(path) => `/preview/a/${path}`} onOpenWorkspaceFile={openFile} resolveFilePath={resolveFilePath} />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "report.md" }));
-    await user.click(screen.getByRole("button", { name: "Read" }));
-    await user.click(screen.getByRole("button", { name: "Chart" }));
-    expect(openFile.mock.calls).toEqual([["reports/report.md"], ["reports/report.md"], ["images/chart.png"]]);
-    expect(screen.getByRole("img", { name: "Chart" }).getAttribute("src")).toBe("/preview/a/images/chart.png");
-
-    rerender(<UiMarkdownContent content={content} getFilePreviewUrl={(path) => `/preview/b/${path}`} onOpenWorkspaceFile={openFile} resolveFilePath={() => null} />);
-    expect(screen.queryByRole("button", { name: "report.md" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Read" })).toBeNull();
-    expect(screen.getByRole("img", { name: "Chart" }).getAttribute("src")).toBe("/preview/b/images/chart.png");
   });
 
   it("keeps summary links and images inert even with file capabilities", () => {

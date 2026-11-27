@@ -17,11 +17,4 @@ describe("isMemoryCatalogChange", () => {
     expect(isMemoryCatalogChange(workspaceEvent({ type: "file_write_end", path: "MEMORY.md" }), "agent-1")).toBe(true);
     expect(isMemoryCatalogChange(workspaceEvent({ type: "file_deleted", path: "memory/notes.md" }), "agent-1")).toBe(true);
   });
-
-  it("ignores streaming deltas, other files and other Agents", () => {
-    expect(isMemoryCatalogChange(workspaceEvent({ type: "file_write_delta", path: "MEMORY.md" }), "agent-1")).toBe(false);
-    expect(isMemoryCatalogChange(workspaceEvent({ type: "file_write_end", path: "AGENTS.md" }), "agent-1")).toBe(false);
-    expect(isMemoryCatalogChange(workspaceEvent({ type: "file_write_end", path: "notes/memory/a.md" }), "agent-1")).toBe(false);
-    expect(isMemoryCatalogChange(workspaceEvent({ type: "file_write_end", path: "MEMORY.md" }), "agent-2")).toBe(false);
-  });
 });

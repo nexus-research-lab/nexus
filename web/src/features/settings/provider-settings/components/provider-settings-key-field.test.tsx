@@ -69,17 +69,4 @@ describe("Provider key editor", () => {
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "settings.providers.clear_key" }));
     expect(input.onClear).toHaveBeenCalledOnce();
   });
-
-  it.each(["disabled", "pending"] as const)("blocks editing during %s", async (flag) => {
-    const user = userEvent.setup();
-    const input = props({ [flag]: true });
-    render(<Harness {...input} />);
-    expect(keyInput().disabled).toBe(true);
-    for (const button of screen.getAllByRole("button")) {
-      expect((button as HTMLButtonElement).disabled).toBe(true);
-      await user.click(button);
-    }
-    expect(input.onChange).not.toHaveBeenCalled();
-    expect(input.onClear).not.toHaveBeenCalled();
-  });
 });

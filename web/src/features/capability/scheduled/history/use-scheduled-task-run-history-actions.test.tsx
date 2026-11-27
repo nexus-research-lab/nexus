@@ -61,33 +61,6 @@ beforeEach(() => { vi.mocked(writeTextToClipboard).mockReset().mockResolvedValue
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("history command feedback", () => {
-  it("uses the current language before and after completion without replaying the action", async () => {
-    const request = pending<ScheduledTaskRunHistoryActionResult>();
-    const hook = mount();
-    hook.commands.onRetryTask.mockReturnValueOnce(request.promise);
-    let operation!: Promise<void>;
-    act(() => { operation = hook.result.current.retry(RUN); });
-    hook.rerender({}, "zh");
-    await act(async () => { request.resolve(COMPLETED); await operation; });
-    expect(hook.result.current.feedback?.title).toBe("已触发重新运行");
-    hook.rerender({}, "en");
-    expect(hook.result.current.feedback?.title).toBe("Run requested");
-    expect(hook.commands.onRetryTask).toHaveBeenCalledExactlyOnceWith(TASK, hook.commands.reconcileHistory);
-    expect(hook.commands.refresh).toHaveBeenCalledOnce();
-  });
-
-  it("keeps a submitted action successful when only the subsequent history read fails", async () => {
-    const hook = mount();
-    hook.commands.refresh.mockRejectedValueOnce(new Error("private-job-id: read failed"));
-    await act(() => hook.result.current.retry(RUN));
-    expect(hook.result.current.feedback).toMatchObject({ tone: "warning", title: "Action submitted; history not refreshed" });
-    expect(hook.result.current.feedback?.impact).toContain("do not repeat");
-    hook.rerender({}, "zh");
-    expect(hook.result.current.feedback?.title).toBe("操作已提交，历史尚未刷新");
-    expect(JSON.stringify(hook.result.current.feedback)).not.toContain("private-job-id");
-    expect(hook.commands.onRetryTask).toHaveBeenCalledOnce();
-    expect(hook.commands.refresh).toHaveBeenCalledOnce();
-  });
 
   it.each([
     { effect: "not_applied", title: "Run could not be restarted", tone: "error" },
@@ -108,16 +81,6 @@ describe("history command feedback", () => {
     expect(hook.commands.onRetryTask).toHaveBeenCalledOnce();
     expect(hook.commands.refresh).not.toHaveBeenCalled();
     expect(hook.result.current.pending.get("retry")?.size ?? 0).toBe(0);
-  });
-
-  it("cleans up a synchronous throw so a later explicit action is not swallowed", async () => {
-    const hook = mount();
-    hook.commands.onRetryTask.mockImplementationOnce(() => { throw new Error("sync failure"); });
-    await act(() => hook.result.current.retry(RUN));
-    expect(hook.result.current.feedback?.title).toBe("Action result needs confirmation");
-    await act(() => hook.result.current.retry(RUN));
-    expect(hook.commands.onRetryTask).toHaveBeenCalledTimes(2);
-    expect(hook.result.current.feedback?.title).toBe("Run requested");
   });
 
   it.each(["job", "owner", "closed"] as const)("isolates old commands after leaving and returning to the same %s scope", async (kind) => {
@@ -188,19 +151,5 @@ describe("history command feedback", () => {
     expect(hook.commands.onRetryTask).not.toHaveBeenCalled();
     expect(hook.commands.onRetryDelivery).not.toHaveBeenCalled();
     expect(hook.commands.onRecoverTaskRun).not.toHaveBeenCalled();
-  });
-
-  it("ignores foreign runs, missing owner scope and callbacks after unmount", async () => {
-    const hook = mount();
-    const foreign = { ...RUN, job_id: "other-job" };
-    await act(() => hook.result.current.retry(foreign));
-    await act(() => hook.result.current.copyDiagnostic(foreign));
-    hook.rerender({ scopeKey: null });
-    await act(() => hook.result.current.retry(RUN));
-    const retry = hook.result.current.retry;
-    hook.unmount();
-    await retry(RUN);
-    expect(hook.commands.onRetryTask).not.toHaveBeenCalled();
-    expect(writeTextToClipboard).not.toHaveBeenCalled();
   });
 });

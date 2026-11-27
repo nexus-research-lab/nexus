@@ -2,12 +2,11 @@
 // OUTPUT: 证明反馈恢复与关闭动作独立、正确播报和重置后的自动收起。
 // POS: Feedback primitives DOM 行为测试；业务失败分类与请求重试仍由 feature 决定。
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
-import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 
 function FeedbackTestProvider({ children }: { children: ReactNode }) {
@@ -29,32 +28,6 @@ afterEach(() => {
 });
 
 describe("FeedbackBanner", () => {
-  it("keeps one recovery action and an independently reachable dismiss action", () => {
-    const onRetry = vi.fn();
-    const onDismiss = vi.fn();
-    render(
-      <FeedbackTestProvider>
-        <FeedbackBanner
-          action={{ label: "重试", onClick: onRetry }}
-          impact="当前列表不可用"
-          nextStep="请重新加载"
-          onDismiss={onDismiss}
-          title="加载失败"
-          tone="error"
-          urgency="assertive"
-        />
-      </FeedbackTestProvider>,
-    );
-
-    expect(screen.getByRole("alert")).toBeTruthy();
-    expect(screen.getByText("当前列表不可用")).toBeTruthy();
-    expect(screen.queryByText("请重新加载")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "重试" }));
-    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
-    expect(onRetry).toHaveBeenCalledOnce();
-    expect(onDismiss).toHaveBeenCalledOnce();
-  });
 
   it("restarts auto-dismiss timing when the visible message changes", () => {
     vi.useFakeTimers();

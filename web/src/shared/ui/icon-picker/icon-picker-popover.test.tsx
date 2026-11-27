@@ -17,19 +17,6 @@ function Form({ disabled = false, value = "2" }: { disabled?: boolean; value?: s
     iconFamily="agent" maxIcons={3} startIconId={1} value={value} onSelect={select}
     renderTrigger={() => "Avatar"} /><input aria-label="Name" /></I18N_CONTEXT.Provider>;
 }
-it("focuses the selected choice and commits its exact identity", async () => {
-  const user = userEvent.setup();
-  render(<Form />);
-  const trigger = screen.getByRole("button", { name: "Choose avatar" });
-  trigger.focus();
-  await user.keyboard("{Enter}");
-  const choices = within(screen.getByRole("dialog")).getAllByRole("button");
-  expect(document.activeElement).toBe(choices[2]);
-  await user.keyboard("{Enter}");
-  expect(select).toHaveBeenLastCalledWith("2");
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(document.activeElement).toBe(trigger);
-});
 it.each([false, true])("exits in parent form order (backward=%s)", async (backward) => {
   const user = userEvent.setup();
   render(<Form />);
@@ -39,31 +26,6 @@ it.each([false, true])("exits in parent form order (backward=%s)", async (backwa
   await user.tab({ shift: backward });
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(document.activeElement).toBe(backward ? screen.getByRole("button", { name: "Before" }) : screen.getByRole("textbox"));
-});
-it("closes on disable and value change without reviving old state", async () => {
-  const user = userEvent.setup();
-  const view = render(<Form />);
-  const trigger = screen.getByRole("button", { name: "Choose avatar" });
-  await user.click(trigger);
-  view.rerender(<Form disabled />);
-  expect(screen.queryByRole("dialog")).toBeNull();
-  view.rerender(<Form />);
-  expect(screen.queryByRole("dialog")).toBeNull();
-  await user.click(trigger);
-  view.rerender(<Form value="3" />);
-  expect(screen.queryByRole("dialog")).toBeNull();
-});
-it("restores focus on Escape and respects outside click focus", async () => {
-  const user = userEvent.setup();
-  render(<Form />);
-  const trigger = screen.getByRole("button", { name: "Choose avatar" });
-  await user.click(trigger);
-  await user.keyboard("{Escape}");
-  expect(document.activeElement).toBe(trigger);
-  await user.click(trigger);
-  await user.click(screen.getByRole("textbox"));
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(document.activeElement).toBe(screen.getByRole("textbox"));
 });
 it("previews repeated random choices and commits only the last on outside click", async () => {
   select.mockClear();

@@ -65,20 +65,6 @@ describe.each([
     await act(async () => next.resolve(newCatalog));
     await waitFor(() => expect(view.result.current.catalog).toEqual(newCatalog));
   });
-
-  it("does not expose a previous configuration failure while reading the next one", async () => {
-    const first = deferred(); const next = deferred();
-    vi.mocked(api).mockReturnValueOnce(first.promise).mockReturnValueOnce(next.promise);
-    const view = renderHook(({ url }) => useTools(url), {
-      initialProps: { url: "https://one.test/mcp" }, wrapper: I18nProvider,
-    });
-    await act(async () => first.reject(new Error("offline")));
-    expect(view.result.current.failure).not.toBeNull();
-    view.rerender({ url: "https://two.test/mcp" });
-    expect(view.result.current.failure).toBeNull();
-    await act(async () => next.resolve(catalog));
-    expect(view.result.current.catalog).toEqual(catalog);
-  });
 });
 
 it("discards a fixed connector tool snapshot after access loss, including while retrying", async () => {

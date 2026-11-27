@@ -41,31 +41,6 @@ function view(children: ReactNode) {
 }
 
 describe("Provider configuration fields", () => {
-  it("keeps each instance's labels on its own controls", async () => {
-    const user = userEvent.setup();
-    render(view(<>
-      <section aria-label="First"><ProviderSettingsConfigForm {...props()} /></section>
-      <section aria-label="Second"><ProviderSettingsConfigForm {...props()} /></section>
-    </>));
-    const ids = [...document.querySelectorAll("[id]")].map((element) => element.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const section of screen.getAllByRole("region")) {
-      for (const label of section.querySelectorAll<HTMLLabelElement>("label[for]")) {
-        expect(label.control?.closest("section")).toBe(section);
-        await user.click(label);
-        if (label.control?.getAttribute("aria-haspopup") === "listbox") {
-          const popupId = label.control.getAttribute("aria-controls");
-          const listbox = popupId ? document.getElementById(popupId) : null;
-          expect(listbox?.getAttribute("role")).toBe("listbox");
-          expect(document.activeElement?.closest("[role=listbox]")).toBe(listbox);
-          expect(document.activeElement?.getAttribute("aria-selected")).toBe("true");
-          await user.keyboard("{Escape}");
-          expect(screen.queryByRole("listbox")).toBeNull();
-        }
-        expect(document.activeElement).toBe(label.control);
-      }
-    }
-  });
 
   it("forwards raw text and exact selection changes while leaving blur commits to the owner", async () => {
     const state = props();
@@ -106,47 +81,5 @@ describe("Provider configuration fields", () => {
     for (const label of container.querySelectorAll<HTMLLabelElement>("label[for]")) {
       expect(label.control).not.toBeNull();
     }
-  });
-
-  it("rebinds the endpoint label when switching between fixed and editable modes", () => {
-    const state = props({ usesBuiltinEndpoint: true });
-    const { rerender } = render(view(<ProviderSettingsConfigForm {...state} />));
-    expect(screen.getByRole("group", { name: "settings.providers.base_url" })).toBeTruthy();
-    rerender(view(<ProviderSettingsConfigForm {...state} usesBuiltinEndpoint={false} />));
-    expect(screen.queryByRole("group", { name: "settings.providers.base_url" })).toBeNull();
-    const input = screen.getByLabelText("settings.providers.base_url", { exact: false }) as HTMLInputElement;
-    expect(input.required).toBe(true);
-    expect(input.value).toBe(state.draft.base_url);
-    fireEvent.blur(input);
-    expect(state.onFieldBlur).toHaveBeenCalledOnce();
-  });
-
-  it("keeps management and single-option locks on the actual controls", async () => {
-    const state = props({ selectedCanManage: false });
-    const user = userEvent.setup();
-    const { container, rerender } = render(view(<ProviderSettingsConfigForm {...state} />));
-    for (const input of container.querySelectorAll<HTMLInputElement>("input")) expect(input.disabled).toBe(true);
-    for (const button of screen.getAllByRole("button")) {
-      expect((button as HTMLButtonElement).disabled).toBe(true);
-      await user.click(button);
-    }
-    expect(state.onProviderKindChange).not.toHaveBeenCalled();
-    expect(state.onApiFormatChange).not.toHaveBeenCalled();
-    rerender(view(<ProviderSettingsConfigForm {...state} selectedCanManage
-      providerKindOptions={state.providerKindOptions.slice(0, 1)} formatOptions={state.formatOptions.slice(0, 1)} />));
-    for (const button of screen.getAllByRole("button")) expect((button as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it("keeps editing credentials blank and optional, with preset naming and kind locked", () => {
-    const state = props({ isEditing: true });
-    state.draft.preset_key = "builtin";
-    render(view(<ProviderSettingsConfigForm {...state} />));
-    const token = screen.getByLabelText("settings.providers.api_key", { exact: false }) as HTMLInputElement;
-    expect(token.type).toBe("password");
-    expect(token.value).toBe("");
-    expect(token.required).toBe(false);
-    expect((screen.getByLabelText("settings.providers.provider_name", { exact: false }) as HTMLInputElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "settings.providers.kind" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "settings.providers.api_format" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });

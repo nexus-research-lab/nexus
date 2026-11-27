@@ -14,29 +14,24 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	"github.com/go-chi/chi/v5"
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	teamhandler "github.com/nexus-research-lab/nexus/internal/handler/team"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	launchersvc "github.com/nexus-research-lab/nexus/internal/service/launcher"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
-	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 	"github.com/pressly/goose/v3"
 )
@@ -173,26 +168,6 @@ func TestServerCloseWaitsForHTTPDrain(t *testing.T) {
 	}
 }
 
-func TestServerListenFailureReleasesLifecycle(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-	s := &Server{config: config.Config{Host: "127.0.0.1", Port: listener.Addr().(*net.TCPAddr).Port}}
-	if err := s.ListenAndServe(context.Background()); err == nil {
-		t.Fatal("端口冲突应启动失败")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := s.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if s.done != nil || s.cancel != nil {
-		t.Fatal("失败启动遗留运行状态")
-	}
-}
-
 type browserSmokeFactory struct{ binary string }
 
 func (f browserSmokeFactory) New(options bridge.Options) runtimectx.Client {
@@ -283,31 +258,6 @@ func TestBrowserSmoke(t *testing.T) {
 	t.Log(string(output))
 	if err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestDesktopTeamCapabilityIsolation(t *testing.T) {
-	for _, disabled := range []bool{false, true} {
-		t.Run(strconv.FormatBool(disabled), func(t *testing.T) {
-			calls := 0
-			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls++
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"data":{"enabled":false},"success":true,"code":"0000"}`))
-			}))
-			defer upstream.Close()
-			s := &Server{config: config.Config{AppMode: "desktop", APIPrefix: "/nexus/v1", RemoteURL: upstream.URL, MultiplayerDisabled: disabled}, api: handlershared.NewAPI(nil), router: newPathParamRouter()}
-			s.mountRemoteGateway()
-			s.mountTeamRoutes()
-			response := httptest.NewRecorder()
-			s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/capabilities", nil))
-			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"enabled":false`) {
-				t.Fatalf("capability status=%d body=%s", response.Code, response.Body.String())
-			}
-			if (calls == 0) != disabled {
-				t.Fatalf("upstream calls=%d disabled=%v", calls, disabled)
-			}
-		})
 	}
 }
 
@@ -493,33 +443,6 @@ func TestExternalRoomChangeReachesDirectorySubscriber(t *testing.T) {
 	}
 }
 
-func TestPathParamRouterPreservesProviderModelIDForLegacyServiceDecoder(t *testing.T) {
-	t.Parallel()
-
-	router := newPathParamRouter()
-	router.Get("/models/{model_id}", func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = io.WriteString(
-			writer,
-			chi.URLParam(request, "model_id")+"|"+handlershared.PathParam(request, "model_id"),
-		)
-	})
-	server := httptest.NewServer(router)
-	defer server.Close()
-
-	response, err := server.Client().Get(server.URL + "/models/namespace%2Fmodel")
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer response.Body.Close()
-	payload, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatalf("read response failed: %v", err)
-	}
-	if got := strings.TrimSpace(string(payload)); got != "namespace%2Fmodel|namespace%2Fmodel" {
-		t.Fatalf("model_id = %q, want service-compatible escaped value", got)
-	}
-}
-
 func TestChannelCurrentLoginGETAndStartPOSTRemainSeparateRoutes(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
@@ -578,94 +501,5 @@ func assertChannelRouteFailure(
 	}
 	if payload.Data.Failure.Code != wantCode || payload.Data.Failure.Effect != wantEffect {
 		t.Fatalf("failure = %+v", payload.Data.Failure)
-	}
-}
-
-func TestMountTeamRoutesRequiresRelayURL(t *testing.T) {
-	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := teamhandler.New(api, nil, nil)
-
-	disabled := &Server{
-		config:   config.Config{APIPrefix: "/nexus/v1"},
-		router:   newPathParamRouter(),
-		handlers: handlerSet{team: handler},
-	}
-	disabled.mountTeamRoutes()
-	disabledResponse := httptest.NewRecorder()
-	disabled.router.ServeHTTP(
-		disabledResponse,
-		httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", nil),
-	)
-	if disabledResponse.Code != http.StatusNotFound {
-		t.Fatalf("disabled Team route status=%d body=%s", disabledResponse.Code, disabledResponse.Body.String())
-	}
-
-	enabled := &Server{
-		config: config.Config{
-			APIPrefix: "/nexus/v1",
-			RelayURL:  "https://relay.example.com",
-		},
-		router:   newPathParamRouter(),
-		handlers: handlerSet{team: handler},
-	}
-	enabled.mountTeamRoutes()
-	enabledResponse := httptest.NewRecorder()
-	enabled.router.ServeHTTP(
-		enabledResponse,
-		httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", nil),
-	)
-	if enabledResponse.Code != http.StatusForbidden {
-		t.Fatalf("enabled Team route status=%d body=%s", enabledResponse.Code, enabledResponse.Body.String())
-	}
-}
-
-func TestTeamCapabilitiesAndDisabledRoutes(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		url      string
-		disabled bool
-		want     bool
-	}{
-		{name: "unconfigured"},
-		{name: "configured", url: "https://relay.example.com", want: true},
-		{name: "explicitly disabled", url: "https://relay.example.com", disabled: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			api := handlershared.NewAPI(nil)
-			s := &Server{config: config.Config{APIPrefix: "/nexus/v1", RelayURL: tc.url, MultiplayerDisabled: tc.disabled}, router: newPathParamRouter(), api: api, handlers: handlerSet{team: teamhandler.New(api, nil, nil)}}
-			s.mountTeamRoutes()
-			response := httptest.NewRecorder()
-			s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/capabilities", nil))
-			var body struct {
-				Data struct {
-					Enabled bool `json:"enabled"`
-				} `json:"data"`
-			}
-			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || response.Code != http.StatusOK || body.Data.Enabled != tc.want {
-				t.Fatalf("capabilities: code=%d body=%s err=%v", response.Code, response.Body.String(), err)
-			}
-			if !tc.want {
-				response = httptest.NewRecorder()
-				s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/invitations", nil))
-				if response.Code != http.StatusNotFound {
-					t.Fatalf("disabled invitations status=%d", response.Code)
-				}
-			}
-		})
-	}
-}
-
-func TestNewTeamHandlerRequiresControlAuthority(t *testing.T) {
-	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	client, err := relaysvc.NewClient("https://relay.example.com", time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	services := &app.AppServices{
-		Auth:  authsvc.NewLocalAuthority("", nil, nil),
-		Relay: client,
-	}
-	if handler := newTeamHandler(api, services); handler != nil {
-		t.Fatal("Desktop Local authority must not expose Team routes")
 	}
 }

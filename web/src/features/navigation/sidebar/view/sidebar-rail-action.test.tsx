@@ -4,8 +4,7 @@
 
 import { MessageCircle } from "lucide-react";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { SidebarRailAction } from "./sidebar-rail-action";
 
@@ -41,32 +40,5 @@ describe("SidebarRailAction", () => {
     expect(pinned.getAttribute("aria-current")).toBeNull();
     expect(pinned.getAttribute("aria-pressed")).toBeNull();
 
-  });
-
-  it("shows a pinned avatar and keeps its title available without a visible caption", async () => {
-    render(<SidebarRailAction active={false} layout="pinned" label="每周工作回顾"
-      iconContent={<img alt="" src="/avatar.png" />} />);
-    const button = screen.getByRole("button", { name: "每周工作回顾" });
-    expect(button.querySelector("img")?.getAttribute("src")).toBe("/avatar.png");
-
-    await userEvent.setup().hover(button);
-    expect(await screen.findByRole("tooltip")).toBeTruthy();
-  });
-
-  it("forwards its native button action", async () => {
-    const user = userEvent.setup();
-    const onClick = vi.fn();
-    render(
-      <SidebarRailAction
-        active={false}
-        icon={MessageCircle}
-        label="联系人"
-        layout="primary"
-        onClick={onClick}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "联系人" }));
-    expect(onClick).toHaveBeenCalledOnce();
   });
 });

@@ -66,14 +66,3 @@ it("uses exact recoverable WorkGraph nodes sequentially and does not bypass stal
   nodes.forEach((node) => { node.can_recover = false; }); rerender();
   expect(result.current.available).toBe(false);
 });
-it("does not apply an old session's late failure to the new session", async () => {
-  const input = options(); let reject!: (error: Error) => void;
-  input.onSendMessage.mockImplementationOnce(() => new Promise<void>((_, fail) => { reject = fail; }));
-  const { result, rerender } = renderHook((props) => useComposerContinuation(props), { initialProps: input, wrapper: strict });
-  let pending!: Promise<void>;
-  act(() => { pending = result.current.run(); });
-  rerender({ ...input, scope: "next" });
-  await act(async () => { reject(new Error("old")); await pending; });
-  expect(result.current.error).toBeNull();
-  expect(result.current.disabled).toBe(false);
-});

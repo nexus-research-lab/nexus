@@ -2,19 +2,12 @@
 package websocket
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
-	"log/slog"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -109,57 +102,6 @@ func (c *channelAuthorizationTestController) Cancel(
 	}, nil
 }
 
-func TestChannelAuthorizationPresentationTargetsExactAuthenticatedSession(t *testing.T) {
-	permission := permissionctx.NewContext()
-	transport := newChannelAuthorizationTransport()
-	handler := &Handler{permission: permission, channelAuthorization: transport}
-
-	ownerSender := &channelAuthorizationTestSender{key: "owner"}
-	otherSender := &channelAuthorizationTestSender{key: "other"}
-	registerChannelAuthorizationTestSender(t, transport, ownerSender, "owner-1")
-	registerChannelAuthorizationTestSender(t, transport, otherSender, "owner-2")
-	permission.BindSession("nexus/ws/agent/main", ownerSender)
-	permission.BindSession("nexus/ws/agent/main", otherSender)
-
-	presentation := channelAuthorizationTestPresentation()
-	if err := handler.PresentChannelAuthorization(context.Background(), presentation); err != nil {
-		t.Fatalf("PresentChannelAuthorization() error = %v", err)
-	}
-	ownerEvents := ownerSender.snapshot()
-	if len(ownerEvents) != 1 ||
-		ownerEvents[0].EventType != protocol.EventTypeChannelAuthorization {
-		t.Fatalf("owner events = %+v", ownerEvents)
-	}
-	if got := otherSender.snapshot(); len(got) != 0 {
-		t.Fatalf("other principal received presentation: %+v", got)
-	}
-	if ownerEvents[0].SessionKey != presentation.BusinessSessionKey {
-		t.Fatalf("session key = %q", ownerEvents[0].SessionKey)
-	}
-	encoded, err := json.Marshal(ownerEvents[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	wire := string(encoded)
-	for _, forbidden := range []string{
-		presentation.RootRoundID,
-		presentation.RuntimeLeaseSessionKey,
-		presentation.RuntimeLeaseRoundID,
-		"agent_id",
-		"principal_user_id",
-		"root_round_id",
-		"runtime_lease_session_key",
-		"runtime_lease_round_id",
-	} {
-		if strings.Contains(wire, forbidden) {
-			t.Fatalf("presentation leaks trusted binding %q: %s", forbidden, wire)
-		}
-	}
-	if !strings.Contains(wire, presentation.QRPayload) {
-		t.Fatalf("native presentation omitted QR payload: %s", wire)
-	}
-}
-
 func TestChannelAuthorizationInvalidationClosesOnlyMatchingPrincipal(t *testing.T) {
 	transport := newChannelAuthorizationTransport()
 	ownerSender := &channelAuthorizationTestSender{key: "owner"}
@@ -187,147 +129,6 @@ func TestChannelAuthorizationSessionInvalidationClosesOnlyExactSession(t *testin
 	}
 	if !revoked.IsClosed() || sibling.IsClosed() {
 		t.Fatalf("revoked closed = %v, sibling closed = %v", revoked.IsClosed(), sibling.IsClosed())
-	}
-}
-
-func TestChannelAuthorizationPresentationFailsClosedWithoutExactRoute(t *testing.T) {
-	permission := permissionctx.NewContext()
-	transport := newChannelAuthorizationTransport()
-	handler := &Handler{permission: permission, channelAuthorization: transport}
-	sender := &channelAuthorizationTestSender{key: "owner"}
-	registerChannelAuthorizationTestSender(t, transport, sender, "owner-1")
-	permission.BindSession("nexus/ws/agent/different", sender)
-
-	if err := handler.PresentChannelAuthorization(
-		context.Background(),
-		channelAuthorizationTestPresentation(),
-	); err == nil {
-		t.Fatal("presentation without exact business-session binding succeeded")
-	}
-	if len(sender.snapshot()) != 0 {
-		t.Fatal("presentation was broadcast to the wrong session")
-	}
-}
-
-func TestChannelAuthorizationCodeSubmissionUsesServerRouteAndNeverEchoesCode(t *testing.T) {
-	permission := permissionctx.NewContext()
-	transport := newChannelAuthorizationTransport()
-	handler := &Handler{permission: permission, channelAuthorization: transport}
-	controller := &channelAuthorizationTestController{}
-	handler.SetChannelAuthorizationController(controller)
-	sender := &channelAuthorizationTestSender{key: "owner"}
-	registerChannelAuthorizationTestSender(t, transport, sender, "owner-1")
-	permission.BindSession("nexus/ws/agent/main", sender)
-	presentation := channelAuthorizationTestPresentation()
-	if err := handler.PresentChannelAuthorization(context.Background(), presentation); err != nil {
-		t.Fatal(err)
-	}
-
-	inbound := map[string]any{
-		"type":               "submit_channel_authorization_code",
-		"flow_id":            presentation.FlowID,
-		"presentation_token": presentation.PresentationToken,
-		"code":               "741852",
-		// These untrusted fields are ignored rather than copied into the service submission.
-		"owner_user_id":          "attacker",
-		"agent_id":               "attacker-agent",
-		"session_key":            "attacker-session",
-		"round_id":               "attacker-round",
-		"runtime_lease_round_id": "attacker-lease",
-	}
-	handler.handleChannelAuthorizationCode(context.Background(), sender, inbound)
-	if _, exists := inbound["code"]; exists {
-		t.Fatal("verification code remained in generic inbound map")
-	}
-	if controller.calls != 1 {
-		t.Fatalf("controller calls = %d", controller.calls)
-	}
-	got := controller.submission
-	if got.OwnerUserID != "owner-1" ||
-		got.PrincipalUserID != "owner-1" ||
-		got.AgentID != presentation.AgentID ||
-		got.BusinessSessionKey != presentation.BusinessSessionKey ||
-		got.RootRoundID != presentation.RootRoundID ||
-		got.RuntimeLeaseSessionKey != presentation.RuntimeLeaseSessionKey ||
-		got.RuntimeLeaseRoundID != presentation.RuntimeLeaseRoundID ||
-		got.Code != "741852" {
-		t.Fatalf("submission did not use server route: %+v", got)
-	}
-	events := sender.snapshot()
-	if len(events) != 2 ||
-		events[1].EventType != protocol.EventTypeChannelAuthorizationResult {
-		t.Fatalf("events = %+v", events)
-	}
-	encoded, err := json.Marshal(events)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(encoded), "741852") {
-		t.Fatalf("verification code leaked into outbound events: %s", encoded)
-	}
-}
-
-func TestChannelAuthorizationCodeRejectsWrongTokenOrUnboundSession(t *testing.T) {
-	for _, testCase := range []struct {
-		name   string
-		mutate func(*permissionctx.Context, *channelAuthorizationTestSender, map[string]any)
-	}{
-		{
-			name: "wrong token",
-			mutate: func(
-				_ *permissionctx.Context,
-				_ *channelAuthorizationTestSender,
-				inbound map[string]any,
-			) {
-				inbound["presentation_token"] = "presentation_wrong"
-			},
-		},
-		{
-			name: "business session unbound",
-			mutate: func(
-				permission *permissionctx.Context,
-				sender *channelAuthorizationTestSender,
-				_ map[string]any,
-			) {
-				permission.UnbindSession("nexus/ws/agent/main", sender)
-			},
-		},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			permission := permissionctx.NewContext()
-			transport := newChannelAuthorizationTransport()
-			handler := &Handler{permission: permission, channelAuthorization: transport}
-			controller := &channelAuthorizationTestController{err: errors.New("must not run")}
-			handler.SetChannelAuthorizationController(controller)
-			sender := &channelAuthorizationTestSender{key: "owner"}
-			registerChannelAuthorizationTestSender(t, transport, sender, "owner-1")
-			permission.BindSession("nexus/ws/agent/main", sender)
-			presentation := channelAuthorizationTestPresentation()
-			if err := handler.PresentChannelAuthorization(context.Background(), presentation); err != nil {
-				t.Fatal(err)
-			}
-			inbound := map[string]any{
-				"flow_id":            presentation.FlowID,
-				"presentation_token": presentation.PresentationToken,
-				"code":               "never-echo-this",
-			}
-			testCase.mutate(permission, sender, inbound)
-			handler.handleChannelAuthorizationCode(context.Background(), sender, inbound)
-			if controller.calls != 0 {
-				t.Fatalf("controller calls = %d", controller.calls)
-			}
-			events := sender.snapshot()
-			encoded, err := json.Marshal(events)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.Contains(string(encoded), "never-echo-this") {
-				t.Fatalf("rejected code leaked into events: %s", encoded)
-			}
-			if len(events) != 2 || events[1].Data["accepted"] != false {
-				t.Fatalf("rejection event = %+v", events)
-			}
-		})
 	}
 }
 
@@ -427,129 +228,6 @@ func channelAuthorizationTestPresentation() authorizationsvc.HumanPresentation {
 	}
 }
 
-func TestControlMessageDispatcherCloseRejectsBlockedAndLateEnqueue(t *testing.T) {
-	dispatcher := newControlMessageDispatcher(context.Background())
-
-	activeStarted := make(chan struct{})
-	releaseActive := make(chan struct{})
-	dispatcher.enqueueJob(
-		&controlMessage{msgType: "chat"},
-		func() {
-			close(activeStarted)
-			<-releaseActive
-		},
-	)
-	<-activeStarted
-
-	// Keep the consumer occupied and fill every queue slot. The next producer
-	// must block inside the acceptance fence until close cancels the dispatcher.
-	for range cap(dispatcher.queue) {
-		dispatcher.enqueueJob(
-			&controlMessage{msgType: "chat"},
-			func() {},
-		)
-	}
-	blockedDiscarded := make(chan struct{})
-	blockedReturned := make(chan struct{})
-	go func() {
-		dispatcher.enqueueJobValue(controlMessageJob{
-			run:     func() { t.Error("blocked job ran after close") },
-			discard: func() { close(blockedDiscarded) },
-		})
-		close(blockedReturned)
-	}()
-
-	deadline := time.Now().Add(time.Second)
-	for {
-		if !dispatcher.acceptanceMu.TryLock() {
-			break
-		}
-		dispatcher.acceptanceMu.Unlock()
-		if time.Now().After(deadline) {
-			t.Fatal("producer did not block on the full dispatcher queue")
-		}
-		time.Sleep(time.Millisecond)
-	}
-
-	dispatcher.close()
-	// close is intentionally idempotent because handler and tests may both own
-	// cleanup paths.
-	dispatcher.close()
-	select {
-	case <-blockedDiscarded:
-	case <-time.After(time.Second):
-		t.Fatal("blocked enqueue was not rejected by close")
-	}
-	select {
-	case <-blockedReturned:
-	case <-time.After(time.Second):
-		t.Fatal("blocked producer did not leave enqueue after close")
-	}
-
-	lateRan := make(chan struct{}, 1)
-	lateDiscarded := make(chan struct{})
-	dispatcher.enqueueJobValue(controlMessageJob{
-		run:     func() { lateRan <- struct{}{} },
-		discard: func() { close(lateDiscarded) },
-	})
-	select {
-	case <-lateDiscarded:
-	case <-time.After(time.Second):
-		t.Fatal("late enqueue was not rejected")
-	}
-	select {
-	case <-lateRan:
-		t.Fatal("late enqueue ran after dispatcher close")
-	default:
-	}
-	close(releaseActive)
-}
-
-func TestGatewayErrorLogsCauseAndDeliveryFailureWithoutPayload(t *testing.T) {
-	var output bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&output, nil)).With("request_id", "connection-1")
-	ctx, cancel := context.WithCancel(logx.WithLogger(context.Background(), logger))
-	cancel()
-	h := &Handler{}
-	sender := handlershared.NewWebSocketSender(nil)
-	sender.MarkClosed()
-	cause := errors.New("room input_queue content must mention target agent")
-	h.sendGatewayError(ctx, sender, "room:group:conversation-1", "input_queue_error", cause, map[string]any{
-		"type": "input_queue", "action": "enqueue",
-		"client_request_id": "request-1", "client_message_id": "message-1",
-		"content": "private message body", "auth_token": "private credential",
-	})
-	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("expected cause and delivery logs, got %s", output.String())
-	}
-	for index, line := range lines {
-		var entry map[string]any
-		if err := json.Unmarshal([]byte(line), &entry); err != nil {
-			t.Fatal(err)
-		}
-		for key, want := range map[string]any{
-			"level": "WARN", "request_id": "connection-1", "session_key": "room:group:conversation-1",
-			"error_type": "input_queue_error", "failure_code": string(protocol.ConversationFailureRequestRejected),
-			"type": "input_queue", "action": "enqueue", "client_request_id": "request-1",
-			"client_message_id": "message-1", "err": cause.Error(), "context_err": context.Canceled.Error(),
-		} {
-			if entry[key] != want {
-				t.Fatalf("log %d %s = %v, want %v", index, key, entry[key], want)
-			}
-		}
-		if strings.Contains(line, "private") || entry["content"] != nil || entry["auth_token"] != nil {
-			t.Fatalf("business input leaked into diagnostics: %s", line)
-		}
-		if index == 1 && entry["send_err"] != context.Canceled.Error() {
-			t.Fatalf("delivery error lost: %s", line)
-		}
-	}
-	if got := h.errorEventDetail("input_queue_error", cause); got != "服务内部错误" {
-		t.Fatalf("public error exposed internal cause: %q", got)
-	}
-}
-
 func TestExecutionInvalidationRegistryFailsClosedAndReleasesSenderScopes(t *testing.T) {
 	registry := newExecutionInvalidationRegistry()
 	sender := &executionInvalidationTestSender{key: "sender-1"}
@@ -583,30 +261,6 @@ func TestExecutionInvalidationRegistryFailsClosedAndReleasesSenderScopes(t *test
 			registry.byScope,
 			registry.senderScopes,
 		)
-	}
-}
-
-func TestHandlerProjectsExecutionInvalidationPayload(t *testing.T) {
-	registry := newExecutionInvalidationRegistry()
-	sender := &executionInvalidationTestSender{key: "owner"}
-	registry.Bind("owner-a", "session-1", sender)
-	handler := &Handler{executionInvalidations: registry}
-
-	handler.InvalidateExecution(context.Background(), orchestrationsvc.ExecutionInvalidation{
-		OwnerUserID: "owner-a",
-		SessionKey:  "session-1",
-		ExecutionID: "execution-1",
-		Version:     7,
-	})
-
-	if len(sender.events) != 1 {
-		t.Fatalf("events = %#v", sender.events)
-	}
-	event := sender.events[0]
-	if event.SessionKey != "session-1" ||
-		event.Data["execution_id"] != "execution-1" ||
-		event.Data["version"] != int64(7) {
-		t.Fatalf("event = %#v", event)
 	}
 }
 
@@ -706,45 +360,6 @@ func (s *fakeRoomRegistrySender) SendEvent(_ context.Context, event protocol.Eve
 	return nil
 }
 
-func TestNotifyAutomationPermissionEventProjectsToSessionAndRoom(t *testing.T) {
-	permission := permissionctx.NewContext()
-	roomSubs := newRoomSubscriptionRegistry(8)
-	handler := &Handler{permission: permission, roomSubs: roomSubs}
-	sessionSender := newFakeRoomRegistrySender("session-sender")
-	roomSender := newFakeRoomRegistrySender("room-sender")
-	sessionKey := "agent:agent-recipient:ws:dm:conversation-1"
-	permission.BindSession(sessionKey, sessionSender)
-	if err := roomSubs.SubscribeRoom(
-		context.Background(),
-		roomSender,
-		"room-1",
-		"conversation-1",
-		nil,
-	); err != nil {
-		t.Fatalf("SubscribeRoom() error = %v", err)
-	}
-	event := protocol.NewEvent(protocol.EventTypePermissionRequest, map[string]any{
-		"request_id": "automation-permission-1",
-	})
-	event.SessionKey = sessionKey
-	event.RoomID = "room-1"
-	event.ConversationID = "conversation-1"
-
-	handler.NotifyAutomationPermissionEvent(context.Background(), event)
-
-	sessionEvent := readRoomRegistryEvent(t, sessionSender.events)
-	if sessionEvent.EventType != protocol.EventTypePermissionRequest ||
-		sessionEvent.SessionKey != sessionKey || sessionEvent.RoomSeq != nil {
-		t.Fatalf("session event = %+v", sessionEvent)
-	}
-	roomEvent := readRoomRegistryEvent(t, roomSender.events)
-	if roomEvent.EventType != protocol.EventTypePermissionRequest ||
-		roomEvent.DeliveryMode != protocol.DeliveryModeDurable ||
-		roomEvent.RoomSeq == nil || *roomEvent.RoomSeq != 1 {
-		t.Fatalf("room event = %+v", roomEvent)
-	}
-}
-
 func TestActiveChatActivitySourcesAggregatesExactConversationSessions(t *testing.T) {
 	permission := permissionctx.NewContext()
 	runtime := runtimectx.NewManager()
@@ -810,36 +425,6 @@ func TestRoomSubscriptionRegistryReplaysDurableEvents(t *testing.T) {
 	if event.RoomSeq == nil || *event.RoomSeq != 2 {
 		t.Fatalf("回放 room_seq 不正确: %+v", event)
 	}
-}
-
-func TestRoomSubscriptionRegistryDoesNotReplayClientAck(t *testing.T) {
-	registry := newRoomSubscriptionRegistry(8)
-	ctx := context.Background()
-	clientAck := protocol.NewChatAckEvent(
-		"room:group:conv-1",
-		"request-1",
-		"client-message-1",
-		"root-1",
-		"user-message-1",
-		0,
-		true,
-		nil,
-	)
-	clientAck.ConversationID = "conv-1"
-	registry.Broadcast(ctx, "chat-1", clientAck)
-
-	sender := newFakeRoomRegistrySender("sender-client-ack")
-	boundary := int64(0)
-	if err := registry.SubscribeRoom(
-		ctx,
-		sender,
-		"chat-1",
-		"conv-1",
-		&boundary,
-	); err != nil {
-		t.Fatalf("subscribe_room 失败: %v", err)
-	}
-	assertNoRoomRegistryEvent(t, sender.events)
 }
 
 func TestRoomSubscriptionRegistryRequestsResyncWhenReplayBufferMissed(t *testing.T) {

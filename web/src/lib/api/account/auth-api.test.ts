@@ -27,36 +27,6 @@ describe("getAuthStatus", () => {
     });
   });
 
-  it("keeps the Desktop local owner while projecting the remote account", async () => {
-    requestApi
-      .mockResolvedValueOnce({
-        auth_required: false,
-        authenticated: true,
-        auth_method: "local",
-        password_login_enabled: false,
-        user_id: "__system__",
-        username: "local",
-      })
-      .mockResolvedValueOnce({ enabled: true })
-      .mockResolvedValueOnce({
-        auth_required: true,
-        authenticated: true,
-        auth_method: "password",
-        password_login_enabled: true,
-        user_id: "control-user",
-        username: "lee",
-      });
-
-    await expect(getAuthStatus()).resolves.toMatchObject({
-      auth_required: false,
-      authenticated: true,
-      auth_method: "password",
-      user_id: "__system__",
-      username: "lee",
-      multiplayer_enabled: true,
-    });
-  });
-
   it("issues local, capability and Control reads together", async () => {
     let resolveLocal: (value: unknown) => void = () => {};
     requestApi

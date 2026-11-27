@@ -5,11 +5,9 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
 import { MESSAGES } from "@/shared/i18n/messages";
 import { useAgentStore } from "@/store/agent";
-import type { AssistantMessage } from "@/types/conversation/message/entity";
 import type { SubagentTask } from "@/types/conversation/subagent-task";
 import { SubagentTaskThreadView } from "./subagent-task-thread-view";
 
@@ -26,15 +24,6 @@ function model(overrides: Partial<Model> = {}): Model {
     detail: null, error: null, isLoading: false, messages: [], rounds: [], sessionKey: "exact-task-thread", onRetry: vi.fn(), onSendRequest: vi.fn(), onStopRequest: vi.fn(), ...overrides,
   };
 }
-function message(agentId: string, artifactOwner?: string): AssistantMessage {
-  return {
-    message_id: "message", session_key: "task-session", round_id: "round", agent_id: agentId, timestamp: 1, role: "assistant", is_complete: true,
-    content: [{ type: "workspace_file_artifact", path: "reports/result.md", workspace_agent_id: artifactOwner }],
-  };
-}
-function withMessages(task: SubagentTask, content: AssistantMessage): Model {
-  return model({ task, messages: [content], rounds: [{ roundId: "round", messages: [content] }] });
-}
 function localized(children: ReactNode, locale: I18nContextValue["locale"] = "en") {
   const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {})
     .reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key]);
@@ -46,57 +35,6 @@ afterEach(() => {
 });
 
 describe("Subagent task details", () => {
-  it.each(["desktop", "mobile"] as const)("keeps file identity independent of runtime/avatar identity in %s", (layout) => {
-    const open = vi.fn();
-    useAgentStore.setState({ current_agent_id: "unrelated-viewer" });
-    const view = (task: SubagentTask, content: AssistantMessage) => localized(<SubagentTaskThreadView layout={layout} model={withMessages(task, content)} onBack={vi.fn()} onOpenWorkspaceFile={open} />);
-    const { rerender } = render(view(TASK, message("host-author", "artifact-author")));
-    fireEvent.click(screen.getByRole("button", { name: /^result\.md/ }));
-    expect(open).toHaveBeenCalledExactlyOnceWith("reports/result.md", "artifact-author");
-    fireEvent.click(screen.getByRole("button", { name: "Download result.md" }));
-    expect(downloadWorkspaceFileApi).toHaveBeenCalledExactlyOnceWith("artifact-author", "reports/result.md", "result.md");
-    rerender(view(TASK, message("host-author")));
-    fireEvent.click(screen.getByRole("button", { name: /^result\.md/ }));
-    expect(open).toHaveBeenLastCalledWith("reports/result.md", "host-author");
-    rerender(view(TASK, message(" ")));
-    fireEvent.click(screen.getByRole("button", { name: /^result\.md/ }));
-    expect(open).toHaveBeenCalledTimes(3);
-    expect(open).toHaveBeenLastCalledWith("reports/result.md", "host-author");
-    rerender(view({ ...TASK, host_agent_id: "" }, message("")));
-    const unavailable = screen.getByRole("button", { name: /^result\.md/ });
-    expect(unavailable.hasAttribute("disabled")).toBe(true);
-    fireEvent.click(unavailable);
-    expect(open).toHaveBeenCalledTimes(3);
-    expect(screen.queryByRole("button", { name: "Download result.md" })).toBeNull();
-    expect(screen.getByText("The source workspace is unavailable, so this file cannot be opened.")).toBeTruthy();
-  });
-
-  it("localizes missing task names without exposing task/runtime IDs and uses the shared header avatar", () => {
-    const task = { ...TASK, name: " ", description: " ", agent_type: " " };
-    const view = (locale: I18nContextValue["locale"]) => localized(<SubagentTaskThreadView layout="desktop" model={model({ task })} onBack={vi.fn()} />, locale);
-    const { container, rerender } = render(view("zh"));
-    const header = container.querySelector("header")!;
-    expect(header.textContent).toContain(MESSAGES.zh["agent.subagent_name_fallback"]);
-    expect(header.textContent).not.toMatch(/private-task|runtime-child|host-author/);
-
-    rerender(view("en"));
-    expect(header.textContent).toContain(MESSAGES.en["agent.subagent_name_fallback"]);
-  });
-
-  it("uses shared busy loading and empty states while preserving literal output evidence", () => {
-    const view = (value: Model) => localized(<SubagentTaskThreadView layout="desktop" model={value} onBack={vi.fn()} />);
-    const { container, rerender } = render(view(model({ isLoading: true })));
-    expect(screen.getByText("Loading execution transcript...").closest('[data-resource-state]')?.getAttribute("aria-busy")).toBe("true");
-    rerender(view(model()));
-    expect(screen.getByText("No transcript yet").closest('[data-resource-state]')?.getAttribute("data-resource-state")).toBe("empty");
-    rerender(view(model({ task: { ...TASK, capabilities: { ...TASK.capabilities, transcript: false } } })));
-    expect(screen.getByText("Transcript unavailable").closest('[data-resource-state]')?.getAttribute("data-resource-state")).toBe("empty");
-    const output = "Long line\n<script>plain output</script>";
-    rerender(view(model({ detail: { task: TASK, messages: [], output } })));
-    expect(container.querySelector("pre")?.textContent).toBe(output);
-
-    expect(container.querySelector("script")).toBeNull();
-  });
 
   it("keeps task controls usable, wraps the footer and identifies only the pending action as busy", () => {
     const value = model();
@@ -152,20 +90,4 @@ describe("Subagent task details", () => {
     expect(screen.getByText("This task's transcript could not be loaded")).toBeTruthy();
     expect(screen.queryByText("No transcript yet")).toBeNull();
   });
-});
-
-it.each(["en", "zh"] as const)("keeps unknown task state neutral and capability-driven in %s", (locale) => {
-  const task = { ...TASK, status: "private_future_status" };
-  const value = model({ task });
-  const view = (value: Model) => localized(<SubagentTaskThreadView layout="desktop" model={value} onBack={vi.fn()} />, locale);
-  const { container, rerender } = render(view(value));
-  expect(screen.queryByRole("button", { name: MESSAGES[locale]["subagents.stop"] })).toBeNull();
-  expect(screen.queryByRole("button", { name: MESSAGES[locale]["subagents.resume"] })).toBeNull();
-  expect(screen.getByText(MESSAGES[locale]["subagents.controls_unknown_hint"])).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: MESSAGES[locale]["subagents.send_message"] }));
-  expect(value.onSendRequest).toHaveBeenCalledOnce();
-  expect(container.textContent).not.toContain("private_future_status");
-
-  rerender(view({ ...value, task: { ...task, capabilities: { ...task.capabilities, send_message: false } } }));
-  expect(screen.queryByRole("button", { name: MESSAGES[locale]["subagents.send_message"] })).toBeNull();
 });

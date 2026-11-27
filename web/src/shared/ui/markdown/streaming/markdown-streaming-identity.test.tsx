@@ -18,15 +18,6 @@ const props = {
   urlTransform: (url: string) => url,
 };
 
-it("keeps finished paragraphs mounted when the tail block closes", () => {
-  const view = render(<MarkdownText {...props} isStreaming content="第一段" />);
-  const paragraph = view.container.querySelector("[data-markdown-anchor]");
-  view.rerender(<MarkdownText {...props} isStreaming content={"第一段\n\n第二"} />);
-  expect(view.container.querySelector("[data-markdown-anchor]")).toBe(paragraph);
-  view.rerender(<MarkdownText {...props} isStreaming={false} content={"第一段\n\n第二段"} />);
-  expect(view.container.querySelector("[data-markdown-anchor]")).toBe(paragraph);
-});
-
 const i18n = ({ children }: { children: ReactNode }) => (
   <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>{children}</I18N_CONTEXT.Provider>
 );

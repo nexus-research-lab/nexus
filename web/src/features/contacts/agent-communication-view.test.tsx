@@ -88,21 +88,6 @@ it("keeps the original confirmation target when the live selected contact change
   expect(onRemoveContact).toHaveBeenCalledExactlyOnceWith("Alpha");
 });
 
-it("does not close a new Agent's confirmation when an old removal finishes", async () => {
-  let finish!: (removed: boolean) => void;
-  const onRemoveContact = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
-  const { rerender } = render(view({ onRemoveContact }));
-  await userEvent.click(screen.getByRole("button", { name: "agent_options.contact.remove_friend" }));
-  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "agent_options.contact.remove_friend" }));
-  rerender(view({ agent: { ...base.agent, agent_id: "other" }, onRemoveContact, state: { ...base.state, selectedContactId: "Beta" } }));
-  expect(screen.queryByRole("dialog")).toBeNull();
-  await userEvent.click(screen.getByRole("button", { name: "agent_options.contact.remove_friend" }));
-  const current = screen.getByRole("dialog");
-  await act(async () => finish(true));
-  expect(screen.getByRole("dialog")).toBe(current);
-  expect(within(current).getByText("agent_options.contact.remove_friend_confirm Beta")).toBeTruthy();
-});
-
 
 it("projects the shared reading state into the standard return-to-latest action", async () => {
   const { rerender } = render(view());

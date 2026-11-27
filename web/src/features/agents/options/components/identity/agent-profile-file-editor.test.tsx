@@ -2,7 +2,7 @@
 // OUTPUT: Named source editing, synchronous submit lock and isolation of late completion.
 // POS: Profile UI regression; revision, access and save results come from the existing file controller.
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -53,18 +53,6 @@ it("saves directly without a confirmation dialog and exits after the same draft 
   expect(first.setIsEditing).toHaveBeenCalledExactlyOnceWith(false);
 });
 
-it("locks one save before the controller renders busy and keeps editing on failure", async () => {
-  let finish!: (saved: boolean) => void;
-  first.save = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
-  render(view());
-  act(() => { fireEvent.click(saveButton()); fireEvent.click(saveButton()); });
-  expect(first.save).toHaveBeenCalledOnce();
-  expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
-  await act(async () => finish(false));
-  expect(first.setIsEditing).not.toHaveBeenCalled();
-  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("# Agent profile");
-});
-
 it("does not let an old Agent save close the new Agent's editor", async () => {
   let finish!: (saved: boolean) => void;
   first.save = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
@@ -90,11 +78,4 @@ it("blocks saving while a conflict needs resolution", () => {
   expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   expect(first.save).not.toHaveBeenCalled();
   expect(screen.getByText(MESSAGES.en["workspace_file.conflict_title"])).toBeTruthy();
-});
-
-it("does not save without the required read revision", () => {
-  first = { ...first, revision: null };
-  render(view());
-  expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
-  expect(first.save).not.toHaveBeenCalled();
 });

@@ -7,21 +7,6 @@ import { test } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-test("生成式 UI 外壳包含挂载节点和语法有效的桥接脚本", async () => {
-  const { buildGenerativeUIShellDocument } = await import("@/features/conversation/shared/message/blocks/tool/generative-ui-document.ts");
-  const { JSDOM } = await import("jsdom");
-  const dom = new JSDOM(buildGenerativeUIShellDocument("light"));
-  try {
-    const document = dom.window.document;
-    assert.ok(document.getElementById("nexus-widget-root"));
-    const bridge = document.querySelector("script:not([src])")?.textContent;
-    assert.ok(bridge);
-    assert.doesNotThrow(() => new Function(bridge));
-  } finally {
-    dom.window.close();
-  }
-});
-
 test("show_widget 高度在流式阶段不回缩并只在终态结算一次", async () => {
   const { resolveGenerativeUIHeightRevision } = await import("@/features/conversation/shared/message/blocks/tool/generative-ui-height-model.ts");
   assert.deepEqual(

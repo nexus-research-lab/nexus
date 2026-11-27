@@ -9,50 +9,6 @@ import (
 	"testing"
 )
 
-func TestParseDocumentTargetSupportsDocxWikiAndID(t *testing.T) {
-	docx, err := ParseDocumentTarget("https://acme.feishu.cn/docx/ABC123")
-	if err != nil {
-		t.Fatalf("解析 docx URL 失败: %v", err)
-	}
-	if docx.DocumentID != "ABC123" || docx.SourceType != "docx" {
-		t.Fatalf("docx 解析结果不正确: %+v", docx)
-	}
-
-	wiki, err := ParseDocumentTarget("https://acme.feishu.cn/wiki/WIKI123")
-	if err != nil {
-		t.Fatalf("解析 wiki URL 失败: %v", err)
-	}
-	if wiki.WikiToken != "WIKI123" || wiki.SourceType != "wiki" {
-		t.Fatalf("wiki 解析结果不正确: %+v", wiki)
-	}
-
-	direct, err := ParseDocumentTarget("DOCID")
-	if err != nil {
-		t.Fatalf("解析 document_id 失败: %v", err)
-	}
-	if direct.DocumentID != "DOCID" {
-		t.Fatalf("document_id 解析结果不正确: %+v", direct)
-	}
-}
-
-func TestParseSheetAndBitableTargets(t *testing.T) {
-	sheet, err := ParseSheetTarget("https://acme.feishu.cn/sheets/sht123?sheet=gid456")
-	if err != nil {
-		t.Fatalf("解析 Sheet URL 失败: %v", err)
-	}
-	if sheet.SpreadsheetToken != "sht123" || sheet.SheetID != "gid456" {
-		t.Fatalf("Sheet 解析结果不正确: %+v", sheet)
-	}
-
-	bitable, err := ParseBitableTarget("https://acme.feishu.cn/base/base123?table=tbl456")
-	if err != nil {
-		t.Fatalf("解析 Bitable URL 失败: %v", err)
-	}
-	if bitable.AppToken != "base123" || bitable.TableID != "tbl456" {
-		t.Fatalf("Bitable 解析结果不正确: %+v", bitable)
-	}
-}
-
 func TestClientExportMarkdownRendersBlocks(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer token" {

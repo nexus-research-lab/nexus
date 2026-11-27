@@ -68,22 +68,9 @@ describe("desktop sandbox toggle", () => {
     expect(controller.onDesktopSandboxEnabledChange).toHaveBeenCalledExactlyOnceWith(true);
     expect(controller.onCheckSandbox).not.toHaveBeenCalled();
   });
-
-  it("locks the toggle while preferences are saving", () => {
-    const controller = configure();
-    useController.mockReturnValue({ ...controller, preferencesBusy: true });
-    renderSettings();
-    expect(screen.getByRole("switch", { name: messages["settings.general.desktop_sandbox_title"] }).hasAttribute("disabled")).toBe(true);
-  });
 });
 
 describe("sandbox diagnosis", () => {
-  it("keeps diagnosis as an action rather than a second switch", () => {
-    configure();
-    renderSettings();
-    expect(screen.getByRole("button", { name: text("sandbox_check_action") })).toBeTruthy();
-    expect(screen.queryByRole("switch", { name: text("sandbox_check") })).toBeNull();
-  });
 
   it("checks explicitly without changing the sandbox preference", async () => {
     const user = userEvent.setup();

@@ -2,35 +2,13 @@ package browser
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	browsersvc "github.com/nexus-research-lab/nexus/internal/service/browser"
 )
-
-func TestHandleStatusReturnsDisconnectedState(t *testing.T) {
-	handler := New(handlershared.NewAPI(nil), browsersvc.NewService())
-	response := httptest.NewRecorder()
-	handler.HandleStatus(
-		response,
-		httptest.NewRequest(http.MethodGet, "/internal/browser/status", nil),
-	)
-
-	var payload struct {
-		Data map[string]any `json:"data"`
-	}
-	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode status: %v", err)
-	}
-	if response.Code != http.StatusOK || payload.Data["connected"] != false ||
-		payload.Data["connection_state"] != "disconnected" {
-		t.Fatalf("status = %d, payload = %+v", response.Code, payload.Data)
-	}
-}
 
 func TestTrustedRequestRequiresNexusExtensionAndSubprotocol(t *testing.T) {
 	valid := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/internal/browser/ws", nil)

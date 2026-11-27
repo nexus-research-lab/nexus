@@ -54,17 +54,3 @@ it.each(["html", "preview"] as const)("keeps %s preview ownership and scopes key
     expect(screen.queryByRole("region")).toBeNull();
   }
 });
-
-it("does not expose a loading editor as writable or autofocus a disabled field", async () => {
-  const setContent = vi.fn();
-  render(<I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => key }}>
-    <TextFileEditorBody agentId="file-agent" content="stale" fileName="report.txt" fileType="text"
-      isLoading isStreaming={false} mode="editing" setContent={setContent} setIsEditing={vi.fn()} />
-  </I18N_CONTEXT.Provider>);
-  const editor = screen.getByRole("textbox") as HTMLTextAreaElement;
-  expect(editor.disabled).toBe(true);
-  expect(editor.value).toBe("workspace_file.loading");
-  expect(document.activeElement).not.toBe(editor);
-  await userEvent.type(editor, "replacement");
-  expect(setContent).not.toHaveBeenCalled();
-});

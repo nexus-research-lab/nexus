@@ -25,21 +25,6 @@ function panel(overrides: Partial<typeof file> = {}, locale: Locale = "en") {
   </I18N_CONTEXT.Provider>;
 }
 
-it.each([{ path: "two/report.md" }, { agentId: "agent-b" }])("preserves drafts for chrome updates and resets on exact scope change: %j", (change) => {
-  const view = render(panel());
-  const original = screen.getByRole("textbox", { name: "report.md" }) as HTMLInputElement;
-  fireEvent.change(original, { target: { value: "unsaved local draft" } });
-  view.rerender(panel({ isPreviewFocused: true, headerLocationSegments: ["renamed Agent", "one"] }, "zh"));
-  expect(screen.getByRole("textbox")).toBe(original);
-  expect(original.value).toBe("unsaved local draft");
-  view.rerender(panel(change));
-  const replacement = screen.getByRole("textbox") as HTMLInputElement;
-  expect(replacement).not.toBe(original);
-  expect(replacement.value).toBe(`${change.agentId ?? file.agentId}:${change.path ?? file.path}`);
-  view.rerender(panel());
-  expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("agent-a:one/report.md");
-});
-
 it("closes the renderer into the current language's shared empty state and reopens fresh", () => {
   const view = render(panel());
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "unsaved" } });

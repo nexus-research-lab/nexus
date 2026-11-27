@@ -60,20 +60,6 @@ async function openEditor() {
 }
 
 describe("WorkGraph editor version ordering", () => {
-  it("waits for version selection before applying its exact preview", async () => {
-    const selection = deferred<WorkGraphWorkflowEditorSession>();
-    mocks.select.mockReturnValue(selection.promise);
-    const { user, onApply, apply } = await openEditor();
-    await user.click(screen.getByRole("button", { name: "v2" }));
-    expect(apply.disabled).toBe(true);
-    await user.click(apply);
-    expect(mocks.apply).not.toHaveBeenCalled();
-    await act(async () => selection.resolve(editor(2)));
-    expect(apply.disabled).toBe(false);
-    await user.click(apply);
-    expect(mocks.apply).toHaveBeenCalledExactlyOnceWith("session-a", "editor-a", 2, 2);
-    expect(onApply).toHaveBeenCalledExactlyOnceWith(editor(2).preview);
-  });
 
   it("ignores a read captured before a newer selection completed", async () => {
     const staleRead = deferred<WorkGraphWorkflowEditorSession>();

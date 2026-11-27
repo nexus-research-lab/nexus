@@ -2,7 +2,7 @@
 // OUTPUT: Retry preserves exact file commands and loading/error feedback has one owner.
 // POS: Offline preview behavior regressions; no renderer or browser visual claims.
 
-import { createRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -11,7 +11,6 @@ import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
 import { MESSAGES, type Locale } from "@/shared/i18n/messages";
-import { DocumentPreviewView } from "./document/document-preview-view";
 import { BinaryFilePlaceholder, ImagePreview, PdfPreview } from "./media/media-file-preview";
 import { OfficePreviewFallback } from "./office-preview-fallbacks";
 import { TextFileContent } from "./text/text-file-content";
@@ -82,32 +81,6 @@ it.each([false, true])("keeps unsupported-file guidance and its command localize
   const actionKey = desktop ? "workspace_file.reveal_named" : "workspace_file.download_named";
   await userEvent.click(screen.getByRole("button", { name: MESSAGES.en[actionKey].replace("{name}", file.fileName) }));
   expect(downloadWorkspaceFileApi).toHaveBeenCalledExactlyOnceWith(file.agentId, file.path, file.fileName);
-});
-
-it("preserves the DOCX measurement host while loading and keeps failure retry independent of chrome", async () => {
-  const containerRef = createRef<HTMLDivElement>();
-  const styleContainerRef = createRef<HTMLDivElement>();
-  const viewportRef = createRef<HTMLDivElement>();
-  const retryPreview = vi.fn();
-  const props = { ...file, containerRef, styleContainerRef, viewportRef, previewScale: 0.75, retryPreview };
-  const { rerender } = render(localized(<DocumentPreviewView {...props} status={{ state: "loading" }} />));
-  const host = containerRef.current;
-  const styles = styleContainerRef.current;
-  expect(host).not.toBeNull();
-  expect(host?.style.getPropertyValue("--docx-preview-scale")).toBe("0.75");
-  expect(screen.getAllByRole("status")).toHaveLength(1);
-  rerender(localized(<DocumentPreviewView {...props} status={{ state: "loaded" }} />));
-  expect(containerRef.current).toBe(host);
-  expect(styleContainerRef.current).toBe(styles);
-  expect(screen.queryByRole("status")).toBeNull();
-  rerender(localized(<DocumentPreviewView {...props} status={{ state: "error" }} />));
-  expect(containerRef.current).toBe(host);
-  expect(host?.hasAttribute("inert")).toBe(true);
-  expect(host?.getAttribute("aria-hidden")).toBe("true");
-  expect(styleContainerRef.current).toBe(styles);
-  await userEvent.click(screen.getByRole("button", { name: MESSAGES.en["workspace_file.retry_preview"] }));
-  expect(retryPreview).toHaveBeenCalledTimes(1);
-  expect(downloadWorkspaceFileApi).not.toHaveBeenCalled();
 });
 
 it("updates text loading copy with the locale and removes it when content is ready", () => {

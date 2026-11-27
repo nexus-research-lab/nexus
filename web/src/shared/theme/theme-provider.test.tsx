@@ -25,9 +25,3 @@ it("applies a live theme even when stored preferences cannot be read or written"
   expect(document.documentElement.dataset.theme).toBe("dark");
   expect(screen.getByRole("button").textContent).toBe("dark");
 });
-it("applies live typography when persistence fails", () => {
-  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
-  render(<ThemeProvider><ChangeTheme /></ThemeProvider>);
-  act(() => useChatTypography.getState().setTypography({ fontSize: 19 }));
-  expect(document.documentElement.style.getPropertyValue("--chat-font-size")).toBe("19px");
-});

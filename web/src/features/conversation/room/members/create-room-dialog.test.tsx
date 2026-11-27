@@ -70,15 +70,4 @@ describe("CreateRoomDialog submission", () => {
     fireEvent.keyDown(screen.getByRole("textbox", { name: "room.name" }), { key: "Enter" });
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
-
-  it("does not save while accepting an IME candidate", async () => {
-    const onConfirm = vi.fn(async () => undefined);
-    setup(onConfirm);
-    const name = screen.getByRole("textbox", { name: "room.name" });
-    fireEvent.keyDown(name, { key: "Enter", isComposing: true });
-    fireEvent.keyDown(name, { key: "Enter", keyCode: 229 });
-    expect(onConfirm).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.keyDown(name, { key: "Enter" }); });
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-  });
 });

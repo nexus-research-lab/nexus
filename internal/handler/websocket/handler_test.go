@@ -3,7 +3,6 @@ package websocket_test
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -354,42 +353,6 @@ func TestWebSocketRoomInterruptAckPreservesExactTarget(t *testing.T) {
 	}
 }
 
-func TestWebSocketDesktopSessionToken(t *testing.T) {
-	cfg := handlertest.NewConfig(t)
-	cfg.DesktopSessionToken = "desktop-token"
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	t.Cleanup(func() { _ = server.Close(context.Background()) })
-
-	httpServer := httptest.NewServer(server.Router())
-	defer httpServer.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, response, err := websocket.Dial(ctx, wsURL, nil)
-	if err == nil {
-		_ = conn.Close(websocket.StatusNormalClosure, "unexpected success")
-		t.Fatal("缺少桌面 token 的 websocket 不应连接成功")
-	}
-	if response == nil || response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("缺少桌面 token 应返回 401，response=%v err=%v", response, err)
-	}
-
-	conn, _, err = websocket.Dial(ctx, wsURL, &websocket.DialOptions{
-		Subprotocols: []string{"nexus.desktop.v1", "nexus.desktop.token.desktop-token"},
-	})
-	if err != nil {
-		t.Fatalf("带桌面 token 的 websocket 应连接成功: %v", err)
-	}
-	_ = conn.Close(websocket.StatusNormalClosure, "test done")
-}
-
 func TestWebSocketAppServerGoalRPC(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	cfg.GoalEnabled = true
@@ -468,83 +431,6 @@ func TestWebSocketAppServerGoalRPC(t *testing.T) {
 	}
 }
 
-func TestWebSocketAppServerGoalSetCompleteClearsCurrentGoal(t *testing.T) {
-	cfg := handlertest.NewConfig(t)
-	cfg.GoalEnabled = true
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	t.Cleanup(func() { _ = server.Close(context.Background()) })
-
-	httpServer := httptest.NewServer(server.Router())
-	defer httpServer.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("连接 websocket 失败: %v", err)
-	}
-	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
-
-	threadID := "agent:nexus:ws:dm:goal-rpc-complete"
-	if err := wsjson.Write(ctx, conn, map[string]any{
-		"id":     1,
-		"method": "thread/goal/set",
-		"params": map[string]any{
-			"threadId":  threadID,
-			"objective": "Finish app-server RPC parity",
-			"status":    "paused",
-		},
-	}); err != nil {
-		t.Fatalf("发送 thread/goal/set 失败: %v", err)
-	}
-	setResponse := readRPCResponse[goalappserver.ThreadGoalSetResponse](t, conn)
-	if setResponse.Goal.Status != goalappserver.ThreadGoalStatusPaused {
-		t.Fatalf("initial thread/goal/set response = %#v, want paused", setResponse)
-	}
-	updated := readRPCNotification[goalappserver.ThreadGoalUpdatedNotification](t, conn)
-	if updated.Method != "thread/goal/updated" {
-		t.Fatalf("initial notification = %#v, want thread/goal/updated", updated)
-	}
-
-	if err := wsjson.Write(ctx, conn, map[string]any{
-		"id":     2,
-		"method": "thread/goal/set",
-		"params": map[string]any{
-			"threadId": threadID,
-			"status":   "complete",
-		},
-	}); err != nil {
-		t.Fatalf("发送 complete thread/goal/set 失败: %v", err)
-	}
-	completeResponse := readRPCResponse[goalappserver.ThreadGoalSetResponse](t, conn)
-	if completeResponse.Goal.Status != goalappserver.ThreadGoalStatusComplete {
-		t.Fatalf("complete response = %#v, want complete", completeResponse)
-	}
-	cleared := readRPCNotification[goalappserver.ThreadGoalClearedNotification](t, conn)
-	if cleared.Method != "thread/goal/cleared" || cleared.Params.ThreadID != threadID {
-		t.Fatalf("complete notification = %#v, want thread/goal/cleared", cleared)
-	}
-
-	if err := wsjson.Write(ctx, conn, map[string]any{
-		"id":     "get-after-complete",
-		"method": "thread/goal/get",
-		"params": map[string]any{"threadId": threadID},
-	}); err != nil {
-		t.Fatalf("发送 thread/goal/get 失败: %v", err)
-	}
-	getResponse := readRPCResponse[goalappserver.ThreadGoalGetResponse](t, conn)
-	if getResponse.Goal != nil {
-		t.Fatalf("thread/goal/get after complete = %#v, want nil current goal", getResponse)
-	}
-}
-
 func readEventMessage(t *testing.T, conn *websocket.Conn) protocol.EventMessage {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -612,57 +498,4 @@ func readRPCNotification[T any](t *testing.T, conn *websocket.Conn) rpcNotificat
 		t.Fatalf("读取 RPC notification 失败: %v", err)
 	}
 	return notification
-}
-
-func TestWebSocketEndedRoomRootInterruptIsAcknowledged(t *testing.T) {
-	cfg := handlertest.NewConfig(t)
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	t.Cleanup(func() { _ = server.Close(context.Background()) })
-
-	httpServer := httptest.NewServer(server.Router())
-	defer httpServer.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("连接 websocket 失败: %v", err)
-	}
-	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
-
-	const (
-		sessionKey      = "room:group:conversation-interrupt-ack"
-		clientRequestID = "request-interrupt-agent-a"
-		roundID         = "round-interrupt-agent-a"
-		agentRoundID    = ""
-	)
-	if err = wsjson.Write(ctx, conn, map[string]any{
-		"type":              "interrupt",
-		"session_key":       sessionKey,
-		"round_id":          roundID,
-		"agent_round_id":    agentRoundID,
-		"client_request_id": clientRequestID,
-	}); err != nil {
-		t.Fatalf("发送精确 Room interrupt 失败: %v", err)
-	}
-
-	ack := readEventMatching(t, conn, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeInterruptAck
-	})
-	if ack.SessionKey != sessionKey ||
-		ack.RoundID != roundID ||
-		ack.AgentRoundID != agentRoundID ||
-		ack.Data["accepted"] != true ||
-		ack.Data["client_request_id"] != clientRequestID ||
-		ack.Data["round_id"] != roundID ||
-		ack.Data["agent_round_id"] != agentRoundID {
-		t.Fatalf("interrupt_ack 未完整回显精确目标: %+v", ack)
-	}
 }

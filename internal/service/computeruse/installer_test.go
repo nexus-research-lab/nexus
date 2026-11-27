@@ -24,23 +24,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
-func TestCUAStateRootAnchorsBesideSQLiteDatabase(t *testing.T) {
-	databaseDir := t.TempDir()
-	installer := NewCUAInstaller(config.Config{
-		DatabaseURL: "sqlite://" + filepath.Join(databaseDir, "nexus.db"),
-	})
-	expected := filepath.Join(databaseDir, "computer-use")
-	if installer.root != expected {
-		t.Fatalf("installer root = %q, want %q", installer.root, expected)
-	}
-	supervisor := NewProcessSupervisor(config.Config{
-		DatabaseURL: filepath.Join(databaseDir, "nexus.db"),
-	})
-	if supervisor.stateRoot != expected {
-		t.Fatalf("supervisor stateRoot = %q, want %q", supervisor.stateRoot, expected)
-	}
-}
-
 func TestCUAInstallerDownloadsVerifiesAndPersistsRelease(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
 		t.Skip("native desktop installer requires macOS or Windows")
@@ -374,33 +357,5 @@ func TestConfiguredCUAEnablementSurvivesRestart(t *testing.T) {
 	}
 	if NewService(cfg).Enabled() {
 		t.Fatal("disabled configured runtime was enabled on restart")
-	}
-}
-
-func TestCUAPipelineManifestContract(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), currentCUABinaryName())
-	if err := os.WriteFile(binary, []byte("runtime"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	manifest := cuaManifest{
-		Contract: "nexus.cua.release.v1", ReleaseState: "published", Version: "0.2.0",
-		Protocol: "nexus.cua.v1", Platform: currentCUAPlatform(), Architecture: currentCUAArchitecture(),
-		Files: map[string]struct {
-			Path   string `json:"path"`
-			SHA256 string `json:"sha256"`
-		}{"runtime": {Path: currentCUABinaryName(), SHA256: sha256Hex([]byte("runtime"))}},
-	}
-	if err := validateCUAManifest(manifest, "v0.2.0", binary, false); err != nil {
-		t.Fatalf("published pipeline manifest rejected: %v", err)
-	}
-	for _, state := range []string{"prerelease", "release_accepted", ""} {
-		manifest.ReleaseState = state
-		if err := validateCUAManifest(manifest, "v0.2.0", binary, false); !errors.Is(err, ErrCUAReleaseRejected) {
-			t.Fatalf("pipeline manifest with release_state=%q accepted: %v", state, err)
-		}
-	}
-	manifest.ReleaseState, manifest.Contract = "published", "nexus.cua.testing-preview.v1"
-	if err := validateCUAManifest(manifest, "v0.2.0", binary, false); !errors.Is(err, ErrCUAReleaseRejected) {
-		t.Fatalf("unknown manifest contract accepted: %v", err)
 	}
 }

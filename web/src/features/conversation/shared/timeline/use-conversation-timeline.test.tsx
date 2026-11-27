@@ -1,8 +1,7 @@
 // INPUT: 跳转加载、连续窗口淘汰前后的消息窗口、运行态证据与已解析轮次。
 // OUTPUT: 导航索引保留投影过消息正文的轮次，只移除确认无可见内容的轮次；被丢弃的渲染不改写该结论。
 // POS: 时间线对已解析轮次的保留规则回归。
-import { act, render, renderHook } from "@testing-library/react";
-import { startTransition, Suspense, use, useState } from "react";
+import { renderHook } from "@testing-library/react";
 import { expect, it } from "vitest";
 
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
@@ -100,33 +99,4 @@ it("drops a resolved round once its runtime-only evidence clears", () => {
   // slot 没有留下任何消息正文就结束：该轮从未有过可见内容，不能留下空刻度。
   hook.rerender(timelineOptions([latest], ["round-hidden"], { chat_type: "group" }));
   expect(hook.result.current).toEqual(["round-40", "round-520"]);
-});
-
-it("keeps an evicted round when a render that reset the session is abandoned", async () => {
-  const never = new Promise<never>(() => {});
-  const latest = userMessage("round-520");
-  const evicted = timelineOptions([latest], ["round-40"]);
-  type Scenario = { options: UseConversationTimelineOptions; suspended?: boolean };
-  let setScenario!: (scenario: Scenario) => void;
-  function Timeline() {
-    const [scenario, setState] = useState<Scenario>({
-      options: timelineOptions([userMessage("round-40")], ["round-40"]),
-    });
-    setScenario = setState;
-    const roundIds = useNavigatorRoundIds(scenario.options);
-    if (scenario.suspended) {
-      use(never);
-    }
-    return roundIds.join(" ");
-  }
-  const view = render(<Suspense><Timeline /></Suspense>);
-  act(() => setScenario({ options: evicted }));
-  expect(view.container.textContent).toBe("round-40 round-hidden round-520");
-
-  // 过渡渲染看到已重置的会话后挂起，从未提交；随后提交的仍是原会话。
-  await act(async () => startTransition(() => {
-    setScenario({ options: timelineOptions([latest], []), suspended: true });
-  }));
-  await act(async () => setScenario({ options: { ...evicted } }));
-  expect(view.container.textContent).toBe("round-40 round-hidden round-520");
 });

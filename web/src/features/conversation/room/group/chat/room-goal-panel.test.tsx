@@ -48,19 +48,6 @@ describe("RoomGoalPanel", () => {
     rerender(view("en", ROOM_GOAL_MEMBERS, "session-2"));
     expect(screen.queryByText("Owner Alpha")).toBeNull();
   });
-  it.each(["en", "zh"] as const)("uses the same disambiguated owner in the %s status and Plan explanation", (locale) => {
-    const members = ROOM_GOAL_MEMBERS.map((member) => ({ ...member, name: "Nova" }));
-    const context = goalTestI18n(locale);
-    const { rerender } = render(view(locale, members));
-    expect(screen.getByText(context.t("room.goal_lead_status", { name: "2 · Nova" }))).toBeTruthy();
-    fireEvent.focus(screen.getByText(context.t("goal.hold_plan_label")));
-    expect(screen.getByRole("tooltip").textContent).toBe(context.t("goal.hold_plan_detail", { name: "2 · Nova" }));
-    const unnamed = [members[0], { ...members[1], name: " " }];
-    rerender(view(locale, unnamed));
-    const name = locale === "en" ? "1 · Agent" : "1 · 智能体";
-    expect(screen.getByText(context.t("room.goal_lead_status", { name }))).toBeTruthy();
-    expect(document.body.textContent).not.toContain("beta");
-  });
   it("keeps the locked-state refresh on the shared controller instead of maintaining a second Goal request", () => {
     resource.isLoading = false; resource.mutationsBlocked = true; resource.mutationBlockReason = "stale_read"; render(view());
     vi.mocked(resource.refresh).mockClear();

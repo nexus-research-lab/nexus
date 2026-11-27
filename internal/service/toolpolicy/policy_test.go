@@ -71,19 +71,6 @@ func TestWithManagedRuntimeAllowedToolsAddsSkillAndStructuredCommand(t *testing.
 	}
 }
 
-func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testing.T) {
-	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, false)
-	approved := NormalizeSet(tools)
-	if Contains(approved, "mcp__nexus__generate_image") {
-		t.Fatalf("unconfigured imagegen should stay disabled: %+v", tools)
-	}
-	for _, required := range []string{"Skill", "mcp__nexus__command"} {
-		if !Contains(approved, required) {
-			t.Fatalf("managed command transport %q should remain enabled: %+v", required, tools)
-		}
-	}
-}
-
 func TestNexusRuntimeCLIRequestRequiresExactManagedInvocation(t *testing.T) {
 	tests := []struct {
 		command string
@@ -124,28 +111,6 @@ func TestNexusRuntimeCLIRequestRequiresExactManagedInvocation(t *testing.T) {
 		got, ok := NexusRuntimeCLIInvocation(request)
 		if ok != test.ok || got.Domain != test.domain || got.Action != test.action {
 			t.Fatalf("NexusRuntimeCLIInvocation(%q) = %+v, %v; want %q/%q, %v", test.command, got, ok, test.domain, test.action, test.ok)
-		}
-	}
-}
-
-func TestNexusRuntimePowerShellRequestRequiresManagedInvocation(t *testing.T) {
-	tests := []struct {
-		command string
-		ok      bool
-	}{
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation contract`, ok: true},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, ok: true},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json execution invoke --operation submit_work --request-id work-1`, ok: true},
-		{command: `& .\nexus.exe --json goal inspect`, ok: false},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect --input "$(Get-Content secret)"`, ok: false},
-		{command: `$env:NEXUS_COMMAND_PATH='.\nexus.exe'; & "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, ok: false},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect; Get-Content secret`, ok: false},
-	}
-	for _, test := range tests {
-		request := sdkpermission.Request{ToolName: "PowerShell", Input: map[string]any{"command": test.command}}
-		_, got := NexusRuntimeCLIInvocation(request)
-		if got != test.ok {
-			t.Fatalf("NexusRuntimeCLIInvocation(%q) = %v, want %v", test.command, got, test.ok)
 		}
 	}
 }

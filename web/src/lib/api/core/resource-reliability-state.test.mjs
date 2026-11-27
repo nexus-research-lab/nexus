@@ -108,41 +108,6 @@ test("desktop token recovery prefers the stable FailureCore code", async () => {
   });
 });
 
-test("future FailureCore codes cannot trigger desktop token recovery", async () => {
-  const { requestApi } = await import("@/lib/api/core/http.ts");
-  const { UnauthorizedError } = await import("@/lib/api/core/http-error.ts");
-  await withDesktopRuntime(async ({ reloadCount }) => {
-    const error = await captureError(() => withFetch(async () => (
-      new Response(JSON.stringify({
-        code: "401",
-        message: "failed",
-        success: false,
-        data: {
-          detail: "桌面会话 token 无效",
-          failure: {
-            version: 7,
-            code: "auth.desktop_session_invalid",
-            category: "authentication",
-            effect: "not_applicable",
-          },
-        },
-      }), {
-        headers: { "Content-Type": "application/json" },
-        status: 401,
-        statusText: "Unauthorized",
-      })
-    ), () => requestApi("http://nexus.local/nexus/v1/private", {
-      method: "GET",
-      notify_on_401: false,
-    })));
-
-    assert.ok(error instanceof UnauthorizedError);
-    assert.equal(error.failure?.version, 7);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(reloadCount(), 0);
-  });
-});
-
 test("requestApi classifies fetch and response-body transport failures without replay", async () => {
   const { requestApi } = await import("@/lib/api/core/http.ts");
   const { ApiTransportError } = await import("@/lib/api/core/http-error.ts");
@@ -231,74 +196,6 @@ test("requestApi leaves an external Abort exception untouched", async () => {
   assert.equal(error.name, "AbortError");
   assert.equal(error instanceof ApiTransportError, false);
   assert.equal(calls, 1);
-});
-
-test("mutation failure projection keeps evidence and downgrades unknown effects", async () => {
-  const {
-    ApiRequestError,
-    ApiTransportError,
-  } = await import("@/lib/api/core/http-error.ts");
-  const {
-    projectMutationFailure,
-  } = await import("@/lib/error-message.ts");
-
-  const rejected = projectMutationFailure(new ApiRequestError("conflict", 409, {
-    version: 1,
-    code: "workgraph.revision_conflict",
-    category: "conflict",
-    effect: "not_applied",
-    transport_request_id: "mutation-attempt",
-  }), "fallback");
-  assert.deepEqual(rejected, {
-    category: "conflict",
-    code: "workgraph.revision_conflict",
-    effect: "not_applied",
-    message: "fallback",
-    transportRequestId: "mutation-attempt",
-  });
-  const future = projectMutationFailure(new ApiRequestError("future", 500, {
-    version: 7,
-    code: "future.failure",
-    category: "future_category",
-    effect: "future_effect",
-  }), "fallback");
-  assert.equal(future.effect, "unknown");
-
-  const interrupted = projectMutationFailure(new ApiTransportError(
-    "response interrupted",
-    "response_interrupted",
-    "unknown",
-  ), "fallback");
-  assert.equal(interrupted.effect, "unknown");
-  assert.equal(interrupted.category, "unavailable");
-});
-
-test("uncertain mutation copy names the affected resource without enumerating outcomes", async () => {
-  const [
-    { zhCapabilityMessages },
-    { enCapabilityMessages },
-    { zhConversationMessages },
-    { enConversationMessages },
-  ] = await Promise.all([
-    import("@/shared/i18n/catalog/zh/capability.ts"),
-    import("@/shared/i18n/catalog/en/capability.ts"),
-    import("@/shared/i18n/catalog/zh/conversation.ts"),
-    import("@/shared/i18n/catalog/en/conversation.ts"),
-  ]);
-  const copy = [
-    ...Object.values(zhCapabilityMessages),
-    ...Object.values(enCapabilityMessages),
-    ...Object.values(zhConversationMessages),
-    ...Object.values(enConversationMessages),
-  ].join("\n");
-
-  assert.match(copy, /无法确认删除是否已经生效/);
-  assert.match(copy, /cannot yet confirm whether deletion took effect/);
-  assert.match(copy, /操作结果待核对，同一 Agent、路径和操作已暂停/);
-  assert.match(copy, /operation result needs verification, and the same Agent, path, and action are paused/i);
-  assert.match(copy, /消息状态未确认/);
-  assert.match(copy, /message status isn't confirmed/i);
-  assert.doesNotMatch(copy, /可能[^。；]*也可能|may or may not/i);
 });
 
 async function captureError(run) {

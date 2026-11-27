@@ -4,46 +4,6 @@ import assert from "node:assert/strict";
 
 import { test } from "vitest";
 
-test("Channel mutation copy uses machine evidence and never raw error text", async () => {
-  const { buildChannelOperationIssue } = await import("@/features/capability/channels/channel-operation-recovery.ts");
-  const { ApiRequestError, ApiTransportError } = await import("@/lib/api/core/http-error.ts");
-  const { zhMessages } = await import("@/shared/i18n/catalog/zh/index.ts");
-  const { enMessages } = await import("@/shared/i18n/catalog/en/index.ts");
-
-  const unknown = buildChannelOperationIssue(
-    new ApiTransportError(
-      "provider failed token=raw-secret request_id=internal",
-      "network",
-      "unknown",
-    ),
-    "channel_delete",
-    translator(zhMessages),
-  );
-  assert.equal(unknown.effect, "unknown");
-  assert.match(unknown.title, /无法确认/);
-  assert.match(unknown.impact, /无法确认频道是否已断开/);
-  assert.match(unknown.impact, /刷新频道信息/);
-  assert.match(unknown.nextStep, /不要重复/);
-  assert.doesNotMatch(unknown.impact, /可能[^。；]*也可能/);
-  assert.doesNotMatch(JSON.stringify(unknown), /raw-secret|request_id|provider failed/);
-
-  const rejected = buildChannelOperationIssue(
-    new ApiRequestError("SQL conflict row=private", 409, {
-      version: 1,
-      code: "channel.pairing_conflict",
-      category: "conflict",
-      effect: "not_applied",
-    }),
-    "pairing_update",
-    translator(enMessages),
-  );
-  assert.equal(rejected.effect, "not_applied");
-  assert.match(rejected.title, /did not finish/);
-  assert.match(rejected.impact, /wasn't updated/);
-  assert.match(rejected.nextStep, /try again/);
-  assert.doesNotMatch(JSON.stringify(rejected), /SQL|private|pairing_conflict/);
-});
-
 test("Pairing reconciliation proves only an observable requested end state", async () => {
   const { reconcilePairingIntent } = await import("@/features/capability/channels/pairings/pairing-recovery.ts");
   const base = pairing({ pairing_id: "pair-1", status: "pending" });

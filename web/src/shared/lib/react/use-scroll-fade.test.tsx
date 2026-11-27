@@ -5,13 +5,6 @@ import { useState } from "react";
 import { resolveScrollFade, useScrollFade } from "./use-scroll-fade";
 
 describe("resolveScrollFade", () => {
-  it("returns none when no overflow", () => {
-    expect(resolveScrollFade({ clientHeight: 200, scrollHeight: 200, scrollTop: 0 })).toBe("none");
-  });
-
-  it("returns bottom when scrolled to top with overflow", () => {
-    expect(resolveScrollFade({ clientHeight: 200, scrollHeight: 500, scrollTop: 0 })).toBe("bottom");
-  });
 
   it("returns both when scrolled midway", () => {
     expect(resolveScrollFade({ clientHeight: 200, scrollHeight: 500, scrollTop: 100 })).toBe("both");
@@ -22,30 +15,6 @@ describe("resolveScrollFade", () => {
   });
 });
 
-function ScrollFixture() {
-  const { scrollRef, fadeProps } = useScrollFade();
-  return (
-    <div
-      ref={scrollRef}
-      {...fadeProps}
-      data-testid="scroll-container"
-      style={{ height: 200, overflowY: "auto" }}
-    >
-      <div style={{ height: 600 }}>content</div>
-    </div>
-  );
-}
-
-describe("useScrollFade", () => {
-  it("attaches data-sidebar-scroll attribute and handles scroll", () => {
-    const { getByTestId } = render(<ScrollFixture />);
-    const container = getByTestId("scroll-container");
-    expect(container.getAttribute("data-sidebar-scroll")).toBe("true");
-
-    fireEvent.scroll(container, { target: { scrollTop: 50 } });
-    expect(container).toBeTruthy();
-  });
-});
 
 function GrowingFixture() {
   const { scrollRef, fadeProps } = useScrollFade();

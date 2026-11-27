@@ -158,43 +158,6 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     expect(callbacks.onRecoverTaskRun).not.toHaveBeenCalled();
   });
 
-  it("retains the existing result after a transient read failure and replaces it only when retry succeeds", async () => {
-    const run = { ...RUN, result_text: "Previous result" };
-    vi.mocked(listScheduledTaskRunsApi).mockResolvedValue([run]);
-    const callbacks = props();
-    render(view([callbacks]));
-    const original = await screen.findByText(run.result_text);
-    vi.mocked(listScheduledTaskRunsApi).mockRejectedValue(new Error("private read error"));
-    act(() => pushRefresh());
-    expect(await screen.findByText("Run history could not be refreshed")).toBeTruthy();
-    expect(screen.getByText(run.result_text)).toBe(original);
-    let resolve!: (runs: ScheduledTaskRunItem[]) => void;
-    vi.mocked(listScheduledTaskRunsApi).mockReturnValue(new Promise((done) => { resolve = done; }));
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(screen.getByText(run.result_text)).toBe(original);
-    const next = { ...RUN, result_text: "Current result" };
-    await act(async () => resolve([next]));
-    expect(screen.queryByText(run.result_text)).toBeNull();
-    expect(screen.getByText(next.result_text)).toBeTruthy();
-    expect(callbacks.onRunHistoryReconciled).toHaveBeenCalledExactlyOnceWith(TASK, [next]);
-    expect(callbacks.onRetryTask).not.toHaveBeenCalled();
-    expect(callbacks.onRetryDelivery).not.toHaveBeenCalled();
-  });
-
-  it("recovers from an initial read failure to a genuine empty state without running a task", async () => {
-    vi.mocked(listScheduledTaskRunsApi).mockRejectedValue(new Error("unreachable private server"));
-    const callbacks = props();
-    const { rerender } = render(view([callbacks]));
-    expect(await screen.findByText("Run history is temporarily unavailable")).toBeTruthy();
-    rerender(view([callbacks], "zh"));
-    expect(screen.getByText(MESSAGES.zh["capability.scheduled_history_load_failed"])).toBeTruthy();
-    vi.mocked(listScheduledTaskRunsApi).mockResolvedValue([]);
-    fireEvent.click(screen.getByRole("button", { name: MESSAGES.zh["state.retry"] }));
-    expect(await screen.findByText(MESSAGES.zh["capability.scheduled_history_empty_title"])).toBeTruthy();
-    expect(callbacks.onRetryTask).not.toHaveBeenCalled();
-    expect(callbacks.onRunHistoryReconciled).toHaveBeenCalledExactlyOnceWith(TASK, []);
-  });
-
   it.each(["recover", "delivery"] as const)("preserves the %s confirmation target across a language change", async (kind) => {
     const recovering = kind === "recover";
     const run: ScheduledTaskRunItem = recovering

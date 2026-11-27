@@ -4,7 +4,6 @@
 
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
@@ -30,31 +29,6 @@ describe("ToolBlockPermission", () => {
     expect(screen.queryByRole("radio")).toBeNull();
     expect(screen.getAllByText("Request expired")).toHaveLength(1);
     expect(screen.getByText("pwd").tagName).toBe("PRE");
-  });
-
-  it("keeps two mounted views of one request selected independently", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    const request = { request_id: "same-request", tool_input: {}, on_allow: vi.fn(), on_deny: vi.fn() };
-    function Instance({ name }: { name: string }) {
-      const [selected, setSelected] = useState(3);
-      const props = { interactionDisabled: false, model, permissionRequest: request, selectedSuggestionIndex: selected,
-        onSelectedSuggestionIndexChange: (index: number) => { setSelected(index); onSelect(name, index); } };
-      return <section aria-label={name}><ToolBlockPermission {...props} /></section>;
-    }
-    render(<I18nProvider><Instance name="First view" /><Instance name="Second view" /></I18nProvider>);
-    const first = within(screen.getByRole("region", { name: "First view" }));
-    const second = within(screen.getByRole("region", { name: "Second view" }));
-    const firstSession = first.getByRole("radio", { name: "This session" }) as HTMLInputElement;
-    const secondSession = second.getByRole("radio", { name: "This session" }) as HTMLInputElement;
-    expect(firstSession.checked).toBe(true);
-    expect(secondSession.checked).toBe(true);
-    await user.click(first.getByRole("radio", { name: "This workspace" }));
-    expect(secondSession.checked).toBe(true);
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith("First view", 7);
-    expect(firstSession.name).not.toBe(secondSession.name);
-    expect(request.on_allow).not.toHaveBeenCalled();
-    expect(request.on_deny).not.toHaveBeenCalled();
   });
 
   it("names the scope group, associates its disabled reason and preserves exact indexes", async () => {

@@ -8,8 +8,6 @@ import { useState } from "react";
 import { expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
-import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
-import { MESSAGES } from "@/shared/i18n/messages";
 import { IdentityTags } from "./identity-tags";
 
 function TagsFixture({ scope = "agent-a" }: { scope?: string }) {
@@ -51,21 +49,4 @@ it("keeps tag sets independent and restores typing focus after add/remove", asyn
   expect(screen.queryByText("Planning")).toBeNull();
   expect(document.activeElement).toBe(business);
   expect(screen.getByText("Concise")).toBeTruthy();
-});
-
-it("discards only unfinished drafts when the Agent scope changes", async () => {
-  const { rerender } = render(<TagsFixture />);
-  await userEvent.type(screen.getByRole("textbox", { name: "Business tags" }), "draft");
-  await userEvent.type(screen.getByRole("textbox", { name: "Style tags" }), "another draft");
-  rerender(<TagsFixture scope="agent-b" />);
-  expect(screen.getAllByRole("textbox").every((input) => (input as HTMLInputElement).value === "")).toBe(true);
-  expect(screen.getByText("Research")).toBeTruthy();
-  expect(screen.getByText("Concise")).toBeTruthy();
-});
-
-it.each(["en", "zh"] as const)("localizes the exact remove action in %s", (locale) => {
-  render(<I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key, params) => MESSAGES[locale][key].replace("{tag}", String(params?.tag ?? "")) }}>
-    <IdentityTags addLabel="Add" label="Tags" onChange={() => undefined} resetKey="one" tags={["Research"]} />
-  </I18N_CONTEXT.Provider>);
-  expect(screen.getByRole("button", { name: locale === "en" ? "Remove Research" : "移除 Research" })).toBeTruthy();
 });

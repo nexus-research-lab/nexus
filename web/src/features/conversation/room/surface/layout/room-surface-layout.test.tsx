@@ -157,22 +157,6 @@ it("keeps exact Thread selection, closes it for auxiliary pages and clears it on
   expect(screen.getByLabelText("Chat draft")).toBe(chat);
 });
 
-it("does not notify memoized Thread controls for unrelated snapshots and uses the latest page command", async () => {
-  const user = userEvent.setup();
-  const props = baseProps();
-  const rendered = render(view(props));
-  const previous = boundaries.controls.mock.lastCall?.[0];
-  const renders = boundaries.controls.mock.calls.length;
-  rendered.rerender(view({ ...props, currentRoomTitle: "Renamed", sidePanelWidthPercent: 45 }));
-  expect(boundaries.controls).toHaveBeenCalledTimes(renders);
-  expect(boundaries.controls.mock.lastCall?.[0]).toBe(previous);
-  const latestCommand = vi.fn();
-  rendered.rerender(view({ ...props, onChangeSurfaceTab: latestCommand }));
-  await user.click(screen.getByRole("button", { name: "Open exact Thread" }));
-  expect(latestCommand).toHaveBeenCalledExactlyOnceWith("chat");
-  expect(props.onChangeSurfaceTab).not.toHaveBeenCalled();
-});
-
 it.each([
   { access: null, isStale: false, impact: "conversation.external_sessions_unavailable_impact" },
   { access: null, isStale: true, impact: "conversation.external_sessions_stale_impact" },

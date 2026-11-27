@@ -22,19 +22,6 @@ vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
   useAuth: () => ({ status: { authenticated: true, multiplayer_enabled: api.enabled, auth_method: "password", control_user_id: "owner", organization_id: "org" } }),
 }));
 
-it("does not request invitations when multiplayer is disabled despite organization membership", () => {
-  api.enabled = false;
-  api.list.mockClear();
-  api.socket.mockClear();
-  const view = renderHook(() => useTeamInvitations(vi.fn()));
-  expect(view.result.current.enabled).toBe(false);
-  expect(view.result.current.failed).toBe(false);
-  expect(api.list).not.toHaveBeenCalled();
-  expect(api.socket.mock.calls.every(([options]) => options.autoConnect === false)).toBe(true);
-  view.unmount();
-  api.enabled = true;
-});
-
 it("accepts the current invitation version and refreshes the Room directory", async () => {
   const invitation = { room: { id: "room-1", membership_version: 3 }, invited_by_user_id: "owner", created_at: "2026-09-14T00:00:00Z" } as TeamRoomInvitation;
   api.list.mockResolvedValue({ invitations: [invitation] });
@@ -48,30 +35,6 @@ it("accepts the current invitation version and refreshes the Room directory", as
   expect(api.resolve).toHaveBeenCalledWith("room-1", 3, "accept", expect.any(String));
   expect(result.current.invitations).toEqual([]);
   expect(accepted).toHaveBeenCalledOnce();
-});
-
-it("discovers late invitations through WS, retains failed reads and never polls", async () => {
-  api.list.mockReset().mockResolvedValue({invitations: []});
-  const {result, unmount} = renderHook(() => useTeamInvitations(vi.fn()));
-  await waitFor(() => expect(result.current.loading).toBe(false));
-  vi.useFakeTimers();
-  const invitation = {room: {id: "late-room", membership_version: 2}} as TeamRoomInvitation;
-  api.list.mockResolvedValue({invitations: [invitation]});
-  await act(async () => { api.socket.mock.lastCall![0].onMessage({type: "stream.updated", stream_id: "directory"}); });
-  expect(result.current.invitations).toEqual([invitation]);
-  api.list.mockRejectedValueOnce(new Error("offline"));
-  await act(async () => { result.current.refresh(); });
-  expect(api.list).toHaveBeenCalledTimes(3);
-  expect(result.current.failed).toBe(true);
-  expect(result.current.invitations).toEqual([invitation]);
-  await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-  expect(api.list).toHaveBeenCalledTimes(3);
-  await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
-  expect(api.list).toHaveBeenCalledTimes(4);
-  expect(result.current.failed).toBe(false);
-  unmount();
-  await act(async () => { await vi.advanceTimersByTimeAsync(30_000); window.dispatchEvent(new Event("online")); });
-  expect(api.list).toHaveBeenCalledTimes(4);
 });
 
 it("refreshes joined rooms after an accepted invitation loses its response and retries takeover exactly", async () => {

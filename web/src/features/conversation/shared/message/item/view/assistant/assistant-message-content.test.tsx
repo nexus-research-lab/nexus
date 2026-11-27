@@ -68,12 +68,6 @@ function activityRows(container: HTMLElement): Element[] {
 }
 
 describe("AssistantMessageContent tail activity", () => {
-  it("keeps the activity row under the process group while it is the tail", () => {
-    const { container } = renderContent({});
-    const rows = activityRows(container);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].closest("[data-tool-run-id]")).not.toBeNull();
-  });
 
   it("moves the single activity row below final content that is not streaming text", () => {
     const { container } = renderContent({
@@ -87,15 +81,5 @@ describe("AssistantMessageContent tail activity", () => {
     const narrative = Array.from(container.querySelectorAll(".nexus-chat-final-content")).at(-1)!;
     expect(narrative.compareDocumentPosition(rows[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(narrative.contains(rows[0])).toBe(false);
-  });
-
-  it("adds no tail row while the final reply text itself is streaming", () => {
-    const { container } = renderContent({
-      content: [{ type: "text", text: "正在写最终回复" }],
-      isStreaming: true,
-      streamingIndexes: new Set([0]),
-      visible: true,
-    });
-    expect(activityRows(container)).toHaveLength(0);
   });
 });

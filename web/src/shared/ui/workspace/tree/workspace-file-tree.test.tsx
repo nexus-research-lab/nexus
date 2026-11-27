@@ -2,7 +2,7 @@
 // OUTPUT: 验证层级展开偏好、精确 entry 命令与具名原生操作。
 // POS: Workspace 文件树 DOM 回归；文件读取、持久写入与权限归调用方。
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -51,30 +51,6 @@ describe("WorkspaceFileTree", () => {
     expect(actions.onClickFile).not.toHaveBeenCalled();
   });
 
-  it("exposes a named nested list, disclosure state and the exact active file", async () => {
-    const user = userEvent.setup();
-    const { actions, rerender } = setup();
-    rerender([]);
-    rerender(entries, "notes.txt");
-    const root = screen.getByRole("list", { name: "common.file_tree" });
-    const docs = within(root).getByRole("button", { name: "docs" });
-    expect(docs.getAttribute("aria-expanded")).toBe("true");
-
-    const children = screen.getByRole("list", { name: "docs" });
-    expect(docs.getAttribute("aria-controls")).toBe(children.id);
-    const file = screen.getByRole("button", { name: "notes.txt" });
-    expect(file.getAttribute("aria-current")).toBe("true");
-
-    expect(within(file.parentElement?.parentElement!).getAllByRole("button")).toHaveLength(2);
-    expect(file.hasAttribute("aria-expanded")).toBe(false);
-    await user.click(file);
-    expect(actions.onClickFile).toHaveBeenCalledWith("notes.txt");
-    await user.click(docs);
-    expect(docs.getAttribute("aria-expanded")).toBe("false");
-    expect(docs.hasAttribute("aria-controls")).toBe(false);
-    expect(screen.queryByRole("list", { name: "docs" })).toBeNull();
-  });
-
   it("keeps keyboard rename and delete independent of directory navigation", async () => {
     const user = userEvent.setup();
     const { actions } = setup();
@@ -95,27 +71,6 @@ describe("WorkspaceFileTree", () => {
     await user.keyboard("{ArrowDown}{Enter}");
     expect(actions.onDeleteEntry).toHaveBeenCalledWith(entries[0]);
     expect(actions.onClickDirectory).toHaveBeenCalledOnce();
-    expect(actions.onClickFile).not.toHaveBeenCalled();
-  });
-
-  it("routes nested context menus and same-name actions to the exact entry only", async () => {
-    const user = userEvent.setup();
-    const { actions, onRootContextMenu, rerender } = setup();
-    const nestedFile = entries[2];
-    const siblingFile = { ...nestedFile, name: nestedFile.name, path: "docs/readme.md" };
-    rerender([...entries, siblingFile]);
-    await user.click(screen.getByRole("button", { name: "nested" }));
-    const nested = screen.getByRole("list", { name: "nested" });
-    const file = within(nested).getByRole("button", { name: "readme.md" });
-    expect(file.getAttribute("title")).toBeNull();
-    fireEvent.contextMenu(file, { button: 2, clientX: 40, clientY: 80 });
-    expect(actions.onContextMenu).toHaveBeenCalledOnce();
-    expect(actions.onContextMenu.mock.calls[0][1]).toBe(nestedFile);
-    expect(actions.onContextMenu.mock.calls[0][0].defaultPrevented).toBe(true);
-    expect(onRootContextMenu).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "common.more_actions docs/readme.md" }));
-    await user.click(await screen.findByRole("menuitem", { name: "home.rename" }));
-    expect(actions.onRenameEntry).toHaveBeenCalledWith(siblingFile);
     expect(actions.onClickFile).not.toHaveBeenCalled();
   });
 

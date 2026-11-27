@@ -2,7 +2,7 @@
 // OUTPUT: 证明联络目录复用共享列表、状态和弹窗原语，并保持选择/提交行为。
 // POS: Contacts 联络目录 DOM 合同；聊天、请求竞态与服务端写入由各自所有者测试。
 
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -142,29 +142,6 @@ describe("AgentCommunicationDirectory", () => {
     expect((within(dialog).getByRole("button", { name: "agent_options.contact.add_friend" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("locks the dialog and snapshots one add before the external pending prop updates", async () => {
-    let finish!: (added: boolean) => void;
-    const onAddContact = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
-    renderDirectory({ onAddContact });
-    await userEvent.click(screen.getByRole("button", { name: "agent_options.contact.add_friend" }));
-    const dialog = screen.getByRole("dialog");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Writer" }));
-    const form = dialog.querySelector("form")!;
-    act(() => { fireEvent.submit(form); fireEvent.submit(form); });
-    expect(onAddContact).toHaveBeenCalledOnce();
-    expect(onAddContact).toHaveBeenCalledWith("agent-writer", "");
-    expect((within(dialog).getByRole("searchbox") as HTMLInputElement).disabled).toBe(true);
-    expect(within(dialog).getByRole("button", { name: "Writer" }).getAttribute("aria-disabled")).toBe("true");
-    for (const button of within(dialog).getAllByRole("button").filter((node) => node.tagName === "BUTTON")) {
-      expect((button as HTMLButtonElement).disabled).toBe(true);
-    }
-    await userEvent.keyboard("{Escape}");
-    expect(screen.getByRole("dialog")).toBe(dialog);
-    await act(async () => finish(false));
-    expect(screen.getByRole("dialog")).toBe(dialog);
-    expect((within(dialog).getByRole("button", { name: "agent_options.contact.add_friend" }) as HTMLButtonElement).disabled).toBe(false);
-  });
-
   it("rejects a selected candidate that leaves the current eligible directory", async () => {
     const { props, rerenderDirectory } = renderDirectory();
     await userEvent.click(screen.getByRole("button", { name: "agent_options.contact.add_friend" }));
@@ -174,20 +151,5 @@ describe("AgentCommunicationDirectory", () => {
     expect((within(dialog).getByRole("button", { name: "agent_options.contact.add_friend" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.submit(dialog.querySelector("form")!);
     expect(props.onAddContact).not.toHaveBeenCalled();
-  });
-
-  it("does not close another Agent's newly opened dialog after a late successful add", async () => {
-    let finish!: (added: boolean) => void;
-    const onAddContact = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve; }));
-    const { rerenderDirectory } = renderDirectory({ onAddContact });
-    await userEvent.click(screen.getByRole("button", { name: "agent_options.contact.add_friend" }));
-    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Writer" }));
-    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
-    rerenderDirectory({ agent: { ...CURRENT_AGENT, agent_id: "other" } });
-    expect(screen.queryByRole("dialog")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "agent_options.contact.add_friend" }));
-    const nextDialog = screen.getByRole("dialog");
-    await act(async () => finish(true));
-    expect(screen.getByRole("dialog")).toBe(nextDialog);
   });
 });

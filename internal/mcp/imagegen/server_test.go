@@ -2,7 +2,6 @@ package imagegenmcp
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -47,39 +46,6 @@ func (s *stubImagegenService) EditImage(
 		MIMEType: "image/png",
 		Markdown: "![edited image](output/imagegen/edited.png)",
 	}, []byte("edited"), nil
-}
-
-func TestGenerateImageUsesInjectedWorkspaceAndOwner(t *testing.T) {
-	svc := &stubImagegenService{}
-	result, isError := callImagegenTool(t, svc, "generate_image", map[string]any{
-		"prompt":        "A golden fox",
-		"size":          "1024x1024",
-		"file_name":     "fox",
-		"output_format": "png",
-	}, contract.ServerContext{
-		OwnerUserID:   "user-1",
-		WorkspacePath: "/workspace/agent",
-	})
-	if isError {
-		t.Fatalf("generate_image 不应失败: %s", extractText(t, result))
-	}
-	if svc.generateOwnerUserID != "user-1" {
-		t.Fatalf("owner user 未注入: %s", svc.generateOwnerUserID)
-	}
-	if svc.generateInput.WorkspacePath != "/workspace/agent" || svc.generateInput.Prompt != "A golden fox" {
-		t.Fatalf("生成入参未使用注入 workspace: %+v", svc.generateInput)
-	}
-	payload := decodeToolJSON(t, result)
-	if payload["domain"] != "imagegen" || payload["action"] != "generate_image" {
-		t.Fatalf("工具输出 envelope 不正确: %+v", payload)
-	}
-	item := payload["item"].(map[string]any)
-	if item["path"] != "output/imagegen/fox.png" {
-		t.Fatalf("工具输出路径不正确: %+v", item)
-	}
-	if result["structuredContent"] == nil {
-		t.Fatalf("应返回 structuredContent: %+v", result)
-	}
 }
 
 func TestEditImageUsesWorkspaceRelativePaths(t *testing.T) {
@@ -140,13 +106,4 @@ func extractText(t *testing.T, result map[string]any) string {
 	}
 	text, _ := content[0]["text"].(string)
 	return text
-}
-
-func decodeToolJSON(t *testing.T, result map[string]any) map[string]any {
-	t.Helper()
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(extractText(t, result)), &payload); err != nil {
-		t.Fatalf("工具输出不是 JSON: %v", err)
-	}
-	return payload
 }

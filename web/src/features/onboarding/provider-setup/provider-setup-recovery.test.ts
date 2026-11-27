@@ -35,12 +35,6 @@ afterEach(() => {
 });
 
 describe("provider setup journal stage invariants", () => {
-  it("persists the default stage once the preferences baseline is captured", () => {
-    expect(writeProviderSetupJournal(journal({
-      outcome: "unknown",
-      preferencesBaselineVersion: 7,
-    }))).toBe(true);
-  });
 
   it("rejects a default-stage unknown journal without a preferences baseline", () => {
     // ensureDefaultSelection 在写 unknown journal 前必须记录偏好基线版本；

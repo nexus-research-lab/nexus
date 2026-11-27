@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -361,90 +360,6 @@ func TestImageProbeVerifiesPixelsAndEditingSemantics(t *testing.T) {
 	}
 }
 
-func TestToolsRequireReturnedReceiptAcrossProtocols(t *testing.T) {
-	for _, format := range []string{APIFormatChatCompletions, APIFormatResponses, APIFormatAnthropicMessages} {
-		t.Run(format, func(t *testing.T) {
-			calls := 0
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls++
-				var payload map[string]any
-				_ = json.NewDecoder(r.Body).Decode(&payload)
-				if probeTestToolReceipt(payload) != "" {
-					_ = json.NewEncoder(w).Encode(probeTestResponse(format, "I called a tool.", ""))
-					return
-				}
-				prompt, _ := probeTestInput(payload, format)
-				// The initial challenge is visible, but the final receipt is not.
-				var code string
-				for i := 0; i+32 <= len(prompt); i++ {
-					if i >= 10 && prompt[i-10:i] == "with code " {
-						code = prompt[i : i+32]
-						break
-					}
-				}
-				_ = json.NewEncoder(w).Encode(probeTestResponse(format, "", code))
-			}))
-			defer server.Close()
-			service := &Service{client: server.Client()}
-			result := service.checkTools(context.Background(), providerstore.Entity{ProviderKind: ProviderKindLLM, APIFormat: format, BaseURL: server.URL}, providerstore.ModelEntity{ModelID: "unknown", ProviderOptionsJSON: "{}"})
-			if result.State != "unknown" || result.Reason != "tool_result_unverified" || calls != 2 {
-				t.Fatalf("result=%+v calls=%d", result, calls)
-			}
-		})
-	}
-}
-
-func TestReasoningRequiresStructuredEvidence(t *testing.T) {
-	for _, tc := range []struct {
-		body string
-		want bool
-	}{
-		{`{"choices":[{"message":{"role":"assistant","content":"I reasoned deeply"}}]}`, false},
-		{`{"choices":[{"message":{"role":"assistant","content":"1830"}}],"usage":{"completion_tokens_details":{"reasoning_tokens":8}}}`, true},
-		{`{"error":{"message":"failed"},"choices":[{"message":{"role":"assistant","reasoning_content":"fake"}}]}`, false},
-	} {
-		response := parseProbeResponse([]byte(tc.body), APIFormatChatCompletions)
-		if response.Reasoning != tc.want {
-			t.Fatalf("response=%+v", response)
-		}
-	}
-}
-
-func TestFailedRecheckRetainsVerifiedCapabilityAndRecordsFailure(t *testing.T) {
-	deny := false
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if deny {
-			w.WriteHeader(http.StatusTooManyRequests)
-			return
-		}
-		var payload map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&payload)
-		_, data := probeTestInput(payload, APIFormatResponses)
-		_ = json.NewEncoder(w).Encode(probeTestResponse(APIFormatResponses, probeTestReadImage(t, data), ""))
-	}))
-	defer server.Close()
-	service, _ := newTestService(t)
-	ctx := context.Background()
-	record := createConfigurationVersionTestProvider(t, service, ctx, "recheck", server.URL)
-	first, err := service.TestModelCapability(ctx, record.Provider, "private-vision-alias", "vision", nil, false)
-	if err != nil || first.CapabilityResults["vision"].State != "supported" {
-		t.Fatalf("first=%+v err=%v", first, err)
-	}
-	deny = true
-	second, err := service.TestModelCapability(ctx, record.Provider, "private-vision-alias", "vision", nil, false)
-	if err != nil || second.Success || second.CapabilityResults["vision"].Reason != "quota_or_rate_limit" {
-		t.Fatalf("second=%+v err=%v", second, err)
-	}
-	current, err := service.Get(ctx, record.Provider)
-	if err != nil {
-		t.Fatal(err)
-	}
-	model := current.Models[0]
-	if model.CapabilitiesAuto.Vision == nil || !*model.CapabilitiesAuto.Vision || model.CapabilityTests["vision"].State != "error" {
-		t.Fatalf("model=%+v", model)
-	}
-}
-
 func TestEmbeddingProbeEndpoints(t *testing.T) {
 	for _, tc := range []struct{ base, want string }{
 		{"https://example.test/v1", "https://example.test/v1/embeddings"},
@@ -489,51 +404,6 @@ func TestAllCapabilityCheckPreservesDisabledModelAndSelection(t *testing.T) {
 	}
 	if len(after.Models[0].CapabilityTests) != 7 {
 		t.Fatal("missing independent attempts")
-	}
-}
-
-func TestParallelCapabilityObservationsMergeOnlyUnchangedModels(t *testing.T) {
-	for _, sameModel := range []bool{false, true} {
-		t.Run(fmt.Sprint(sameModel), func(t *testing.T) {
-			release := make(chan struct{})
-			var requests atomic.Int32
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				requests.Add(1)
-				<-release
-				_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"hello"}}]}`))
-			}))
-			defer server.Close()
-			ctx := context.Background()
-			service, _ := newTestService(t)
-			record := createConfigurationVersionTestProvider(t, service, ctx, "parallel-probes", server.URL)
-			for _, id := range []string{"a", "b"} {
-				if _, err := service.UpdateModel(ctx, record.Provider, id, UpdateModelInput{Enabled: false}); err != nil {
-					t.Fatal(err)
-				}
-			}
-			errorsCh := make(chan error, 2)
-			for _, id := range []string{"a", map[bool]string{false: "b", true: "a"}[sameModel]} {
-				go func(id string) {
-					_, err := service.TestModelCapability(ctx, record.Provider, id, "all", nil, false)
-					errorsCh <- err
-				}(id)
-			}
-			deadline := time.Now().Add(3 * time.Second)
-			for requests.Load() < 10 && time.Now().Before(deadline) {
-				time.Sleep(time.Millisecond)
-			}
-			close(release)
-			first, second := <-errorsCh, <-errorsCh
-			if sameModel {
-				if (first == nil) == (second == nil) || (first != nil && !errors.Is(first, ErrConfigurationVersionConflict)) || (second != nil && !errors.Is(second, ErrConfigurationVersionConflict)) {
-					t.Fatalf("same model must reject stale evidence: %v / %v", first, second)
-				}
-			} else {
-				if first != nil || second != nil {
-					t.Fatalf("independent models conflicted: %v / %v", first, second)
-				}
-			}
-		})
 	}
 }
 

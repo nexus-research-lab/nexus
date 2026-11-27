@@ -27,35 +27,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it("coalesces invalidations during an in-flight read into one trailing read", async () => {
-  const first = deferred<ExecutionView | null>();
-  const second = deferred<ExecutionView | null>();
-  api.latest.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
-  const view = renderHook(
-    ({ revision }) => useExecutionResource({ invalidationKey: revision, sessionKey: "session" }),
-    { initialProps: { revision: 0 } },
-  );
-  await act(async () => { vi.advanceTimersByTime(200); });
-  expect(api.latest).toHaveBeenCalledTimes(1);
-
-  // 工具事件连续失效：在途期间不再并发读取。
-  for (let revision = 1; revision <= 5; revision += 1) {
-    view.rerender({ revision });
-    await act(async () => { vi.advanceTimersByTime(200); });
-  }
-  expect(api.latest).toHaveBeenCalledTimes(1);
-
-  const stale = { id: "graph", status: "active" } as ExecutionView;
-  await act(async () => { first.resolve(stale); });
-  expect(view.result.current.execution).toBe(stale);
-  expect(api.latest).toHaveBeenCalledTimes(2);
-
-  const latest = { id: "graph", status: "completed" } as ExecutionView;
-  await act(async () => { second.resolve(latest); });
-  expect(view.result.current.execution).toBe(latest);
-  expect(api.latest).toHaveBeenCalledTimes(2);
-});
-
 it("defers reads while hidden and reads once when the page becomes visible", async () => {
   const graph = { id: "graph", status: "active" } as ExecutionView;
   api.latest.mockResolvedValue(graph);

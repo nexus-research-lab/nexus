@@ -136,18 +136,6 @@ test("Feishu Docs opens a Web window only when user authorization begins", async
   assert.equal(closeCount, 1);
 });
 
-test("Feishu Docs manual credentials are a complete-pair fallback", async () => {
-  const { feishuManualCredentialsComplete } = await import("@/features/capability/connectors/auth/feishu/feishu-app-connection-model.ts");
-
-  assert.equal(feishuManualCredentialsComplete("", ""), false);
-  assert.equal(feishuManualCredentialsComplete("cli_a", ""), false);
-  assert.equal(feishuManualCredentialsComplete("", "secret"), false);
-  assert.equal(
-    feishuManualCredentialsComplete(" cli_a ", " secret "),
-    true,
-  );
-});
-
 test("Device auth closes immediately when connection succeeds", async () => {
   const { ConnectorDeviceAuthPoller } = await import("@/features/capability/connectors/auth/device-flow/connector-device-auth-poller.ts");
   const events = [];

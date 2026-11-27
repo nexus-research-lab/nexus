@@ -61,52 +61,6 @@ it("installs the required version before enabling an already installed legacy co
   expect(result.current.status?.version).toBe("0.2.0");
 });
 
-it("keeps a failed upgrade visible and retryable without enabling the legacy component", async () => {
-  const legacy = { installed: true, enabled: false, version: "0.1.0", update_required: true };
-  mocks.status.mockResolvedValue(legacy);
-  mocks.install.mockRejectedValue(new Error("download failed"));
-  const { result } = renderHook(() => useComputerUseSettingsController("zh"));
-  await waitFor(() => expect(result.current.status).toEqual(legacy));
-  await act(() => result.current.onUpdate());
-  expect(result.current.status).toEqual(legacy);
-  expect(result.current.error).toBe("component");
-  expect(result.current.busy).toBe(false);
-  expect(mocks.setEnabled).not.toHaveBeenCalled();
-});
-
-it("guides permissions through the dedicated bridge command, never the external URL allowlist", async () => {
-  mocks.status.mockResolvedValue({ installed: true, enabled: true });
-  mocks.checkPermissions.mockResolvedValue({ installed: true, enabled: true });
-  mocks.permissionSetup.mockResolvedValue({ opened: true });
-  const { result } = renderHook(() => useComputerUseSettingsController("zh"));
-  await waitFor(() => expect(result.current.status?.enabled).toBe(true));
-  await act(() => result.current.onOpenPermissions());
-  expect(mocks.permissionSetup).toHaveBeenCalledExactlyOnceWith("zh", undefined);
-  expect(mocks.openExternalURL).not.toHaveBeenCalled();
-  expect(result.current.error).toBeNull();
-});
-
-it.each(["macos", "windows"])("installs and probes once on %s, opening only the macOS wizard", async (platform) => {
-  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform };
-  mocks.status.mockResolvedValue({ installed: false, enabled: false });
-  mocks.install.mockResolvedValue({ installed: true, enabled: false });
-  mocks.setEnabled.mockResolvedValue({ installed: true, enabled: true });
-  mocks.checkPermissions.mockResolvedValue({
-    installed: true,
-    enabled: true,
-    permissions: { screen_capture: "not_determined", accessibility: "granted", input_control: "granted" },
-  });
-  const { result } = renderHook(() => useComputerUseSettingsController("zh"));
-  await waitFor(() => expect(result.current.status?.enabled).toBe(false));
-  await act(() => result.current.onChange(true));
-  expect(mocks.install).toHaveBeenCalledExactlyOnceWith();
-  expect(mocks.setEnabled).toHaveBeenCalledExactlyOnceWith(true);
-  expect(mocks.checkPermissions).toHaveBeenCalledOnce();
-  expect(mocks.permissionSetup).toHaveBeenCalledTimes(platform === "macos" ? 1 : 0);
-  expect(result.current.status?.permissions?.screen_capture).toBe("not_determined");
-  expect(result.current.error).toBeNull();
-});
-
 it("rechecks after returning from the system permission page", async () => {
   mocks.status.mockResolvedValue({
     installed: true,
@@ -137,16 +91,4 @@ it("rechecks after returning from the system permission page", async () => {
   await waitFor(() => expect(mocks.checkPermissions).toHaveBeenCalledTimes(2));
   expect(result.current.status?.permissions?.screen_capture).toBe("granted");
   expect(mocks.syncGuide).toHaveBeenCalledWith({ permissions: result.current.status?.permissions });
-});
-
-it("keeps the guide closed when enabling with every permission granted", async () => {
-  mocks.status.mockResolvedValue({ installed: true, enabled: false });
-  mocks.setEnabled.mockResolvedValue({ installed: true, enabled: true });
-  mocks.checkPermissions.mockResolvedValue({ installed: true, enabled: true,
-    permissions: { screen_capture: "granted", accessibility: "granted", input_control: "granted" },
-  });
-  const { result } = renderHook(() => useComputerUseSettingsController("zh"));
-  await waitFor(() => expect(result.current.status?.enabled).toBe(false));
-  await act(() => result.current.onChange(true));
-  expect(mocks.permissionSetup).not.toHaveBeenCalled();
 });

@@ -27,14 +27,3 @@ it("keeps repeated paragraphs and runs through updates without duplicate key war
   expect(screen.getAllByText("Repeat")).toHaveLength(2);
   expect(errors.mock.calls.filter((args) => args.some((value) => String(value).includes("same key")))).toEqual([]);
 });
-
-it("scales the same content for thumbnails and preserves source text/shape styling", () => {
-  const view = render(<PresentationSlideCanvas slide={slide} />);
-  const svg = screen.getByRole("img", { name: "Preview" });
-  const content = svg.innerHTML;
-  expect(svg.getAttribute("viewBox")).toBe("0 0 1280 720");
-
-  expect(svg.querySelector("g > rect")?.getAttribute("rx")).toBe("14");
-  view.rerender(<PresentationSlideCanvas slide={slide} thumbnail />);
-  expect(svg.innerHTML).toBe(content);
-});

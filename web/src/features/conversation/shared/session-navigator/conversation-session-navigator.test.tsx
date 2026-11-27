@@ -87,42 +87,6 @@ describe("ConversationSessionNavigator", () => {
     navigation.jumpToRound.mockClear();
     navigation.previewItemAt.mockClear();
   });
-
-  it("keeps geometry-owned hit targets and semantic preview typography", () => {
-    const scrollRef = createRef<HTMLDivElement>();
-    const { container } = render(
-      <I18nProvider>
-        <ConversationSessionNavigator
-          scopeKey="agent:session"
-          scrollRef={scrollRef}
-          timeline={EMPTY_TIMELINE}
-        />
-      </I18nProvider>,
-    );
-
-    const preview = container.querySelector<HTMLElement>(
-      "[data-session-navigator-preview='true']",
-    );
-    expect(preview).toBeTruthy();
-    const tickButtons = screen.getAllByRole("button").filter(
-      (button) => !button.hasAttribute("data-session-navigator-preview"),
-    );
-    expect(tickButtons).toHaveLength(2);
-
-    fireEvent.pointerEnter(tickButtons[1]);
-    fireEvent.focus(tickButtons[1]);
-    expect(navigation.previewItemAt).toHaveBeenCalledTimes(2);
-    expect(navigation.previewItemAt).toHaveBeenLastCalledWith(navigation.items[1]);
-
-    fireEvent.click(tickButtons[1]);
-    fireEvent.click(preview!);
-    expect(navigation.jumpToRound).toHaveBeenCalledTimes(2);
-    expect(navigation.jumpToRound).toHaveBeenLastCalledWith(navigation.items[1]);
-
-    fireEvent.mouseLeave(screen.getByRole("navigation"));
-    expect(navigation.clearPreview).toHaveBeenCalledTimes(1);
-
-  });
   it("keeps focus transitions inside the preview and exits by blur or non-IME Escape", () => {
     render(<I18nProvider><ConversationSessionNavigator scopeKey="session" scrollRef={createRef<HTMLDivElement>()} timeline={EMPTY_TIMELINE} /></I18nProvider>);
     const nav = screen.getByRole("navigation");

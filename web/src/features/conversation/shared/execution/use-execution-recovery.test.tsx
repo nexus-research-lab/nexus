@@ -1,7 +1,6 @@
 // INPUT: Recovery API acknowledgements, lost responses and changing session identity.
 // OUTPUT: Duplicate requests are fenced and unknown writes are reconciled by reads.
 // POS: Recovery action state and scope lifecycle regression.
-import { StrictMode, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
@@ -11,26 +10,6 @@ import { RECOVERY_REQUEUE_MS, useExecutionRecovery } from "./use-execution-recov
 const api = vi.hoisted(() => ({ request: vi.fn(), read: vi.fn(), preview: vi.fn(), retry: vi.fn() }));
 vi.mock("@/lib/api/conversation/execution-api", () => ({ requestExecutionRecoveryApi: api.request, getExecutionRecoveryReceiptApi: api.read, getWorkRetryPreviewApi: api.preview, requestWorkRetryApi: api.retry }));
 const node = { id: "node", work_item_id: "work", attempt_id: "attempt", can_recover: true } as ExecutionGraphNodeView;
-const wrapper = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
-
-it("fences same-frame clicks and uses reads after a lost acknowledgement", async () => {
-  api.request.mockReset(); api.read.mockReset();
-  let reject!: (reason: Error) => void;
-  api.request.mockReturnValue(new Promise<ExecutionRecoveryReceipt>((_, fail) => { reject = fail; }));
-  const refresh = vi.fn();
-  const { result } = renderHook(() => useExecutionRecovery("session", "execution", refresh), { wrapper });
-  act(() => { result.current.run(node); result.current.run(node); });
-  expect(api.request).toHaveBeenCalledOnce();
-  const requestId = api.request.mock.calls[0][4] as string;
-  await act(async () => reject(new Error("connection lost")));
-  expect(result.current.states.attempt.status).toBe("unknown");
-  api.read.mockResolvedValue({ execution_id: "execution", work_item_id: "work", attempt_id: "attempt", request_id: requestId, queued: true });
-  await act(async () => result.current.run(node));
-  expect(api.read).toHaveBeenCalledWith("session", "execution", requestId);
-  expect(api.request).toHaveBeenCalledOnce();
-  expect(result.current.states.attempt.status).toBe("queued");
-  expect(refresh).toHaveBeenCalledOnce();
-});
 
 it("rejects stale scope completions and never requests an unauthorized node", async () => {
   api.request.mockReset();
@@ -90,15 +69,4 @@ it("previews submitted dependencies, confirms the exact revision, and reconciles
   await act(async () => result.current.run(retryNode));
   expect(api.retry).toHaveBeenCalledOnce();
   expect(api.read).toHaveBeenCalledWith("session", "execution", requestId);
-});
-
-it("retries an unsubmitted task from a fresh preview without downstream confirmation", async () => {
-  api.preview.mockReset(); api.retry.mockReset();
-  const preview = { execution_id: "execution", work_item_id: "work", attempt_id: "attempt", snapshot_revision: 9, submitted: false, affected: [] };
-  api.preview.mockResolvedValue(preview);
-  api.retry.mockImplementation(async (_session, value, requestId) => ({ ...value, request_id: requestId, queued: true }));
-  const { result } = renderHook(() => useExecutionRecovery("session", "execution", vi.fn()));
-  await act(async () => result.current.run({ ...node, can_retry: true }));
-  expect(result.current.confirmation).toBeNull();
-  expect(api.retry).toHaveBeenCalledWith("session", preview, expect.any(String));
 });

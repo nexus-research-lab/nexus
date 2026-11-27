@@ -69,12 +69,6 @@ func (f *fakeDMRunner) AppendMainWindowTask(_ context.Context, agentID string, t
 	return "agent:" + agentID + ":ws:dm:conv_main", nil
 }
 
-func (f *fakeDMRunner) mainTaskSnapshot() []dmsvc.MainWindowTask {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]dmsvc.MainWindowTask(nil), f.mainTasks...)
-}
-
 func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) error {
 	f.mu.Lock()
 	requestIndex := len(f.requests)
@@ -431,54 +425,6 @@ func (f *fakeDeliveryRouter) OwnerUserIDs() []string {
 	defer f.mu.Unlock()
 	result := make([]string, len(f.ownerUserIDs))
 	copy(result, f.ownerUserIDs)
-	return result
-}
-
-type sessionArtifactDeletionCall struct {
-	ownerUserID      string
-	workspacePath    string
-	sessionKey       string
-	cleanupSessionID string
-}
-
-type fakeSessionArtifactDeletionCoordinator struct {
-	mu       sync.Mutex
-	calls    []sessionArtifactDeletionCall
-	err      error
-	deleteFn func(context.Context, sessionArtifactDeletionCall) error
-}
-
-func (f *fakeSessionArtifactDeletionCoordinator) DeleteSessionArtifacts(
-	ctx context.Context,
-	ownerUserID string,
-	workspacePath string,
-	sessionKey string,
-	cleanupSessionID string,
-) error {
-	call := sessionArtifactDeletionCall{
-		ownerUserID:      ownerUserID,
-		workspacePath:    workspacePath,
-		sessionKey:       sessionKey,
-		cleanupSessionID: cleanupSessionID,
-	}
-	f.mu.Lock()
-	f.calls = append(f.calls, call)
-	deleteFn := f.deleteFn
-	err := f.err
-	f.mu.Unlock()
-	if deleteFn != nil {
-		if deleteErr := deleteFn(ctx, call); deleteErr != nil {
-			return deleteErr
-		}
-	}
-	return err
-}
-
-func (f *fakeSessionArtifactDeletionCoordinator) Calls() []sessionArtifactDeletionCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	result := make([]sessionArtifactDeletionCall, len(f.calls))
-	copy(result, f.calls)
 	return result
 }
 
@@ -1150,11 +1096,6 @@ func assertDeliveredAgentMessage(t *testing.T, workspacePath string, session pro
 	if textutil.FirstNonEmpty(stringFromMessage(summary, "subtype")) != "success" {
 		t.Fatalf("%s投递终态不正确: %+v", label, messages[0])
 	}
-}
-
-func assertRunDeliveredTo(t *testing.T, service *Service, jobID string, expectedDeliveryTo string) automationdomain.ScheduledTaskRun {
-	t.Helper()
-	return assertRunDeliveredToContext(t, context.Background(), service, jobID, expectedDeliveryTo)
 }
 
 func assertRunDeliveredToContext(t *testing.T, ctx context.Context, service *Service, jobID string, expectedDeliveryTo string) automationdomain.ScheduledTaskRun {

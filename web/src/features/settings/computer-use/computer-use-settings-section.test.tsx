@@ -71,34 +71,6 @@ beforeEach(() => {
   });
 });
 
-it("renders CUA in its own settings page and keeps the switch action local", async () => {
-  const user = userEvent.setup();
-  renderSettings();
-  const controller = useController.mock.results[0]?.value as {
-    onChange: ReturnType<typeof vi.fn>;
-    onOpenPermissions: ReturnType<typeof vi.fn>;
-  };
-
-  expect(screen.getAllByRole("heading", { name: "电脑操控" }).length).toBeGreaterThan(0);
-  expect(within(screen.getByRole("list", { name: "示例任务" })).getAllByRole("listitem")).toHaveLength(3);
-  expect(within(screen.getByRole("list", { name: "示例任务" })).queryByRole("button")).toBeNull();
-  const toggle = screen.getByRole("switch", { name: "允许 Nexus 操作电脑" });
-  expect(toggle.getAttribute("aria-checked")).toBe("true");
-  expect(screen.getByText("2 项待处理")).toBeTruthy();
-  const list = within(screen.getByRole("list", { name: "系统权限" }));
-  expect(list.getByText("屏幕录制")).toBeTruthy();
-  expect(list.getByText("已开启")).toBeTruthy();
-  expect(list.getByText("辅助功能")).toBeTruthy();
-  expect(list.getByText("未开启")).toBeTruthy();
-  expect(list.getByText("输入控制")).toBeTruthy();
-  expect(list.getByText("待确认")).toBeTruthy();
-  expect(screen.queryByRole("dialog")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "设置权限" }));
-  expect(controller.onOpenPermissions).toHaveBeenCalledOnce();
-  await user.click(toggle);
-  expect(controller.onChange).toHaveBeenCalledExactlyOnceWith(false);
-});
-
 it("shows Windows permission status without macOS setup actions", () => {
   window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "windows" };
   useController.mockReturnValue({

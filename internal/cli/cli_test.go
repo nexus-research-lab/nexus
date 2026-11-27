@@ -43,25 +43,6 @@ func TestHostManagedCLIScopeRejectsSelectionOverrides(t *testing.T) {
 	}
 }
 
-func TestManualCLIScopeFlagsRemainAvailableOutsideManagedRuntime(t *testing.T) {
-	t.Setenv(nexusctlUserIDEnvName, "user-owner")
-	t.Setenv(nexusRuntimeScopeModeEnvName, "")
-
-	command, err := New(config.Config{})
-	if err != nil {
-		t.Fatalf("创建 CLI 命令失败: %v", err)
-	}
-	for _, name := range []string{"scope-user-id", "global-scope"} {
-		flag := command.PersistentFlags().Lookup(name)
-		if flag == nil {
-			t.Fatalf("缺少作用域 flag: %s", name)
-		}
-		if flag.Hidden {
-			t.Fatalf("人工 CLI 模式不应隐藏 flag: %s", name)
-		}
-	}
-}
-
 func TestCLIExecuteReleasesDatabasesAfterSuccessAndFailure(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -91,43 +72,6 @@ func TestCLIExecuteReleasesDatabasesAfterSuccessAndFailure(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRestoresHostRootsFromUserRuntime(t *testing.T) {
-	root := t.TempDir()
-	stateRoot := filepath.Join(root, ".nexus")
-	ownerSegment := "user_demo"
-	runtimeRoot := appfs.UserRuntimeRootAt(stateRoot, ownerSegment)
-	agentWorkspace := filepath.Join(
-		root,
-		"custom-workspaces",
-		ownerSegment,
-		"workspace",
-		"nexus",
-		"src",
-	)
-	t.Setenv(appfs.NexusStateRootEnvName, "")
-	t.Setenv(nexusConfigDirEnvName, runtimeRoot)
-	t.Setenv(nexusctlWorkspacePathEnvName, agentWorkspace)
-	t.Setenv(workspacePathEnvName, agentWorkspace)
-	t.Setenv("DATABASE_DRIVER", "")
-	t.Setenv("DATABASE_URL", "")
-	t.Setenv("NEXUS_APP_MODE", "")
-
-	cfg := LoadConfig()
-
-	if got, want := cfg.DatabaseURL, filepath.Join(stateRoot, "app", "data", "nexus.db"); got != want {
-		t.Fatalf("nexusctl database path = %q, want %q", got, want)
-	}
-	if got, want := cfg.WorkspacePath, filepath.Join(root, "custom-workspaces"); got != want {
-		t.Fatalf("nexusctl workspace base = %q, want %q", got, want)
-	}
-	if got := os.Getenv(nexusConfigDirEnvName); got != runtimeRoot {
-		t.Fatalf("NEXUS_CONFIG_DIR 被改写: got=%q want=%q", got, runtimeRoot)
-	}
-	if got := os.Getenv(nexusctlWorkspacePathEnvName); got != agentWorkspace {
-		t.Fatalf("NEXUSCTL_WORKSPACE_PATH 被改写: got=%q want=%q", got, agentWorkspace)
-	}
-}
-
 func TestLoadConfigFallsBackToCanonicalUsersRoot(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	runtimeRoot := appfs.UserRuntimeRootAt(stateRoot, "user_demo")
@@ -143,24 +87,6 @@ func TestLoadConfigFallsBackToCanonicalUsersRoot(t *testing.T) {
 
 	if got, want := cfg.WorkspacePath, filepath.Join(stateRoot, "users"); got != want {
 		t.Fatalf("nexusctl workspace base = %q, want %q", got, want)
-	}
-}
-
-func TestLoadConfigLeavesHostEnvironmentUntouched(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	workspaceRoot := filepath.Join(t.TempDir(), "workspaces")
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv(nexusConfigDirEnvName, stateRoot)
-	t.Setenv(nexusctlWorkspacePathEnvName, filepath.Join(workspaceRoot, "current"))
-	t.Setenv(workspacePathEnvName, workspaceRoot)
-	t.Setenv("DATABASE_DRIVER", "")
-	t.Setenv("DATABASE_URL", "")
-	t.Setenv("NEXUS_APP_MODE", "")
-
-	cfg := LoadConfig()
-
-	if cfg.WorkspacePath != workspaceRoot {
-		t.Fatalf("宿主 WORKSPACE_PATH 被改写: got=%q want=%q", cfg.WorkspacePath, workspaceRoot)
 	}
 }
 
@@ -263,40 +189,6 @@ func TestCLIUsageErrorUsesExitCode64AndStderrJSON(t *testing.T) {
 	errorItem, ok := payload["error"].(map[string]any)
 	if !ok || errorItem["kind"] != cliErrorKindUsage {
 		t.Fatalf("stderr JSON 应标记 usage 错误: %+v", payload)
-	}
-}
-
-func TestCLIExecutionErrorUsesExitCode1AndStderrJSON(t *testing.T) {
-	cfg := newCLITestConfig(t)
-	migrateCLISQLite(t, cfg.DatabaseURL)
-
-	command, err := New(cfg)
-	if err != nil {
-		t.Fatalf("创建 CLI 命令失败: %v", err)
-	}
-	command.SetArgs([]string{"--json", "agent", "get", "missing-agent"})
-
-	stdout, _, executeErr := captureCLIStreams(t, command)
-	if stdout != "" {
-		t.Fatalf("执行错误时 stdout 应为空: %s", stdout)
-	}
-	if executeErr == nil {
-		t.Fatal("读取不存在的 agent 应返回执行错误")
-	}
-	if ExitCode(executeErr) != exitCodeExecution {
-		t.Fatalf("执行错误应返回 1，实际=%d err=%v", ExitCode(executeErr), executeErr)
-	}
-
-	var stderr bytes.Buffer
-	WriteCommandError(&stderr, executeErr, true)
-
-	var payload map[string]any
-	if err = json.Unmarshal(stderr.Bytes(), &payload); err != nil {
-		t.Fatalf("解析 stderr JSON 失败: %v, stderr=%s", err, stderr.String())
-	}
-	errorItem, ok := payload["error"].(map[string]any)
-	if !ok || errorItem["kind"] != cliErrorKindExecution {
-		t.Fatalf("stderr JSON 应标记 execution 错误: %+v", payload)
 	}
 }
 

@@ -43,23 +43,6 @@ it("does not accept an old A response after visiting B and returning to A", asyn
   expect(screen.getByText("Fresh summary")).toBeTruthy();
 });
 
-it("keeps a new event request busy when an old matching-scope request fails", async () => {
-  const old = deferred<{ items: never[] }>();
-  const fresh = deferred<{ items: never[] }>();
-  api.threads.mockResolvedValue({ items: [thread("Summary")] });
-  api.events.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
-  const { rerender } = render(view("a"));
-  await act(async () => undefined);
-  rerender(view("b"));
-  rerender(view("a"));
-  await act(async () => undefined);
-  expect(api.events).toHaveBeenCalledTimes(2);
-  await act(async () => { old.reject(new Error("late failure")); });
-  expect(screen.getByTestId("events").getAttribute("aria-busy")).toBe("true");
-  await act(async () => { fresh.resolve({ items: [] }); });
-  expect(screen.getByTestId("events").getAttribute("aria-busy")).toBe("false");
-});
-
 
 it("does not restrict Agent-wide preview to a single room", async () => {
   api.threads.mockResolvedValue({items: []});

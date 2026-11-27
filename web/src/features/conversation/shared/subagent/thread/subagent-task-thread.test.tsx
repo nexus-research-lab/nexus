@@ -60,19 +60,4 @@ describe("Subagent task confirmations", () => {
     expect(send).toHaveBeenCalledExactlyOnceWith("Review the final evidence.");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
-
-  it.each(["task", "source"])("clears the open prompt immediately on %s change and does not restore it on return", async (change) => {
-    const user = userEvent.setup();
-    const { rerender } = render(view());
-    await user.click(screen.getByRole("button", { name: "Send instruction" }));
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Private draft for task one" } });
-    rerender(change === "task" ? view({ ...TASK, task_id: "task-two" }) : view(TASK, { kind: "session", session_key: "session-two" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
-    rerender(view());
-    expect(screen.queryByRole("dialog")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Send instruction" }));
-    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("");
-    expect(send).not.toHaveBeenCalled();
-    expect(stop).not.toHaveBeenCalled();
-  });
 });

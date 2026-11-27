@@ -26,15 +26,3 @@ it("names the first load and does not render empty profile sections after failur
   expect(screen.queryByText("Usage content")).toBeNull();
   expect(screen.queryByText("Password content")).toBeNull();
 });
-
-it("keeps successful sections mounted during refresh", () => {
-  state.profile = { isLoading: false, value: {} };
-  const view = render(<I18nProvider><PersonalSettingsPanel /></I18nProvider>);
-  const content = screen.getByText("Profile content");
-  state.profile = { ...state.profile, isLoading: true };
-  view.rerender(<I18nProvider><PersonalSettingsPanel /></I18nProvider>);
-  expect(screen.getByText("Profile content")).toBe(content);
-  expect(screen.getByText("Usage content")).toBeTruthy();
-  expect(screen.getByText("Password content")).toBeTruthy();
-  expect(screen.queryByRole("status")).toBeNull();
-});

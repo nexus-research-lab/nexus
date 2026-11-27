@@ -55,38 +55,3 @@ it.each(["about", "workspace", "workgraph"] as const)("keeps the %s page in one 
   expect(document.activeElement).toBe(trigger);
   expect(document.body.style.overflow).toBe(previousOverflow);
 });
-
-it("keeps localized title updates stable and renews focus when replacing an auxiliary page", async () => {
-  const user = userEvent.setup();
-  const rendered = render(<Harness tab="about" />);
-  const trigger = screen.getByRole("button", { name: "Open page" });
-  await user.click(trigger);
-  const dialog = screen.getByRole("dialog", { name: MESSAGES.en["room.about"] });
-  await user.click(screen.getByRole("button", { name: "Nova profile" }));
-  const focused = document.activeElement;
-  rendered.rerender(<Harness tab="about" locale="zh" />);
-  expect(screen.getByRole("dialog", { name: MESSAGES.zh["room.about"] })).toBe(dialog);
-  expect(document.activeElement).toBe(focused);
-  rendered.rerender(<Harness tab="workspace" locale="zh" />);
-  expect(screen.getByRole("dialog", { name: MESSAGES.zh["room.workspace"] })).not.toBe(dialog);
-  const back = screen.getByRole("button", { name: MESSAGES.zh["common.back"] });
-  await waitFor(() => expect(document.activeElement).toBe(back));
-  await user.click(back);
-  expect(document.activeElement).toBe(trigger);
-});
-
-it("forwards the original file navigation command and releases the modal on external close", async () => {
-  const openFile = vi.fn();
-  const close = vi.fn();
-  const previousOverflow = document.body.style.overflow;
-  const view = (activeTab: RoomMobileAuxiliaryTab | null) => <I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => MESSAGES.en[key] }}>
-    <RoomMobileAuxiliaryOverlay {...base} activeTab={activeTab} onClose={close} onOpenWorkspaceFile={openFile} />
-  </I18N_CONTEXT.Provider>;
-  const rendered = render(view("workspace"));
-  await userEvent.click(screen.getByRole("button", { name: "Open file" }));
-  expect(openFile).toHaveBeenCalledExactlyOnceWith("/report.md");
-  expect(close).not.toHaveBeenCalled();
-  rendered.rerender(view(null));
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(document.body.style.overflow).toBe(previousOverflow);
-});

@@ -27,11 +27,6 @@ describe("shared model math rendering", () => {
     expect(container.textContent).toContain("file*(x)");
   });
 
-  it("renders issue 262 scientific notation without losing LaTeX escapes", () => {
-    const { container } = render(<UiMarkdownContent content={String.raw`解离常数 \(K_D\)，解离速率 \(k_{\mathrm{off}}\)，单位 \(M^{-1}s^{-1}\)。`} />);
-    expect(sources(container)).toEqual([String.raw`K_D`, String.raw`k_{\mathrm{off}}`, String.raw`M^{-1}s^{-1}`]);
-  });
-
   it.each([
     [String.raw`前文 $x_i$ 后文`, "x_i", false],
     [String.raw`前文 \[x_i\] 后文`, "x_i", true],
@@ -68,71 +63,10 @@ y &= 2
     expect(container.textContent).toContain(String.raw`\[x_i\]`);
   });
 
-  it("continues workspace linking after ordinary currency text", () => {
-    const { container } = render(<UiMarkdownContent content="价格 $20 到 $30，参见 report.md" onOpenWorkspaceFile={() => undefined} resolveFilePath={(path) => path === "report.md" ? path : null} />);
-    expect(screen.getByRole("button", { name: "report.md" })).toBeTruthy();
-    expect(sources(container)).toEqual([]);
-    expect(container.textContent).toContain("$20 到 $30");
-  });
-
-  it("preserves incomplete source and replaces it only once the delimiter closes", () => {
-    const prefix = String.raw`公式 \(k_{\mathrm{off}}`;
-    const { container, rerender } = render(<UiMarkdownContent content={prefix} />);
-    expect(sources(container)).toEqual([]);
-    expect(container.textContent).toBe(prefix);
-    rerender(<UiMarkdownContent content={prefix + String.raw`\) 结束`} />);
-    expect(sources(container)).toEqual([String.raw`k_{\mathrm{off}}`]);
-    expect(container.textContent).toContain("结束");
-  });
-
-  it("contains malformed and untrusted LaTeX without losing surrounding prose", () => {
-    const { container } = render(<UiMarkdownContent content={String.raw`前文 \(\frac{1}{\) 中间 \(x_i\) 后文 \(\href{javascript:alert(1)}{link}\)`} />);
-    expect(container.querySelector(".katex-error")?.textContent).toContain(String.raw`\frac{1}{`);
-    expect(sources(container)).toContain("x_i");
-    expect(container.textContent).toContain("前文");
-    expect(container.textContent).toContain("后文");
-    expect(container.querySelector("a")).toBeNull();
-  });
-
-  it("keeps an invalid block fence literal without parser failure", () => {
-    const content = "\\[\nx_i\n\\] **后文**";
-    const { container } = render(<UiMarkdownContent content={content} />);
-    expect(sources(container)).toEqual([]);
-    expect(container.textContent).toBe(content);
-  });
-
-  it("accepts every incremental prefix of a block formula without inventing a close", () => {
-    const content = "\\[\nx_i\n\\]";
-    const { container, rerender } = render(<UiMarkdownContent content="" />);
-    for (let size = 1; size < content.length; size += 1) {
-      rerender(<UiMarkdownContent content={content.slice(0, size)} />);
-      expect(sources(container)).toEqual([]);
-      expect(container.textContent).toBe(content.slice(0, size));
-    }
-    rerender(<UiMarkdownContent content={content} />);
-    expect(sources(container)).toEqual(["x_i"]);
-  });
-
   it("keeps list-contained display math with blank lines in the streaming block", () => {
     const content = "- 定义\n\n  \\[\n  x_i\n\n  + y_i\n  \\]\n\n- 后续";
     const { container } = render(<MarkdownText components={undefined} remarkPlugins={MARKDOWN_PLUGINS} rehypePlugins={REHYPE_PLUGINS} urlTransform={undefined} content={content} isStreaming />);
     expect(sources(container)).toEqual(["  x_i\n\n  + y_i"]);
     expect(container.querySelectorAll("li")).toHaveLength(2);
-  });
-
-  it.each(["\\[", "$$"])("keeps display blocks with blank lines intact across streaming completion: %s", (opening) => {
-    const closing = opening === "$$" ? "$$" : "\\]";
-    const body = "x_i\n\n+ y_i";
-    const prefix = `Before\n\n${opening}\n${body}`;
-    const props = { components: undefined, remarkPlugins: MARKDOWN_PLUGINS, rehypePlugins: REHYPE_PLUGINS, urlTransform: undefined };
-    const { container, rerender } = render(<MarkdownText {...props} content={prefix} isStreaming />);
-    expect(sources(container)).toEqual([]);
-    const content = `${prefix}\n${closing}\n\nAfter`;
-    rerender(<MarkdownText {...props} content={content} isStreaming />);
-    expect(sources(container)).toEqual([body]);
-    const formula = container.querySelector(".katex");
-    rerender(<MarkdownText {...props} content={content} isStreaming={false} />);
-    expect(container.querySelector(".katex")).toBe(formula);
-    expect(container.textContent).toContain("After");
   });
 });

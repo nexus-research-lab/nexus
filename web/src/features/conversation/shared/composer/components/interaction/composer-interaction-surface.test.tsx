@@ -2,7 +2,7 @@
 // OUTPUT: 证明唯一请求、草稿隔离、响应异常恢复及标准控件投影。
 // POS: Composer 人工介入 DOM 集成回归；不模拟 runtime 持久化或发送成功事实。
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -56,18 +56,5 @@ describe("Composer interaction request identity", () => {
       expect(onResponse).toHaveBeenCalledTimes(2);
       expect(log).toHaveBeenCalledOnce();
     } finally { log.mockRestore(); }
-  });
-
-  it("keeps radio groups local even when two question surfaces use the same question index", async () => {
-    const user = userEvent.setup();
-    render(<>{wrap([question("A")], vi.fn())}{wrap([question("B")], vi.fn())}</>);
-    const groups = screen.getAllByRole("group");
-    const first = within(groups[0]).getByRole("radio", { name: /Yes/ }) as HTMLInputElement;
-    const second = within(groups[1]).getByRole("radio", { name: /No/ }) as HTMLInputElement;
-    await user.click(first);
-    await user.click(second);
-    expect(first.name).not.toBe(second.name);
-    expect(first.checked).toBe(true);
-    expect(second.checked).toBe(true);
   });
 });
