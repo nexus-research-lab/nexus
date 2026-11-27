@@ -163,16 +163,16 @@
   --brand-action: #8ea4ff;
   --brand-action-hover: #9bafff;
   --brand-foreground: #08111d;
-  --secondary: #2c2c30;
+  --secondary: #35353a;
   --secondary-foreground: #ececee;
   --accent: var(--primary);
   --accent-foreground: var(--primary-foreground);
-  --card: rgba(41, 41, 45, 0.76);
+  --card: rgba(50, 50, 54, 0.76);
   --card-foreground: #ececee;
-  --muted: #2c2c30;
+  --muted: #35353a;
   --muted-foreground: #a3a3a9;
   --border: rgba(255, 255, 255, 0.11);
-  --input: rgba(41, 41, 45, 0.78);
+  --input: rgba(50, 50, 54, 0.78);
   --ring: rgba(142, 164, 255, 0.2);
   --destructive: #f26d77;
   --destructive-foreground: #24090e;
@@ -189,30 +189,30 @@
     0 22px 48px rgba(0, 5, 12, 0.34),
     0 4px 16px rgba(0, 5, 12, 0.16);
   --shadow-color: rgb(0 5 12);
-  --material-shell-navigation-background: rgba(0, 0, 0, 0.2);
+  --material-shell-navigation-background: rgba(0, 0, 0, 0.16);
   --material-shell-directory-background: rgba(255, 255, 255, 0.025);
   --material-shell-header-background: rgba(255, 255, 255, 0.02);
   --material-shell-edge-shadow:
     10px 0 30px rgba(0, 4, 10, 0.28);
   --material-shell-inner-shadow:
     7px 0 22px rgba(0, 4, 10, 0.18);
-  --material-shell-edge-divider: #36363a;
+  --material-shell-edge-divider: #3e3e43;
   --material-shell-header-shadow:
     0 9px 26px rgba(0, 4, 10, 0.22);
   --material-shell-footer-shadow:
     0 -8px 24px rgba(0, 4, 10, 0.18);
 
   --material-canvas-background:
-    linear-gradient(180deg, rgba(36, 36, 39, 0.82), rgba(32, 32, 35, 0.74) 100%);
+    linear-gradient(180deg, rgba(45, 45, 49, 0.82), rgba(41, 41, 45, 0.74) 100%);
   --material-canvas-border: rgba(255, 255, 255, 0.08);
 
-  --material-chip-background: rgba(50, 50, 54, 0.8);
+  --material-chip-background: rgba(58, 58, 63, 0.8);
   --material-chip-border: rgba(255, 255, 255, 0.08);
   --material-chip-shadow:
     0 8px 16px rgba(0, 5, 12, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
-  --material-overlay-background: rgba(44, 44, 48, 0.985);
+  --material-overlay-background: rgba(52, 52, 57, 0.985);
   --material-overlay-border: rgba(255, 255, 255, 0.14);
   --material-overlay-shadow: 0 18px 48px rgba(0, 5, 12, 0.44);
   --material-popover-background: var(--material-overlay-background);
@@ -224,13 +224,13 @@
   --material-dialog-surface-shadow: 0 28px 72px rgba(0, 5, 12, 0.5);
   --dialog-backdrop-color: rgba(2, 6, 14, 0.46);
 
-  --material-input-background: rgba(43, 43, 47, 0.9);
+  --material-input-background: rgba(51, 51, 56, 0.9);
   --material-input-border: rgba(255, 255, 255, 0.12);
-  --material-input-focus-background: rgba(47, 47, 51, 0.94);
+  --material-input-focus-background: rgba(55, 55, 60, 0.94);
   --material-input-focus-border: rgba(142, 164, 255, 0.34);
 
   --material-avatar-background:
-    linear-gradient(180deg, rgba(56, 56, 60, 0.995), rgba(42, 42, 46, 0.985) 100%);
+    linear-gradient(180deg, rgba(64, 64, 69, 0.995), rgba(50, 50, 54, 0.985) 100%);
   --material-avatar-border: rgba(255, 255, 255, 0.2);
   --material-avatar-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
@@ -260,7 +260,7 @@
   --interaction-active-border: rgba(255, 255, 255, 0.11);
   --interaction-active-shadow: none;
   --text-kbd-color: #e0e0e4;
-  --surface-kbd-background: rgba(54, 54, 58, 0.84);
+  --surface-kbd-background: rgba(62, 62, 67, 0.84);
   --divider-kbd-border: rgba(255, 255, 255, 0.08);
   --surface-kbd-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
