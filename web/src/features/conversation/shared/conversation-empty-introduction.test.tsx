@@ -52,4 +52,15 @@ describe("ConversationEmptyIntroduction", () => {
     }));
     expect(onSelect).toHaveBeenCalledWith("处理当前工作区中的文件与内容");
   });
+
+  it("leaves starter suggestions for the main agent to the home launchpad", () => {
+    render(
+      <I18nProvider>
+        <ConversationEmptyIntroduction agentName="nexus" isMain kind="dm" onSelect={vi.fn()} />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("heading", { name: "想让 Nexus 帮你管理什么？" })).toBeTruthy();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
 });

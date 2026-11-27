@@ -7,7 +7,7 @@
 - `conversation-panel-layout.tsx`：会话面板通用布局和浮层控件；历史加载状态复用公共 UiBadge 与 status 语义。
 - `conversation-panel-styles.ts`：统一消息流、助手正文、告警与 Composer 的桌面宽度阶梯。
 - `conversation-panel-model.ts`：把共享会话控制器和面板环境投影为 Frame、导航、视口和滚动控件模型。
-- `conversation-empty-introduction.tsx`：在 DM/Room canonical timeline 为空时，以可见 Feed 为基准居中展示同一静态身份与建议面板；四条建议固定复用同构的纵向轻边框 `UiButton outline`，图标在左上、文案在左下并保持足够卡片宽度和高度，Room 文案还需平衡左右列的视觉重量；这些同层快捷入口默认透明且不加阴影，只以边框和 hover 底色反馈交互。Room 图标外框复用 WorkspaceIconFrame；身份图形允许在居中外框内做 1–2px 光学校正，但不得移动整组中心线；只在用户选择建议后发出普通消息，不持久化自身。
+- `conversation-empty-introduction.tsx`：在 DM/Room canonical timeline 为空时，以可见 Feed 为基准居中展示同一静态身份与建议面板；DM 显示 Agent 头像，Room 只显示标题，不叠加图标外框。主智能体只显示头像与标题，起手建议唯一由首页启动台提供；普通 DM 与 Room 的四条建议复用单行轻边框 `UiButton outline`，图标在左、文案在右，两列排列；这些同层快捷入口默认透明且不加阴影，只以边框和 hover 底色反馈交互。只在用户选择建议后发出普通消息，不持久化自身。
 - `conversation-history-loading-state.tsx`：DM/Room 首屏 durable 历史仍在加载（含后端 indexing 重试）且时间线为空时的唯一占位，复用 `UiResourceState` loading；不得让长会话首开显示为空会话或空态建议。
 - `use-conversation-panel-environment.ts`：统一读取布局模式和 Provider 告警状态；用户头像已退出消息渲染契约，不得沿面板链保留无消费字段。
 - `use-conversation-snapshot-reporter.ts`：按会话作用域报告稳定快照，并统一活跃时间、当前已加载消息计数与显式 `has_user_input` 投影；只有可见且非 synthetic 的 user 消息属于用户输入，消息计数不得代替该事实。Conversation scope 切换后的首个 effect 必须跳过，且消息 identity 必须属于当前 scope，防止上一会话的消息集合在清空前污染新 draft。

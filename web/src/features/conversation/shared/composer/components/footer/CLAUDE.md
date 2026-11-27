@@ -4,7 +4,7 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 
 ## 职责
 
-- `composer-footer.tsx`: 以输入壳命名容器装配动作、Session 设置、Goal 标记、状态、元数据和提交动作，并在中心显示可按容器宽度收敛的 随当前内核切换的 `Powered by Nexus` / `Powered by Claude`
+- `composer-footer.tsx`: 以输入壳命名容器装配动作、Session 设置、Goal 标记、状态、元数据和提交动作
 - `composer-footer-actions.tsx`: 构造附件、本机文件夹、Goal 动作菜单、当前 Session Connector 显式开关并按动作表分派命令
 - `composer-model-picker.tsx`: DM 模型入口与浮层；入口显示“模型 · 强度”（仅有强度覆盖时追加）。视口放得下时强度档位作为侧栏级联在模型面板左侧（悬浮强度入口展开、悬浮其他行收起，点击/方向键进入并落焦，Escape/右方向键回到入口）；放不下时在模型面板内原位进入，Escape/左方向键返回。选择后关闭并归还入口焦点。
 - `composer-session-model-menu.tsx`: DM 浮层与 Room 模型面板共用的菜单正文：多 Provider 时按 Provider 分组并只显示一次分组名，继承来源的模型带“默认”标记；底部依次是常驻的思考强度入口（当前模型未开放档位时置灰并标注不支持）与重置。`SessionEffortMenu` 是唯一档位面板：一句代价说明，列出“自动”与该模型开放的档位，最高档以警示徽标提示用量；作原位子页时由调用方传返回栏，作侧栏时不带。

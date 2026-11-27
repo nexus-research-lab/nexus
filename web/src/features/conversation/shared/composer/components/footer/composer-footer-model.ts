@@ -4,8 +4,6 @@
 
 import type { ReactNode, RefObject } from "react";
 
-import type { AgentRuntimeKind } from "@/types/settings/preferences";
-
 import type { ContextUsageData } from "@/types/generated/protocol";
 
 import type {
@@ -53,7 +51,6 @@ export interface ComposerFooterProps {
   sessionSettingsController: ComposerSessionSettingsController;
   sessionSettingsDisabled: boolean;
   showActionMenu: boolean;
-  runtimeKind: AgentRuntimeKind;
   submit: ComposerSubmitButtonProps;
 }
 

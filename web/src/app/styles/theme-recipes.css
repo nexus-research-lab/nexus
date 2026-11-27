@@ -789,7 +789,7 @@
     transition: padding-inline-start var(--motion-duration-layout) var(--motion-ease-layout);
   }
 
-  /* 窄屏保留少量顶部呼吸；桌面管理页回收完整 20px 页面留白，让 60px 分隔线与侧栏贯通。 */
+  /* 窄屏保留少量顶部呼吸；桌面管理页回收完整 20px 页面留白，让 60px 标题栏与侧栏品牌栏对齐。 */
   .workspace-content-header {
     position: sticky;
     top: 0;
@@ -1644,8 +1644,8 @@
 
   .nexus-chat-composer-footer {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    grid-template-areas: "leading brand trailing";
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "leading trailing";
     align-items: center;
     gap: 0.75rem;
     padding: 0.375rem 0.75rem 0.5rem;
@@ -1656,16 +1656,6 @@
     overflow: hidden;
   }
 
-  .nexus-chat-composer-footer-brand {
-    grid-area: brand;
-    justify-self: center;
-    color: color-mix(
-      in srgb,
-      var(--text-soft) 52%,
-      var(--input-shell-background)
-    );
-  }
-
   .nexus-chat-composer-footer-trailing {
     grid-area: trailing;
   }
@@ -1673,8 +1663,6 @@
   /* Goal/Plan 模式控制比普通状态更密集：让控制/提交占第一行，状态独占第二行，
      避免负责人选择器的不可收缩宽度覆盖停止提示。 */
   .nexus-chat-composer-footer[data-mode-active="true"] {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "leading trailing";
     align-items: start;
     row-gap: 0.25rem;
   }
@@ -1683,10 +1671,6 @@
     flex-wrap: wrap;
     overflow: visible;
     row-gap: 0.25rem;
-  }
-
-  .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-footer-brand {
-    display: none;
   }
 
   .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-runtime-status {
@@ -1701,18 +1685,6 @@
     background: var(--text-soft);
     color: #fff;
     box-shadow: none;
-  }
-
-  /* 窄 Composer 优先保留功能控件，移除仅作品牌提示的中列。 */
-  @container nexus-chat-composer (max-width: 640px) {
-    .nexus-chat-composer-footer {
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas: "leading trailing";
-    }
-
-    .nexus-chat-composer-footer-brand {
-      display: none;
-    }
   }
 
   @container nexus-chat-composer (max-width: 520px) {

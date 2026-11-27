@@ -6,6 +6,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { getInitialAgentOptions } from "@/config/runtime-options";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 
@@ -28,7 +29,7 @@ const AGENT: Agent = {
   workspace_path: "/workspace/researcher",
 };
 
-function renderCard(view: "grid" | "list") {
+function renderCard(view: "grid" | "list", agent: Agent = AGENT) {
   const actions = {
     onCreateTeam: vi.fn(),
     onOpenProfile: vi.fn(),
@@ -38,7 +39,7 @@ function renderCard(view: "grid" | "list") {
     <I18N_CONTEXT.Provider
       value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
     >
-      <ContactsAgentCard agent={AGENT} view={view} {...actions} />
+      <ContactsAgentCard agent={agent} view={view} {...actions} />
     </I18N_CONTEXT.Provider>,
   );
   return { ...result, actions };
@@ -72,5 +73,15 @@ describe("ContactsAgentCard", () => {
       expect(screen.getByRole("tooltip").textContent).toBe("contacts.chat");
       expect(chat.getAttribute("title")).toBeNull();
     }
+  });
+
+  it.each(["grid", "list"] as const)("hides default permission and provider in %s view", (view) => {
+    renderCard(view, {
+      ...AGENT,
+      options: { ...AGENT.options, permission_mode: getInitialAgentOptions().permission_mode, provider: "" },
+    });
+    expect(screen.queryByText("contacts.metadata.permission")).toBeNull();
+    expect(screen.queryByText("contacts.metadata.provider")).toBeNull();
+    expect(screen.queryByText("agent_options.advanced.permission.auto.label")).toBeNull();
   });
 });

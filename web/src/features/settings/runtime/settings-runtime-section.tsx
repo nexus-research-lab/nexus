@@ -12,10 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Search,
   ShieldCheck,
   SlidersHorizontal,
-  Terminal,
   Trash2,
 } from "lucide-react";
 
@@ -43,7 +41,6 @@ import { AGENT_RUNTIME_KIND_OPTIONS } from "./model/settings-runtime-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SettingsToggleRow,
-  SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
@@ -131,16 +128,10 @@ export function SettingsRuntimeSection() {
         <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-              <div className={SETTINGS_ICON_CLASS_NAME}>
-                <Terminal className="h-3.5 w-3.5" />
-              </div>
               <div className="min-w-0">
                 <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                   {t("settings.runtime.kernel_title")}
                 </h3>
-                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                  {t("settings.runtime.kernel_description")}
-                </p>
               </div>
             </div>
             <UiSegmentedControl
@@ -266,16 +257,10 @@ function WebSearchRow({
     <>
       <div className={SETTINGS_ROW_CLASS_NAME}>
         <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-          <div className={SETTINGS_ICON_CLASS_NAME}>
-            <Search className="h-3.5 w-3.5" />
-          </div>
           <div className="min-w-0">
             <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
               {t("settings.runtime.web_search_title")}
             </h3>
-            <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-              {t("settings.runtime.web_search_description")}
-            </p>
           </div>
         </div>
         <UiSelectMenu
@@ -301,7 +286,7 @@ function WebSearchRow({
         />
       </div>
       <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-      <div className="px-4 pb-2 pt-2 md:pl-14">
+      <div className="px-4 pb-2 pt-2">
         <div className="grid gap-2 md:grid-cols-2">
           <div className="md:col-span-2">
             {apiKeySupported ? (
@@ -745,7 +730,6 @@ function ToolSearchRow({
       checked={checked}
       description={t("settings.runtime.tool_search_description")}
       disabled={disabled}
-      icon={<Search className="h-3.5 w-3.5" />}
       onChange={onChange}
       title={t("settings.runtime.tool_search_title")}
     />
@@ -757,9 +741,6 @@ function RuntimeWithoutSettings() {
   return (
     <div className={SETTINGS_ROW_CLASS_NAME}>
       <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-        <div className={SETTINGS_ICON_CLASS_NAME}>
-          <Terminal className="h-3.5 w-3.5" />
-        </div>
         <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
           {t("settings.runtime.no_settings")}
         </p>

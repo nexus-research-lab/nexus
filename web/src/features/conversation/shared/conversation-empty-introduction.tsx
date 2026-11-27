@@ -1,27 +1,22 @@
 /**
  * INPUT: 空会话身份、会话类型与建议文本选择动作。
- * OUTPUT: 居中的静态介绍与紧凑快捷建议，捕获建议发送失败并交给宿主诊断。
+ * OUTPUT: 居中的静态介绍与单行快捷建议，捕获建议发送失败并交给宿主诊断；主智能体只显示标题，起手建议由首页启动台提供。
  * POS: DM/Room canonical timeline 为空时的前端展示，不创建消息或 runtime round。
  */
 "use client";
 
 import {
-  Bot,
   Clock3,
   FilePenLine,
   ListChecks,
-  MessagesSquare,
   Plug,
-  SlidersHorizontal,
   UsersRound,
-  Wrench,
   Workflow,
 } from "lucide-react";
 
 import { notifyDesktopDiagnostic } from "@/config/desktop-runtime";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -34,12 +29,7 @@ interface ConversationEmptyIntroductionProps {
 }
 
 const EMPTY_SUGGESTIONS = {
-  main: [
-    { icon: Bot, key: "conversation.empty_main_agents" },
-    { icon: UsersRound, key: "conversation.empty_main_rooms" },
-    { icon: SlidersHorizontal, key: "conversation.empty_main_providers" },
-    { icon: Wrench, key: "conversation.empty_main_troubleshoot" },
-  ],
+  main: [],
   agent: [
     { icon: FilePenLine, key: "conversation.empty_agent_workspace" },
     { icon: Plug, key: "conversation.empty_agent_capabilities" },
@@ -87,35 +77,32 @@ export function ConversationEmptyIntroduction({
       data-conversation-empty-introduction
     >
       <div className="w-full max-w-[46rem]">
-        <div className="flex justify-center">
-          {kind === "dm" ? (
+        {kind === "dm" ? (
+          <div className="mb-5 flex justify-center">
             <UiAgentAvatar avatar={agentAvatar} name={name} size="lg" />
-          ) : (
-            <WorkspaceIconFrame size="lg">
-              <MessagesSquare aria-hidden className="-translate-x-0.5 h-6 w-6" />
-            </WorkspaceIconFrame>
-          )}
-        </div>
-        <h2 className={`mx-auto mt-5 max-w-[32rem] text-balance text-center ${getUiTypographyClassName({
+          </div>
+        ) : null}
+        <h2 className={`mx-auto max-w-[32rem] text-balance text-center ${getUiTypographyClassName({
           role: "featureTitle",
           tone: "strong",
           weight: "medium",
         })}`}>
           {title}
         </h2>
-        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        {EMPTY_SUGGESTIONS[variant].length > 0 ? (
+        <div className="mt-8 grid gap-2 sm:grid-cols-2">
           {EMPTY_SUGGESTIONS[variant].map(({ icon: Icon, key }) => {
             const label = t(key);
             return (
               <UiButton
-                className="group min-h-24 w-full flex-col items-start justify-between text-left"
+                className="group w-full justify-start gap-3 text-left"
                 key={key}
                 onClick={() => { void selectSuggestion(label); }}
                 size="lg"
                 variant="outline"
               >
-                <Icon className="h-4 w-4 text-(--icon-muted) transition-colors group-hover:text-(--text-default)" />
-                <span className={`mt-4 ${getUiTypographyClassName({
+                <Icon className="h-4 w-4 shrink-0 text-(--icon-muted) transition-colors group-hover:text-(--text-default)" />
+                <span className={`min-w-0 truncate ${getUiTypographyClassName({
                   role: "supporting",
                   tone: "default",
                 })}`}>
@@ -125,6 +112,7 @@ export function ConversationEmptyIntroduction({
             );
           })}
         </div>
+        ) : null}
       </div>
     </section>
   );

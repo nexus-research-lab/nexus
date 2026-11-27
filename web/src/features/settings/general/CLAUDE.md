@@ -33,7 +33,7 @@ Preferences 首次 GET 成功并取得持久 version 前禁止写入，不得用
 
 外观页提供聊天字体、字号、行距、即时预览和恢复默认；本机排版状态由 `shared/theme/chat-typography.ts` 持久化，不进入服务端 Preferences。
 
-外观页的主题与语言保持原有图标、说明及分段按钮；阅读排版独立采用左标签、右控件的分隔行卡片。统一恢复动作重置系统默认主题、侧栏天空及聊天排版，语言独立保留。
+外观页的主题与语言只保留行标题与分段按钮，设置行不加装饰图标块；阅读排版独立采用左标签、右控件的分隔行卡片。统一恢复动作重置系统默认主题、侧栏天空及聊天排版，语言独立保留。
 
 外观页的「侧栏天空」由 `components/settings-sidebar-sky-picker.tsx` 以缩略插画单选卡片呈现（跟随时间、晨曦、晴空、夜空、流星、关闭），支持方向键选择；偏好由 `shared/theme/sidebar-sky-preference.ts` 本机持久化并跨窗口同步，插画与时间表复用 `features/navigation/sidebar/`，不在设置域复制。
 

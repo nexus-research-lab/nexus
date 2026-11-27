@@ -6,14 +6,6 @@
 "use client";
 
 import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
-import {
-  Brain,
-  Bug,
-  HeartPulse,
-  MessageCircle,
-  Moon,
-  RadioTower,
-} from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
@@ -23,7 +15,6 @@ import { DELIVERY_POLICY_OPTIONS } from "../model/settings-options";
 import {
   SettingsToggleRow,
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
@@ -105,7 +96,6 @@ export function SettingsGeneralBehaviorSection({
         <SettingsToggleRow
           checked={agentSdkDiagnosticsEnabled}
           disabled={preferencesLoading || preferencesSaving}
-          icon={<Bug className="h-3.5 w-3.5" />}
           onChange={onAgentSdkDiagnosticsChange}
           title={t("settings.general.agent_sdk_diagnostics_title")}
         />
@@ -116,7 +106,6 @@ export function SettingsGeneralBehaviorSection({
           checked={autoMemoryEnabled}
           description={t("settings.general.auto_memory_description")}
           disabled={preferencesLoading || preferencesSaving}
-          icon={<Brain className="h-3.5 w-3.5" />}
           onChange={onAutoMemoryEnabledChange}
           title={t("settings.general.auto_memory_title")}
         />
@@ -127,7 +116,6 @@ export function SettingsGeneralBehaviorSection({
           checked={autoDreamEnabled}
           description={t("settings.general.auto_dream_description")}
           disabled={preferencesLoading || preferencesSaving}
-          icon={<Moon className="h-3.5 w-3.5" />}
           onChange={onAutoDreamEnabledChange}
           title={t("settings.general.auto_dream_title")}
         />
@@ -138,7 +126,6 @@ export function SettingsGeneralBehaviorSection({
           checked={emotionEnabled}
           description={t("settings.general.emotion_description")}
           disabled={preferencesLoading || preferencesSaving}
-          icon={<HeartPulse className="h-3.5 w-3.5" />}
           onChange={onEmotionEnabledChange}
           title={t("settings.general.emotion_title")}
         />
@@ -149,7 +136,6 @@ export function SettingsGeneralBehaviorSection({
           checked={echoEnabled}
           description={t("settings.general.echo_description")}
           disabled={echoDisabled || echoLoading || echoSaving}
-          icon={<RadioTower className="h-3.5 w-3.5" />}
           onChange={onEchoEnabledChange}
           title={t("settings.general.echo_title")}
         />
@@ -158,9 +144,6 @@ export function SettingsGeneralBehaviorSection({
 
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <MessageCircle className="h-3.5 w-3.5" />
-            </div>
             <div className="min-w-0">
               <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                 {t("settings.general.runtime_title")}

@@ -8,7 +8,6 @@
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { useState } from "react";
 import {
-  Folder,
   FolderOpen,
   Loader2,
   RefreshCw,
@@ -26,7 +25,6 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
@@ -45,9 +43,6 @@ export function SettingsWorkspaceSection() {
         <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-center">
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-              <div className={SETTINGS_ICON_CLASS_NAME}>
-                <Folder className="h-3.5 w-3.5" />
-              </div>
               <div className="min-w-0">
                 <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                   {t(titleKey)}

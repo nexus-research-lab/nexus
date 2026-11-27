@@ -6,7 +6,7 @@
 "use client";
 
 import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
-import { Download, Loader2, MonitorCog } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -16,7 +16,6 @@ import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-vie
 
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
@@ -44,9 +43,6 @@ export function SettingsDesktopSection() {
         <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-              <div className={SETTINGS_ICON_CLASS_NAME}>
-                <MonitorCog className="h-3.5 w-3.5" />
-              </div>
               <div className="min-w-0">
                 <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                   {t("settings.desktop.version_title")}

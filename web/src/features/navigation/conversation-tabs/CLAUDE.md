@@ -1,6 +1,6 @@
 # Room 会话标签导航
 
-- `room-conversation-tabs.tsx` 是 DM Header、Group Header 与 Contacts 联络 Header 的业务入口：读取当前 owner 的固定偏好，投影标题、外部 Session 标签和关闭/固定资格，再把受控事实与独立命令交给共享 `WorkspaceConversationTabs`。此处不复制标签 DOM、样式或滚动。
+- `room-conversation-tabs.tsx` 是 DM Header、Group Header 与 Contacts 联络 Header 的业务入口：读取当前 owner 的固定偏好，投影标题、外部 Session 标签和关闭/固定资格，再把受控事实与独立命令交给共享 `WorkspaceConversationTabs`。只有一个未固定标签时它只会重复 Header 已显示的对象名，因此不渲染标签，只在同一位置保留一个固定图标；固定后恢复显示标签以提供取消固定入口。此处不复制标签 DOM、样式或滚动。
 - `use-room-conversation-tabs.ts` 拥有打开集合、乐观活动项、创建与最终替换单飞、关闭回退和按 Room 持久化。`store/room-navigation.ts` 继续拥有持久化介质及主侧栏共用的固定集合；关闭标签不取消固定，删除会话才清理固定项。
 - 最后可见标签的异步替换提交也复用 Store 的精确关闭命令：只移除目标并加入替代项，保留旧列表未包含或等待期间由其他页面打开的标签。Store 不再暴露整组标签覆盖入口。
 - `room-conversation-tabs-model.ts` 定义创建时间顺序、存活集合归约、初始恢复、活动项、关闭邻居、持久化资格和当前内部 draft 判断。首次进入只打开恢复目标；之后只因显式选择、新建或外部导航追加，消息活动及服务端新增历史不得重排或补入标签。归约按保留存活项、追加外部选中项、保证非空执行，活动项始终属于打开集合。

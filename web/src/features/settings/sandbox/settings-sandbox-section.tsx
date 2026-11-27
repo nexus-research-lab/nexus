@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { Box, Loader2, ScanSearch, ShieldCheck } from "lucide-react";
+import { Loader2, ScanSearch } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -22,7 +22,6 @@ import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_CONTENT_BODY_CLASS_NAME,
   SETTINGS_DIVIDER_CLASS_NAME,
-  SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
@@ -62,7 +61,6 @@ export function SettingsSandboxSection() {
             checked={settings.desktopSandboxEnabled}
             description={t("settings.general.desktop_sandbox_description")}
             disabled={settings.loading || settings.preferencesBusy}
-            icon={<Box className="h-3.5 w-3.5" />}
             onChange={settings.onDesktopSandboxEnabledChange}
             title={t("settings.general.desktop_sandbox_title")}
           />
@@ -83,7 +81,6 @@ export function SettingsSandboxSection() {
               </UiButton>
             )}
             description={t("settings.runtime.sandbox_check_description")}
-            icon={<ShieldCheck className="h-3.5 w-3.5" />}
             title={t("settings.runtime.sandbox_check")}
           >
             {settings.sandboxState ? (
@@ -103,19 +100,16 @@ function SandboxActionRow({
   actions,
   children,
   description,
-  icon,
   title,
 }: {
   actions: ReactNode;
   children?: ReactNode;
   description: string;
-  icon: ReactNode;
   title: string;
 }) {
   return (
     <div className="flex min-w-0 items-center gap-3 px-4 py-3">
       <div className={cn(SETTINGS_TEXT_ROW_CLASS_NAME, "flex-1")}>
-        <div aria-hidden="true" className={SETTINGS_ICON_CLASS_NAME}>{icon}</div>
         <div className="min-w-0 break-words">
           <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>{title}</h3>
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>{description}</p>

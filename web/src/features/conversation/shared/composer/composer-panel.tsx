@@ -222,7 +222,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   props.isLoading || state.runtimeActivity !== null
                 }
                 showActionMenu={props.showActionMenu !== false}
-                runtimeKind={props.runtimeKind}
                 submit={{
                   isDisabled: state.isSendDisabled,
                   shouldContinue: state.shouldContinue,
