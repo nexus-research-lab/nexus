@@ -397,7 +397,6 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     let fileManager = FileManager.default
     let directories = [
       ("app/logs", "Logs"),
-      ("app/debug", "Debug"),
       ("users/__system__/runtime/logs", "RuntimeLogs"),
       ("users/__system__/runtime/debug", "RuntimeDebug"),
     ]

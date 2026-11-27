@@ -35,7 +35,5 @@ internal static class DesktopPaths
 
     public static string LogsDirectory => Path.Combine(AppDirectory, "logs");
 
-    public static string DebugDirectory => Path.Combine(AppDirectory, "debug");
-
     public static string SidecarPIDFilePath => Path.Combine(RootDirectory, "NexusSidecar.pid.json");
 }

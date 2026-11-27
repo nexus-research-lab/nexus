@@ -852,6 +852,59 @@ func TestRunWorkspaceFilesRetriesRetiredSandboxCleanupWithoutBlockingStartup(t *
 	assertMigrationPathExists(t, workspaceFileMigrationMarker(appRoot, retiredSandboxResourcesName))
 }
 
+func TestRunWorkspaceFilesRemovesRetiredStateEntries(t *testing.T) {
+	stateRoot := t.TempDir()
+	appRoot := filepath.Join(stateRoot, "app")
+	projects := filepath.Join(stateRoot, "users", "owner-a", "runtime", "projects")
+	orphan := filepath.Join(projects, "-s-users-owner-a-runtime-projects--s-workspace-amy-0b2d-session-memory")
+	keptProject := filepath.Join(projects, "-s-users-owner-a-workspace-amy")
+	keptMemoryDir := filepath.Join(projects, "-s-workspace-notes-session-memory")
+	writeMigrationTestFile(t, filepath.Join(orphan, "session-memory-0b2d.jsonl"), "{}\n")
+	writeMigrationTestFile(t, filepath.Join(keptProject, "s.jsonl"), "{}\n")
+	writeMigrationTestFile(t, filepath.Join(keptMemoryDir, "s.jsonl"), "{}\n")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "MEMORY.md"), "# MEMORY.md\n")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "debug", ".DS_Store"), "x")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "data", "nexus.sqlite"), "")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "data", "nexus.db"), "db")
+	writeMigrationTestFile(t, filepath.Join(stateRoot, "runtime", "arg-files", "mcp-config.json"), "{}\n")
+	if err := os.MkdirAll(filepath.Join(appRoot, "memory"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RunWorkspaceFiles(appRoot, filepath.Join(stateRoot, "workspace"), discardMigrationLogger()); err != nil {
+		t.Fatalf("执行工作区文件迁移失败: %v", err)
+	}
+	for _, path := range []string{
+		orphan,
+		filepath.Join(appRoot, "memory"),
+		filepath.Join(appRoot, "MEMORY.md"),
+		filepath.Join(appRoot, "debug"),
+		filepath.Join(appRoot, "data", "nexus.sqlite"),
+		filepath.Join(stateRoot, "runtime"),
+	} {
+		assertMigrationPathMissing(t, path)
+	}
+	assertMigrationPathExists(t, keptProject)
+	assertMigrationPathExists(t, keptMemoryDir)
+	assertMigrationPathExists(t, filepath.Join(appRoot, "data", "nexus.db"))
+	assertMigrationPathExists(t, workspaceFileMigrationMarker(appRoot, retiredStateEntriesName))
+}
+
+func TestRunWorkspaceFilesKeepsNonEmptyRetiredStateCandidates(t *testing.T) {
+	stateRoot := t.TempDir()
+	appRoot := filepath.Join(stateRoot, "app")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "memory", "note.md"), "keep\n")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "MEMORY.md"), "- [note](memory/note.md)\n")
+	writeMigrationTestFile(t, filepath.Join(appRoot, "data", "nexus.sqlite"), "data")
+
+	if err := RunWorkspaceFiles(appRoot, filepath.Join(stateRoot, "workspace"), discardMigrationLogger()); err != nil {
+		t.Fatal(err)
+	}
+	assertMigrationPathExists(t, filepath.Join(appRoot, "memory", "note.md"))
+	assertMigrationPathExists(t, filepath.Join(appRoot, "MEMORY.md"))
+	assertMigrationPathExists(t, filepath.Join(appRoot, "data", "nexus.sqlite"))
+}
+
 type historyBackfillFake struct {
 	completed map[string]bool
 }

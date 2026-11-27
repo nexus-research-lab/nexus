@@ -129,7 +129,6 @@ enum DesktopDiagnosticsReport {
       "bootstrap_store": DesktopStateRootStore.bootstrapLocation,
       "data_dir": DesktopPaths.dataDirectory.path,
       "logs_dir": logsDirectory().path,
-      "debug_dir": DesktopPaths.debugDirectory.path,
       "config_root": DesktopPaths.rootDirectory.path,
       "config_dir": DesktopPaths.configDirectory.path,
       "transcript_projects_dir": DesktopPaths.projectsDirectory.path,
@@ -146,7 +145,6 @@ enum DesktopDiagnosticsReport {
       "root_dir_exists": fileManager.fileExists(atPath: DesktopPaths.rootDirectory.path),
       "data_dir_exists": fileManager.fileExists(atPath: DesktopPaths.dataDirectory.path),
       "logs_dir_exists": fileManager.fileExists(atPath: logsDirectory().path),
-      "debug_dir_exists": fileManager.fileExists(atPath: DesktopPaths.debugDirectory.path),
       "transcript_projects_dir_exists": fileManager.fileExists(atPath: DesktopPaths.projectsDirectory.path),
       "sidecar_pid_record_exists": fileManager.fileExists(
         atPath: DesktopPaths.sidecarPIDFileURL.path

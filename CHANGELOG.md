@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- 启动时一次性清理状态根里的残留：旧版 SDK 每次会话摘要都会多生成一个 `…-session-memory` 孤立 project 目录，这些目录会被删除；同时删除 `app/memory` 空目录与 `app/MEMORY.md`、从未写入过的 `app/debug`、零字节的 `app/data/nexus.sqlite`、根级旧 `runtime/arg-files`，以及非 Linux 上的空 `shared-workspaces`。清理失败不阻断启动，下次启动重试。
+- 桌面端（macOS / Windows）不再创建 `app/debug`，日志导出包与诊断信息中也去掉了这一项。
+
 ### Changed
 
 - 长时间运行的工作图读取更快：读取节点的连线和产出文件时不再按 200 个一批拼接查询，改为一次查询；本机 SQLite 默认页缓存从 2 MB 提高到 64 MB。实测 1 万条运行历史时单次读取从约 330 ms 降到约 110 ms，5 万条时从约 1.45 s 降到约 0.6 s，返回内容不变。

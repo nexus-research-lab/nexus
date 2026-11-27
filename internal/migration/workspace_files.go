@@ -16,6 +16,7 @@ const (
 	retiredManagedSkillsMigrationName  = "20260712_remove_retired_managed_skills"
 	legacyMemoryManagerMigrationName   = "20260713_remove_legacy_memory_manager_skill"
 	retiredSandboxResourcesName        = "20261029_remove_retired_sandbox_resources"
+	retiredStateEntriesName            = "20261127_remove_retired_state_entries"
 )
 
 type workspaceFileMigrationContext struct {
@@ -37,6 +38,7 @@ var workspaceFileMigrations = []workspaceFileMigration{
 	{name: retiredManagedSkillsMigrationName, apply: removeRetiredManagedSkills},
 	{name: legacyMemoryManagerMigrationName, apply: removeLegacyMemoryManagerSkill},
 	{name: retiredSandboxResourcesName, apply: removeRetiredSandboxResources, bestEffort: true},
+	{name: retiredStateEntriesName, apply: removeRetiredStateEntries, bestEffort: true},
 }
 
 // RunWorkspaceFiles 执行所有尚未完成的工作区文件迁移。
