@@ -447,3 +447,18 @@ func transcriptContentBlocks(entry map[string]any) []map[string]any {
 		return nil
 	}
 }
+
+// transcriptSubagentAttachment 返回子任务 structured_output 附件所属的 agent 与工具调用 id，
+// 其他条目返回空串。
+func transcriptSubagentAttachment(entry map[string]any) (agentID string, toolUseID string) {
+	if stringFromAny(entry["type"]) != "attachment" {
+		return "", ""
+	}
+	attachment, _ := entry["attachment"].(map[string]any)
+	if stringFromAny(attachment["type"]) != "structured_output" {
+		return "", ""
+	}
+	data, _ := attachment["data"].(map[string]any)
+	return textutil.FirstNonEmpty(stringFromAny(data["agent_id"]), stringFromAny(data["agentId"])),
+		textutil.FirstNonEmpty(stringFromAny(data["tool_use_id"]), stringFromAny(data["toolUseId"]))
+}

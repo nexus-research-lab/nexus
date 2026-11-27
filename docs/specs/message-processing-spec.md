@@ -258,64 +258,53 @@ summary 文案：
 ### 4.4 Room 发送受理的上下文读取
 
 - 发送受理不预读全量公区历史。
-- slot 在 runtime 确认可恢复状态后，复用消息身份索引读取游标所在轮次及其后消息，再由既有公区 batch 过滤已消费部分；为失败恢复保留目标 Agent 最近终态。
+- slot 在 runtime 确认可恢复状态后，从读模型读取游标所在轮次及其后消息，再由既有公区 batch 过滤已消费部分；为失败恢复保留目标 Agent 最近终态。
 - 普通输入以当前触发消息为上界；当前活跃轮次不物化 synthetic interrupt。
 - 轮内引导与公开 mention 共用读取入口。
-- 运行时按当前 generation 校验工具详情的身份、大小与摘要，在同一读事务中恢复原文。没有可用索引、游标缺失、详情损坏、超预算或图片需要还原原始编码时读取 canonical 完整正文。
+- 工具详情在读事务内取出压缩数据，提交后解压并校验大小与摘要再恢复原文。游标在读模型里定位不到、详情缺失或损坏、合计超过 128 MiB，或图片需要还原原始编码时读取 canonical 完整正文。
 
-### 4.5 派生读模型
+### 4.5 读模型
 
-存储与发布：
+存储：
 
-- 旧用户数据不改写、不搬迁；首次读取只从 canonical 生成宿主 `app/cache/history-read-model.v1.sqlite`。
-- 派生库只保留当前 schema，不保留数据迁移链；schema 变化、初始化中断或损坏时直接丢弃并从 canonical 回建。
-- DM 与 Room 先完成第 5 节的完整规范化，再在单个 SQLite 事务中发布新 generation。
-- 每个 physical round 分开保存 B-Tree 游标元数据、完整 payload 与摘要；不调用模型压缩，不丢弃消息块。
-- round 导航（round index）按固定 round 数分块保存；全量重建与尾部增量都只写内容变化的块，尾部增量的写入量不随会话长度增长。
-- generation 在单个数据库事务内切换。会话在 build/persist 期间被删除时必须放弃写入，禁止由派生读模型重新创建 canonical session/Room 容器。超过保留期的 scope 可直接淘汰。
+- 旧用户数据不改写、不搬迁。读模型是宿主 `app/cache/conversation-history.v1.sqlite` 里的派生数据，Room ledger、DM overlay 与 transcript 仍是事实来源；首次打开时删除旧版 `history-read-model.v1.sqlite`。
+- 库只保留当前 schema，不保留数据迁移链；schema 变化时丢弃全部表，各会话在下一次读取时重新回填；库文件损坏时整份删除重建。
+- 覆盖 Room 公区与 DM 会话（`agent:<id>:<channel>:dm:<ref>`）。每条消息按 `message_id` 一行，存第 5 节 compact 合并后的骨架；分组键是根轮次（Room 成员轮次折叠到根轮次），每个根轮次一行保存分页游标与导航条目。
 
-Room 增量：
+写入：
 
-- 在后台单飞任务中优先尝试增量：保存原始尾轮与已处理 ledger 长度；同文件追加且已有引用未变化时，只读取新增完整 JSONL 行，重投影尾轮和新增轮次。
-- 分页 payload、导航、消息身份索引和尾轮检查点在同一 SQLite 事务中提交；失败不推进进度。
-- 回退完整重建的条件：已有 transcript/private overlay 变化、文件替换/截断、跨旧轮次修改、特殊控制行或超预算。首次建模仍需扫描 canonical。
-- 增量保持既有 generation 并清理被替换尾轮的 detail；完整重建才更换 generation。
-- 增量成功记录源文件字节数、新增字节数、更新/保留轮次数和耗时；不能增量时记录回退原因。
+- Room 在同一把会话锁内追加 ledger、落表并记录已落表的 ledger 字节位置；DM 在追加 round marker（物化成用户行）、overlay 消息和收到 transcript 原生回复时落表。同一 `message_id` 的多次快照按第 5 节的 compact 规则合并。
+- 读取路径会过滤的内部行与 overlay 控制行不落表；投递回执随目标 assistant 所在轮次保存。
+- 每次写入只重算受影响轮次的游标与导航条目，成本不随会话长度增长。
+- 每行记录首次出现顺序：回填行取 canonical 位置，实时新行追加在后，同一 `message_id` 的后续快照保留原位置。同一毫秒的行与轮次按这个顺序排列，与 canonical 一致，不按 `round_id` 字典序。
+- 落表失败不影响 canonical 写入结果，会话标记失效，下一次读取整会话回填。
+- DM 改写裁剪的轮次同步删除；fork 写入的新会话标记失效。会话删除时在一个事务里删除该会话的全部行，空闲时增量归还空间。
 
-完整重建：
+回填与校验：
 
-- 除上述通过校验的 Room ledger 追加外，任一 canonical source 变化都会触发一次完整 generation 重建；DM 没有增量路径，source 变化一律完整重建。duplicate UUID、parent 主链、marker 对齐和 Room transcript_ref 都可能反向改变旧 round，因此不满足 Room 增量条件的变化不得用 append-only 更新替代完整规范化。
+- 会话没有回填、已失效、规则版本变化或来源身份变化（DM 换 transcript 或开启分段；Room ledger 文件被替换或截断）时，由读取方同步整会话回填。同一会话同时只跑一次回填，并发读取等待同一结果；失败后按 5 秒起翻倍、最长 5 分钟退避，退避期内不重跑回填。
+- 回填分批提交，避免长时间占住写锁。回填期间的实时写入照常落表，回填快照与它们合并时以已落表的行为新。
+- Room 每次读取比对 ledger 文件身份与大小：ledger 比表新时先补齐缺的行。
+- 每个会话在本进程第一次读取时检查最近 3 轮，有未收口的轮次、且与上次整会话回填时记下的指纹（轮次与最新行顺序号）不同，就整会话回填一次，补上进程在 runtime 写完 transcript、表还没提交时退出留下的缺口。崩溃留下、不会再收口的轮次指纹不变，重启后不重复回填；整会话回填本身即视为本进程已校验。
 
 读取：
 
-- 热读先验证全部 canonical source 快照，再通过 B-Tree 读取有界的游标元数据窗口和本页命中的 round payload。
-- 单组摘要、scope 元数据或数据库损坏时放弃派生结果并安全回建，不返回未经校验的历史。
-- Session Round Navigator 的标题、状态、Agent 和时间元数据与消息页属于同一 generation；热开不得为导航再扫描完整 overlay；冷开复用同一 rebuild future 和 `indexing` 短轮询协议。
-
-并发与 `indexing`：
-
-- 冷建或 source 变化时，每个会话只允许一个后台 rebuild；全局只允许固定数量的 active rebuild，不保留 detached 等待队列。
-- HTTP 客户端设置 `defer_index=true` 时，后台槽已满或前景等待超过短预算即返回 `indexing=true` 和 `retry_after_ms`。前端保持 loading 并用短请求重试，禁止把该空 `items` 提交为真实空历史。
-- 原请求超时或切页不取消已受理的有界 rebuild；重试必须 attach 同 scope future，不得从零重扫。
-
-容量上限：
-
-- 派生层必须限制 group 数、单 group、generation 和单页 payload 字节。
-- DM 后台构建保留 64 MiB 的源文件预算。Room 单独检查公区 ledger；当它在预算内、但加上引用的成员源超过预算时，共用后台任务按成员处理。它先流式读取父链和并行工具关联，再按文件区间投影选中的消息；仅 Room 已引用的消息进入 SQLite 检查点。
-- 检查点绑定 owner、conversation、成员身份、私有 overlay 和选中的 transcript 指纹。按完整消息在约 1 MiB 或 256 条时提交，进程中断后复用匹配指纹的已提交消息；未完成成员可能需要重新扫描。成员源发生变化时重新投影受影响的引用，已发布消息发生变化时仍按完整 Room 语义重建。对客户端发布的分页、目录和详情属于同一完整 generation。
-- 后台任务对序列化公开引用设置 128 MiB 工作预算；逐成员读取时，父链位置、工具配对和待对齐输入也受剩余预算约束。公区 ledger 自身超过 64 MiB 或公开引用工作集超预算时，首次消息读取走可取消的精确投影。稳定结果在派生库容量允许时发布给后续分页；导航降级直接读取 ledger/overlay 的目录字段。DM 的超预算标记仍沿用请求级读取策略。
+- 分页、around 定位与导航只查表，响应里没有构建中状态。读事务只取行，解压与规范化在提交之后进行。
+- 一页总是完整根轮次：两轮按时间交错时（上一轮成员仍在回复，用户又发了新消息），各自整轮成组，不像全局排序后按相邻 round 分组那样拆成碎片，避免一页只有回复没有提问。取出后执行第 5 节的规范化；唯一跨轮次的规则（durable 引导用户行覆盖 `guided_input` 系统行）在读取时按 `source_round_id` 单独查询。
+- Room 成员私有会话和 fork 尚未完成的 DM 会话不进读模型，分页直接按 canonical 读取后切页。
+- 表不可用时（回填出错、退避期内、回填反复被并发写入打断或读表出错）分页与导航退回 canonical 读取并记录日志，会话总能打开；请求自身取消或超时时直接返回。
 
 ### 4.6 客户端窗口与大型内容
 
-- 首屏、向前分页、around 定位和 `indexing` 重试都必须携带请求级取消信号；切换或清空 Session 时取消旧请求。会话代次是拒绝迟到响应的第二道栅栏，不能替代 transport cancellation。
+- 首屏、向前分页和 around 定位都必须携带请求级取消信号；切换或清空 Session 时取消旧请求。会话代次是拒绝迟到响应的第二道栅栏，不能替代 transport cancellation。
 - 浏览器只保留受 root round 数与估算驻留字节双预算约束的消息窗口：
   - 淘汰以完整 root round 为单位。
   - around 请求必须保留目标锚点；实时、乐观与最新 round 优先于可再次分页取得的历史。
   - 单个不可拆 round 可独自超过字节预算，但不得因此保留更早的大 round。
-- canonical 历史保存完整 Tool result 与内联图片。派生 generation 对单个 `>=256 KiB` 的 Tool result 或图片只保存内容摘要、大小和 opaque detail ref。同一 physical round 内的 Tool result 共用 256 KiB 内联预算，预算耗尽后保留步骤和详情引用，预览最多使用剩余额度。Tool 展开或图片实际渲染时读取完整 detail。
-- detail 必须同时绑定 owner、Session scope、source generation 和 payload digest；source 变化、scope 不匹配、派生数据损坏或淘汰后一律返回 unavailable，不回退猜测旧内容。
+- canonical 历史保存完整 Tool result 与内联图片。读模型对单个 `>=256 KiB` 的 Tool result 或图片只在消息骨架里保存内容摘要、大小和 opaque detail ref，完整内容 gzip 后单独存放；同一条消息里的 Tool result 共用 256 KiB 内联预算，预算耗尽后保留步骤和详情引用，预览最多使用剩余额度。内容相同的多次快照只存一份。Tool 展开或图片实际渲染时读取完整 detail。
+- detail 绑定会话 scope（含 owner）、消息、内容位置和 payload digest；scope 不匹配、已删除或数据损坏一律返回 unavailable，不回退猜测旧内容。
 - 图片 detail 只以受限 raster MIME 和 `nosniff` 响应；桌面客户端必须通过带会话令牌的 fetch 生成临时 Blob URL，不能把认证 URL 直接交给 `<img>`。
-- Feed 和定位只使用消息 round 页与同 generation 的 `SessionRoundIndex`。`ConversationTurn`、`TurnPage` 与 turn-index HTTP 投影已删除，禁止恢复先全量读取再切片的第二套历史 API。
+- Feed 和定位只使用消息 round 页与读模型里的 `SessionRoundIndex`。`ConversationTurn`、`TurnPage` 与 turn-index HTTP 投影已删除，禁止恢复先全量读取再切片的第二套历史 API。
 
 ## 5. 规范化规则
 

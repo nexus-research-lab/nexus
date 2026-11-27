@@ -114,6 +114,7 @@ type Service struct {
 	dispatchConsumer       ExecutionDispatchConsumer
 	reviewDispatchConsumer ExecutionReviewDispatchConsumer
 	cancellationConsumer   ExecutionCancellationConsumer
+	humanInteractions      PendingHumanInteractionReader
 	invalidationMu         sync.RWMutex
 	invalidationSink       ExecutionInvalidationSink
 	viewCache              executionViewCache
@@ -595,6 +596,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 	options.ScopeKind = snapshot.Execution.ScopeKind
 	renderManagedExecutionContext := func() string {
 		s.populateRuntimeGraphContext(ctx, actor, snapshot, &options)
+		options.AwaitingHumanByAttempt = s.awaitingHumanByAttempt(snapshot)
 		return RenderExecutionContext(snapshot, options)
 	}
 	if actor.ObservationOnly {

@@ -19,6 +19,7 @@ func (s *AgentHistoryStore) AppendOverlayMessage(workspacePath string, sessionKe
 	if err := s.files.appendJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey), message); err != nil {
 		return err
 	}
+	s.projectDMConversationRows(workspacePath, sessionKey, message)
 	s.RecordReplyPreview(sessionKey, message)
 	return nil
 }
@@ -147,7 +148,11 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 			row["metadata"] = metadata
 		}
 	}
-	return s.files.appendJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
+	if err := s.files.appendJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey), row); err != nil {
+		return err
+	}
+	s.projectDMRoundMarker(workspacePath, sessionKey, row)
+	return nil
 }
 
 // AppendRoomPublicCursor 追加 Room 公区消费位置控制行。
@@ -267,23 +272,7 @@ func overlayHistoryStateFromRows(rows []map[string]any) overlayHistoryState {
 	for _, row := range rows {
 		switch stringFromAny(row[overlayKindField]) {
 		case overlayKindRoundMarker:
-			roundMarkers = append(roundMarkers, transcriptRoundMarker{
-				RoundID:         stringFromAny(row["round_id"]),
-				SourceRoundID:   stringFromAny(row["source_round_id"]),
-				UserMessageID:   stringFromAny(row["user_message_id"]),
-				AgentRoundID:    stringFromAny(row["agent_round_id"]),
-				ClientMessageID: stringFromAny(row["client_message_id"]),
-				InputSeq:        protocol.Int64FromAny(row[protocol.InputSeqField]),
-				Content:         stringFromAny(row["content"]),
-				Attachments:     protocol.ChatAttachmentsFromAny(row["attachments"]),
-				Timestamp:       messageTimestamp(protocol.Message(row)),
-				DeliveryPolicy:  stringFromAny(row["delivery_policy"]),
-				HiddenFromUser:  boolValueAny(row["hidden_from_user"]),
-				Synthetic:       boolValueAny(row["is_synthetic"]),
-				ControlOnly:     boolValueAny(row["control_only"]),
-				Purpose:         stringFromAny(row["purpose"]),
-				Metadata:        stringMapFromAny(row["metadata"]),
-			})
+			roundMarkers = append(roundMarkers, roundMarkerFromOverlayRow(row))
 			continue
 		}
 		if isSessionOverlayControlRow(row) {
@@ -294,6 +283,27 @@ func overlayHistoryStateFromRows(rows []map[string]any) overlayHistoryState {
 	return overlayHistoryState{
 		MessageRows:  messageRows,
 		RoundMarkers: roundMarkers,
+	}
+}
+
+// roundMarkerFromOverlayRow 把一行 round marker overlay 解码成 marker；读取与写时投影共用。
+func roundMarkerFromOverlayRow(row map[string]any) transcriptRoundMarker {
+	return transcriptRoundMarker{
+		RoundID:         stringFromAny(row["round_id"]),
+		SourceRoundID:   stringFromAny(row["source_round_id"]),
+		UserMessageID:   stringFromAny(row["user_message_id"]),
+		AgentRoundID:    stringFromAny(row["agent_round_id"]),
+		ClientMessageID: stringFromAny(row["client_message_id"]),
+		InputSeq:        protocol.Int64FromAny(row[protocol.InputSeqField]),
+		Content:         stringFromAny(row["content"]),
+		Attachments:     protocol.ChatAttachmentsFromAny(row["attachments"]),
+		Timestamp:       messageTimestamp(protocol.Message(row)),
+		DeliveryPolicy:  stringFromAny(row["delivery_policy"]),
+		HiddenFromUser:  boolValueAny(row["hidden_from_user"]),
+		Synthetic:       boolValueAny(row["is_synthetic"]),
+		ControlOnly:     boolValueAny(row["control_only"]),
+		Purpose:         stringFromAny(row["purpose"]),
+		Metadata:        stringMapFromAny(row["metadata"]),
 	}
 }
 

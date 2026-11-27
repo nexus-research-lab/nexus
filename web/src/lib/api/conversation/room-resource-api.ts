@@ -14,6 +14,7 @@ import type {
 
 import {
   buildConversationMessagesQuerySuffix,
+  CONVERSATION_HISTORY_REQUEST_TIMEOUT_MS,
   normalizeConversationMessagePage,
 } from "./message-page-model";
 import { transformRoomContext } from "./room-api-model";
@@ -45,7 +46,7 @@ export async function getRoomConversationMessages(
 ): Promise<ConversationMessagePage> {
   const result = await requestApi<ApiConversationMessagePage>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/messages${buildConversationMessagesQuerySuffix(options)}`,
-    { method: "GET", signal },
+    { method: "GET", signal, timeout_ms: CONVERSATION_HISTORY_REQUEST_TIMEOUT_MS },
   );
   return normalizeConversationMessagePage(result);
 }

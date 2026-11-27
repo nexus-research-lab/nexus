@@ -35,7 +35,10 @@ import {
   updateAssistantMessageStatus,
   updatePendingAgentSlotStatus,
 } from "./model/conversation-runtime-reconciliation";
-import { filterPendingPermissionsFromSnapshot } from "./model/pending-permission-model";
+import {
+  filterPendingPermissionsFromSnapshot,
+  reconcilePendingPermissionsWithAuthoritativeIds,
+} from "./model/pending-permission-model";
 import {
   applyRoomAgentExecutionStatus,
   applyRoomExecutionRootStatus,
@@ -241,14 +244,26 @@ export function useAgentConversationRuntime({
     }
     if (ack.pending_snapshot) {
       reconcilePendingAgentSlotSnapshot(mergeChatAckPendingSlots([], ack));
+      const authoritativeRequestIds = ack.pending_interaction_request_ids;
+      if (chatType === "group" && Array.isArray(authoritativeRequestIds)) {
+        // 订阅快照是后端 pending 人工交互全集；丢失 resolved 事件的残留问答在此收口。
+        setPendingPermissions((permissions) => (
+          reconcilePendingPermissionsWithAuthoritativeIds(
+            permissions,
+            authoritativeRequestIds,
+          )
+        ));
+      }
       return;
     }
     setPendingAgentSlots((slots) => mergeChatAckPendingSlots(slots, ack));
   }, [
+    chatType,
     reconcilePendingAgentSlotSnapshot,
     resolvePendingRequestAck,
     setMessages,
     setPendingAgentSlots,
+    setPendingPermissions,
     trackRuntimeChatAck,
   ]);
 

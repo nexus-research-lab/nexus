@@ -4,7 +4,7 @@ L5 | 父级: ../CLAUDE.md
 
 保存运行状态机、公开快照协议、消息/slot 迁移和权限过期策略。这里只处理纯数据与同步状态迁移，不读取浏览器存储，不持有 React 生命周期。
 
-- `pending-permission-model.ts` 的历史对账只能依据过期、权威轮次终态或精确 `tool_use_id` 结果移除请求；消息已加载但匹配不到工具块不构成完成证据，宿主自动化确认必须保留。共置回归测试覆盖该边界。
+- `pending-permission-model.ts` 的历史对账只能依据过期、权威轮次终态或精确 `tool_use_id` 结果移除请求；消息已加载但匹配不到工具块不构成完成证据，宿主自动化确认必须保留。Room 订阅 `pending_snapshot` 携带的 `pending_interaction_request_ids` 是后端 pending 人工交互全集，是唯一可以批量移除非自动化请求的权威证据（覆盖 resolved 事件丢失的残留）；快照后新建的请求靠更大 room_seq 的回放重新登记。共置回归测试覆盖该边界。
 
 - Message snapshot reconcile 按终态收集、旧 tracker 保留和 DM tracker 补建三个阶段执行；Room 历史只能补结构和精确终态，不得从未收口的持久 Assistant 行反推活跃 tracker。Room 订阅恢复的 `pending_snapshot` 是当前 conversation 活跃 slot 的权威集合。
 - 消息终态迁移统一解析为保留、移除或更新状态三种动作，调用方只定义作用域规则；round 终态移除 ephemeral 过程消息，但保留已经完成的 transient host 通知及其关联用户指令。host `chat_ack` 即使不声明 durable commit，也可用显式 delivery mode 把 optimistic 用户消息规范化为同 round transient 节点。

@@ -4,7 +4,6 @@
 package workspace
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -444,6 +443,7 @@ func (s *SessionFileStore) deleteSessionLocked(
 	if err := sessionsRoot.RemoveAll(sessionDir); err != nil {
 		return false, err
 	}
+	deleteDMConversationHistory(conversationHistoryForRoot(s.paths.WorkspaceRoot), workspacePath, sessionKey)
 	return true, nil
 }
 
@@ -481,15 +481,9 @@ func (s *SessionFileStore) DeleteRoomConversation(ownerUserID string, conversati
 		return false, err
 	}
 	deletedAssets, assetErr := s.deleteRoomConversationAssets(ownerUserID, conversationID)
-	// 先移除权威目录，再清理该 scope 的分页和未完成检查点。即使资产清理失败也执行，
+	// 先移除权威目录，再清理读模型里该会话的数据。即使资产清理失败也执行，
 	// 重试已删除目录时仍可清理上次未提交的派生数据。
-	model := sharedHistoryReadModel(s.paths.WorkspaceRoot)
-	_, cacheErr := os.Stat(model.path)
-	if cacheErr == nil {
-		cacheErr = model.deleteScope(context.Background(), roomHistoryScope(ownerUserID, conversationID))
-	} else if errors.Is(cacheErr, os.ErrNotExist) {
-		cacheErr = nil
-	}
+	cacheErr := deleteRoomConversationHistory(conversationHistoryForRoot(s.paths.WorkspaceRoot), ownerUserID, conversationID)
 	if err = errors.Join(assetErr, cacheErr); err != nil {
 		return false, err
 	}

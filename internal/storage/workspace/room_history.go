@@ -35,7 +35,7 @@ type RoomHistoryStore struct {
 	paths         *Store
 	files         *SessionFileStore
 	agentHistory  *AgentHistoryStore
-	readModel     *historyReadModel
+	history       *conversationHistoryStore
 }
 
 // NewRoomHistoryStore 创建 Room 共享历史门面。
@@ -46,7 +46,7 @@ func NewRoomHistoryStore(root string) *RoomHistoryStore {
 		paths:        paths,
 		files:        newSessionFileStore(paths),
 		agentHistory: agentHistory,
-		readModel:    agentHistory.readModel,
+		history:      agentHistory.history,
 	}
 }
 
@@ -58,7 +58,7 @@ func (s *RoomHistoryStore) AppendInlineMessage(
 ) error {
 	message = protocol.Clone(message)
 	message["conversation_id"] = strings.TrimSpace(conversationID)
-	if err := s.files.appendRoomJSONL(ownerUserID, s.paths.RoomConversationOverlayPath(ownerUserID, conversationID), message); err != nil {
+	if err := s.appendRoomLedgerRow(ownerUserID, conversationID, message, message); err != nil {
 		return err
 	}
 	s.recordReplyPreview(ownerUserID, conversationID, message)
@@ -79,7 +79,11 @@ func (s *RoomHistoryStore) AppendTranscriptReference(
 		return s.AppendInlineMessage(ownerUserID, conversationID, message)
 	}
 	row["conversation_id"] = strings.TrimSpace(conversationID)
-	if err := s.files.appendRoomJSONL(ownerUserID, s.paths.RoomConversationOverlayPath(ownerUserID, conversationID), row); err != nil {
+	// 写时投影存解析后的消息：与 canonical 解析 transcript_ref 时一样，以引用行上的身份字段为准。
+	projected := protocol.Clone(message)
+	overrideRoomTranscriptFields(projected, protocol.Message(row))
+	projected["conversation_id"] = strings.TrimSpace(conversationID)
+	if err := s.appendRoomLedgerRow(ownerUserID, conversationID, row, projected); err != nil {
 		return err
 	}
 	s.recordReplyPreview(ownerUserID, conversationID, message)
@@ -149,7 +153,7 @@ func (s *RoomHistoryStore) ListTranscriptReferences(
 	return result, nil
 }
 
-// ReadMessagesPageContext 按 root round 真分页读取 Room 历史，并允许取消索引校验与回建。
+// ReadMessagesPageContext 按 root round 分页读取 Room 历史；会话未就绪时同步整会话回填。
 func (s *RoomHistoryStore) ReadMessagesPageContext(
 	ctx context.Context,
 	ownerUserID string,
@@ -157,7 +161,7 @@ func (s *RoomHistoryStore) ReadMessagesPageContext(
 	activeRoundIDs []string,
 	query HistoryPageQuery,
 ) (protocol.MessagePage, error) {
-	return readHistoryPageWithIndex(ctx, s.historyPageAccess(ownerUserID, conversationID), historyPageIndexRequest{
+	request := historyPageIndexRequest{
 		Limit:                query.Limit,
 		BeforeRoundID:        query.BeforeRoundID,
 		BeforeRoundTimestamp: query.BeforeRoundTimestamp,
@@ -165,8 +169,47 @@ func (s *RoomHistoryStore) ReadMessagesPageContext(
 		AroundLimit:          query.AroundLimit,
 		CollapseRoomRounds:   true,
 		ActiveRoundIDs:       activeRoundIDs,
-		DeferIndex:           query.DeferIndex,
-	})
+	}
+	failure := errConversationHistoryNotReady
+	for attempt := 0; attempt < 2; attempt++ {
+		scope, err := s.readyConversationHistory(ctx, ownerUserID, conversationID)
+		if err != nil {
+			failure = err
+			break
+		}
+		// 就绪检查与读取之间会话可能被并发写入标记失效，重新就绪一次。
+		page, ok, err := s.history.readPage(ctx, scope, "", request)
+		if err != nil {
+			failure = err
+			break
+		}
+		if ok {
+			return page, nil
+		}
+	}
+	if !canonicalHistoryFallback(ctx, "room:"+conversationID, failure) {
+		return protocol.MessagePage{}, failure
+	}
+	return s.readCanonicalHistoryPage(ctx, ownerUserID, conversationID, request)
+}
+
+// readCanonicalHistoryPage 是表不可用时的兜底分页：按 canonical 解析整段公区历史后切页，页面不带 detail 引用。
+// 交错轮次在这里按 canonical 的相邻分组切页（见 TestHistoryPageKeepsInterleavedRoundsWhole）。
+func (s *RoomHistoryStore) readCanonicalHistoryPage(
+	ctx context.Context,
+	ownerUserID string,
+	conversationID string,
+	request historyPageIndexRequest,
+) (protocol.MessagePage, error) {
+	rows, err := s.readResolvedRowsContext(ctx, ownerUserID, conversationID)
+	if err != nil {
+		return protocol.MessagePage{}, err
+	}
+	groups, err := buildHistoryPageIndexedGroups(ctx, rows, true)
+	if err != nil {
+		return protocol.MessagePage{}, err
+	}
+	return paginateHistoryPageIndexedGroups(groups, request), nil
 }
 
 func (s *RoomHistoryStore) readResolvedRows(ownerUserID string, conversationID string) ([]protocol.Message, error) {
@@ -199,36 +242,23 @@ func (s *RoomHistoryStore) resolveRoomHistoryRowsContext(
 	conversationID string,
 	rows []map[string]any,
 ) ([]protocol.Message, error) {
-	return s.resolveRoomHistoryRowsWithCache(ctx, ownerUserID, conversationID, rows, newRoomTranscriptIndexCache(false))
+	return s.resolveRoomHistoryRowsWithCache(ctx, ownerUserID, conversationID, rows, newRoomTranscriptIndexCache())
 }
 
 // roomTranscriptProjection 是一次读取里某个成员 transcript 的投影。
 type roomTranscriptProjection struct {
-	// Messages 按 message_id 索引；Resumed 时只含成员检查点之后的消息。
+	// Messages 按 message_id 索引。
 	Messages map[string]protocol.Message
-	// Replay 是产生 Messages 的投影及其轮次起点，用来建立或推进成员检查点；
-	// 不需要检查点的读取、按消息回填的大 Room 成员和没有可用起点的 transcript 为 nil。
-	Replay *transcriptReplay
-	// Resumed 表示 Messages 来自成员检查点之后的续读，检查点之前的投影已被证明没有变化。
-	Resumed bool
 }
 
 // roomTranscriptIndexCache 以 transcript ref 身份缓存成员 transcript 投影，
-// 让一次读模型构建同时完成行解析和冻结引用摘要，不重复读取大文件。
+// 让一次读取里同一成员的多条引用只读一次 transcript。
 type roomTranscriptIndexCache struct {
 	members map[string]*roomTranscriptProjection
-	// withReplay 让完整读取同时保留轮次起点；只有会发布读模型的构建和刷新需要。
-	withReplay bool
 }
 
-func newRoomTranscriptIndexCache(withReplay bool) roomTranscriptIndexCache {
-	return roomTranscriptIndexCache{members: make(map[string]*roomTranscriptProjection), withReplay: withReplay}
-}
-
-// resumed 判断成员是否已由检查点续读得到投影。
-func (cache roomTranscriptIndexCache) resumed(key string) bool {
-	projection := cache.members[key]
-	return projection != nil && projection.Resumed
+func newRoomTranscriptIndexCache() roomTranscriptIndexCache {
+	return roomTranscriptIndexCache{members: make(map[string]*roomTranscriptProjection)}
 }
 
 // 校验只在这次遍历的 owner 范围内复用；实际文件仍由固定根句柄打开。
@@ -354,7 +384,7 @@ func (s *RoomHistoryStore) loadRoomTranscriptIndex(
 	if err != nil {
 		return nil, err
 	}
-	transcriptRows, replay, err := ownerHistory.readTranscriptReplayContext(
+	transcriptRows, err := ownerHistory.readTranscriptProjectionContext(
 		ctx,
 		ref.WorkspacePath,
 		ref.PrivateSessionKey,
@@ -362,7 +392,6 @@ func (s *RoomHistoryStore) loadRoomTranscriptIndex(
 		ref.SessionID,
 		overlayState.RoundMarkers,
 		"",
-		cache.withReplay,
 	)
 	if errors.Is(err, os.ErrNotExist) {
 		cache.members[cacheKey] = &roomTranscriptProjection{Messages: map[string]protocol.Message{}}
@@ -371,7 +400,7 @@ func (s *RoomHistoryStore) loadRoomTranscriptIndex(
 	if err != nil {
 		return nil, err
 	}
-	cache.members[cacheKey] = &roomTranscriptProjection{Messages: indexRoomTranscriptMessages(transcriptRows), Replay: replay}
+	cache.members[cacheKey] = &roomTranscriptProjection{Messages: indexRoomTranscriptMessages(transcriptRows)}
 	return cache.members[cacheKey], nil
 }
 

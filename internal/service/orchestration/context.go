@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -40,6 +41,9 @@ type ExecutionContextOptions struct {
 	RuntimeGraph             *protocol.ExecutionRuntimeGraph
 	RuntimeGraphRelation     string
 	RuntimeGraphUnavailable  bool
+	// AwaitingHumanByAttempt 按 root Attempt ID 记录仍在等待用户响应的人工交互；
+	// 只由宿主 pending 集合派生，不持久化，也不改变任何 Attempt 状态。
+	AwaitingHumanByAttempt map[string][]PendingHumanInteraction
 }
 
 // RenderUnmanagedExecutionContext 投影没有权威 WorkGraph 的普通轮状态。
@@ -176,7 +180,7 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 	subagentEligible := false
 	if !options.ObserveOnly {
 		renderAssignedWork(&output, view, options.ActorAgentID)
-		renderActiveAssignments(&output, view, role)
+		renderActiveAssignments(&output, view, role, options.AwaitingHumanByAttempt)
 		renderReadyWork(&output, view, role)
 		renderPendingReviews(&output, view, role, options.ActorAgentID)
 		renderResumableWork(&output, view, role, options.ActorAgentID)
@@ -597,6 +601,7 @@ func renderActiveAssignments(
 	output *strings.Builder,
 	view executionContextView,
 	role ExecutionActorRole,
+	awaitingHuman map[string][]PendingHumanInteraction,
 ) {
 	output.WriteString("\n  <active_assignments>")
 	if role == ExecutionActorCoordinator {
@@ -632,13 +637,19 @@ func renderActiveAssignments(
 					xmlValue(pendingSubmission.ID),
 				)
 			}
+			var waiting []PendingHumanInteraction
 			if attempt, ok := view.runningAttempts[assignment.ID]; ok {
 				fmt.Fprintf(output, " attempt_id=\"%s\"", xmlValue(attempt.ID))
 				if strings.TrimSpace(attempt.DispatchID) != "" {
 					fmt.Fprintf(output, " dispatch_id=\"%s\"", xmlValue(attempt.DispatchID))
 				}
+				waiting = awaitingHuman[attempt.ID]
+				if len(waiting) > 0 {
+					fmt.Fprintf(output, " awaiting_human=\"%s\"", xmlValue(string(awaitingHumanKind(waiting))))
+				}
 			}
 			output.WriteString(">")
+			renderAwaitingHuman(output, waiting, 6)
 			writeXMLTextElement(output, 6, "subject", spec.Subject)
 			writeXMLTextElement(output, 6, "objective", spec.Objective)
 			writeXMLTextElement(output, 6, "deliverable", spec.Deliverable)
@@ -654,6 +665,43 @@ func renderActiveAssignments(
 		}
 	}
 	output.WriteString("\n  </active_assignments>")
+}
+
+// renderAwaitingHuman 告诉 coordinator 负责人正阻塞在用户响应上：沉默与队列积压不是失活证据。
+func renderAwaitingHuman(output *strings.Builder, interactions []PendingHumanInteraction, indent int) {
+	if len(interactions) == 0 {
+		return
+	}
+	padding := strings.Repeat(" ", indent)
+	fmt.Fprintf(output, "\n%s<awaiting_human count=\"%d\">", padding, len(interactions))
+	for _, interaction := range interactions {
+		fmt.Fprintf(
+			output,
+			"\n%s  <interaction kind=\"%s\" tool=\"%s\" request_id=\"%s\"",
+			padding,
+			xmlValue(string(interaction.Kind())),
+			xmlValue(interaction.ToolName),
+			xmlValue(interaction.RequestID),
+		)
+		if strings.TrimSpace(interaction.AgentRoundID) != "" {
+			fmt.Fprintf(output, " agent_round_id=\"%s\"", xmlValue(interaction.AgentRoundID))
+		}
+		if !interaction.CreatedAt.IsZero() {
+			fmt.Fprintf(
+				output,
+				" since=\"%s\"",
+				xmlValue(interaction.CreatedAt.UTC().Format(time.RFC3339)),
+			)
+		}
+		output.WriteString(" />")
+	}
+	writeXMLTextElement(
+		output,
+		indent+2,
+		"guidance",
+		"The owner runtime is blocked waiting for the user. Missing file output, idle time and unconsumed wake messages are expected while it waits; they are not evidence of a dead runtime. Do not take_over_work, reassign, or resend wakes for this Attempt until the user responds or explicitly asks to change the owner.",
+	)
+	fmt.Fprintf(output, "\n%s</awaiting_human>", padding)
 }
 
 func renderLatestSubagentResult(

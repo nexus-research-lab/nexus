@@ -82,7 +82,6 @@ func (s *Service) GetSessionMessagesPage(
 				BeforeRoundTimestamp: request.BeforeRoundTimestamp,
 				AroundRoundID:        request.AroundRoundID,
 				AroundLimit:          request.AroundLimit,
-				DeferIndex:           request.DeferIndex,
 			},
 		)
 		if err != nil {
@@ -116,7 +115,6 @@ func (s *Service) GetSessionMessagesPage(
 			BeforeRoundTimestamp: request.BeforeRoundTimestamp,
 			AroundRoundID:        request.AroundRoundID,
 			AroundLimit:          request.AroundLimit,
-			DeferIndex:           request.DeferIndex,
 		},
 	)
 	if err != nil {
@@ -316,15 +314,6 @@ func (s *Service) refreshGoalCompletionReceipts(
 
 // GetSessionRoundIndex 读取 session 的轻量 round 导航索引。
 func (s *Service) GetSessionRoundIndex(ctx context.Context, rawSessionKey string) (*protocol.SessionRoundIndex, error) {
-	return s.GetSessionRoundIndexPage(ctx, rawSessionKey, false)
-}
-
-// GetSessionRoundIndexPage 读取 round 导航索引，可显式选择短冷建协议。
-func (s *Service) GetSessionRoundIndexPage(
-	ctx context.Context,
-	rawSessionKey string,
-	deferIndex bool,
-) (*protocol.SessionRoundIndex, error) {
 	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
 	if err != nil {
 		return nil, err
@@ -335,7 +324,6 @@ func (s *Service) GetSessionRoundIndexPage(
 			authctx.OwnerUserID(ctx),
 			parsed.ConversationID,
 			s.activeRoundIDs(sessionKey),
-			deferIndex,
 		)
 		if err != nil {
 			return nil, err
@@ -359,7 +347,6 @@ func (s *Service) GetSessionRoundIndexPage(
 		workspacePath,
 		*sessionValue,
 		s.activeRoundIDs(sessionKey),
-		deferIndex,
 	)
 	if err != nil {
 		return nil, err

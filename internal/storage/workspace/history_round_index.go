@@ -53,21 +53,36 @@ func (s *AgentHistoryStore) ReadRoundIndex(
 	)
 }
 
-// ReadRoundIndexPageContext 从共用派生代际读取 DM 导航元数据；冷建可返回短轮询状态。
+// ReadRoundIndexPageContext 读取 DM 导航元数据；读模型不覆盖的会话按 canonical overlay 读取。
 func (s *AgentHistoryStore) ReadRoundIndexPageContext(
 	ctx context.Context,
 	workspacePath string,
 	sessionValue protocol.Session,
 	activeRoundIDs []string,
-	deferIndex bool,
 ) (protocol.SessionRoundIndex, error) {
-	return readSessionRoundIndexWithModel(
-		ctx,
-		s.historyPageAccess(workspacePath, sessionValue),
-		activeRoundIDs,
-		false,
-		deferIndex,
-	)
+	failure := errConversationHistoryNotReady
+	for attempt := 0; attempt < 2; attempt++ {
+		scope, identity, covered, err := s.readyDMConversationHistory(ctx, workspacePath, sessionValue)
+		if err != nil {
+			failure = err
+			break
+		}
+		if !covered {
+			return s.readCanonicalRoundIndexContext(ctx, workspacePath, sessionValue, activeRoundIDs)
+		}
+		index, ok, err := s.history.readRoundIndex(ctx, scope, identity, activeRoundIDs)
+		if err != nil {
+			failure = err
+			break
+		}
+		if ok {
+			return index, nil
+		}
+	}
+	if !canonicalHistoryFallback(ctx, sessionValue.SessionKey, failure) {
+		return protocol.SessionRoundIndex{}, failure
+	}
+	return s.readCanonicalRoundIndexContext(ctx, workspacePath, sessionValue, activeRoundIDs)
 }
 
 func (s *AgentHistoryStore) readCanonicalRoundIndexContext(
@@ -89,106 +104,60 @@ func (s *AgentHistoryStore) readCanonicalRoundIndexContext(
 	return index, err
 }
 
-// ReadRoundIndex 读取 Room 共享会话的轻量 round 导航索引。
-func (s *RoomHistoryStore) ReadRoundIndex(
-	ownerUserID string,
-	conversationID string,
-	activeRoundIDs []string,
-) (protocol.SessionRoundIndex, error) {
-	return s.readCanonicalRoundIndexContext(
-		context.Background(), ownerUserID, conversationID, activeRoundIDs,
-	)
-}
-
-// ReadRoundIndexPageContext 从共用派生代际读取 Room 导航元数据；冷建可返回短轮询状态。
+// ReadRoundIndexPageContext 读取 Room 导航元数据；会话未就绪时同步整会话回填。
 func (s *RoomHistoryStore) ReadRoundIndexPageContext(
 	ctx context.Context,
 	ownerUserID string,
 	conversationID string,
 	activeRoundIDs []string,
-	deferIndex bool,
 ) (protocol.SessionRoundIndex, error) {
-	return readSessionRoundIndexWithModel(
-		ctx,
-		s.historyPageAccess(ownerUserID, conversationID),
-		activeRoundIDs,
-		true,
-		deferIndex,
-	)
-}
-
-func readSessionRoundIndexWithModel(
-	ctx context.Context,
-	access historyPageIndexAccess,
-	activeRoundIDs []string,
-	collapseRoomRounds bool,
-	deferIndex bool,
-) (protocol.SessionRoundIndex, error) {
-	if err := ctx.Err(); err != nil {
-		return protocol.SessionRoundIndex{}, err
-	}
-	if access.ReadModel != nil {
-		index, ok, err := access.ReadModel.loadRoundIndex(
-			ctx, access, activeRoundIDs, collapseRoomRounds,
-		)
-		if err == nil && ok {
+	failure := errConversationHistoryNotReady
+	for attempt := 0; attempt < 2; attempt++ {
+		scope, err := s.readyConversationHistory(ctx, ownerUserID, conversationID)
+		if err != nil {
+			failure = err
+			break
+		}
+		index, ok, err := s.history.readRoundIndex(ctx, scope, "", activeRoundIDs)
+		if err != nil {
+			failure = err
+			break
+		}
+		if ok {
 			return index, nil
 		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return protocol.SessionRoundIndex{}, err
-		}
-		var disabled *historyPageIndexDisabledError
-		if errors.As(err, &disabled) {
-			return buildCanonicalSessionRoundIndex(ctx, access, activeRoundIDs, collapseRoomRounds)
-		}
 	}
-	built, indexing, err := awaitHistoryPageIndexBuild(ctx, access, deferIndex)
-	if err != nil {
-		return protocol.SessionRoundIndex{}, err
+	if !canonicalHistoryFallback(ctx, "room:"+conversationID, failure) {
+		return protocol.SessionRoundIndex{}, failure
 	}
-	if indexing {
-		return sessionRoundIndexingResult(), nil
-	}
-	if built.Disabled {
-		return buildCanonicalSessionRoundIndex(ctx, access, activeRoundIDs, collapseRoomRounds)
-	}
-	return materializeSessionRoundIndex(
-		built.RoundIndex,
-		activeRoundIDs,
-		collapseRoomRounds,
-	), nil
+	return s.readCanonicalRoundIndexContext(ctx, ownerUserID, conversationID, activeRoundIDs)
 }
 
-func buildCanonicalSessionRoundIndex(
+// readCanonicalRoundIndexContext 是表不可用时 Room 导航的兜底：直接扫描公区 ledger。
+func (s *RoomHistoryStore) readCanonicalRoundIndexContext(
 	ctx context.Context,
-	access historyPageIndexAccess,
+	ownerUserID string,
+	conversationID string,
 	activeRoundIDs []string,
-	collapseRoomRounds bool,
 ) (protocol.SessionRoundIndex, error) {
-	if access.ReadRoundIndex != nil {
-		return access.ReadRoundIndex(ctx, activeRoundIDs)
+	empty := protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}
+	parent, name, err := s.files.openRoomFileParent(
+		ownerUserID,
+		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
+		false,
+	)
+	if errors.Is(err, os.ErrNotExist) {
+		return empty, nil
 	}
-	build := access.BuildCanonical
-	if build == nil {
-		build = access.Build
-	}
-	built, err := build(ctx)
 	if err != nil {
 		return protocol.SessionRoundIndex{}, err
 	}
-	return materializeSessionRoundIndex(
-		built.RoundIndex,
-		activeRoundIDs,
-		collapseRoomRounds,
-	), nil
-}
-
-func sessionRoundIndexingResult() protocol.SessionRoundIndex {
-	return protocol.SessionRoundIndex{
-		Items:        []protocol.SessionRoundIndexItem{},
-		Indexing:     true,
-		RetryAfterMS: historyPageIndexRetryAfterMS,
+	defer parent.Close()
+	index, err := readRoundIndexFromRootContext(ctx, parent, name, normalizeActiveRoundIDs(activeRoundIDs), true, "")
+	if errors.Is(err, os.ErrNotExist) {
+		return empty, nil
 	}
+	return index, err
 }
 
 func materializeSessionRoundIndex(
@@ -231,62 +200,6 @@ func sessionRoundIndexItemIsActive(
 		}
 	}
 	return false
-}
-
-func (s *RoomHistoryStore) readCanonicalRoundIndexContext(
-	ctx context.Context,
-	ownerUserID string,
-	conversationID string,
-	activeRoundIDs []string,
-) (protocol.SessionRoundIndex, error) {
-	parent, name, err := s.files.openRoomFileParent(
-		ownerUserID,
-		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
-		false,
-	)
-	if errors.Is(err, os.ErrNotExist) {
-		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
-	}
-	if err != nil {
-		return protocol.SessionRoundIndex{}, err
-	}
-	defer parent.Close()
-	return readRoundIndexFromRootContext(
-		ctx,
-		parent,
-		name,
-		normalizeActiveRoundIDs(activeRoundIDs),
-		true,
-		"",
-	)
-}
-
-func readRoundIndexFromRootContext(
-	ctx context.Context,
-	root *confinedfs.Root,
-	relative string,
-	activeRoundIDs map[string]struct{},
-	collapseRoomAgentRounds bool,
-	defaultAgentID string,
-) (protocol.SessionRoundIndex, error) {
-	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
-	if errors.Is(err, os.ErrNotExist) {
-		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
-	}
-	if err != nil {
-		return protocol.SessionRoundIndex{}, err
-	}
-	defer file.Close()
-
-	rows, err := decodeRoundIndexOverlayRows(ctx, file)
-	if err != nil {
-		return protocol.SessionRoundIndex{}, err
-	}
-	entries := make(map[string]*sessionRoundIndexAccumulator)
-	for _, row := range rows {
-		row.applyToIndex(entries, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
-	}
-	return buildSessionRoundIndex(entries), nil
 }
 
 // lastByteReader 记住已读到的最后一个字节。
@@ -387,6 +300,10 @@ func (row roundIndexOverlayJSONRow) applyToIndex(
 		updateRoundIndexTitle(entry, roundIndexTextFromRaw(row.Content))
 	}
 	role := strings.TrimSpace(row.Role)
+	if overlayKind == overlayKindTranscriptRef {
+		// Room ledger 的 transcript_ref 行不带 role，只为成员 assistant 回复写入（buildRoomTranscriptReference）。
+		role = "assistant"
+	}
 	if role == "assistant" || role == "result" {
 		addRoundIndexAgentID(entry, row.AgentID, defaultAgentID)
 	}
@@ -583,4 +500,33 @@ func roundIndexTextFromBlocks(blocks []map[string]any) string {
 		}
 	}
 	return strings.TrimSpace(strings.Join(parts, " "))
+}
+
+// readRoundIndexFromRootContext 扫描受限根下的一个 overlay/ledger 文件生成导航；Room 表不可用时的兜底与测试 oracle 共用。
+func readRoundIndexFromRootContext(
+	ctx context.Context,
+	root *confinedfs.Root,
+	relative string,
+	activeRoundIDs map[string]struct{},
+	collapseRoomAgentRounds bool,
+	defaultAgentID string,
+) (protocol.SessionRoundIndex, error) {
+	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
+	}
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	defer file.Close()
+
+	rows, err := decodeRoundIndexOverlayRows(ctx, file)
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	entries := make(map[string]*sessionRoundIndexAccumulator)
+	for _, row := range rows {
+		row.applyToIndex(entries, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
+	}
+	return buildSessionRoundIndex(entries), nil
 }

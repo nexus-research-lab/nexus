@@ -115,6 +115,15 @@ func findHistoryPageEndGroupIndex(
 		return 0
 	}
 
+	// 先精确定位游标所在分组：同一毫秒的分组按追加顺序排列，不是按 round_id 字典序，
+	// 只靠比较会在 id 字典序与追加顺序相反时跳过中间的分组。
+	if beforeRoundID != "" {
+		for index, group := range groups {
+			if group.CursorRoundID == beforeRoundID && group.CursorRoundTimestamp == beforeRoundTimestamp {
+				return index
+			}
+		}
+	}
 	for index, group := range groups {
 		if compareHistoryPageGroupCursor(group, beforeRoundID, beforeRoundTimestamp) >= 0 {
 			return index

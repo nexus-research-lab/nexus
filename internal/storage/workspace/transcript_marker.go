@@ -40,10 +40,6 @@ func alignTranscriptChain(
 	return alignTranscriptUserTurns(collectTranscriptUserTurns(chain, shouldSkip), roundMarkers)
 }
 
-func matchTranscriptRoundMarkers(userTurns []transcriptUserTurn, roundMarkers []transcriptRoundMarker) []transcriptRoundMarker {
-	return alignedTranscriptRoundMarkers(roundMarkers, matchTranscriptRoundMarkerIndexes(userTurns, roundMarkers))
-}
-
 // transcriptMarkerMatch 是一个用户轮次对齐到的 marker。
 type transcriptMarkerMatch struct {
 	// Index 是 marker 在参与对齐的 marker 列表中的下标，未对齐时为 -1。
