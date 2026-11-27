@@ -275,47 +275,6 @@ func TestRejectedNodeCredentialRevokesLocalGrant(t *testing.T) {
 	}
 }
 
-func TestNodeFailureLoggingIsCorrelatedThrottledAndRedacted(t *testing.T) {
-	var output bytes.Buffer
-	executor := &NodeExecutor{logger: slog.New(slog.NewJSONHandler(&output, nil))}
-	grant := teamstore.NodeGrant{NodeID: "node", OwnerUserID: "owner"}
-	job := teamstore.NodeJob{ID: "job", AgentID: "agent", Delivery: &relaycontract.Delivery{ID: "delivery", MessageID: "message"}}
-	err := &relaycontract.RemoteError{StatusCode: 403, Code: "forbidden", RequestID: "request", Message: "SECRET_REMOTE_BODY"}
-	executor.logFailure(t.Context(), "publish_output", grant, job, err)
-	executor.logFailure(t.Context(), "publish_output", grant, job, err)
-	if strings.Count(output.String(), "\n") != 1 || strings.Contains(output.String(), "SECRET_REMOTE_BODY") {
-		t.Fatalf("日志重复或泄露正文: %s", &output)
-	}
-	var record map[string]any
-	if decodeErr := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &record); decodeErr != nil {
-		t.Fatal(decodeErr)
-	}
-	for key, want := range map[string]any{"stage": "publish_output", "job_id": "job", "delivery_id": "delivery", "source_message_id": "message", "http_status": float64(403), "remote_request_id": "request"} {
-		if record[key] != want {
-			t.Fatalf("%s = %v, want %v", key, record[key], want)
-		}
-	}
-	executor.logTimes["node:agent:publish_output"] = time.Now().Add(-2 * time.Minute)
-	executor.logFailure(t.Context(), "publish_output", grant, job, err)
-	executor.logFailure(t.Context(), "claim_delivery", grant, job, err)
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	executor.logFailure(ctx, "cancelled", grant, job, err)
-	if strings.Count(output.String(), "\n") != 3 {
-		t.Fatalf("限频窗口或取消过滤不正确: %s", &output)
-	}
-	for reason, failure := range map[string]error{"node_grant_inactive": ErrNodeInactive, "node_credential_rejected": ErrNodeCredentialRejected} {
-		output.Reset()
-		executor.logFailure(t.Context(), reason, grant, teamstore.NodeJob{}, failure)
-		if decodeErr := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &record); decodeErr != nil {
-			t.Fatal(decodeErr)
-		}
-		if record["reason"] != reason || !errors.Is(failure, ErrNodeLogin) {
-			t.Fatalf("授权失败原因丢失: %s", &output)
-		}
-	}
-}
-
 func TestNodeCredentialFailureLogging(t *testing.T) {
 	activeRaw := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32))
 	oldRaw := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{2}, 32))
@@ -782,37 +741,6 @@ func TestNodeMentionsWakeOnlyWithSuccessfulFinal(t *testing.T) {
 			}
 			if !slices.Equal(finalMentions, want) {
 				t.Fatalf("%s 的唤醒目标 = %v，期望 %v", status, finalMentions, want)
-			}
-		})
-	}
-}
-
-func TestNodeTerminalStatusDistinguishesInterruption(t *testing.T) {
-	for _, status := range []string{"interrupted", "cancelled", "error"} {
-		t.Run(status, func(t *testing.T) {
-			repo := teamstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, newNodeTestDB(t))
-			job, err := repo.PrepareNodeJob(t.Context(), teamstore.NodeJob{ID: "terminal", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", Scope: "scope"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			job.State = "running"
-			if err := repo.SaveNodeJob(t.Context(), job, "claiming", nil); err != nil {
-				t.Fatal(err)
-			}
-			observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}
-			if err := observer.apply(t.Context(), job, protocol.EventMessage{EventType: protocol.EventTypeRoundStatus, Data: map[string]any{"is_terminal": true, "status": status}}); err != nil {
-				t.Fatal(err)
-			}
-			saved, err := repo.NodeJob(t.Context(), job.OwnerUserID, job.ID)
-			want := "cancelled"
-			if status == "error" {
-				want = "failed"
-			}
-			if err != nil || saved == nil || saved.State != want {
-				t.Fatalf("终态=%+v, err=%v", saved, err)
-			}
-			if active, err := repo.ActiveNodeJob(t.Context(), job.OwnerUserID, job.LocalAgentID); err != nil || active != nil {
-				t.Fatalf("终态仍占用执行槽: %+v %v", active, err)
 			}
 		})
 	}

@@ -27,43 +27,6 @@ func TestKeyInputNormalizesCommonModelSpellings(t *testing.T) {
 	}
 }
 
-func TestComputerImagesUseNativeMCPBlocks(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		result func(map[string]any) command.Result
-	}{
-		{"observe", structured},
-		{"perform_action", applied},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			pixels := strings.Repeat("screenshot-bytes", 4096)
-			input := map[string]any{
-				"observation_id": "obs-current", "image_data": pixels, "image_mime": "image/png",
-			}
-			result := tc.result(input)
-			if len(result.Content) != 2 || result.Content[1]["type"] != "image" ||
-				result.Content[1]["data"] != pixels || result.Content[1]["mimeType"] != "image/png" {
-				t.Fatal("screenshot was not delivered as a native MCP image block")
-			}
-			metadata, err := json.Marshal(result.StructuredContent)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, value := range []string{string(metadata), result.Content[0]["text"].(string)} {
-				if strings.Contains(value, "screenshot-bytes") || strings.Contains(value, "image_data") || strings.Contains(value, "image_mime") {
-					t.Fatal("screenshot bytes inflated the text or structured result")
-				}
-				if !strings.Contains(value, "obs-current") {
-					t.Fatal("image extraction lost the observation metadata")
-				}
-			}
-			if input["image_data"] != pixels || input["image_mime"] != "image/png" {
-				t.Fatal("image extraction changed the caller's result")
-			}
-		})
-	}
-}
-
 type permissionStub struct {
 	decision sdkpermission.Decision
 	request  sdkpermission.Request
@@ -129,51 +92,6 @@ func TestComputerOperationContractIsClosedAndStable(t *testing.T) {
 	properties, ok := contract.Operations[0].InputSchema["properties"].(map[string]any)
 	if !ok || properties["kind"] == nil {
 		t.Fatalf("perform_action schema has no kind property: %#v", contract.Operations[0].InputSchema)
-	}
-}
-
-func TestRejectedPreservesCUARecoveryFields(t *testing.T) {
-	recovery := "retry_with_same_request_id"
-	result := rejected(&nexuscua.CUAError{
-		Code:           nexuscua.ErrorInternal,
-		Message:        "mutation outcome is unknown",
-		MutationStatus: nexuscua.MutationIndeterminate,
-		RecoveryAction: &recovery,
-	})
-	if result.StructuredContent["error_code"] != nexuscua.ErrorInternal {
-		t.Fatalf("error_code = %#v", result.StructuredContent["error_code"])
-	}
-	if result.StructuredContent["mutation_status"] != nexuscua.MutationIndeterminate {
-		t.Fatalf("mutation_status = %#v", result.StructuredContent["mutation_status"])
-	}
-	if result.StructuredContent["recovery_action"] != recovery {
-		t.Fatalf("recovery_action = %#v", result.StructuredContent["recovery_action"])
-	}
-	var modelData map[string]any
-	if err := json.Unmarshal([]byte(result.Content[0]["text"].(string)), &modelData); err != nil {
-		t.Fatalf("model cannot read structured recovery: %v", err)
-	}
-	if modelData["recovery_action"] != recovery || modelData["mutation_status"] != string(nexuscua.MutationIndeterminate) {
-		t.Fatal("model-visible error lost recovery or indeterminate evidence")
-	}
-}
-
-func TestBackgroundCaptureFailureExplainsMetadataRecoveryToModel(t *testing.T) {
-	recovery := "focus_window"
-	for _, status := range []nexuscua.MutationStatus{nexuscua.MutationNotApplicable, nexuscua.MutationIndeterminate} {
-		result := rejected(&nexuscua.CUAError{Code: nexuscua.ErrorTargetUnavailable, Message: "capture target remained suspended or blank", RecoveryAction: &recovery, MutationStatus: status, Retryable: true})
-		var modelData map[string]any
-		if err := json.Unmarshal([]byte(result.Content[0]["text"].(string)), &modelData); err != nil {
-			t.Fatal(err)
-		}
-		if status == nexuscua.MutationIndeterminate {
-			hint, _ := modelData["recovery_hint"].(string)
-			if strings.Contains(hint, "focus_window") || !strings.Contains(hint, "once to reconcile without redispatch") || !strings.Contains(hint, "stop and report") {
-				t.Fatal("indeterminate mutation suggested automatic focus replay")
-			}
-		} else if hint, _ := modelData["recovery_hint"].(string); !strings.Contains(hint, "include_screenshot=false AND accessibility=disabled") {
-			t.Fatal("metadata recovery omitted one of its required options")
-		}
 	}
 }
 

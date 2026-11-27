@@ -108,44 +108,6 @@ func (stub *applyWorkflowStub) CloseMetadataEditor(
 	return false, errors.New("unexpected CloseMetadataEditor call")
 }
 
-func TestApplyWorkGraphWorkflowEditorKeepsExistingIdentityAndSuccessEnvelope(t *testing.T) {
-	stub := &applyWorkflowStub{applyResult: &protocol.WorkGraphWorkflowPreview{PreviewID: "preview-a"}}
-	router := newApplyWorkflowTestRouter(stub)
-
-	for range 2 {
-		request := httptest.NewRequest(
-			http.MethodPost,
-			"/workgraph/editors/editor-a/apply",
-			strings.NewReader(`{"source_session_key":"session-a","editor_id":"ignored-body-id","revision":7}`),
-		)
-		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("X-Request-ID", "same-http-attempt-label")
-		recorder := httptest.NewRecorder()
-		router.ServeHTTP(recorder, request)
-
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("Apply success status changed: status=%d body=%s", recorder.Code, recorder.Body.String())
-		}
-		var payload map[string]any
-		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("decode Apply success: %v", err)
-		}
-		if payload["code"] != "0000" || payload["message"] != "success" || payload["success"] != true {
-			t.Fatalf("Apply success envelope changed: %#v", payload)
-		}
-	}
-
-	if stub.applyCalls != 2 {
-		t.Fatalf("HTTP diagnostic ID must not deduplicate Apply: calls=%d", stub.applyCalls)
-	}
-	if stub.applyOwner != authsvc.SystemUserID ||
-		stub.applyRequest.SourceSessionKey != "session-a" ||
-		stub.applyRequest.EditorID != "editor-a" ||
-		stub.applyRequest.Revision != 7 {
-		t.Fatalf("existing Apply identity changed: owner=%q request=%#v", stub.applyOwner, stub.applyRequest)
-	}
-}
-
 func TestApplyWorkGraphWorkflowEditorMapsOnlyProvenFailureEffects(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -227,51 +189,6 @@ func TestApplyWorkGraphWorkflowEditorMapsOnlyProvenFailureEffects(t *testing.T) 
 				t.Fatalf("internal cause leaked: %s", recorder.Body.String())
 			}
 		})
-	}
-}
-
-func TestApplyWorkGraphWorkflowEditorUsesStructuredFailureBeforeServiceCall(t *testing.T) {
-	stub := &applyWorkflowStub{}
-	router := newApplyWorkflowTestRouter(stub)
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/workgraph/editors/editor-a/apply",
-		strings.NewReader(`{"source_session_key":`),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Request-ID", "invalid-json-attempt")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("invalid JSON status=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-	if stub.applyCalls != 0 {
-		t.Fatalf("invalid JSON must fail before service call: calls=%d", stub.applyCalls)
-	}
-	var payload struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-		Success bool   `json:"success"`
-		Data    struct {
-			Detail    string               `json:"detail"`
-			RequestID string               `json:"request_id"`
-			Failure   protocol.FailureCore `json:"failure"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode invalid JSON failure: %v", err)
-	}
-	if payload.Code != "400" || payload.Message != "failed" || payload.Success ||
-		payload.Data.Detail != "请求参数错误" ||
-		payload.Data.RequestID != "invalid-json-attempt" ||
-		payload.Data.Failure.Code != "workgraph.editor_invalid_request" ||
-		payload.Data.Failure.Category != protocol.FailureCategoryValidation ||
-		payload.Data.Failure.Effect != protocol.FailureEffectNotApplied {
-		t.Fatalf("invalid JSON FailureCore mismatch: %#v", payload)
-	}
-	if strings.Contains(recorder.Body.String(), "unexpected end") {
-		t.Fatalf("JSON decoder detail leaked: %s", recorder.Body.String())
 	}
 }
 

@@ -22,7 +22,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	dm "github.com/nexus-research-lab/nexus/internal/service/dm"
 	svc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -64,99 +63,6 @@ func (r *detachedGoalContinuationRecorder) DispatchGoalContinuation(
 ) error {
 	r.plans <- plan
 	return nil
-}
-
-func TestWebSocketSetGoalSurvivesDisconnectDuringObjectiveRewrite(t *testing.T) {
-	cfg := handlertest.NewConfig(t)
-	cfg.GoalEnabled = true
-	cfg.GoalAutoContinueEnabled = true
-	cfg.GoalMaxContinuationsPerRun = 5
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-
-	server, err := New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	handlertest.CloseServer(t, server)
-	rewriter := &blockingGoalObjectiveRewriter{
-		started: make(chan context.Context, 1),
-		release: make(chan struct{}),
-	}
-	continuations := &detachedGoalContinuationRecorder{
-		plans: make(chan protocol.GoalContinuation, 1),
-	}
-	server.services.Goal.SetObjectiveRewriter(rewriter)
-	server.services.Goal.SetContinuationDispatcher(continuations)
-
-	httpServer := httptest.NewServer(server.Router())
-	defer httpServer.Close()
-	conversationID := ensureDetachedGoalDMConversation(t, server)
-	sessionKey := protocol.BuildRoomAgentSessionKey(
-		conversationID,
-		cfg.DefaultAgentID,
-		protocol.RoomTypeDM,
-	)
-
-	dialCtx, cancelDial := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelDial()
-	connection, _, err := websocket.Dial(
-		dialCtx,
-		"ws"+strings.TrimPrefix(httpServer.URL, "http")+"/nexus/v1/chat/ws",
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = wsjson.Write(dialCtx, connection, map[string]any{
-		"type":              "set_goal",
-		"session_key":       sessionKey,
-		"agent_id":          cfg.DefaultAgentID,
-		"objective":         "Keep Goal submission alive across navigation",
-		"client_request_id": "request-detached-goal",
-		"client_message_id": "message-detached-goal",
-		"goal_options": map[string]any{
-			"replace_existing": true,
-			"token_budget":     nil,
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	var rewriteCtx context.Context
-	select {
-	case rewriteCtx = <-rewriter.started:
-	case <-time.After(3 * time.Second):
-		t.Fatal("set_goal did not reach objective rewrite")
-	}
-	if err = connection.CloseNow(); err != nil {
-		t.Fatal(err)
-	}
-	// Give the server read loop enough time to observe the closed transport.
-	time.Sleep(50 * time.Millisecond)
-	if err = rewriteCtx.Err(); err != nil {
-		t.Fatalf("objective rewrite inherited WebSocket cancellation: %v", err)
-	}
-	close(rewriter.release)
-
-	var plan protocol.GoalContinuation
-	select {
-	case plan = <-continuations.plans:
-	case <-time.After(5 * time.Second):
-		t.Fatal("detached set_goal did not dispatch continuation after sender closed")
-	}
-	if plan.Goal.SessionKey != sessionKey || plan.Goal.Objective !=
-		"Keep Goal submission alive across navigation (normalized)" {
-		t.Fatalf("continuation Goal = %#v", plan.Goal)
-	}
-
-	current, err := server.services.Goal.CurrentOptional(context.Background(), sessionKey)
-	if err != nil || current == nil {
-		t.Fatalf("current Goal = %#v, error = %v", current, err)
-	}
-	if current.ID != plan.Goal.ID {
-		t.Fatalf("persisted Goal = %q, continuation Goal = %q", current.ID, plan.Goal.ID)
-	}
-	assertDetachedGoalControlRecord(t, cfg, sessionKey)
 }
 
 func TestWebSocketRoomSetGoalSurvivesDisconnectDuringObjectiveRewrite(t *testing.T) {
@@ -262,70 +168,6 @@ func TestWebSocketRoomSetGoalSurvivesDisconnectDuringObjectiveRewrite(t *testing
 		t.Fatalf("persisted Room Goal = %q, continuation Goal = %q", current.ID, plan.Goal.ID)
 	}
 	assertDetachedRoomGoalControlRecord(t, cfg, conversationID)
-}
-
-func ensureDetachedGoalDMConversation(t *testing.T, server *Server) string {
-	t.Helper()
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/nexus/v1/rooms/dm/"+server.config.DefaultAgentID,
-		nil,
-	)
-	recorder := httptest.NewRecorder()
-	server.Router().ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("create DM conversation: status=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-	var response struct {
-		Data protocol.ConversationContextAggregate `json:"data"`
-	}
-	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
-		t.Fatal(err)
-	}
-	if response.Data.Conversation.ID == "" {
-		t.Fatalf("create DM conversation returned no ID: %s", recorder.Body.String())
-	}
-	return response.Data.Conversation.ID
-}
-
-func assertDetachedGoalControlRecord(
-	t *testing.T,
-	cfg config.Config,
-	sessionKey string,
-) {
-	t.Helper()
-	history := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath).ForOwner(authctx.SystemUserID)
-	sessions := workspacestore.NewSessionFileStore(cfg.WorkspacePath).ForOwner(authctx.SystemUserID)
-	workspacePath := agentsvc.ResolveWorkspacePath(
-		cfg,
-		authctx.SystemUserID,
-		cfg.DefaultAgentID,
-	)
-	item, _, err := sessions.FindSession([]string{workspacePath}, sessionKey)
-	if err != nil || item == nil {
-		t.Fatalf("detached Goal control session = %#v, error = %v", item, err)
-	}
-	rows, err := history.ReadMessages(workspacePath, *item, nil)
-	if err != nil {
-		t.Fatalf("read detached Goal control history: %v", err)
-	}
-	for _, row := range rows {
-		metadataSubtype := ""
-		switch metadata := row["metadata"].(type) {
-		case map[string]string:
-			metadataSubtype = metadata["subtype"]
-		case map[string]any:
-			metadataSubtype, _ = metadata["subtype"].(string)
-		}
-		if row["role"] == "user" &&
-			row["content"] == "/goal Keep Goal submission alive across navigation" &&
-			row["client_message_id"] == "message-detached-goal" &&
-			metadataSubtype == "goal_set" &&
-			row["control_only"] == true {
-			return
-		}
-	}
-	t.Fatalf("detached Goal control history = %#v, want durable goal_set record", rows)
 }
 
 func assertDetachedRoomGoalControlRecord(

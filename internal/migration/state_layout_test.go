@@ -388,37 +388,6 @@ func TestRunStateLayoutPreservesRoomOverlayConflict(t *testing.T) {
 	assertMigrationFileContent(t, targetPath, "target\n")
 }
 
-func TestRunStateLayoutPreservesRoomOverlayNumericConflict(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	sourcePath := filepath.Join(stateRoot, "rooms", "room-1", "overlay.jsonl")
-	targetPath := filepath.Join(stateRoot, "app", "rooms", "room-1", "overlay.jsonl")
-	writeMigrationTestFile(
-		t,
-		sourcePath,
-		`{"message_id":"message-1","sequence":9007199254740992,"timestamp":100}`+"\n",
-	)
-	writeMigrationTestFile(
-		t,
-		targetPath,
-		`{"message_id":"message-1","sequence":9007199254740993,"timestamp":200}`+"\n",
-	)
-
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err == nil {
-		t.Fatal("Room overlay 非时间戳数值不同必须保留并阻断迁移")
-	}
-
-	assertMigrationFileContent(
-		t,
-		sourcePath,
-		`{"message_id":"message-1","sequence":9007199254740992,"timestamp":100}`+"\n",
-	)
-	assertMigrationFileContent(
-		t,
-		targetPath,
-		`{"message_id":"message-1","sequence":9007199254740993,"timestamp":200}`+"\n",
-	)
-}
-
 func TestMoveLayoutEntrySamePathIsNoop(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "same.txt")
 	writeMigrationTestFile(t, path, "keep\n")

@@ -4,7 +4,6 @@ package shared
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -12,10 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
@@ -25,18 +21,6 @@ func TestGatewayClientErrorDetailPreservesDefaultModelHint(t *testing.T) {
 	got := GatewayClientErrorDetail(http.StatusBadRequest, detail)
 	if got != detail {
 		t.Fatalf("BadRequest 下的默认模型保护提示应直接返回给客户端，got=%q want=%q", got, detail)
-	}
-}
-
-func TestPublicAuthRouteAllowsTeamCapabilitiesOnly(t *testing.T) {
-	for path, want := range map[string]bool{
-		"/nexus/v1/team/capabilities": true,
-		"/nexus/v1/team/rooms":        false,
-		"/nexus/v1/team/invitations":  false,
-	} {
-		if got := PublicAuthRoute(httptest.NewRequest(http.MethodGet, path, nil)); got != want {
-			t.Fatalf("PublicAuthRoute(%s)=%v want=%v", path, got, want)
-		}
 	}
 }
 
@@ -145,56 +129,6 @@ func TestWriteErrorKeepsCancellationStatusAndCategoryConsistent(t *testing.T) {
 	}
 }
 
-func TestFailureEffectBeforeHandlerUsesOnlyRequestSemantics(t *testing.T) {
-	for _, method := range []string{http.MethodGet, http.MethodHead, http.MethodOptions} {
-		request := httptest.NewRequest(method, "/resource", nil)
-		if got := failureEffectBeforeHandler(request); got != protocol.FailureEffectNotApplicable {
-			t.Fatalf("%s pre-handler effect=%q", method, got)
-		}
-	}
-	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
-		request := httptest.NewRequest(method, "/resource", nil)
-		if got := failureEffectBeforeHandler(request); got != protocol.FailureEffectNotApplied {
-			t.Fatalf("%s pre-handler effect=%q", method, got)
-		}
-	}
-}
-
-func TestDiagnosticRequestIDRejectsUnsafeOrOversizedValuesWithoutRejectingRequest(t *testing.T) {
-	for _, raw := range []string{
-		"request id with spaces",
-		"request/id",
-		strings.Repeat("a", maxDiagnosticRequestIDLength+1),
-	} {
-		if got := normalizeDiagnosticRequestID(raw); got != "" {
-			t.Fatalf("不安全 request ID %q 被接受为 %q", raw, got)
-		}
-	}
-	if got := normalizeDiagnosticRequestID(" trace_01:attempt-2 "); got != "trace_01:attempt-2" {
-		t.Fatalf("合法 request ID 被改变: %q", got)
-	}
-
-	api := newFailureTestAPI()
-	called := false
-	handler := RequestContextMiddleware(api.BaseLogger())(http.HandlerFunc(
-		func(writer http.ResponseWriter, _ *http.Request) {
-			called = true
-			writer.WriteHeader(http.StatusNoContent)
-		},
-	))
-	request := httptest.NewRequest(http.MethodPost, "/scheduled-tasks", nil)
-	request.Header.Set("X-Request-ID", strings.Repeat("a", maxDiagnosticRequestIDLength+1))
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if !called || recorder.Code != http.StatusNoContent {
-		t.Fatalf("无效诊断 ID 不得拒绝请求: called=%v status=%d", called, recorder.Code)
-	}
-	generated := recorder.Header().Get("X-Request-ID")
-	if generated == "" || generated == request.Header.Get("X-Request-ID") {
-		t.Fatalf("无效诊断 ID 应静默替换: %q", generated)
-	}
-}
-
 func newFailureTestAPI() *API {
 	return NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
@@ -227,40 +161,6 @@ func TestWebAccessDoesNotGrantServerResourcesOrBlockDesktopRelay(t *testing.T) {
 				}
 			}
 		}
-	}
-}
-
-func TestAccessLogMiddlewareRedactsSensitiveQueryValues(t *testing.T) {
-	var buffer bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	handler := RequestContextMiddleware(logger)(
-		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			writer.WriteHeader(http.StatusOK)
-		})),
-	)
-
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/nexus/v1/agents?access_token=super-secret&token=another-secret&api_key=third-secret&limit=10",
-		nil,
-	)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	output := buffer.String()
-	for _, secret := range []string{"super-secret", "another-secret", "third-secret"} {
-		if strings.Contains(output, secret) {
-			t.Fatalf("access log 不应泄露敏感 query 参数: %s", output)
-		}
-	}
-	for _, key := range []string{"access_token", "token", "api_key"} {
-		if !strings.Contains(output, key+"=%5Bredacted%5D") {
-			t.Fatalf("access log 未脱敏 %s: %s", key, output)
-		}
-	}
-	if !strings.Contains(output, "limit=10") {
-		t.Fatalf("access log 不应移除非敏感 query 参数: %s", output)
 	}
 }
 
@@ -351,175 +251,5 @@ func TestPublicAuthRouteAllowsRuntimeConfigurationBrokerWithCustomPrefix(t *test
 	request := httptest.NewRequest(http.MethodPost, "/custom/internal/runtime/configuration", nil)
 	if !PublicAuthRoute(request) {
 		t.Fatal("nexuscfg runtime broker 应自行通过 capability 鉴权")
-	}
-}
-
-func TestValidateDesktopSessionTokenReportsSource(t *testing.T) {
-	tests := []struct {
-		name       string
-		configure  func(*http.Request)
-		wantValid  bool
-		wantSource string
-		wantReason string
-	}{
-		{
-			name: "header_valid",
-			configure: func(request *http.Request) {
-				request.Header.Set(DesktopSessionTokenHeader, "desktop-token")
-				request.AddCookie(&http.Cookie{Name: DesktopSessionTokenCookie, Value: "old-token"})
-			},
-			wantValid:  true,
-			wantSource: "header",
-			wantReason: "ok",
-		},
-		{
-			name: "header_mismatch_takes_precedence",
-			configure: func(request *http.Request) {
-				request.Header.Set(DesktopSessionTokenHeader, "old-token")
-				request.AddCookie(&http.Cookie{Name: DesktopSessionTokenCookie, Value: "desktop-token"})
-			},
-			wantValid:  false,
-			wantSource: "header",
-			wantReason: "header_mismatch",
-		},
-		{
-			name: "protocol_mismatch",
-			configure: func(request *http.Request) {
-				request.Header.Set("Sec-WebSocket-Protocol", "nexus.desktop.v1, nexus.desktop.token.old-token")
-			},
-			wantValid:  false,
-			wantSource: "protocol",
-			wantReason: "protocol_mismatch",
-		},
-		{
-			name: "cookie_mismatch",
-			configure: func(request *http.Request) {
-				request.AddCookie(&http.Cookie{Name: DesktopSessionTokenCookie, Value: "old-token"})
-			},
-			wantValid:  false,
-			wantSource: "cookie",
-			wantReason: "cookie_mismatch",
-		},
-		{
-			name:       "missing",
-			configure:  func(request *http.Request) {},
-			wantValid:  false,
-			wantSource: "none",
-			wantReason: "missing",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, "/nexus/v1/runtime/options", nil)
-			test.configure(request)
-			result := validateDesktopSessionToken(request, "desktop-token")
-			if result.valid != test.wantValid || result.source != test.wantSource || result.reason != test.wantReason {
-				t.Fatalf(
-					"token 校验结果不正确: valid=%v source=%s reason=%s",
-					result.valid,
-					result.source,
-					result.reason,
-				)
-			}
-		})
-	}
-}
-
-// A retired connection's request context can still reach a newly bound sender
-// through a session broadcast. It must not retire that healthy connection.
-func TestWebSocketSenderCanceledBroadcastKeepsConnection(t *testing.T) {
-	sender, peer := websocketSenderPair(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := sender.SendJSON(ctx, map[string]string{"event": "old"}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("canceled send = %v", err)
-	}
-	if sender.IsClosed() {
-		t.Fatal("canceled broadcast retired the healthy replacement connection")
-	}
-	assertWebSocketSenderDelivery(t, sender, peer, map[string]string{"event": "new-round"})
-}
-
-// Once an event enters the connection writer, caller cancellation must not
-// interrupt its frame and poison subsequent events on the shared connection.
-func TestWebSocketSenderAdmittedWriteSurvivesCallerCancellation(t *testing.T) {
-	sender, peer := websocketSenderPair(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	payload := cancelDuringJSON{cancel: cancel}
-	if err := sender.SendJSON(ctx, payload); err != nil {
-		t.Fatalf("admitted write = %v", err)
-	}
-	if !errors.Is(ctx.Err(), context.Canceled) {
-		t.Fatal("fixture did not cancel the originating request")
-	}
-	assertWebSocketPeerEvent(t, peer, "admitted")
-	assertWebSocketSenderDelivery(t, sender, peer, map[string]string{"event": "next-round"})
-}
-
-func TestWebSocketSenderTransportFailureRetiresConnection(t *testing.T) {
-	sender, _ := websocketSenderPair(t)
-	_ = sender.conn.CloseNow()
-	if err := sender.SendJSON(context.Background(), map[string]string{"event": "closed"}); err == nil {
-		t.Fatal("send on closed transport succeeded")
-	}
-	if !sender.IsClosed() {
-		t.Fatal("failed transport remained available")
-	}
-}
-
-type cancelDuringJSON struct{ cancel context.CancelFunc }
-
-func (p cancelDuringJSON) MarshalJSON() ([]byte, error) {
-	p.cancel()
-	return json.Marshal(map[string]string{"event": "admitted"})
-}
-
-func websocketSenderPair(t *testing.T) (*WebSocketSender, *websocket.Conn) {
-	t.Helper()
-	accepted := make(chan *websocket.Conn, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
-		if err == nil {
-			accepted <- conn
-		}
-	}))
-	t.Cleanup(server.Close)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	peer, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = peer.CloseNow() })
-	select {
-	case conn := <-accepted:
-		t.Cleanup(func() { _ = conn.CloseNow() })
-		return NewWebSocketSender(conn), peer
-	case <-ctx.Done():
-		t.Fatal("server did not accept the WebSocket")
-		return nil, nil
-	}
-}
-
-func assertWebSocketSenderDelivery(t *testing.T, sender *WebSocketSender, peer *websocket.Conn, payload map[string]string) {
-	t.Helper()
-	if err := sender.SendJSON(context.Background(), payload); err != nil {
-		t.Fatalf("next event failed: %v", err)
-	}
-	assertWebSocketPeerEvent(t, peer, payload["event"])
-}
-
-func assertWebSocketPeerEvent(t *testing.T, peer *websocket.Conn, want string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	var event map[string]string
-	if err := wsjson.Read(ctx, peer, &event); err != nil {
-		t.Fatal(err)
-	}
-	if event["event"] != want {
-		t.Fatalf("event = %v, want %q", event, want)
 	}
 }

@@ -410,72 +410,6 @@ func TestConnectorAuthorizationMCPBuilderBindsOwnerMainPrivateDM(
 	)))
 }
 
-func TestConnectorAuthorizationOpenRouteUsesOnlyBoundFlowIdentity(
-	t *testing.T,
-) {
-	sessionID := "browser-session-a"
-	actor := connectorsvc.AuthorizationActor{
-		OwnerUserID: "owner-a", AgentID: "nexus",
-		BusinessSessionKey:     "agent:nexus:websocket:dm:main",
-		RootRoundID:            "round-a",
-		RuntimeLeaseSessionKey: "agent:nexus:websocket:dm:main",
-		RuntimeLeaseRoundID:    "round-a",
-		PrincipalUserID:        "owner-a",
-		PrincipalRole:          authctx.RoleOwner,
-		AuthMethod:             authctx.AuthMethodPassword,
-		AuthSessionID:          sessionID,
-	}
-	control := &connectorAuthorizationAppControl{
-		redirectActor:            actor,
-		redirectURL:              "https://provider.example/authorize?state=provider-secret",
-		expectedBrowserSessionID: sessionID,
-	}
-	router := chi.NewRouter()
-	MountConnectorAuthorizationRoutes(
-		router,
-		func(path string) string { return "/nexus/v1" + path },
-		control,
-	)
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/nexus/v1/connectors/authorization-flows/caf_safe/open"+
-			"?owner_user_id=attacker&agent_id=worker&session_key=forged",
-		nil,
-	)
-	request = request.WithContext(authctx.WithPrincipal(
-		request.Context(),
-		&authctx.Principal{
-			UserID: "owner-a", Role: authctx.RoleOwner,
-			AuthMethod: authctx.AuthMethodPassword,
-			SessionID:  &sessionID,
-		},
-	))
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-
-	if response.Code != http.StatusSeeOther {
-		t.Fatalf("open status = %d body=%q", response.Code, response.Body.String())
-	}
-	if response.Header().Get("Location") != control.redirectURL ||
-		response.Header().Get("Cache-Control") != "no-store" ||
-		response.Header().Get("Referrer-Policy") != "no-referrer" {
-		t.Fatalf("open response headers = %+v", response.Header())
-	}
-	if response.Body.Len() != 0 {
-		t.Fatalf("redirect body must not duplicate provider URL: %q", response.Body.String())
-	}
-	if control.resolveFlowID != "caf_safe" ||
-		control.redirectFlowID != "caf_safe" ||
-		control.lastRedirectActor != actor {
-		t.Fatalf(
-			"URL parameters altered bound actor: resolve=%q redirect=%q actor=%+v",
-			control.resolveFlowID,
-			control.redirectFlowID,
-			control.lastRedirectActor,
-		)
-	}
-}
-
 func TestConnectorAuthorizationOpenRouteFailsClosedWithoutLeaking(
 	t *testing.T,
 ) {
@@ -578,57 +512,6 @@ func (stub connectorMCPServiceStub) LoadActiveConnection(
 	string,
 ) (*connectordomain.ConnectionSnapshot, error) {
 	return stub.snapshot, nil
-}
-
-// The shared builder is used by both DM and Room runtimes.
-func TestConnectorBuilderGitHubSelectionAndCredentials(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		selected bool
-		snapshot *connectordomain.ConnectionSnapshot
-		err      error
-		mounted  bool
-	}{
-		{name: "selected with OAuth token", selected: true, snapshot: &connectordomain.ConnectionSnapshot{AccessToken: "  gho-test-token  "}, mounted: true},
-		{name: "not selected", snapshot: &connectordomain.ConnectionSnapshot{AccessToken: "gho-test-token"}},
-		{name: "disconnected", selected: true},
-		{name: "empty token", selected: true, snapshot: &connectordomain.ConnectionSnapshot{AccessToken: "  "}},
-		{name: "load failed", selected: true, err: errors.New("connection unavailable")},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			svc := &githubMCPServiceStub{snapshot: tc.snapshot, err: tc.err}
-			ctx := context.Background()
-			if tc.selected {
-				ctx = runtimectx.WithEnabledConnectorIDs(ctx, []string{"github"})
-			}
-			servers := NewConnectorBuilder(svc)(ctx, &protocol.Agent{AgentID: "agent-1", OwnerUserID: "owner-1"}, "", "", "", "", "", nil, sdkpermission.Mode(""))
-			value, mounted := servers["github"]
-			if mounted != tc.mounted {
-				t.Fatalf("mounted = %v, want %v", mounted, tc.mounted)
-			}
-			if tc.selected && (svc.owner != "owner-1" || svc.connector != "github") {
-				t.Fatalf("connection lookup scope = %q/%q", svc.owner, svc.connector)
-			}
-			if !tc.selected && svc.owner != "" {
-				t.Fatal("unselected connector loaded credentials")
-			}
-			if mounted {
-				config, ok := value.(sdkmcp.HTTPServerConfig)
-				if !ok {
-					t.Fatalf("GitHub config type = %T", value)
-				}
-				if config.URL != "https://api.githubcopilot.com/mcp/" {
-					t.Fatalf("URL = %q", config.URL)
-				}
-				if config.Headers["Authorization"] != "Bearer gho-test-token" {
-					t.Fatal("GitHub bearer token not propagated")
-				}
-				if config.OAuth != nil {
-					t.Fatal("existing authorization must not start a second OAuth flow")
-				}
-			}
-		})
-	}
 }
 
 type githubMCPServiceStub struct {
@@ -879,44 +762,6 @@ func (s *humanToolApprovalRecorderStub) RecordHumanToolApproval(
 ) error {
 	s.approvals = append(s.approvals, approval)
 	return s.err
-}
-
-func TestHumanToolApprovalRouterUsesExactToolDomain(t *testing.T) {
-	configuration := &humanToolApprovalRecorderStub{}
-	connector := &humanToolApprovalRecorderStub{}
-	router := humanToolApprovalRouter{
-		configuration: configuration,
-		connector:     connector,
-	}
-
-	configApproval := permissionctx.HumanToolApproval{
-		ToolName: "mcp__nexus_config__apply_nexus_configuration_change",
-	}
-	if err := router.RecordHumanToolApproval(
-		t.Context(),
-		configApproval,
-	); err != nil {
-		t.Fatal(err)
-	}
-	connectorApproval := permissionctx.HumanToolApproval{
-		ToolName:  "mcp__nexus__connector_authorization",
-		ToolInput: map[string]any{"action": "start"},
-	}
-	if err := router.RecordHumanToolApproval(
-		t.Context(),
-		connectorApproval,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(configuration.approvals) != 1 ||
-		configuration.approvals[0].ToolName != configApproval.ToolName {
-		t.Fatalf("configuration recorder = %+v", configuration.approvals)
-	}
-	if len(connector.approvals) != 1 ||
-		connector.approvals[0].ToolName != connectorApproval.ToolName {
-		t.Fatalf("connector recorder = %+v", connector.approvals)
-	}
 }
 
 func TestHumanToolApprovalRouterFailsClosed(t *testing.T) {

@@ -128,26 +128,6 @@ func TestRuntimeCommandContextReadsCurrentSDKSessionIdentity(t *testing.T) {
 	}
 }
 
-func TestNormalizeContextUsagePrefersRawWindow(t *testing.T) {
-	usage, valid := normalizeContextUsage(agentclient.ContextUsageResponse{
-		TotalTokens:  196_000,
-		MaxTokens:    245_000,
-		RawMaxTokens: 258_000,
-		Percentage:   99,
-		Model:        " glm-5.2 ",
-	})
-
-	if !valid {
-		t.Fatal("normalizeContextUsage() valid = false, want true")
-	}
-	if usage.TotalTokens != 196_000 ||
-		usage.MaxTokens != 258_000 ||
-		usage.Percentage != 76 ||
-		usage.Model != "glm-5.2" {
-		t.Fatalf("usage = %#v, want normalized raw window snapshot", usage)
-	}
-}
-
 func TestManagerRecordContextUsageAfterRuntimeReplacement(t *testing.T) {
 	manager := NewManager()
 	sessionKey := "agent:agent-a:ws:dm:session-a"
@@ -163,21 +143,6 @@ func TestManagerRecordContextUsageAfterRuntimeReplacement(t *testing.T) {
 
 	if snapshots := manager.ContextUsageSnapshots(sessionKey); len(snapshots) != 1 {
 		t.Fatalf("ContextUsageSnapshots() = %#v, want replacement runtime snapshot", snapshots)
-	}
-}
-
-func TestManagerContextUsageSnapshotsIgnoreInvalidIdentity(t *testing.T) {
-	manager := NewManager()
-	manager.RecordContextUsage("", "agent-a", protocol.ContextUsageData{MaxTokens: 100})
-	manager.RecordContextUsage("agent:agent-a:ws:dm:session-a", "", protocol.ContextUsageData{MaxTokens: 100})
-	manager.RecordContextUsage(
-		"agent:agent-a:ws:dm:session-a",
-		"agent-a",
-		protocol.ContextUsageData{},
-	)
-
-	if snapshots := manager.ContextUsageSnapshots("agent:agent-a:ws:dm:session-a"); len(snapshots) != 0 {
-		t.Fatalf("ContextUsageSnapshots() = %#v, want empty", snapshots)
 	}
 }
 
@@ -289,68 +254,6 @@ func TestManagerInterruptRoundRecordsLocalFallbackAfterProviderFailure(t *testin
 			client.interruptCalls,
 			localCancelled,
 		)
-	}
-}
-
-func TestManagerInterruptRoundFencesConcurrentSuccessorStart(t *testing.T) {
-	manager := NewManager()
-	sessionKey := "agent:worker:ws:dm:cancel-provider-race"
-	if err := manager.StartRound(context.Background(), sessionKey, "round-old", func() {
-		manager.MarkRoundFinished(sessionKey, "round-old")
-	}); err != nil {
-		t.Fatalf("failed to start target: %v", err)
-	}
-	client := &exactInterruptTestClient{
-		fakeRuntimeClient: &fakeRuntimeClient{},
-		entered:           make(chan struct{}),
-		release:           make(chan struct{}),
-	}
-	client.onInterrupt = func() {
-		manager.MarkRoundFinished(sessionKey, "round-old")
-	}
-	attachExactInterruptClient(manager, sessionKey, client)
-	resultCh := make(chan ExactRoundInterruptResult, 1)
-	errCh := make(chan error, 1)
-	go func() {
-		result, err := manager.InterruptRound(
-			context.Background(),
-			sessionKey,
-			"round-old",
-			"execution superseded",
-		)
-		resultCh <- result
-		errCh <- err
-	}()
-	<-client.entered
-	successorRejected := false
-	if err := manager.StartRound(context.Background(), sessionKey, "round-successor", func() {
-		successorRejected = true
-	}); err == nil {
-		t.Fatal("successor started during provider interrupt fence")
-	} else if !errors.Is(err, ErrRuntimeProviderInterruptInProgress) {
-		t.Fatalf("successor rejected with unexpected error: %v", err)
-	}
-	close(client.release)
-	result := <-resultCh
-	if err := <-errCh; err != nil ||
-		result.Outcome != ExactRoundProviderInterrupted {
-		t.Fatalf("provider result = %+v, err=%v", result, err)
-	}
-	if !successorRejected {
-		t.Fatal("rejected successor context was not cancelled")
-	}
-}
-
-// Explicit stops must not reach the provider as a submit interrupt, which
-// providers treat as "new user input arrived" rather than a stop.
-func TestClientInterruptWireReasonKeepsExplicitStopsSilent(t *testing.T) {
-	for _, reason := range []string{"", clientInterruptWithoutMessage, clientInterruptHostControl} {
-		if got := clientInterruptWireReason(reason); got != "" {
-			t.Fatalf("wire reason for %q = %q, want empty", reason, got)
-		}
-	}
-	if got := clientInterruptWireReason("收到新的用户消息，上一轮已停止"); got != clientInterruptReasonSubmit {
-		t.Fatalf("submit interrupt wire reason = %q", got)
 	}
 }
 

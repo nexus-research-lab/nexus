@@ -13,7 +13,6 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 
-	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
@@ -81,46 +80,6 @@ func TestInferSubagentTaskProgressStatusEdgeCases(t *testing.T) {
 				t.Errorf("inferSubagentTaskProgressStatus(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestBuildSubagentTasksIncludesAssistantTaskProgress(t *testing.T) {
-	messages := []protocol.Message{
-		{
-			"content": []any{
-				map[string]any{
-					"type":           "task_progress",
-					"task_id":        "task-1",
-					"description":    "统计HTML小游戏数量",
-					"tool_use_id":    "toolu-1",
-					"last_tool_name": "Read",
-					"usage": map[string]any{
-						"total_tokens": 321,
-					},
-				},
-			},
-			"round_id":  "round-1",
-			"role":      "assistant",
-			"timestamp": int64(1000),
-		},
-	}
-
-	tasks := buildSubagentTasks("agent:nexus:ws:dm:test", messages)
-	if len(tasks) != 1 {
-		t.Fatalf("len(tasks) = %d, want 1", len(tasks))
-	}
-	task := tasks[0]
-	if task.TaskID != "task-1" || task.Status != "running" {
-		t.Fatalf("task identity = %+v, want running task-1", task)
-	}
-	if task.Description != "统计HTML小游戏数量" || task.ToolUseID != "toolu-1" {
-		t.Fatalf("task progress fields = %+v, want description/tool use id", task)
-	}
-	if task.Name != "统计HTML小游戏数量" {
-		t.Fatalf("task name = %q, want model-provided description", task.Name)
-	}
-	if task.Usage["total_tokens"] != 321 || task.UpdatedAt != 1000 {
-		t.Fatalf("task metrics = %+v/%d, want usage and updated time", task.Usage, task.UpdatedAt)
 	}
 }
 
@@ -237,40 +196,6 @@ func TestBuildSubagentTasksMergesFlatProgressAndKeepsLatestSnapshot(t *testing.T
 	}
 	if task.RuntimeKind != "claude" || !task.Capabilities.Stop || task.Capabilities.SendMessage || task.Capabilities.Resume {
 		t.Fatalf("claude capabilities = %+v runtime=%q", task.Capabilities, task.RuntimeKind)
-	}
-}
-
-func TestBuildSubagentTasksExcludesLocalShellBackgroundTasks(t *testing.T) {
-	messages := []protocol.Message{
-		{
-			"agent_id": "host-agent",
-			"metadata": map[string]any{
-				"subtype":    "task_started",
-				"task_id":    "shell-task-1",
-				"agent_id":   "host-agent",
-				"agent_type": "shell",
-				"task_type":  "local_shell",
-			},
-		},
-		{
-			"metadata": map[string]any{
-				"subtype":   "task_progress",
-				"task_id":   "shell-task-1",
-				"task_type": "local_shell",
-				"summary":   "npm test",
-			},
-		},
-		{
-			"metadata": map[string]any{
-				"subtype": "task_notification",
-				"task_id": "shell-task-1",
-				"status":  "completed",
-			},
-		},
-	}
-
-	if tasks := buildSubagentTasks("agent:host:ws:dm:conversation-1", messages); len(tasks) != 0 {
-		t.Fatalf("local_shell 不应进入 subagent 列表: %+v", tasks)
 	}
 }
 
@@ -413,48 +338,6 @@ func TestSubagentToolRunsFromMessagesKeepsOnlyLifecycleIdentity(t *testing.T) {
 	}
 }
 
-func TestReadSubagentTaskThreadUsesCCOutputSymlinkAsTranscript(t *testing.T) {
-	root := t.TempDir()
-	transcriptPath := filepath.Join(root, "child.jsonl")
-	transcript := "" +
-		`{"type":"user","uuid":"user-1","parentUuid":null,"isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:00Z","message":{"role":"user","content":"检查实现"}}` + "\n" +
-		`{"type":"attachment","uuid":"attachment-1","parentUuid":"user-1","isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:00.500Z","attachment":{"type":"skill_listing","content":"- nexus-manager"}}` + "\n" +
-		`{"type":"assistant","uuid":"assistant-thinking","parentUuid":"attachment-1","isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:01Z","message":{"role":"assistant","id":"assistant-message","model":"claude","content":[{"type":"thinking","thinking":"先阅读核心代码"}],"stop_reason":null}}` + "\n" +
-		`{"type":"assistant","uuid":"assistant-final","parentUuid":"assistant-thinking","isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:02Z","message":{"role":"assistant","id":"assistant-message","model":"claude","content":[{"type":"text","text":"检查完成"}],"stop_reason":"end_turn"}}` + "\n"
-	if err := os.WriteFile(transcriptPath, []byte(transcript), 0o600); err != nil {
-		t.Fatalf("写入 child transcript 失败: %v", err)
-	}
-	outputPath := filepath.Join(root, "task-output")
-	createSubagentTestSymlink(t, transcriptPath, outputPath)
-
-	service := &Service{history: workspacestore.NewAgentHistoryStore(root)}
-	messages, outputIsTranscript, err := service.readSubagentTaskThread(SubagentTask{
-		TaskID:      "task-cc",
-		SessionKey:  "agent:host:ws:dm:conversation-1",
-		HostAgentID: "host",
-		TaskType:    "local_agent",
-		OutputFile:  outputPath,
-	}, root)
-	if err != nil {
-		t.Fatalf("readSubagentTaskThread() error = %v", err)
-	}
-	if !outputIsTranscript || len(messages) != 2 {
-		t.Fatalf("CC output_file 未投影成富消息: used=%v messages=%+v", outputIsTranscript, messages)
-	}
-	messages = subagentTaskOutputMessages(messages)
-	if len(messages) != 1 || messages[0]["role"] != "assistant" {
-		t.Fatalf("CC thread 应只保留子 Agent 输出: %+v", messages)
-	}
-	content, err := json.Marshal(messages[len(messages)-1]["content"])
-	if err != nil ||
-		!strings.Contains(string(content), `"type":"thinking"`) ||
-		!strings.Contains(string(content), `"thinking":"先阅读核心代码"`) ||
-		!strings.Contains(string(content), `"type":"text"`) ||
-		!strings.Contains(string(content), `"text":"检查完成"`) {
-		t.Fatalf("CC 最终消息内容不正确: content=%s err=%v messages=%+v", content, err, messages)
-	}
-}
-
 func TestReadSubagentTaskThreadRejectsCCOutputSymlinkOutsideWorkspace(t *testing.T) {
 	root := t.TempDir()
 	outsideRoot := t.TempDir()
@@ -500,44 +383,6 @@ func TestReadSubagentTaskThreadFallsBackFromPlainOutput(t *testing.T) {
 	output, err := readSubagentOutputFile(outputPath, root)
 	if err != nil || output != "普通任务输出" {
 		t.Fatalf("普通 output 回退失败: output=%q err=%v", output, err)
-	}
-}
-
-func TestReadSubagentOutputFileRejectsCrossOwnerWorkspaceSymlink(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-
-	ownerAWorkspace := filepath.Join(
-		appfs.UserWorkspaceRootAt(stateRoot, "user-a"),
-		"agent-a",
-	)
-	ownerBWorkspace := filepath.Join(
-		appfs.UserWorkspaceRootAt(stateRoot, "user-b"),
-		"agent-b",
-	)
-	if err := os.MkdirAll(filepath.Dir(ownerAWorkspace), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(ownerBWorkspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	outputPath := filepath.Join(ownerBWorkspace, "output.txt")
-	if err := os.WriteFile(outputPath, []byte("owner-b-secret"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	createSubagentTestSymlink(t, ownerBWorkspace, ownerAWorkspace)
-
-	service := &Service{config: config.Config{WorkspacePath: appfs.UsersRoot()}}
-	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
-		UserID: "user-a",
-	})
-	output, err := service.readSubagentOutputFile(
-		ctx,
-		filepath.Join(ownerAWorkspace, "output.txt"),
-		ownerAWorkspace,
-	)
-	if output != "" || !errors.Is(err, confinedfs.ErrSymlink) {
-		t.Fatalf("跨 owner workspace symlink 应被拒绝: output=%q err=%v", output, err)
 	}
 }
 

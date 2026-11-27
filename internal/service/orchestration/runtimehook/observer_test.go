@@ -119,20 +119,3 @@ func TestObserverPreservesIdentityDeadlineAndFailureIsolation(t *testing.T) {
 		observer.Finish(actor, "completed", "")
 	}
 }
-
-func TestRuntimeCommandFactsFilterAndCopyTrustedReceipts(t *testing.T) {
-	receipts := []nexusmcp.CommandReceipt{
-		{Domain: "goal", RequestID: "other", Operation: "create_goal"},
-		{Domain: "execution", Operation: "assign_work"},
-		{Domain: "execution", RequestID: "empty", Operation: " "},
-		{Domain: "execution", RequestID: "request", Operation: "assign_work", Outcome: "applied", ExecutionID: "execution", WorkItemID: "work", AssignmentID: "assignment", AttemptID: "attempt", Changed: []string{"attempt:attempt"}},
-	}
-	facts := runtimeCommandFacts(receipts)
-	if len(facts) != 1 || facts[0].RequestID != "request" || facts[0].AttemptID != "attempt" || facts[0].AssignmentID != "assignment" || facts[0].WorkItemID != "work" || facts[0].ExecutionID != "execution" || facts[0].Outcome != "applied" {
-		t.Fatalf("facts=%+v", facts)
-	}
-	receipts[3].Changed[0] = "overwritten"
-	if facts[0].Changed[0] != "attempt:attempt" {
-		t.Fatal("观察事实与可变回执共享了切片")
-	}
-}

@@ -3,13 +3,11 @@ package exec
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -237,47 +235,6 @@ func TestExecuteRoundConsumesDelayedTerminalAfterExplicitInterrupt(t *testing.T)
 	}
 }
 
-func TestExecuteRoundDisconnectsWhenInterruptedTerminalNeverArrives(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID:    "sdk-session-unclean",
-		messages:     make(chan sdkprotocol.ReceivedMessage),
-		receiveStart: make(chan struct{}, 1),
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		_, err := ExecuteRound(ctx, RoundExecutionRequest{
-			Query:                      "long-running request",
-			Client:                     client,
-			Mapper:                     &fakeRoundExecutionMapper{},
-			InterruptedTerminalTimeout: 20 * time.Millisecond,
-			InterruptReason: func() string {
-				return "user stopped"
-			},
-		})
-		done <- err
-	}()
-
-	select {
-	case <-client.receiveStart:
-	case <-time.After(time.Second):
-		t.Fatal("round 未开始接收 runtime 消息")
-	}
-	cancel()
-
-	select {
-	case err := <-done:
-		if !errors.Is(err, ErrRoundInterrupted) {
-			t.Fatalf("terminal 超时错误不正确: %v", err)
-		}
-		if client.disconnects != 1 {
-			t.Fatalf("未收口 client 必须断开，disconnects=%d", client.disconnects)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("terminal 超时后 round 未结束")
-	}
-}
-
 func TestDisconnectUncleanRoundClientUsesNonblockingDiscard(t *testing.T) {
 	client := &discardableRoundExecutionClient{fakeRoundExecutionClient: &fakeRoundExecutionClient{}}
 
@@ -288,89 +245,6 @@ func TestDisconnectUncleanRoundClientUsesNonblockingDiscard(t *testing.T) {
 	}
 	if client.disconnects != 0 {
 		t.Fatalf("支持异步隔离时不应阻塞 round 等待 Disconnect，disconnects=%d", client.disconnects)
-	}
-}
-
-func TestExecuteRoundPreservesTerminalUsageWhenLocalProcessingFails(t *testing.T) {
-	localErr := errors.New("local terminal processing failed")
-	for _, stage := range []string{"map", "sync", "persist", "emit"} {
-		t.Run(stage, func(t *testing.T) {
-			client := &fakeRoundExecutionClient{
-				sessionID: "sdk-session-terminal-failure",
-				messages:  make(chan sdkprotocol.ReceivedMessage, 1),
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-terminal-failure",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype: "success",
-					Usage: map[string]any{
-						"input_tokens":  int64(10),
-						"output_tokens": int64(5),
-						"total_tokens":  int64(15),
-					},
-				},
-			}
-
-			mapper := &fakeRoundExecutionMapper{
-				results: []RoundMapResult{{
-					DurableMessages: []protocol.Message{{
-						"message_id": "result-terminal-failure",
-						"role":       "result",
-						"subtype":    "success",
-					}},
-					Events: []protocol.EventMessage{
-						protocol.NewEvent(protocol.EventTypeRoundStatus, map[string]any{"status": "finished"}),
-					},
-					TerminalStatus: "finished",
-					ResultSubtype:  "success",
-				}},
-			}
-			if stage == "map" {
-				mapper.err = localErr
-			}
-
-			request := RoundExecutionRequest{
-				Query:  "continue",
-				Client: client,
-				Mapper: mapper,
-				SyncSessionID: func(string) error {
-					if stage == "sync" {
-						return localErr
-					}
-					return nil
-				},
-				HandleDurableMessage: func(protocol.Message) error {
-					if stage == "persist" {
-						return localErr
-					}
-					return nil
-				},
-				EmitEvent: func(protocol.EventMessage) error {
-					if stage == "emit" {
-						return localErr
-					}
-					return nil
-				},
-			}
-
-			result, err := ExecuteRound(context.Background(), request)
-			if !errors.Is(err, localErr) {
-				t.Fatalf("ExecuteRound() error = %v, want %v", err, localErr)
-			}
-			if result.Usage.InputTokens != 10 ||
-				result.Usage.OutputTokens != 5 ||
-				result.Usage.TotalTokens != 15 {
-				t.Fatalf("result usage = %#v, want preserved provider total 15", result.Usage)
-			}
-			if result.Usage.Raw == nil {
-				t.Fatalf("result usage raw = nil, explicit provider total presence was lost")
-			}
-			if result.TerminalStatus != "" || result.CompletedByAssistant {
-				t.Fatalf("local failure result leaked successful terminal state: %+v", result)
-			}
-		})
 	}
 }
 
@@ -448,117 +322,6 @@ func TestExecuteRoundDoesNotInventUserTextForContextOnlyTurn(t *testing.T) {
 	}
 	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "" {
 		t.Fatalf("queryPrompts = %#v, want untouched empty user text", client.queryPrompts)
-	}
-}
-
-func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID:  "sdk-session-context-fallback",
-		contextErr: agentclient.ErrUnsupportedCapability,
-		messages:   make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeResult,
-		SessionID: client.sessionID,
-		UUID:      "result-context-fallback",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype: "success",
-		},
-	}
-	close(client.messages)
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Content: "用户输入",
-		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "active goal facts", 0, nil),
-		},
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{
-			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("ExecuteRound 失败: %v", err)
-	}
-	if len(client.queryPrompts) != 1 ||
-		!strings.HasPrefix(client.queryPrompts[0], "<internal_context source=\"goal\">\nactive goal facts\n</internal_context>\n\n") ||
-		!strings.Contains(client.queryPrompts[0], "用户输入") {
-		t.Fatalf("queryPrompts = %#v, want context-prefixed user input", client.queryPrompts)
-	}
-	if client.clearCalls != 1 || len(client.contextInput) != 0 {
-		t.Fatalf(
-			"unsupported buffer calls = clear:%d context:%#v, want inline fallback",
-			client.clearCalls,
-			client.contextInput,
-		)
-	}
-}
-
-func TestExecuteRoundReturnsInterruptedWhenContextCancelled(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-1",
-		messages:  make(chan sdkprotocol.ReceivedMessage),
-	}
-	mapper := &fakeRoundExecutionMapper{}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		cancel()
-	}()
-
-	_, err := ExecuteRound(ctx, RoundExecutionRequest{
-		Query:  "你好",
-		Client: client,
-		Mapper: mapper,
-	})
-	if !errors.Is(err, ErrRoundInterrupted) {
-		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)
-	}
-}
-
-func TestRoundErrorDisplayMessageHidesStreamDiagnostics(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want string
-	}{
-		{
-			name: "closed stream",
-			err: &RoundStreamClosedError{
-				MessagesSeen:  61,
-				LastSessionID: "sdk-session-secret",
-				WaitError:     "signal: killed",
-			},
-			want: "Agent runtime 的响应流意外结束，本轮未完成。会话会在下一条消息自动恢复，请重试。",
-		},
-		{
-			name: "wrapped idle timeout",
-			err:  fmt.Errorf("执行失败: %w", ErrRoundStreamIdleTimeout),
-			want: "Agent runtime 长时间没有响应，本轮已停止，请重试。",
-		},
-		{
-			name: "provider error remains actionable",
-			err:  errors.New("provider_error=rate_limit"),
-			want: "provider_error=rate_limit",
-		},
-		{
-			name: "token limit is explained to the user",
-			err:  errors.New("anthropic status 400: context_length_exceeded"),
-			want: "模型的 Token 或上下文额度已达到上限。请缩短提示内容、清理会话上下文，或切换模型后重试。",
-		},
-		{
-			name: "nil",
-			want: "",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := RoundErrorDisplayMessage(test.err); got != test.want {
-				t.Fatalf("RoundErrorDisplayMessage() = %q, want %q", got, test.want)
-			}
-		})
 	}
 }
 

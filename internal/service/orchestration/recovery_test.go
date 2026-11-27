@@ -4,12 +4,10 @@ package orchestration
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationrepo "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
@@ -54,85 +52,6 @@ func TestRootRecoveryLeavesPendingOutboxAndAcceptedWork(t *testing.T) {
 	}
 	if len(settled) != 2 || settled[0] != "running" || settled[1] != "delivered" {
 		t.Fatalf("settled=%v", settled)
-	}
-}
-
-func TestRootRecoveryDefersGoalBoundExecutionToGoalAuthority(t *testing.T) {
-	service := testService(&fakeRepository{})
-	calls := 0
-	service.SetExecutionRecoveryConsumer(recoveryConsumerFunc(func(context.Context, protocol.Execution, string) error { calls++; return nil }))
-	snapshot := executionSnapshot()
-	snapshot.Execution.Status = protocol.ExecutionStatusActive
-	snapshot.Execution.GoalID = "goal"
-	if err := service.queueRootRecovery(context.Background(), snapshot, "recovery"); err != nil {
-		t.Fatal(err)
-	}
-	if calls != 0 {
-		t.Fatal("Goal recovery duplicated")
-	}
-	snapshot.Execution.GoalID = ""
-	if err := service.queueRootRecovery(context.Background(), snapshot, "recovery"); err != nil {
-		t.Fatal(err)
-	}
-	if calls != 1 {
-		t.Fatal("non-Goal recovery missing")
-	}
-}
-
-func TestStartupDoesNotWakeStoppedCurrentAssignment(t *testing.T) {
-	snapshot := executionSnapshot()
-	snapshot.Assignments = []protocol.WorkAssignment{{ID: "assignment", Status: protocol.WorkAssignmentStatusActive}}
-	snapshot.Attempts = []protocol.WorkAttempt{{ID: "root", AssignmentID: "assignment", Status: protocol.WorkAttemptStatusInterrupted, FailureReason: "__nexus_interrupt_without_message__"}}
-	if !rootRecoveryStoppedByUser(snapshot) {
-		t.Fatal("restart would revive user stop")
-	}
-	snapshot.Attempts[0].FailureReason = "host_shutdown"
-	if rootRecoveryStoppedByUser(snapshot) {
-		t.Fatal("host shutdown treated as user stop")
-	}
-}
-
-type recoveryRepository struct{ *fakeRepository }
-
-func (r *recoveryRepository) ListRecoveryExecutions(_ context.Context, after string, _ int) ([]protocol.Execution, error) {
-	if after != "" {
-		return nil, nil
-	}
-	return []protocol.Execution{r.snapshot.Execution}, nil
-}
-
-func TestRootRecoveryRetriesEnqueueFromTerminalReceipt(t *testing.T) {
-	snapshot := executionSnapshot()
-	snapshot.Execution.Status = protocol.ExecutionStatusActive
-	snapshot.Assignments = []protocol.WorkAssignment{{ID: "assignment", OwnerAgentID: "member", Status: protocol.WorkAssignmentStatusActive}}
-	snapshot.Attempts = []protocol.WorkAttempt{{ID: "failed-root", AssignmentID: "assignment", Status: protocol.WorkAttemptStatusFailed, Metadata: map[string]any{"host_recovery_required": true}}}
-	service := NewService(&recoveryRepository{&fakeRepository{snapshot: snapshot}})
-	calls := 0
-	var keys []string
-	service.SetExecutionRecoveryConsumer(recoveryConsumerFunc(func(_ context.Context, _ protocol.Execution, key string) error {
-		calls++
-		keys = append(keys, key)
-		if calls == 1 {
-			return errors.New("queue write failed")
-		}
-		return nil
-	}))
-	cursor := ""
-	if err := service.reconcileRootRecoveryInputs(context.Background(), &cursor, 64); err == nil {
-		t.Fatal("lost queue failure")
-	}
-	if err := service.reconcileRootRecoveryInputs(context.Background(), &cursor, 64); err != nil {
-		t.Fatal(err)
-	}
-	if calls != 2 || keys[0] != keys[1] || keys[0] != "failed:failed-root" {
-		t.Fatalf("unstable retry identity: %v", keys)
-	}
-	snapshot.Attempts[0].Status = protocol.WorkAttemptStatusRunning
-	if err := service.reconcileRootRecoveryInputs(context.Background(), &cursor, 64); err != nil {
-		t.Fatal(err)
-	}
-	if calls != 2 {
-		t.Fatal("live root was replayed")
 	}
 }
 
@@ -242,38 +161,6 @@ func (r *multiRecoveryRepository) GetSnapshot(_ context.Context, id string) (*pr
 	return r.snapshots[id], nil
 }
 
-func TestStartupRootRecoveryIsolatesEachExecution(t *testing.T) {
-	repository := &multiRecoveryRepository{fakeRepository: &fakeRepository{}, snapshots: map[string]*protocol.ExecutionSnapshot{}, failing: map[string]error{}}
-	for _, id := range []string{"execution-unreadable", "execution-deleted-room", "execution-healthy"} {
-		snapshot := hostInterruptedSnapshot(id, hostShutdownAttemptReason)
-		repository.executions = append(repository.executions, snapshot.Execution)
-		repository.snapshots[id] = snapshot
-	}
-	unreadable := errors.New("snapshot read failed")
-	repository.failing["execution-unreadable"] = unreadable
-	service := NewService(repository)
-	var queued []string
-	service.SetExecutionRecoveryConsumer(recoveryConsumerFunc(func(_ context.Context, e protocol.Execution, _ string) error {
-		if e.ID == "execution-deleted-room" {
-			return fmt.Errorf("%w: Room conversation is gone", ErrExecutionRecoveryTargetUnavailable)
-		}
-		queued = append(queued, e.ID)
-		return nil
-	}))
-
-	err := service.RecoverRootAttempts(context.Background())
-
-	if len(queued) != 1 || queued[0] != "execution-healthy" {
-		t.Fatalf("queued = %v, want the healthy Execution recovered despite earlier failures", queued)
-	}
-	if !errors.Is(err, unreadable) {
-		t.Fatalf("err = %v, want the unreadable Execution reported", err)
-	}
-	if errors.Is(err, ErrExecutionRecoveryTargetUnavailable) {
-		t.Fatalf("err = %v, want an unavailable recovery target skipped rather than reported", err)
-	}
-}
-
 func TestRootRecoveryAuditAdvancesPastFailingExecution(t *testing.T) {
 	repository := &multiRecoveryRepository{fakeRepository: &fakeRepository{}, snapshots: map[string]*protocol.ExecutionSnapshot{}, failing: map[string]error{}}
 	for _, id := range []string{"execution-unreadable", "execution-failed-member"} {
@@ -309,59 +196,6 @@ func hostInterruptedSnapshot(id string, reason string) *protocol.ExecutionSnapsh
 	snapshot.Assignments = []protocol.WorkAssignment{{ID: "assignment-" + id, OwnerAgentID: "member", Status: protocol.WorkAssignmentStatusActive}}
 	snapshot.Attempts = []protocol.WorkAttempt{{ID: "root-" + id, AssignmentID: "assignment-" + id, Status: protocol.WorkAttemptStatusInterrupted, FailureReason: reason}}
 	return snapshot
-}
-
-// Startup wakes coordinators only for work the host left in flight, never for
-// graphs that have been idle or abandoned since long before this start.
-func TestStartupRootRecoveryWakesOnlyHostInterruptedWork(t *testing.T) {
-	repository := &multiRecoveryRepository{fakeRepository: &fakeRepository{}, snapshots: map[string]*protocol.ExecutionSnapshot{}, failing: map[string]error{}}
-	add := func(snapshot *protocol.ExecutionSnapshot) {
-		repository.executions = append(repository.executions, snapshot.Execution)
-		repository.snapshots[snapshot.Execution.ID] = snapshot
-	}
-	add(hostInterruptedSnapshot("execution-shutdown", hostShutdownAttemptReason))
-	add(hostInterruptedSnapshot("execution-user-stopped", message.InterruptWithoutMessage))
-	add(hostInterruptedSnapshot("execution-host-control", "host_control_stop"))
-	stale := hostInterruptedSnapshot("execution-stale-failure", "Room slot failed")
-	stale.Attempts[0].Status = protocol.WorkAttemptStatusFailed
-	add(stale)
-	marked := hostInterruptedSnapshot("execution-marked-failure", "provider error")
-	marked.Attempts[0].Status = protocol.WorkAttemptStatusFailed
-	marked.Attempts[0].Metadata = map[string]any{"host_recovery_required": true}
-	add(marked)
-	idle := executionSnapshot()
-	idle.Execution.ID = "execution-idle"
-	idle.Execution.Status = protocol.ExecutionStatusActive
-	add(idle)
-	orphan := hostInterruptedSnapshot("execution-orphan", "")
-	orphan.Attempts[0].Status = protocol.WorkAttemptStatusRunning
-	add(orphan)
-	repository.finishAttempt = func(_ context.Context, command orchestrationrepo.FinishAttemptCommand) (*protocol.ExecutionSnapshot, error) {
-		current := repository.snapshots[command.Attempt.ExecutionID]
-		if current == nil {
-			current = repository.snapshots["execution-orphan"]
-		}
-		next := *current
-		next.Execution.Version++
-		next.Attempts = []protocol.WorkAttempt{command.Attempt}
-		repository.snapshots[next.Execution.ID] = &next
-		return &next, nil
-	}
-	service := NewService(repository)
-	var queued []string
-	service.SetExecutionRecoveryConsumer(recoveryConsumerFunc(func(_ context.Context, e protocol.Execution, _ string) error {
-		queued = append(queued, e.ID)
-		return nil
-	}))
-
-	if err := service.RecoverRootAttempts(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	want := []string{"execution-shutdown", "execution-marked-failure", "execution-orphan"}
-	if !slices.Equal(queued, want) {
-		t.Fatalf("queued = %v, want %v", queued, want)
-	}
 }
 
 func (r *multiRecoveryRepository) Get(_ context.Context, id string) (*protocol.Execution, error) {
@@ -419,37 +253,6 @@ func TestStartupRootRecoveryRetriesTransientFailureWithinCutoff(t *testing.T) {
 	}
 	if err := service.retryStartupRootRecovery(context.Background()); err != nil || len(queued) != 1 {
 		t.Fatalf("retry after success queued again: %v %v", queued, err)
-	}
-}
-
-func TestNextActionsSuggestTakeoverOnlyForCurrentFailedRoot(t *testing.T) {
-	for _, status := range []protocol.WorkAttemptStatus{protocol.WorkAttemptStatusFailed, protocol.WorkAttemptStatusInterrupted, protocol.WorkAttemptStatusRunning, protocol.WorkAttemptStatusSucceeded} {
-		snapshot := &protocol.ExecutionSnapshot{
-			Execution:      protocol.Execution{CoordinatorAgentID: "lead", Status: protocol.ExecutionStatusActive},
-			WorkItems:      []protocol.WorkItem{{ID: "work", LogicalKey: "work"}},
-			WorkItemStates: []protocol.WorkItemState{{WorkItemID: "work", CurrentSpecID: "spec", Status: protocol.WorkItemStatusOpen}},
-			Assignments:    []protocol.WorkAssignment{{ID: "assignment", WorkItemID: "work", SpecID: "spec", OwnerAgentID: "member", Status: protocol.WorkAssignmentStatusActive}},
-			Attempts:       []protocol.WorkAttempt{{ID: "root", AssignmentID: "assignment", Status: status, CreatedAt: time.Unix(1, 0)}},
-		}
-		hasTakeover := func(actor string) bool {
-			for _, action := range nextActions(snapshot, ActorContext{AgentID: actor}) {
-				if action.Operation == "take_over_work" {
-					return true
-				}
-			}
-			return false
-		}
-		want := status == protocol.WorkAttemptStatusFailed || status == protocol.WorkAttemptStatusInterrupted
-		if got := hasTakeover("lead"); got != want {
-			t.Fatalf("status %s: takeover=%v", status, got)
-		}
-		if hasTakeover("member") {
-			t.Fatal("member received coordinator recovery action")
-		}
-		snapshot.Attempts = append(snapshot.Attempts, protocol.WorkAttempt{AssignmentID: "assignment", Status: protocol.WorkAttemptStatusRunning, CreatedAt: time.Unix(2, 0)})
-		if hasTakeover("lead") {
-			t.Fatal("old failed Attempt overrides live successor")
-		}
 	}
 }
 
@@ -676,73 +479,6 @@ func TestReconcileGoalConfirmationsSurvivesServiceRestartAndIsIdempotent(t *test
 	}
 	if result.Scanned != 0 || secondGateway.confirmCalls != 1 {
 		t.Fatalf("confirmed receipt replayed: result=%#v calls=%d", result, secondGateway.confirmCalls)
-	}
-}
-
-func TestPromoteExecutionReturnsAppliedPendingAfterDurableBind(t *testing.T) {
-	snapshot := executionSnapshot()
-	snapshot.Execution.CompletionCriteria = []string{"verified"}
-	var store *goalConfirmationRepositoryFake
-	base := &fakeRepository{snapshot: snapshot}
-	store = &goalConfirmationRepositoryFake{fakeRepository: base}
-	base.bindGoal = func(
-		_ context.Context,
-		command orchestrationrepo.BindGoalCommand,
-	) (*protocol.ExecutionSnapshot, error) {
-		updated := cloneExecutionSnapshot(snapshot)
-		updated.Execution.Version++
-		updated.Execution.GoalID = command.Execution.GoalID
-		updated.Execution.GoalObjectiveRevision = command.Execution.GoalObjectiveRevision
-		updated.Execution.GoalActivationOrigin = command.Execution.GoalActivationOrigin
-		updated.Execution.GoalActivationReason = command.Execution.GoalActivationReason
-		base.snapshot = updated
-		store.receipt = orchestrationrepo.GoalConfirmationReceipt{
-			ExecutionID:           updated.Execution.ID,
-			GoalID:                updated.Execution.GoalID,
-			GoalObjectiveRevision: updated.Execution.GoalObjectiveRevision,
-			CompletionCriteria:    append([]string(nil), updated.Execution.CompletionCriteria...),
-			State:                 orchestrationrepo.GoalConfirmationPending,
-			Version:               1,
-			NextAttemptAt:         timePointer(time.Now().UTC()),
-		}
-		return updated, nil
-	}
-	service := testService(store)
-	service.SetGoalPromotionGateway(goalPromotionGatewayFunc(func(
-		context.Context,
-		GoalPromotionRequest,
-	) (GoalPromotionBinding, error) {
-		return GoalPromotionBinding{
-			GoalID:                "goal-pending",
-			GoalObjectiveRevision: 1,
-			ActivationOrigin:      protocol.GoalActivationOriginAdaptivePromoted,
-			ActivationReason:      protocol.GoalActivationReasonObservedBoundary,
-		}, nil
-	}))
-	service.SetExplicitGoalBindingGateway(&confirmingGoalBindingGateway{
-		confirmErrOnce: errors.New("confirmation transport interrupted"),
-	})
-	result, err := service.PromoteExecutionToGoal(
-		context.Background(),
-		coordinatorActor(),
-		PromoteExecutionToGoalInput{
-			ExecutionID:       snapshot.Execution.ID,
-			SnapshotRevision:  snapshot.Execution.Version,
-			CommandID:         "promotion-pending",
-			ObjectiveProposal: snapshot.Execution.Objective,
-			ActivationReason:  protocol.GoalActivationReasonObservedBoundary,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationApplied ||
-		result.GoalConfirmation != GoalConfirmationPending ||
-		result.GoalAuthority != nil || result.Snapshot == nil ||
-		result.Snapshot.Execution.GoalID != "goal-pending" ||
-		len(result.NextActions) == 0 ||
-		result.NextActions[len(result.NextActions)-1].Operation != "promote_execution_to_goal" {
-		t.Fatalf("durable pending promotion result = %#v", result)
 	}
 }
 

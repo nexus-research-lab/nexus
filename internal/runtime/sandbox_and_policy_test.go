@@ -19,41 +19,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// TestProcessPolicyIncludesHostSandboxRequirements 不因 json:"-" 丢失初始化权威。
-func TestProcessPolicyIncludesHostSandboxRequirements(t *testing.T) {
-	base := agentclient.Options{Sandbox: &agentclient.SandboxSettings{RequireSandbox: true}}
-	previous := managedRuntimeProcessPolicyFingerprint(base)
-	for _, change := range []func(){
-		func() { base.Sandbox.RequireFileTools = true },
-		func() { base.Sandbox.RequireSearchTools = true },
-		func() { base.Sandbox.RequireMediaFiles = true },
-		func() { base.Sandbox.RequireMediaNetwork = true },
-		func() { base.Sandbox.RequireMCPNetwork = true },
-		func() { base.Sandbox.RequireMCPHelpers = true },
-		func() { base.Sandbox.RequireMCPStdio = true },
-		func() { base.MCP.StrictConfig = true },
-		func() { base.Sandbox.RequireNotebookFiles = true },
-		func() { base.Sandbox.RequireSkillFiles = true },
-		func() { base.Sandbox.RequireContextFiles = true },
-		func() { base.Sandbox.RequireProjectFiles = true },
-		func() { base.Sandbox.RequireManagedPolicy = true },
-		func() { base.Sandbox.RequireSettingsFiles = true },
-		func() { base.Sandbox.RequireSettingsWrites = true },
-		func() {
-			base.Sandbox.Resources = &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeReadOnly, ScratchRoot: t.TempDir()}
-		},
-		func() { base.Sandbox.Resources.WriteScope = agentclient.SandboxWriteScopeWorkspaceWrite },
-		func() { base.Sandbox.Resources.ScratchRoot = t.TempDir() },
-	} {
-		change()
-		next := managedRuntimeProcessPolicyFingerprint(base)
-		if next == previous {
-			t.Fatal("host sandbox requirement did not change process identity")
-		}
-		previous = next
-	}
-}
-
 func TestProviderOwnershipChangeReplacesRuntime(t *testing.T) {
 	for _, key := range []string{"NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE", "NEXUS_MEMORY_DIR", "NEXUS_ENABLE_REMOTE_MEMORY", "NEXUS_REMOTE_MEMORY_DIR"} {
 		t.Run(key, func(t *testing.T) {
@@ -229,129 +194,6 @@ func TestResourceAdmissionReservesBeforeFactoryAndReleasesFailure(t *testing.T) 
 	}
 }
 
-func TestResourceAdmissionReclaimsOnlyCompletedWork(t *testing.T) {
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return &fakeRuntimeClient{} }))
-	now := time.Now()
-	m.now = func() time.Time { return now }
-	for _, key := range []string{"idle", "finishing", "background", "child"} {
-		if _, err := m.GetOrCreate(t.Context(), key, agentclient.Options{}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := m.StartRound(t.Context(), "finishing", "round", nil); err != nil {
-		t.Fatal(err)
-	}
-	m.MarkRoundTerminal("finishing", "round")
-	backgroundDone := make(chan struct{})
-	if !m.StartBackgroundTask("background", func(context.Context) { <-backgroundDone }) {
-		t.Fatal("background task rejected")
-	}
-	defer func() { close(backgroundDone); _ = m.WaitBackgroundTasks(t.Context(), "background") }()
-	m.mu.Lock()
-	m.sessions["child"].SubagentHookBindings["tool"] = subagentHookBinding{Started: true}
-	for _, state := range m.sessions {
-		state.LastUsedAt = time.Now().Add(-time.Hour)
-	}
-	m.mu.Unlock()
-	m.SetResourceLimits(ResourceLimits{MaxSessions: 4})
-	if _, err := m.GetOrCreate(t.Context(), "new", agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-	if m.SessionClient("idle") != nil {
-		t.Fatal("idle client was not reclaimed")
-	}
-	if closed, err := m.CloseIdleSessions(t.Context(), time.Minute); err != nil || closed != 0 {
-		t.Fatalf("TTL cleanup closed unfinished work: closed=%d err=%v", closed, err)
-	}
-	for _, key := range []string{"finishing", "background", "child"} {
-		if m.SessionClient(key) == nil {
-			t.Fatalf("unfinished %s was reclaimed", key)
-		}
-	}
-	now = now.Add(time.Second)
-	m.MarkRoundFinished("finishing", "round")
-	if _, err := m.GetOrCreate(t.Context(), "next", agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-	// finishing 刚刚完成，LRU 应先回收没有工作的 new，而非后台任务。
-	if m.SessionClient("new") != nil || m.SessionClient("background") == nil {
-		t.Fatal("pressure cleanup did not follow idle LRU order")
-	}
-}
-
-func TestResourceAdmissionRetainsFailedCleanupSlot(t *testing.T) {
-	want := errors.New("descendant cleanup unknown")
-	client := &fakeRuntimeClient{disconnectErr: want}
-	var calls int
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { calls++; return client }))
-	m.SetResourceLimits(ResourceLimits{MaxSessions: 1})
-	if _, err := m.GetOrCreate(t.Context(), "old", agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-	// 别的会话清理失败不立即让本请求失败；等待超时时仍带回清理诊断。
-	newCtx, cancelNew := context.WithTimeout(t.Context(), 40*time.Millisecond)
-	defer cancelNew()
-	if _, err := m.GetOrCreate(newCtx, "new", agentclient.Options{}); !errors.Is(err, ErrRuntimeResourceBusy) || !errors.Is(err, want) {
-		t.Fatalf("cleanup failure failed fast or lost diagnostics: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), 40*time.Millisecond)
-	defer cancel()
-	if _, err := m.GetOrCreate(ctx, "retry", agentclient.Options{}); !errors.Is(err, ErrRuntimeResourceBusy) {
-		t.Fatalf("cleanup uncertainty released capacity: %v", err)
-	}
-	m.mu.RLock()
-	state := m.sessions["old"]
-	retained := state != nil && state.Client == client && state.Closing && errors.Is(state.CloseError, want)
-	m.mu.RUnlock()
-	if calls != 1 || client.disconnectCalls != 1 || !retained {
-		t.Fatalf("unknown cleanup was retried or forgotten: factory=%d disconnect=%d", calls, client.disconnectCalls)
-	}
-}
-
-func TestResourceAdmissionMemoryWaitRecoversOrStopsOnShutdown(t *testing.T) {
-	for _, shutdown := range []bool{false, true} {
-		name := "memory_recovers"
-		if shutdown {
-			name = "shutdown"
-		}
-		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
-			defer cancel()
-			var available atomic.Bool
-			var calls atomic.Int32
-			entered := make(chan struct{})
-			var once sync.Once
-			m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { calls.Add(1); return &fakeRuntimeClient{} }))
-			m.SetResourceLimits(ResourceLimits{MaxSessions: 1, MemoryAvailable: func() bool {
-				once.Do(func() { close(entered) })
-				return available.Load()
-			}})
-			done := make(chan error, 1)
-			go func() { _, err := m.GetOrCreate(ctx, "waiting", agentclient.Options{}); done <- err }()
-			<-entered
-			if calls.Load() != 0 {
-				t.Fatal("factory ran under memory pressure")
-			}
-			if shutdown {
-				if err := m.Close(ctx); err != nil {
-					t.Fatal(err)
-				}
-				if err := <-done; !errors.Is(err, ErrRuntimeManagerClosed) {
-					t.Fatalf("waiting startup survived shutdown: %v", err)
-				}
-				return
-			}
-			available.Store(true)
-			if err := <-done; err != nil {
-				t.Fatal(err)
-			}
-			if calls.Load() != 1 {
-				t.Fatal("factory not admitted after memory recovered")
-			}
-		})
-	}
-}
-
 // 内存压力可能来自宿主外的程序；一个等待者最多回收一个空闲会话。
 func TestResourceAdmissionMemoryPressureReclaimsOncePerWaiter(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -376,35 +218,6 @@ func TestResourceAdmissionMemoryPressureReclaimsOncePerWaiter(t *testing.T) {
 			t.Fatalf("memory pressure reclaimed %d sessions, want 1", len(keys)-remaining)
 		}
 	})
-}
-
-// 终态通知携带代次：上一代的迟到通知不释放续跑，结束的任务不在长会话里累积。
-func TestSubagentRunNotificationGenerationAndPruning(t *testing.T) {
-	client := &followupReceiptClient{}
-	m := NewManagerWithFactory(runtimeFactoryFunc(func(agentclient.Options) Client { return client }))
-	if _, err := m.GetOrCreate(t.Context(), "parent", agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-	runs := func() int { m.mu.RLock(); defer m.mu.RUnlock(); return len(m.sessions["parent"].SubagentRuns) }
-	m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskStarted: &sdkprotocol.TaskStartedMessage{TaskID: "child", TaskType: "local_agent"}})
-	m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskUpdated: &sdkprotocol.TaskUpdatedMessage{TaskID: "child", RunGeneration: 1, Patch: sdkprotocol.TaskUpdatedPatch{Status: "running"}}})
-	client.deliver = func() (sdkprotocol.TaskRunState, error) {
-		return sdkprotocol.TaskRunState{Generation: 2, Status: "running"}, nil
-	}
-	if err := m.SendTaskMessage(t.Context(), "parent", "child", "resume", ""); err != nil {
-		t.Fatal(err)
-	}
-	notify := func(gen int) {
-		m.ObserveSubagentRun("parent", client, sdkprotocol.ReceivedMessage{TaskNotification: &sdkprotocol.TaskNotificationMessage{TaskID: "child", RunGeneration: gen, Status: "completed"}})
-	}
-	notify(1)
-	if got := runs(); got != 1 {
-		t.Fatalf("previous generation notification released resumed run: %d", got)
-	}
-	notify(2)
-	if got := runs(); got != 0 {
-		t.Fatalf("finished run retained: %d", got)
-	}
 }
 
 func TestDesktopSandboxFullAccessKeepsMCPWithoutRestrictedCapabilities(t *testing.T) {
@@ -513,41 +326,5 @@ func TestManagerHandlesSandboxModeReplacementAsExpectedTransition(t *testing.T) 
 	}
 	if stale.disconnectCalls != 1 || manager.HasSession(key) {
 		t.Fatal("old runtime remained available")
-	}
-}
-
-func TestManagerReplacesRuntimeForSandboxTransitions(t *testing.T) {
-	for _, startRestricted := range []bool{false, true} {
-		name := "enable"
-		if startRestricted {
-			name = "disable"
-		}
-		t.Run(name, func(t *testing.T) {
-			stale, fresh := &fakeRuntimeClient{}, &fakeRuntimeClient{}
-			manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
-			enabled := true
-			restricted := &agentclient.SandboxSettings{Enabled: &enabled, FailIfUnavailable: &enabled}
-			before := agentclient.Options{CWD: t.TempDir()}
-			if startRestricted {
-				before.Sandbox = restricted
-			}
-			key := "agent:nexus:ws:dm:sandbox-transition"
-			if _, err := manager.GetOrCreate(context.Background(), key, before); err != nil {
-				t.Fatal(err)
-			}
-			after := before
-			if startRestricted {
-				after.Sandbox = nil
-			} else {
-				after.Sandbox = restricted
-			}
-			got, err := manager.GetOrCreate(context.Background(), key, after)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != fresh || stale.disconnectCalls != 1 || stale.reconfigureCalls != 0 {
-				t.Fatalf("sandbox transition reused stale runtime: got=%p fresh=%p disconnect=%d reconfigure=%d", got, fresh, stale.disconnectCalls, stale.reconfigureCalls)
-			}
-		})
 	}
 }

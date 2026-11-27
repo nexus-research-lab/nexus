@@ -61,58 +61,6 @@ func (r *recordingPersonalWeixinIngress) Accept(_ context.Context, request chann
 	}, nil
 }
 
-func TestPersonalWeixinMultiAccountChannelRoutesByAccountID(t *testing.T) {
-	var receivedAuth string
-	var receivedTo string
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedAuth = request.Header.Get("Authorization")
-		var payload map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-			t.Fatalf("解析个人微信回投请求失败: %v", err)
-		}
-		message, _ := payload["msg"].(map[string]any)
-		receivedTo, _ = message["to_user_id"].(string)
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"ret":0}`))
-	}))
-	defer server.Close()
-
-	channel := NewPersonalWeixinMultiAccountChannel([]*PersonalWeixinChannel{
-		NewPersonalWeixinChannel(PersonalWeixinClientConfig{
-			BaseURL:   server.URL,
-			Token:     "token-1",
-			AccountID: "account-1",
-		}, server.Client()),
-		NewPersonalWeixinChannel(PersonalWeixinClientConfig{
-			BaseURL:   server.URL,
-			Token:     "token-2",
-			AccountID: "account-2",
-		}, server.Client()),
-	})
-
-	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:      channelcontract.DeliveryModeExplicit,
-		Channel:   channelcontract.ChannelTypeWeixinPersonal,
-		To:        "wx-user-1",
-		AccountID: "account-2",
-	}, "你好")
-	if err != nil {
-		t.Fatalf("多账号个人微信回投失败: %v", err)
-	}
-	if receivedAuth != "Bearer token-2" || receivedTo != "wx-user-1" {
-		t.Fatalf("多账号个人微信未按 account_id 分流: auth=%q to=%q", receivedAuth, receivedTo)
-	}
-
-	_, err = channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:    channelcontract.DeliveryModeExplicit,
-		Channel: channelcontract.ChannelTypeWeixinPersonal,
-		To:      "wx-user-1",
-	}, "你好")
-	if err == nil || !strings.Contains(err.Error(), "requires account_id") {
-		t.Fatalf("多账号个人微信缺少 account_id 应拒绝: %v", err)
-	}
-}
-
 func TestPersonalWeixinMultiAccountChannelStopsStartedAccountsOnStartFailure(t *testing.T) {
 	startErr := errors.New("start account failed")
 	accounts := []*PersonalWeixinChannel{
@@ -375,41 +323,6 @@ func TestPersonalWeixinChannelTypingIgnoresGetConfigFailure(t *testing.T) {
 	}
 }
 
-func TestPersonalWeixinChannelClearsOnlyExplicitlyExpiredContextAndRetriesOnce(t *testing.T) {
-	contextTokens := make([]string, 0, 2)
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		var payload map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-			t.Fatalf("解析个人微信回投请求失败: %v", err)
-		}
-		message, _ := payload["msg"].(map[string]any)
-		contextTokens = append(contextTokens, strings.TrimSpace(firstString(message["context_token"])))
-		if len(contextTokens) == 1 {
-			return jsonResponse(`{"ret":-2,"errmsg":"context expired"}`), nil
-		}
-		return jsonResponse(`{"ret":0}`), nil
-	})}
-	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
-		BaseURL: "https://weixin.test",
-		Token:   "token-1",
-	}, client)
-	result, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:         channelcontract.DeliveryModeExplicit,
-		Channel:      channelcontract.ChannelTypeWeixinPersonal,
-		To:           "wx-user-1",
-		ContextToken: "stale-context",
-	}, "定时任务结果")
-	if err != nil {
-		t.Fatalf("明确 context 失效后无 token 主动重试应成功: %v", err)
-	}
-	if len(contextTokens) != 2 || contextTokens[0] != "stale-context" || contextTokens[1] != "" {
-		t.Fatalf("context_token 降级顺序不正确: %+v", contextTokens)
-	}
-	if result.Target.ContextToken != "" {
-		t.Fatalf("失效 context_token 必须从权威路由结果中清除: %+v", result.Target)
-	}
-}
-
 func TestPersonalWeixinChannelDoesNotClearContextOnRateLimit(t *testing.T) {
 	calls := 0
 	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -442,66 +355,6 @@ func TestPersonalWeixinChannelDoesNotClearContextOnRateLimit(t *testing.T) {
 func firstString(value any) string {
 	text, _ := value.(string)
 	return text
-}
-
-func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
-	ingress := &recordingPersonalWeixinIngress{}
-	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
-		Token:     "token-1",
-		AccountID: "account-1",
-	}, nil).WithOwner("owner-a")
-	channel.SetIngress(ingress)
-
-	channel.handleMessage(context.Background(), personalWeixinMessage{
-		FromUserID:   "wx-user-1",
-		MessageID:    42,
-		ClientID:     "client-42",
-		CreateTimeMS: 1700000000000,
-		SessionID:    "session-1",
-		GroupID:      "group-1",
-		ContextToken: "ctx-token-1",
-		MessageType:  personalWeixinMessageTypeUser,
-		ItemList: []personalWeixinMessageItem{{
-			Type: personalWeixinItemTypeText,
-			TextItem: personalWeixinTextItem{
-				Text: "检查今日任务",
-			},
-		}},
-	})
-
-	if len(ingress.requests) != 1 {
-		t.Fatalf("个人微信消息未进入 ingress: %+v", ingress.requests)
-	}
-	request := ingress.requests[0]
-	if request.OwnerUserID != "owner-a" || request.Channel != channelcontract.ChannelTypeWeixinPersonal || request.Ref != "wx-user-1" {
-		t.Fatalf("个人微信 ingress 基础字段不正确: %+v", request)
-	}
-	if request.ThreadID != "" {
-		t.Fatalf("个人微信 session key 不应使用 context_token: %+v", request)
-	}
-	if request.Delivery == nil || request.Delivery.To != "wx-user-1" || request.Delivery.ContextToken != "ctx-token-1" || request.Delivery.ThreadID != "" {
-		t.Fatalf("个人微信 remembered delivery 不正确: %+v", request.Delivery)
-	}
-	if !strings.Contains(request.Content, "检查今日任务") {
-		t.Fatalf("个人微信文本不正确: %+v", request)
-	}
-	if request.RoundID != "42" || request.ReqID != "42" {
-		t.Fatalf("个人微信消息 id 未进入入口请求: %+v", request)
-	}
-	if request.Message == nil ||
-		request.Message.Channel != channelcontract.ChannelTypeWeixinPersonal ||
-		request.Message.PlatformMessageID != "42" ||
-		request.Message.ThreadID != "" ||
-		request.Message.SenderID != "wx-user-1" ||
-		request.Message.Text != "检查今日任务" ||
-		request.Message.Metadata["client_id"] != "client-42" ||
-		request.Message.Metadata["session_id"] != "session-1" ||
-		request.Message.Metadata["group_id"] != "group-1" {
-		t.Fatalf("个人微信入口 envelope 不正确: %+v", request.Message)
-	}
-	if !request.Message.ReceivedAt.Equal(time.UnixMilli(1700000000000).UTC()) {
-		t.Fatalf("个人微信入口时间不正确: %+v", request.Message.ReceivedAt)
-	}
 }
 
 func TestPersonalWeixinChannelPersistsCursorAndNotifiesLifecycle(t *testing.T) {

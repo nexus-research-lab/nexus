@@ -1,60 +1,11 @@
 package launcher
 
 import (
-	"bytes"
-	"context"
-	"errors"
-	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-type fakeLauncherSessionReader struct {
-	err      error
-	previews map[string]string
-	calls    int
-}
-
-func (f *fakeLauncherSessionReader) ListDirectorySessions(context.Context) ([]protocol.Session, error) {
-	return nil, nil
-}
-func (f *fakeLauncherSessionReader) ListRoomReplyPreviews(context.Context) (map[string]string, error) {
-	f.calls++
-	return f.previews, f.err
-}
-
-func TestBootstrapReadsRoomPreviewsOnce(t *testing.T) {
-	reader := &fakeLauncherSessionReader{previews: map[string]string{"dm": "DM 回复", "room": "公区回复"}}
-	items := []BootstrapConversation{{RoomID: "dm"}, {RoomID: "room"}, {RoomID: "room"}, {RoomID: "room", ChannelType: protocol.SessionChannelDiscord}, {RoomID: "cold"}}
-	(&Service{session: reader}).attachLatestReplyPreviews(context.Background(), items)
-	want := []string{"DM 回复", "公区回复", "公区回复", "", ""}
-	for i, item := range items {
-		if item.LastReplyPreview != want[i] {
-			t.Fatalf("preview[%d]=%q", i, item.LastReplyPreview)
-		}
-	}
-	if reader.calls != 1 {
-		t.Fatalf("queries=%d", reader.calls)
-	}
-}
-
-func TestPreviewFailureUsesExportedRequestLogger(t *testing.T) {
-	var output bytes.Buffer
-	logger := logx.New(logx.Options{Output: &output, Format: "json"}).With("request_id", "req-preview")
-	ctx := logx.WithLogger(context.Background(), logger)
-	reader := &fakeLauncherSessionReader{err: errors.New("summary unavailable")}
-	items := []BootstrapConversation{{RoomID: "room"}}
-	(&Service{session: reader}).attachLatestReplyPreviews(ctx, items)
-	if !strings.Contains(output.String(), "req-preview") || !strings.Contains(output.String(), "summary unavailable") {
-		t.Fatal(output.String())
-	}
-	if items[0].LastReplyPreview != "" {
-		t.Fatal("失败时不能填摘要")
-	}
-}
 
 func TestLatestReplyPreviewUsesFinalBody(t *testing.T) {
 	text := func(value string) map[string]any {

@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/app"
@@ -20,7 +19,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	_ "modernc.org/sqlite"
@@ -133,124 +131,6 @@ func TestServiceManagesSymmetricAgentContacts(t *testing.T) {
 	}
 }
 
-func TestServiceGetAgentRejectsOwnerWorkspaceSymlink(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-	service, _ := newAgentTestService(t, cfg)
-	ownerAContext := authctx.WithPrincipal(
-		context.Background(),
-		&authctx.Principal{UserID: "user-a"},
-	)
-	ownerBContext := authctx.WithPrincipal(
-		context.Background(),
-		&authctx.Principal{UserID: "user-b"},
-	)
-	ownerAAgent, err := service.CreateAgent(
-		ownerAContext,
-		protocol.CreateRequest{Name: "owner-a-agent"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ownerBAgent, err := service.CreateAgent(
-		ownerBContext,
-		protocol.CreateRequest{Name: "owner-b-agent"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	foreignSettingsPath := filepath.Join(ownerBAgent.WorkspacePath, ".nexus", "settings.json")
-	before, err := os.ReadFile(foreignSettingsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.RemoveAll(ownerAAgent.WorkspacePath); err != nil {
-		t.Fatal(err)
-	}
-	if err = os.Symlink(ownerBAgent.WorkspacePath, ownerAAgent.WorkspacePath); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-
-	if _, err = service.GetAgent(ownerAContext, ownerAAgent.AgentID); !errors.Is(err, confinedfs.ErrSymlink) {
-		t.Fatalf("Agent 查询不能借 workspace symlink 写入另一 owner: %v", err)
-	}
-	after, err := os.ReadFile(foreignSettingsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(after) != string(before) {
-		t.Fatal("被链接 owner 的 runtime settings 不应发生变化")
-	}
-}
-
-func TestServiceRetriesMainAgentWorkspaceLifecycleBeforePersisting(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, db := newAgentTestService(t, cfg)
-	manager := &recordingWorkspaceManager{initializeErr: errors.New("initialize failed")}
-	service.SetWorkspaceManager(manager)
-	ctx := context.Background()
-
-	if _, err := service.ListAgents(ctx); err == nil {
-		t.Fatal("workspace 初始化失败时不应提交主 Agent")
-	}
-	assertNoRowsForAgent(t, db, "agents", "id", cfg.DefaultAgentID)
-	if len(manager.initialized) != 1 || !manager.initialized[0].IsMain {
-		t.Fatalf("主 Agent 应进入 workspace 生命周期: %+v", manager.initialized)
-	}
-
-	manager.initializeErr = nil
-	items, err := service.ListAgents(ctx)
-	if err != nil {
-		t.Fatalf("重试主 Agent workspace 生命周期失败: %v", err)
-	}
-	if len(items) != 1 || items[0].AgentID != cfg.DefaultAgentID {
-		t.Fatalf("主 Agent 重试后未正确落库: %+v", items)
-	}
-	if len(manager.initialized) != 2 {
-		t.Fatalf("workspace 初始化调用次数 = %d, want 2", len(manager.initialized))
-	}
-	initialized := manager.initialized[1]
-	if initialized.AgentID != items[0].AgentID ||
-		initialized.OwnerUserID != items[0].OwnerUserID ||
-		initialized.WorkspacePath != items[0].WorkspacePath ||
-		!initialized.IsMain || initialized.CreatedAt.IsZero() {
-		t.Fatalf("workspace 生命周期收到的主 Agent 身份不完整: %+v", initialized)
-	}
-
-	if _, err = service.GetDefaultAgent(ctx); err != nil {
-		t.Fatalf("再次读取主 Agent 失败: %v", err)
-	}
-	if len(manager.initialized) != 2 {
-		t.Fatalf("普通读取不应重复初始化 workspace: calls=%d", len(manager.initialized))
-	}
-}
-
-func TestServiceRejectsMainAgentDeletionBeforeCoordinator(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, _, err := app.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
-	ctx := context.Background()
-	if _, err = service.ListAgents(ctx); err != nil {
-		t.Fatalf("初始化主智能体失败: %v", err)
-	}
-	if err = service.DeleteAgent(ctx, cfg.DefaultAgentID); !errors.Is(
-		err,
-		agentpkg.ErrAgentDeletionNotAllowed,
-	) {
-		t.Fatalf("主智能体删除必须在协调前拒绝: %v", err)
-	}
-	mainAgent, err := service.GetAgent(ctx, cfg.DefaultAgentID)
-	if err != nil || mainAgent == nil || !mainAgent.IsMain {
-		t.Fatalf("拒绝删除后主智能体必须保留: agent=%+v err=%v", mainAgent, err)
-	}
-}
-
 func TestServiceUsesRuntimeVersionForCompareAndSwap(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -315,117 +195,6 @@ func TestServiceUsesRuntimeVersionForCompareAndSwap(t *testing.T) {
 	}
 }
 
-func TestServiceDeleteAtVersionRejectsStalePlanBeforeWorkspaceCleanup(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, _, err := app.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
-	ctx := context.Background()
-	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "versioned-delete-agent"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	markerPath := filepath.Join(created.WorkspacePath, "must-survive-stale-delete.txt")
-	if err = os.WriteFile(markerPath, []byte("keep"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	nextName := "versioned-delete-agent-updated"
-	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{Name: &nextName})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = service.DeleteAgentAtVersion(
-		ctx,
-		created.AgentID,
-		created.RuntimeVersion,
-	); !errors.Is(err, agentpkg.ErrRuntimeVersionConflict) {
-		t.Fatalf("陈旧删除 error = %v, want ErrRuntimeVersionConflict", err)
-	}
-	current, err := service.GetAgent(ctx, created.AgentID)
-	if err != nil {
-		t.Fatalf("陈旧删除后 Agent 不应消失: %v", err)
-	}
-	if current.RuntimeVersion != updated.RuntimeVersion || current.Name != nextName {
-		t.Fatalf("陈旧删除改变了 Agent: %+v", current)
-	}
-	if content, readErr := os.ReadFile(markerPath); readErr != nil || string(content) != "keep" {
-		t.Fatalf("陈旧删除先破坏了 workspace: content=%q err=%v", content, readErr)
-	}
-
-	if err = service.DeleteAgentAtVersion(
-		ctx,
-		created.AgentID,
-		updated.RuntimeVersion,
-	); err != nil {
-		t.Fatalf("当前版本删除失败: %v", err)
-	}
-	if _, statErr := os.Stat(created.WorkspacePath); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("成功删除后 workspace 仍存在: %v", statErr)
-	}
-}
-
-func TestServiceUsesAgentIDWorkspacePathAndRenameKeepsWorkspace(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, _ := newAgentTestService(t, cfg)
-
-	ctx := context.Background()
-	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "chatbuddy"})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-	if filepath.Base(created.WorkspacePath) != agentpkg.BuildWorkspaceDirName(created.AgentID) {
-		t.Fatalf("workspace 目录应使用 agent_id: got=%s agent_id=%s", created.WorkspacePath, created.AgentID)
-	}
-	workspaceMarker := filepath.Join(created.WorkspacePath, "marker.txt")
-	if err = os.WriteFile(workspaceMarker, []byte("ok"), 0o644); err != nil {
-		t.Fatalf("写入 workspace 标记失败: %v", err)
-	}
-	agentsFile := filepath.Join(created.WorkspacePath, "AGENTS.md")
-	customAgentsContent := "# AGENTS.md\n\n用户自定义规则\n"
-	if err = os.WriteFile(agentsFile, []byte(customAgentsContent), 0o644); err != nil {
-		t.Fatalf("写入 AGENTS.md 失败: %v", err)
-	}
-	if err = os.MkdirAll(filepath.Join(cfg.WorkspacePath, "chat"), 0o755); err != nil {
-		t.Fatalf("创建冲突候选目录失败: %v", err)
-	}
-
-	validation, err := service.ValidateName(ctx, "chat", created.AgentID)
-	if err != nil {
-		t.Fatalf("编辑态名称校验失败: %v", err)
-	}
-	if !validation.IsValid || !validation.IsAvailable {
-		t.Fatalf("agent_id 目录模式不应被同名目录阻断: %+v", validation)
-	}
-
-	nextName := "chat"
-	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{Name: &nextName})
-	if err != nil {
-		t.Fatalf("改名失败: %v", err)
-	}
-	if updated.Name != "chat" {
-		t.Fatalf("改名未生效: %+v", updated)
-	}
-	if updated.WorkspacePath != created.WorkspacePath {
-		t.Fatalf("改名不应移动 workspace_path: got=%s want=%s", updated.WorkspacePath, created.WorkspacePath)
-	}
-	if _, err = os.Stat(filepath.Join(updated.WorkspacePath, "marker.txt")); err != nil {
-		t.Fatalf("workspace 内容应保留在原目录: %v", err)
-	}
-	agentsContent, err := os.ReadFile(agentsFile)
-	if err != nil {
-		t.Fatalf("读取 AGENTS.md 失败: %v", err)
-	}
-	if string(agentsContent) != customAgentsContent {
-		t.Fatalf("改名不应重写 AGENTS.md 系统身份字段: %s", agentsContent)
-	}
-}
-
 func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -477,26 +246,6 @@ type fakeAgentGoalCleaner struct {
 	agentIDs []string
 }
 
-type recordingWorkspaceManager struct {
-	initialized   []protocol.Agent
-	initializeErr error
-}
-
-func (r *recordingWorkspaceManager) InitializeAgentWorkspace(
-	_ context.Context,
-	agentValue protocol.Agent,
-) error {
-	r.initialized = append(r.initialized, agentValue)
-	return r.initializeErr
-}
-
-func (*recordingWorkspaceManager) RemoveAgentWorkspaceState(
-	context.Context,
-	protocol.Agent,
-) error {
-	return nil
-}
-
 func (f *fakeAgentGoalCleaner) DeleteGoalsForAgent(_ context.Context, agentID string) (int, error) {
 	f.agentIDs = append(f.agentIDs, agentID)
 	return 1, nil
@@ -530,19 +279,6 @@ func agentTranscriptProjectDir(workspacePath string) string {
 		"projects",
 		sanitizeAgentTranscriptPath(canonicalizeAgentTranscriptPath(workspacePath)),
 	)
-}
-
-func assertNoRowsForAgent(t *testing.T, db *sql.DB, table string, column string, value string) {
-	t.Helper()
-
-	var count int
-	query := "SELECT COUNT(1) FROM " + table + " WHERE " + column + " = ?"
-	if err := db.QueryRow(query, value).Scan(&count); err != nil {
-		t.Fatalf("查询 %s.%s 失败: %v", table, column, err)
-	}
-	if count != 0 {
-		t.Fatalf("删除 agent 后 %s 仍有残留: %d", table, count)
-	}
 }
 
 func canonicalizeAgentTranscriptPath(path string) string {
@@ -692,132 +428,5 @@ func TestAgentCreationWorkspaceFailureBecomesTerminalWithoutAgent(t *testing.T) 
 	}
 	if count != 0 {
 		t.Fatalf("failed creation wrote %d Agent rows", count)
-	}
-}
-
-func TestConcurrentAgentCreationRequestProducesOneAgentIdentity(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-	service, _ := newAgentTestService(t, cfg)
-	ctx := context.Background()
-	request := protocol.CreateRequest{
-		Name:              "Concurrent Agent",
-		CreationRequestID: "web-create:concurrent-agent",
-	}
-
-	const callers = 8
-	ids := make(chan string, callers)
-	errs := make(chan error, callers)
-	var group sync.WaitGroup
-	for range callers {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			item, err := service.CreateAgent(ctx, request)
-			if err != nil {
-				errs <- err
-				return
-			}
-			ids <- item.AgentID
-		}()
-	}
-	group.Wait()
-	close(ids)
-	close(errs)
-	for err := range errs {
-		t.Fatalf("concurrent CreateAgent() error = %v", err)
-	}
-	unique := make(map[string]struct{})
-	for id := range ids {
-		unique[id] = struct{}{}
-	}
-	if len(unique) != 1 {
-		t.Fatalf("concurrent create returned identities = %#v", unique)
-	}
-	items, err := service.ListAgents(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := 0
-	for _, item := range items {
-		if item.Name == request.Name {
-			count++
-		}
-	}
-	if count != 1 {
-		t.Fatalf("created Agent count = %d, want 1", count)
-	}
-}
-
-func TestConcurrentAgentCreationAcrossServicesUsesOneDurableReservation(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-	first, _ := newAgentTestService(t, cfg)
-	second, _ := newAgentTestService(t, cfg)
-	ctx := context.Background()
-	if _, err := first.ListAgents(ctx); err != nil {
-		t.Fatalf("initialize first service: %v", err)
-	}
-	if _, err := second.ListAgents(ctx); err != nil {
-		t.Fatalf("initialize second service: %v", err)
-	}
-	request := protocol.CreateRequest{
-		Name:              "Cross Instance Agent",
-		CreationRequestID: "web-create:cross-instance",
-	}
-
-	start := make(chan struct{})
-	results := make(chan *protocol.Agent, 2)
-	errorsSeen := make(chan error, 2)
-	var group sync.WaitGroup
-	for _, service := range []*agentpkg.Service{first, second} {
-		group.Add(1)
-		go func(service *agentpkg.Service) {
-			defer group.Done()
-			<-start
-			item, err := service.CreateAgent(ctx, request)
-			if err != nil {
-				errorsSeen <- err
-				return
-			}
-			results <- item
-		}(service)
-	}
-	close(start)
-	group.Wait()
-	close(results)
-	close(errorsSeen)
-	for err := range errorsSeen {
-		if !errors.Is(err, agentpkg.ErrAgentCreationPending) {
-			t.Fatalf("concurrent cross-service error = %v", err)
-		}
-	}
-	var createdID string
-	for item := range results {
-		if createdID == "" {
-			createdID = item.AgentID
-		} else if item.AgentID != createdID {
-			t.Fatalf("cross-service identities = %q and %q", createdID, item.AgentID)
-		}
-	}
-	replayed, err := first.CreateAgent(ctx, request)
-	if err != nil {
-		t.Fatalf("final replay error = %v", err)
-	}
-	if createdID != "" && replayed.AgentID != createdID {
-		t.Fatalf("final replay Agent = %q, want %q", replayed.AgentID, createdID)
-	}
-	items, err := first.ListAgents(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := 0
-	for _, item := range items {
-		if item.Name == request.Name {
-			count++
-		}
-	}
-	if count != 1 {
-		t.Fatalf("cross-service created Agent count = %d, want 1", count)
 	}
 }

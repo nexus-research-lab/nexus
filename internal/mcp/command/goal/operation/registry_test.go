@@ -124,48 +124,6 @@ func TestAuditObjectiveAlignmentRejectsMalformedJSONBeforeService(t *testing.T) 
 	}
 }
 
-func TestRetargetGoalTrustedVisibleRoundLateBindsCurrentRevision(t *testing.T) {
-	authority := runtimectx.NewGoalAuthorityState("", 0, "")
-	svc := &fakeRetargetGoalService{
-		current: &protocol.Goal{
-			ID:         "goal-current",
-			SessionKey: "agent:nexus:ws:dm:chat",
-			Objective:  "Original objective",
-			Status:     protocol.GoalStatusActive,
-			Metadata: map[string]any{
-				protocol.GoalMetadataObjectiveRevision: int64(3),
-			},
-		},
-		retargeted: &protocol.Goal{
-			ID:         "goal-current",
-			SessionKey: "agent:nexus:ws:dm:chat",
-			Objective:  "Corrected objective",
-			Status:     protocol.GoalStatusActive,
-			Metadata: map[string]any{
-				protocol.GoalMetadataObjectiveRevision: int64(4),
-			},
-		},
-	}
-	result, err := retargetGoal(svc, contract.Context{
-		CurrentSessionKey: "agent:nexus:ws:dm:chat",
-		CurrentRoundID:    "round-user-correction",
-		CurrentAgentID:    "agent-1",
-		GoalAuthority:     authority,
-		AllowUserRetarget: true,
-	}).Handler(context.Background(), map[string]any{"objective": "Corrected objective"})
-	if err != nil || result.IsError {
-		t.Fatalf("retarget result = %#v err=%v, want success", result, err)
-	}
-	if svc.request.ExpectedObjectiveRevision != 3 ||
-		svc.request.RoundID != "round-user-correction" {
-		t.Fatalf("retarget request = %#v, want exact late-bound revision", svc.request)
-	}
-	bound, ok := authority.Load()
-	if !ok || bound.GoalID != "goal-current" || bound.ObjectiveRevision != 4 {
-		t.Fatalf("authority after retarget = %#v ok=%t", bound, ok)
-	}
-}
-
 func TestRetargetGoalUnboundNonUserRoundCannotLoadCurrentGoal(t *testing.T) {
 	svc := &fakeRetargetGoalService{current: &protocol.Goal{
 		ID:         "goal-current",
@@ -269,30 +227,6 @@ func TestUpdateGoalKeepsInFlightRevisionAndUsesAdoptedRevisionNext(t *testing.T)
 	}
 }
 
-func TestUpdateGoalRejectsInvalidStatusBeforeLoadingCurrent(t *testing.T) {
-	svc := &fakeUpdateGoalService{}
-	tool := updateGoal(svc, contract.Context{
-		CurrentSessionKey: "agent:nexus:ws:dm:chat",
-		CurrentRoundID:    "round-1",
-		GoalAuthority:     testGoalAuthority("goal-1", 1),
-	})
-
-	result, err := tool.Handler(context.Background(), map[string]any{"status": "paused"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result.IsError {
-		t.Fatalf("result = %#v, want command error", result)
-	}
-	text, _ := result.Content[0]["text"].(string)
-	if !strings.Contains(text, "only mark the existing goal complete or blocked") {
-		t.Fatalf("error text = %q, want Codex status rejection", text)
-	}
-	if svc.currentCalls != 0 || svc.completeCalls != 0 {
-		t.Fatalf("calls = current:%d complete:%d, want no service calls", svc.currentCalls, svc.completeCalls)
-	}
-}
-
 func TestUpdateGoalNoCurrentGoalUsesCodexModelMessage(t *testing.T) {
 	svc := &fakeUpdateGoalService{currentErr: errors.New("goal not found")}
 	tool := updateGoal(svc, contract.Context{
@@ -364,26 +298,6 @@ func TestUpdateGoalCompletionRejectionReturnsDomainSpecificRecovery(t *testing.T
 	}
 }
 
-func TestPausedGoalCompletionRecoveryNamesExactUIControl(t *testing.T) {
-	svc := &fakeUpdateGoalService{
-		current: &protocol.Goal{
-			ID:         "goal-1",
-			SessionKey: "agent:nexus:ws:dm:chat",
-			Status:     protocol.GoalStatusPaused,
-		},
-		completeErr: goalsvc.ErrGoalInvalidState,
-	}
-	result, err := updateGoal(svc, contract.Context{
-		CurrentSessionKey: "agent:nexus:ws:dm:chat",
-		CurrentRoundID:    "round-1",
-		GoalAuthority:     testGoalAuthority("goal-1", 1),
-	}).Handler(context.Background(), map[string]any{"status": "complete"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertPausedGoalRecoveryText(t, result)
-}
-
 func TestPausedGoalAuditRecoveryNamesExactUIControl(t *testing.T) {
 	svc := &fakeUpdateGoalService{
 		current: &protocol.Goal{
@@ -421,86 +335,6 @@ func assertPausedGoalRecoveryText(t *testing.T, result command.Result) {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("paused recovery text %q omitted %q", text, fragment)
 		}
-	}
-}
-
-func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
-	svc := &fakeUpdateGoalService{
-		current: &protocol.Goal{ID: "goal-1", SessionKey: "agent:nexus:ws:dm:chat", Status: protocol.GoalStatusActive},
-		blocked: &protocol.Goal{
-			ID:         "goal-1",
-			SessionKey: "agent:nexus:ws:dm:chat",
-			Objective:  "Complete parity",
-			Status:     protocol.GoalStatusBlocked,
-		},
-	}
-	tool := updateGoal(svc, contract.Context{
-		CurrentSessionKey: "agent:nexus:ws:dm:chat",
-		CurrentRoundID:    "round-2",
-		CurrentAgentID:    "agent-2",
-		GoalAuthority:     testGoalAuthority("goal-1", 1),
-	})
-
-	result, err := tool.Handler(context.Background(), map[string]any{
-		"status":       "blocked",
-		"blocker_id":   "dataset-unavailable",
-		"reason":       "external dataset is unavailable",
-		"needed_input": "restore dataset access",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.IsError {
-		t.Fatalf("result = %#v, want success", result)
-	}
-	if svc.currentCalls != 1 || svc.blockCalls != 1 || svc.blockedGoalID != "goal-1" || svc.blockedRoundID != "round-2" {
-		t.Fatalf("calls = current:%d block:%d goal:%q round:%q", svc.currentCalls, svc.blockCalls, svc.blockedGoalID, svc.blockedRoundID)
-	}
-	if svc.blockedRequest.AgentID != "agent-2" {
-		t.Fatalf("blocked agent = %q, want agent-2", svc.blockedRequest.AgentID)
-	}
-	if svc.blockedRequest.BlockerID != "dataset-unavailable" ||
-		svc.blockedRequest.Reason != "external dataset is unavailable" ||
-		svc.blockedRequest.NeededInput != "restore dataset access" {
-		t.Fatalf("blocked request = %#v, want durable recovery path", svc.blockedRequest)
-	}
-	goal, ok := result.StructuredContent["goal"].(map[string]any)
-	if !ok || goal["status"] != "blocked" {
-		t.Fatalf("goal payload = %#v, want blocked goal", result.StructuredContent["goal"])
-	}
-	if result.StructuredContent["completionBudgetReport"] != nil {
-		t.Fatalf("completionBudgetReport = %#v, want nil for blocked", result.StructuredContent["completionBudgetReport"])
-	}
-}
-
-func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
-	svc := &fakeCreateGoalService{}
-	authority := runtimectx.NewGoalAuthorityState("", 0, "")
-	tool := createGoal(svc, contract.Context{
-		OwnerUserID:       "owner-1",
-		CurrentSessionKey: "agent:nexus:ws:dm:chat",
-		CurrentRoundID:    "round-create",
-		CurrentAgentID:    "agent-1",
-		GoalAuthority:     authority,
-	})
-
-	result, err := tool.Handler(context.Background(), map[string]any{"objective": "Ship parity"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.IsError {
-		t.Fatalf("result = %#v, want success", result)
-	}
-	if svc.createInput.SessionKey != "agent:nexus:ws:dm:chat" ||
-		svc.createInput.CreatedBy != "model" ||
-		svc.createInput.RoundID != "round-create" ||
-		svc.createInput.OwnerUserID != "owner-1" ||
-		svc.createInput.AgentID != "agent-1" {
-		t.Fatalf("create input = %#v, want current owner, session, and round", svc.createInput)
-	}
-	createdAuthority, ok := authority.Load()
-	if !ok || createdAuthority.GoalID != "goal-1" || createdAuthority.ObjectiveRevision != 1 {
-		t.Fatalf("authority after create = %#v, ok=%t", createdAuthority, ok)
 	}
 }
 

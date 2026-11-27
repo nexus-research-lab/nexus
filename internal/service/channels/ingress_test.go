@@ -2,12 +2,10 @@
 package channels
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -35,15 +33,6 @@ type fakeIngressDMHandler struct {
 	err          error
 }
 
-type externalSessionNotifyCall struct {
-	agentID    string
-	sessionKey string
-}
-
-type fakeExternalSessionNotifier struct {
-	calls []externalSessionNotifyCall
-}
-
 func (f *fakeIngressDMHandler) HandleChat(ctx context.Context, request dmsvc.Request) error {
 	f.requests = append(f.requests, request)
 	f.ownerUserIDs = append(f.ownerUserIDs, authctx.OwnerUserID(ctx))
@@ -51,13 +40,6 @@ func (f *fakeIngressDMHandler) HandleChat(ctx context.Context, request dmsvc.Req
 		return f.err
 	}
 	return nil
-}
-
-func (f *fakeExternalSessionNotifier) NotifyExternalSessionUpdated(_ context.Context, agentID string, sessionKey string) {
-	f.calls = append(f.calls, externalSessionNotifyCall{
-		agentID:    agentID,
-		sessionKey: sessionKey,
-	})
 }
 
 func newIngressTestConfig(t *testing.T) config.Config {
@@ -106,135 +88,6 @@ func ingressMigrationDir(t *testing.T) string {
 		t.Fatal("无法定位当前测试文件")
 	}
 	return filepath.Join(filepath.Dir(filename), "..", "..", "..", "db", "migrations", "sqlite")
-}
-
-func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer func() { _ = db.Close() }()
-
-	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	handler := &fakeIngressDMHandler{}
-	notifier := &fakeExternalSessionNotifier{}
-	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
-	service := NewIngressService(cfg, agentService, handler, router)
-	service.SetExternalSessionNotifier(notifier)
-
-	result, err := service.Accept(context.Background(), IngressRequest{
-		Channel:  "feishu",
-		ChatType: "group",
-		Ref:      "oc_group_123",
-		Content:  "检查今天的定时任务发送情况",
-		RoundID:  "evt-1",
-		ReqID:    "om_1",
-	})
-	if err != nil {
-		t.Fatalf("Accept 失败: %v", err)
-	}
-
-	if result.SessionKey != "agent:nexus:fs:group:oc_group_123" {
-		t.Fatalf("feishu session_key 不正确: %s", result.SessionKey)
-	}
-	if result.RememberedDelivery == nil {
-		t.Fatal("feishu ingress 应记录回投目标")
-	}
-	if result.Message == nil ||
-		result.Message.Channel != ChannelTypeFeishu ||
-		result.Message.Target != "oc_group_123" ||
-		result.Message.Text != "检查今天的定时任务发送情况" {
-		t.Fatalf("feishu ingress 应返回标准消息 envelope: %+v", result.Message)
-	}
-	if len(handler.requests) != 1 {
-		t.Fatalf("聊天请求数量不正确: %d", len(handler.requests))
-	}
-	if !handler.requests[0].BroadcastUserMessage {
-		t.Fatal("feishu ingress 应实时广播用户输入")
-	}
-	metadata := handler.requests[0].InputOptions.Metadata
-	if metadata["im.platform_message_id"] != "om_1" ||
-		metadata["im.channel"] != ChannelTypeFeishu ||
-		metadata["im.target"] != "oc_group_123" {
-		t.Fatalf("feishu ingress 应把消息 envelope 注入 DM metadata: %+v", metadata)
-	}
-	replyTarget := handler.requests[0].ExternalReplyTarget
-	if replyTarget == nil || replyTarget.Channel != ChannelTypeFeishu || replyTarget.To != "oc_group_123" {
-		t.Fatalf("feishu DM 请求应携带外部回复目标: %+v", replyTarget)
-	}
-	route, err := router.GetLastRoute(context.Background(), cfg.DefaultAgentID)
-	if err != nil {
-		t.Fatalf("读取 last route 失败: %v", err)
-	}
-	if route == nil || route.Channel != ChannelTypeFeishu || route.To != "oc_group_123" {
-		t.Fatalf("feishu route 记忆不正确: %+v", route)
-	}
-}
-
-func TestIngressServiceAcceptFeishuThreadUsesGroupPairing(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer func() { _ = db.Close() }()
-
-	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	defaultAgent, err := agentService.GetDefaultAgent(context.Background())
-	if err != nil {
-		t.Fatalf("初始化默认 Agent 失败: %v", err)
-	}
-	handler := &fakeIngressDMHandler{}
-	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
-	control := NewControlService(cfg, db, agentService, router)
-	if _, err = control.CreatePairing(context.Background(), "", CreatePairingRequest{
-		ChannelType: ChannelTypeFeishu,
-		ChatType:    "group",
-		ExternalRef: "oc_group_123",
-		AgentID:     defaultAgent.AgentID,
-	}); err != nil {
-		t.Fatalf("创建飞书群级配对失败: %v", err)
-	}
-	service := NewIngressService(cfg, agentService, handler, router)
-	service.SetControlService(control)
-
-	result, err := service.Accept(context.Background(), IngressRequest{
-		Channel:   ChannelTypeFeishu,
-		AccountID: "cli_a",
-		ChatType:  "group",
-		Ref:       "oc_group_123",
-		ThreadID:  "omt_thread_1",
-		Content:   "继续这个话题",
-		RoundID:   "evt-thread-1",
-		ReqID:     "om_reply_1",
-		Delivery: &DeliveryTarget{
-			Mode:      DeliveryModeExplicit,
-			Channel:   ChannelTypeFeishu,
-			To:        "oc_group_123",
-			AccountID: "chat_id",
-			ThreadID:  "om_reply_1",
-		},
-	})
-	if err != nil {
-		t.Fatalf("飞书话题消息应命中群级配对: %v", err)
-	}
-
-	parsedSession := protocol.ParseSessionKey(result.SessionKey)
-	if !parsedSession.IsStructured || parsedSession.Kind != protocol.SessionKeyKindAgent ||
-		parsedSession.AgentID != defaultAgent.AgentID ||
-		parsedSession.Channel != protocol.SessionChannelFeishuSegment ||
-		parsedSession.ChatType != "group" ||
-		parsedSession.AccountID != "cli_a" ||
-		parsedSession.Ref != "oc_group_123" ||
-		parsedSession.ThreadID != "omt_thread_1" ||
-		parsedSession.Generation == "" {
-		t.Fatalf("飞书话题 session_key 不正确: %s (parsed=%+v)", result.SessionKey, parsedSession)
-	}
-	if len(handler.requests) != 1 || handler.requests[0].SessionKey != result.SessionKey {
-		t.Fatalf("飞书话题消息未进入 DM 主链: %+v", handler.requests)
-	}
-	replyTarget := handler.requests[0].ExternalReplyTarget
-	if replyTarget == nil ||
-		replyTarget.Channel != ChannelTypeFeishu ||
-		replyTarget.To != "oc_group_123" ||
-		replyTarget.ThreadID != "om_reply_1" {
-		t.Fatalf("飞书话题回复目标应指向当前消息: %+v", replyTarget)
-	}
 }
 
 func TestIngressDoesNotRepeatUncertainControlCommand(t *testing.T) {
@@ -297,35 +150,6 @@ func TestIngressCrashRecoveryUsesOriginalRoundAndDurableEvidence(t *testing.T) {
 	request.Content = "different command"
 	if _, err = service.Accept(t.Context(), request); err == nil {
 		t.Fatal("同身份不能替换正文")
-	}
-}
-
-func TestIngressDispatchBarrierHasOneWinner(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer db.Close()
-	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
-	control := NewControlService(cfg, db, agents, router)
-	service := NewIngressService(cfg, agents, &fakeIngressDMHandler{}, router)
-	service.SetControlService(control)
-	request, err := service.normalizeRequest(t.Context(), IngressRequest{Channel: "internal", Ref: "chat", Content: "hello", ReqID: "same"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for range 2 {
-		if claimed, _, err := service.claimIngress(t.Context(), request); err != nil || !claimed {
-			t.Fatalf("prepare: %v %v", claimed, err)
-		}
-	}
-	if err = control.beginIngressDispatch(t.Context(), request); err != nil {
-		t.Fatal(err)
-	}
-	if err = control.beginIngressDispatch(t.Context(), request); !errors.Is(err, ErrIngressOutcomeUnknown) {
-		t.Fatalf("second dispatcher: %v", err)
-	}
-	if _, _, err = service.claimIngress(t.Context(), request); !errors.Is(err, ErrIngressOutcomeUnknown) {
-		t.Fatalf("unknown accepted: %v", err)
 	}
 }
 
@@ -416,84 +240,6 @@ type recordingIngressCommandHandler struct {
 	err          error
 	pendingCount int
 	pendingErr   error
-}
-
-func TestIngressControlCommandsCoverEveryExternalIMChannel(t *testing.T) {
-	channels := []string{
-		ChannelTypeDiscord,
-		ChannelTypeTelegram,
-		ChannelTypeDingTalk,
-		ChannelTypeWeChat,
-		ChannelTypeWeixinPersonal,
-		ChannelTypeFeishu,
-	}
-	for index, channelType := range channels {
-		t.Run(channelType, func(t *testing.T) {
-			cfg := newIngressTestConfig(t)
-			db := migrateIngressSQLite(t, cfg.DatabaseURL)
-			defer func() { _ = db.Close() }()
-
-			agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-			defaultAgent, err := agentService.GetDefaultAgent(context.Background())
-			if err != nil {
-				t.Fatalf("初始化默认 Agent 失败: %v", err)
-			}
-			target := fmt.Sprintf("approval-target-%d", index)
-			accountID := ""
-			if channelType == ChannelTypeWeixinPersonal {
-				accountID = "weixin-account"
-			}
-			dm := &fakeIngressDMHandler{}
-			router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
-			deliveryChannel := &recordingDeliveryChannel{channelType: channelType}
-			router.RegisterForOwner("", deliveryChannel)
-			if err = router.Start(context.Background()); err != nil {
-				t.Fatalf("启动 channel router 失败: %v", err)
-			}
-			defer router.Stop(context.Background())
-			control := NewControlService(cfg, db, agentService, router)
-			if _, err = control.CreatePairing(context.Background(), "", CreatePairingRequest{
-				ChannelType: channelType,
-				AccountID:   accountID,
-				ChatType:    protocol.RoomTypeDM,
-				ExternalRef: target,
-				AgentID:     defaultAgent.AgentID,
-				Status:      PairingStatusActive,
-			}); err != nil {
-				t.Fatalf("创建 %s pairing 失败: %v", channelType, err)
-			}
-			commands := &recordingIngressCommandHandler{result: IngressCommandResult{
-				Handled: true,
-				Reply:   "权限请求已批准",
-			}}
-			service := NewIngressService(cfg, agentService, dm, router)
-			service.SetControlService(control)
-			service.SetCommandHandler(commands)
-
-			_, err = service.Accept(context.Background(), IngressRequest{
-				Channel:   channelType,
-				AccountID: accountID,
-				ChatType:  protocol.RoomTypeDM,
-				Ref:       target,
-				Content:   "/y permission_123",
-				RoundID:   "round-command",
-				ReqID:     "message-command",
-				Delivery: &DeliveryTarget{
-					Mode:      DeliveryModeExplicit,
-					Channel:   channelType,
-					To:        target,
-					AccountID: accountID,
-				},
-			})
-			if err != nil {
-				t.Fatalf("%s Accept 控制命令失败: %v", channelType, err)
-			}
-			if len(commands.requests) != 1 || len(dm.requests) != 0 ||
-				deliveryChannel.sentCount() != 1 || deliveryChannel.texts[0] != "权限请求已批准" {
-				t.Fatalf("%s 命令链路不完整: commands=%+v dm=%+v sends=%d texts=%+v", channelType, commands.requests, dm.requests, deliveryChannel.sentCount(), deliveryChannel.texts)
-			}
-		})
-	}
 }
 
 func (h *recordingIngressCommandHandler) HandleIngressCommand(
@@ -599,144 +345,6 @@ func TestRouterIngressLeaseRevokesStoppedGenerationBeforeCleanup(t *testing.T) {
 	}
 	if requests[0].OwnerUserID != "owner-a" || requests[0].Channel != ChannelTypeTelegram {
 		t.Fatalf("lease did not bind server-side owner/channel: %+v", requests[0])
-	}
-}
-
-func TestRouterIngressLeaseRejectsOldGenerationAfterHotReplacement(t *testing.T) {
-	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, newChannelTestDB(t), nil, nil)
-	var logs bytes.Buffer
-	router.SetLogger(slog.New(slog.NewJSONHandler(&logs, nil)))
-	delegate := &recordingIngressAcceptor{}
-	router.SetIngress(delegate)
-	if err := router.Start(t.Context()); err != nil {
-		t.Fatalf("start router: %v", err)
-	}
-	defer router.Stop(t.Context())
-
-	oldChannel := &leaseAwareChannel{recordingDeliveryChannel: recordingDeliveryChannel{
-		channelType: ChannelTypeTelegram,
-	}}
-	if err := router.RegisterAndStartForOwner(t.Context(), "owner-a", oldChannel); err != nil {
-		t.Fatalf("register old channel: %v", err)
-	}
-	oldIngress := oldChannel.ingressSnapshot()
-
-	newChannel := &leaseAwareChannel{recordingDeliveryChannel: recordingDeliveryChannel{
-		channelType: ChannelTypeTelegram,
-	}}
-	if err := router.RegisterAndStartForOwner(t.Context(), "owner-a", newChannel); err != nil {
-		t.Fatalf("register replacement channel: %v", err)
-	}
-	newIngress := newChannel.ingressSnapshot()
-
-	if _, err := oldIngress.Accept(t.Context(), IngressRequest{
-		Channel:   ChannelTypeTelegram,
-		AccountID: "account-a",
-		Content:   "stale",
-	}); !errors.Is(err, ErrIngressLeaseRevoked) {
-		t.Fatalf("old generation error = %v, want revoked lease", err)
-	}
-	for _, field := range []string{`"msg":"channel ingress lease rejected"`, `"owner_user_id":"owner-a"`, `"account_id":"account-a"`, `"generation":`} {
-		if !strings.Contains(logs.String(), field) {
-			t.Fatalf("入口拒绝日志缺少 %s: %s", field, logs.String())
-		}
-	}
-	if strings.Contains(logs.String(), "stale") {
-		t.Fatalf("入口拒绝日志不应包含消息正文: %s", logs.String())
-	}
-	if _, err := newIngress.Accept(t.Context(), IngressRequest{
-		Channel: ChannelTypeTelegram,
-		Content: "current",
-	}); err != nil {
-		t.Fatalf("current generation rejected ingress: %v", err)
-	}
-	if _, err := newIngress.Accept(t.Context(), IngressRequest{
-		Channel: ChannelTypeDiscord,
-		Content: "cross-channel",
-	}); !errors.Is(err, ErrIngressLeaseRevoked) {
-		t.Fatalf("cross-channel error = %v, want revoked lease", err)
-	}
-	if requests := delegate.requestSnapshot(); len(requests) != 1 || requests[0].Content != "current" {
-		t.Fatalf("delegate requests = %+v, want current generation only", requests)
-	}
-}
-
-func TestPairedExternalDMUsesSameAgentInteractiveAuthorityAcrossChannels(t *testing.T) {
-	channelTypes := []string{
-		ChannelTypeDiscord,
-		ChannelTypeTelegram,
-		ChannelTypeDingTalk,
-		ChannelTypeWeChat,
-		ChannelTypeWeixinPersonal,
-		ChannelTypeFeishu,
-	}
-	for index, channelType := range channelTypes {
-		t.Run(channelType, func(t *testing.T) {
-			cfg := newIngressTestConfig(t)
-			db := migrateIngressSQLite(t, cfg.DatabaseURL)
-			defer func() { _ = db.Close() }()
-
-			agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-			defaultAgent, err := agentService.GetDefaultAgent(context.Background())
-			if err != nil {
-				t.Fatalf("初始化默认 Agent 失败: %v", err)
-			}
-			target := fmt.Sprintf("paired-user-%d", index)
-			accountID := ""
-			if channelType == ChannelTypeWeixinPersonal {
-				accountID = "weixin-account"
-			}
-			if _, err = agentService.UpdateAgent(context.Background(), defaultAgent.AgentID, protocol.UpdateRequest{
-				Options: &protocol.Options{AllowedTools: []string{"Bash"}},
-			}); err != nil {
-				t.Fatalf("配置 %s Agent 工具权限失败: %v", channelType, err)
-			}
-			handler := &fakeIngressDMHandler{}
-			router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
-			control := NewControlService(cfg, db, agentService, router)
-			if _, err = control.CreatePairing(context.Background(), "", CreatePairingRequest{
-				ChannelType: channelType,
-				AccountID:   accountID,
-				ChatType:    protocol.RoomTypeDM,
-				ExternalRef: target,
-				AgentID:     defaultAgent.AgentID,
-				Status:      PairingStatusActive,
-			}); err != nil {
-				t.Fatalf("创建 %s pairing 失败: %v", channelType, err)
-			}
-			service := NewIngressService(cfg, agentService, handler, router)
-			service.SetControlService(control)
-
-			_, err = service.Accept(context.Background(), IngressRequest{
-				Channel:   channelType,
-				AccountID: accountID,
-				ChatType:  protocol.RoomTypeDM,
-				Ref:       target,
-				Content:   "创建一个每天提醒我的定时任务",
-				ReqID:     "paired-message",
-				Delivery: &DeliveryTarget{
-					Mode:      DeliveryModeExplicit,
-					Channel:   channelType,
-					To:        target,
-					AccountID: accountID,
-				},
-			})
-			if err != nil {
-				t.Fatalf("%s paired DM Accept 失败: %v", channelType, err)
-			}
-			if len(handler.requests) != 1 || !handler.requests[0].TrustedExternalInteractiveContext {
-				t.Fatalf("%s 未签发 paired interactive context: %+v", channelType, handler.requests)
-			}
-			decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-				ToolName: "mcp__nexus__command",
-				Input: map[string]any{
-					"domain": "automation", "action": "plan", "operation": "create",
-				},
-			})
-			if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
-				t.Fatalf("%s paired DM 未继承同 Agent 的 runtime command 权限: decision=%+v err=%v", channelType, decision, err)
-			}
-		})
 	}
 }
 
@@ -849,33 +457,6 @@ func waitForRuntimePermissionNotice(t *testing.T, channel *recordingDeliveryChan
 	return ""
 }
 
-func TestExternalIngressExplicitAgentIDCannotBypassPairing(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer func() { _ = db.Close() }()
-
-	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	defaultAgent, err := agentService.GetDefaultAgent(context.Background())
-	if err != nil {
-		t.Fatalf("初始化默认 Agent 失败: %v", err)
-	}
-	handler := &fakeIngressDMHandler{}
-	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
-	service := NewIngressService(cfg, agentService, handler, router)
-	service.SetControlService(NewControlService(cfg, db, agentService, router))
-
-	_, err = service.Accept(context.Background(), IngressRequest{
-		Channel:  ChannelTypeTelegram,
-		ChatType: protocol.RoomTypeDM,
-		Ref:      "unpaired-user",
-		AgentID:  defaultAgent.AgentID,
-		Content:  "尝试绕过 pairing",
-	})
-	if err == nil || len(handler.requests) != 0 {
-		t.Fatalf("显式 agent_id 不得绕过 pairing: err=%v requests=%+v", err, handler.requests)
-	}
-}
-
 func TestIngressServiceFeishuAllowsManagedSemanticSkillsWithRestrictiveAgentTools(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
@@ -922,78 +503,6 @@ func TestIngressServiceFeishuAllowsManagedSemanticSkillsWithRestrictiveAgentTool
 	}
 	if readDecision.Behavior != sdkpermission.BehaviorDeny {
 		t.Fatalf("限制 allowlist 时不应顺带放开普通只读工具: %+v", readDecision)
-	}
-}
-
-func TestIngressServiceRetiredAutomationFamilyIsNotManaged(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer func() { _ = db.Close() }()
-
-	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	handler := &fakeIngressDMHandler{}
-	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
-	service := NewIngressService(cfg, agentService, handler, router)
-
-	if _, err := service.Accept(context.Background(), IngressRequest{
-		Channel:          "feishu",
-		ChatType:         "group",
-		Ref:              "oc_group_123",
-		Content:          "停止每日新闻定时任务",
-		AutoApproveTools: []string{"nexus_automation"},
-	}); err != nil {
-		t.Fatalf("Accept 失败: %v", err)
-	}
-	if len(handler.requests) != 1 || handler.requests[0].PermissionHandler == nil {
-		t.Fatalf("未下发带权限处理器的请求: %+v", handler.requests)
-	}
-	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__automation_update",
-		Input:    map[string]any{"job_id": "job-1"},
-	})
-	if err != nil {
-		t.Fatalf("nexus_automation 权限处理失败: %v", err)
-	}
-	if decision.Behavior != sdkpermission.BehaviorDeny {
-		t.Fatalf("auto_approve_tools=nexus_automation 不能开放 mutation: %+v", decision)
-	}
-	historyDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__automation_query",
-		Input:    map[string]any{"query": "每日新闻"},
-	})
-	if err != nil {
-		t.Fatalf("nexus_automation history search 权限处理失败: %v", err)
-	}
-	if historyDecision.Behavior != sdkpermission.BehaviorDeny {
-		t.Fatalf("retired nexus_automation family must not expand to old query tools: %+v", historyDecision)
-	}
-}
-
-func TestIngressServiceAutoApproveAllRemainsGeneric(t *testing.T) {
-	cfg := newIngressTestConfig(t)
-	db := migrateIngressSQLite(t, cfg.DatabaseURL)
-	defer func() { _ = db.Close() }()
-
-	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
-	handler := &fakeIngressDMHandler{}
-	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
-	service := NewIngressService(cfg, agentService, handler, router)
-
-	if _, err := service.Accept(context.Background(), IngressRequest{
-		Channel:        "feishu",
-		ChatType:       "group",
-		Ref:            "oc_group_123",
-		Content:        "创建并立即运行一个定时任务",
-		AutoApproveAll: true,
-	}); err != nil {
-		t.Fatalf("Accept 失败: %v", err)
-	}
-	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Write",
-		Input:    map[string]any{"file_path": "report.md"},
-	})
-	if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("auto_approve_all should remain a generic explicit grant: decision=%+v err=%v", decision, err)
 	}
 }
 

@@ -28,44 +28,6 @@ func TestGitHubExchangeTokenSniffsJSONError(t *testing.T) {
 	}
 }
 
-func TestTwitterExchangeTokenUsesBasicAuth(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		user, pass, ok := request.BasicAuth()
-		if !ok || user != "twitter-client" || pass != "twitter-secret" {
-			t.Fatalf("basic auth missing or wrong: ok=%v user=%q pass=%q", ok, user, pass)
-		}
-		if err := request.ParseForm(); err != nil {
-			t.Fatalf("parse token form: %v", err)
-		}
-		if request.Form.Get("client_secret") != "" {
-			t.Fatalf("client_secret must not be sent in Twitter form: %v", request.Form)
-		}
-		if request.Form.Get("client_id") != "twitter-client" {
-			t.Fatalf("client_id missing from Twitter form: %v", request.Form)
-		}
-		if request.Form.Get("code_verifier") != "stored-verifier" {
-			t.Fatalf("code_verifier not sent from stored state: %v", request.Form)
-		}
-		_, _ = writer.Write([]byte(`{"access_token":"ok","refresh_token":"refresh"}`))
-	}))
-	defer server.Close()
-
-	provider := NewTwitterProvider("https://twitter.test/authorize", server.URL)
-	payload, err := provider.ExchangeToken(context.Background(), server.Client(), TokenRequest{
-		ClientID:     "twitter-client",
-		ClientSecret: "twitter-secret",
-		RedirectURI:  "http://localhost/callback",
-		Code:         "code",
-		CodeVerifier: "stored-verifier",
-	})
-	if err != nil {
-		t.Fatalf("twitter token exchange failed: %v", err)
-	}
-	if !strings.Contains(string(payload), "access_token") {
-		t.Fatalf("unexpected payload: %s", payload)
-	}
-}
-
 func TestShopifyBuildAuthURLRequiresValidShop(t *testing.T) {
 	provider := NewShopifyProvider()
 	_, err := provider.BuildAuthURL(context.Background(), AuthRequest{

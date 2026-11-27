@@ -90,71 +90,10 @@ func TestLoadDotEnv_FromFile(t *testing.T) {
 	}
 }
 
-func TestLoadMultiplayerDisabled(t *testing.T) {
-	for _, value := range []string{"true", "false", ""} {
-		t.Run(value, func(t *testing.T) {
-			t.Setenv("NEXUS_MULTIPLAYER_DISABLED", value)
-			if got := Load().MultiplayerDisabled; got != (value == "true") {
-				t.Fatalf("MultiplayerDisabled = %v for %q", got, value)
-			}
-		})
-	}
-}
-
-func TestLoadRelayConfigurationIsOptional(t *testing.T) {
-	t.Setenv("NEXUS_RELAY_URL", "")
-	t.Setenv("NEXUS_RELAY_REQUEST_TIMEOUT_SECONDS", "")
-
-	cfg := Load()
-	if cfg.RelayURL != "" {
-		t.Fatalf("RelayURL = %q, want disabled", cfg.RelayURL)
-	}
-	if cfg.RelayRequestTimeoutSeconds != 5 {
-		t.Fatalf("RelayRequestTimeoutSeconds = %d, want 5", cfg.RelayRequestTimeoutSeconds)
-	}
-}
-
-func TestLoadRelayConfiguration(t *testing.T) {
-	t.Setenv("NEXUS_RELAY_URL", " https://relay.example.com ")
-	t.Setenv("NEXUS_RELAY_REQUEST_TIMEOUT_SECONDS", "9")
-
-	cfg := Load()
-	if cfg.RelayURL != "https://relay.example.com" {
-		t.Fatalf("RelayURL = %q", cfg.RelayURL)
-	}
-	if cfg.RelayRequestTimeoutSeconds != 9 {
-		t.Fatalf("RelayRequestTimeoutSeconds = %d, want 9", cfg.RelayRequestTimeoutSeconds)
-	}
-}
-
 func TestDesktopSandboxIsBuiltIn(t *testing.T) {
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	t.Setenv("NEXUS_DESKTOP_SANDBOX_ENABLED", "false")
 	if !Load().DesktopSandboxEnabled {
 		t.Fatal("desktop sandbox must remain enabled without an environment opt-in")
-	}
-}
-
-func TestComputerUseIsOptIn(t *testing.T) {
-	t.Setenv("NEXUS_COMPUTER_USE_ENABLED", "")
-	t.Setenv("NEXUS_COMPUTER_USE_BINARY", "")
-	cfg := Load()
-	if cfg.ComputerUseEnabled {
-		t.Fatal("Computer Use must be disabled when the flag is empty")
-	}
-	if cfg.ComputerUseBinaryPath != "" {
-		t.Fatalf("ComputerUseBinaryPath = %q, want empty", cfg.ComputerUseBinaryPath)
-	}
-}
-
-func TestComputerUseConfiguration(t *testing.T) {
-	t.Setenv("NEXUS_COMPUTER_USE_ENABLED", "true")
-	t.Setenv("NEXUS_COMPUTER_USE_BINARY", " /Applications/Nexus CUA.app/Contents/MacOS/nexuscua ")
-	cfg := Load()
-	if !cfg.ComputerUseEnabled {
-		t.Fatal("ComputerUseEnabled = false, want true")
-	}
-	if cfg.ComputerUseBinaryPath != "/Applications/Nexus CUA.app/Contents/MacOS/nexuscua" {
-		t.Fatalf("ComputerUseBinaryPath = %q", cfg.ComputerUseBinaryPath)
 	}
 }

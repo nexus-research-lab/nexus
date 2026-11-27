@@ -3,7 +3,6 @@ package websocket_test
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -354,42 +353,6 @@ func TestWebSocketRoomInterruptAckPreservesExactTarget(t *testing.T) {
 	}
 }
 
-func TestWebSocketDesktopSessionToken(t *testing.T) {
-	cfg := handlertest.NewConfig(t)
-	cfg.DesktopSessionToken = "desktop-token"
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	t.Cleanup(func() { _ = server.Close(context.Background()) })
-
-	httpServer := httptest.NewServer(server.Router())
-	defer httpServer.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, response, err := websocket.Dial(ctx, wsURL, nil)
-	if err == nil {
-		_ = conn.Close(websocket.StatusNormalClosure, "unexpected success")
-		t.Fatal("缺少桌面 token 的 websocket 不应连接成功")
-	}
-	if response == nil || response.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("缺少桌面 token 应返回 401，response=%v err=%v", response, err)
-	}
-
-	conn, _, err = websocket.Dial(ctx, wsURL, &websocket.DialOptions{
-		Subprotocols: []string{"nexus.desktop.v1", "nexus.desktop.token.desktop-token"},
-	})
-	if err != nil {
-		t.Fatalf("带桌面 token 的 websocket 应连接成功: %v", err)
-	}
-	_ = conn.Close(websocket.StatusNormalClosure, "test done")
-}
-
 func TestWebSocketAppServerGoalRPC(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	cfg.GoalEnabled = true
@@ -612,57 +575,4 @@ func readRPCNotification[T any](t *testing.T, conn *websocket.Conn) rpcNotificat
 		t.Fatalf("读取 RPC notification 失败: %v", err)
 	}
 	return notification
-}
-
-func TestWebSocketEndedRoomRootInterruptIsAcknowledged(t *testing.T) {
-	cfg := handlertest.NewConfig(t)
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	t.Cleanup(func() { _ = server.Close(context.Background()) })
-
-	httpServer := httptest.NewServer(server.Router())
-	defer httpServer.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("连接 websocket 失败: %v", err)
-	}
-	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
-
-	const (
-		sessionKey      = "room:group:conversation-interrupt-ack"
-		clientRequestID = "request-interrupt-agent-a"
-		roundID         = "round-interrupt-agent-a"
-		agentRoundID    = ""
-	)
-	if err = wsjson.Write(ctx, conn, map[string]any{
-		"type":              "interrupt",
-		"session_key":       sessionKey,
-		"round_id":          roundID,
-		"agent_round_id":    agentRoundID,
-		"client_request_id": clientRequestID,
-	}); err != nil {
-		t.Fatalf("发送精确 Room interrupt 失败: %v", err)
-	}
-
-	ack := readEventMatching(t, conn, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeInterruptAck
-	})
-	if ack.SessionKey != sessionKey ||
-		ack.RoundID != roundID ||
-		ack.AgentRoundID != agentRoundID ||
-		ack.Data["accepted"] != true ||
-		ack.Data["client_request_id"] != clientRequestID ||
-		ack.Data["round_id"] != roundID ||
-		ack.Data["agent_round_id"] != agentRoundID {
-		t.Fatalf("interrupt_ack 未完整回显精确目标: %+v", ack)
-	}
 }

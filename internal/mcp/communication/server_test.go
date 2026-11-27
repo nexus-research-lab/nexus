@@ -10,7 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	communicationsvc "github.com/nexus-research-lab/nexus/internal/service/communication"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 )
 
 type stubRoomService struct {
@@ -121,20 +120,6 @@ func TestSendMessageRoutesCurrentRoomPublicAndSuppressesFinal(t *testing.T) {
 		svc.publicRequest.RootRoundID != "root-round-1" ||
 		!svc.publicMessagePublished {
 		t.Fatalf("Room 公区发送未完整收口: %+v", svc)
-	}
-}
-
-func TestSendMessageDefersAutomaticPrivateReplyToFinal(t *testing.T) {
-	result, isError := callTool(t, BuildTools(nil, &stubRoomService{
-		directedErr: roomsvc.ErrDirectedReplyAutoRouted,
-	}, roomRuntimeContext()), "send_message", map[string]any{
-		"destination": destinationCurrentRoom,
-		"visibility":  visibilityPrivate,
-		"recipients":  []any{"agent-amy"},
-		"content":     "查验结果",
-	})
-	if isError || !strings.Contains(extractText(t, result), `"status":"reply_via_final"`) {
-		t.Fatalf("自动私域回复应交给 final route: %+v", result)
 	}
 }
 

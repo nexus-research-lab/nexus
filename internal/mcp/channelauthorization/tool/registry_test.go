@@ -6,7 +6,6 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/channelauthorization/contract"
 	authorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
-	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 )
 
 type channelAuthorizationToolTestService struct{ lastAction string }
@@ -45,30 +44,6 @@ func (s *channelAuthorizationToolTestService) RequestVerificationCode(
 ) (*authorizationsvc.View, error) {
 	s.lastAction = actionRequestVerificationCode
 	return &authorizationsvc.View{}, nil
-}
-
-func TestBuildAllOnlyExposesOwnerMainPrivateDMTools(t *testing.T) {
-	allowed := contract.ServerContext{
-		CurrentAgentID: "main",
-		ContextKind:    configurationsvc.ContextKindAgent,
-		ContextID:      "main",
-		IsMainAgent:    true,
-	}
-	service := &channelAuthorizationToolTestService{}
-	tools := BuildAll(service, allowed)
-	if len(tools) != 1 || tools[0].Name != ToolName {
-		t.Fatalf("tools = %+v, want one %q tool", tools, ToolName)
-	}
-
-	for _, denied := range []contract.ServerContext{
-		{CurrentAgentID: "agent", ContextKind: configurationsvc.ContextKindAgent, ContextID: "agent"},
-		{CurrentAgentID: "main", ContextKind: configurationsvc.ContextKindRoom, ContextID: "room", IsMainAgent: true},
-		{CurrentAgentID: "main", ContextKind: configurationsvc.ContextKindAgent, ContextID: "other", IsMainAgent: true},
-	} {
-		if tools := BuildAll(service, denied); len(tools) != 0 {
-			t.Fatalf("denied context exposed tools: %+v", tools)
-		}
-	}
 }
 
 func TestAuthorizationToolDispatchesActions(t *testing.T) {

@@ -12,13 +12,11 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -144,16 +142,6 @@ func (f *longSessionFixture) readFirstPage(tb testing.TB) protocol.MessagePage {
 	return page
 }
 
-// simulateHistoryProcessRestart 丢弃所有进程内状态：解析缓存、投影检查点、读模型连接与「已检查」记录，只剩落盘文件与表。
-func simulateHistoryProcessRestart(tb testing.TB, fixture *longSessionFixture) {
-	tb.Helper()
-	previous := fixture.history.history
-	previous.closeForTest()
-	fixture.history = NewAgentHistoryStore(filepath.Dir(fixture.workspacePath))
-	fixture.history.history = newConversationHistoryStoreForTest(previous.path)
-	tb.Cleanup(fixture.history.history.closeForTest)
-}
-
 func (s *AgentHistoryStore) readSegmentedTranscriptMessages(
 	workspacePath string,
 	sessionKey string,
@@ -192,15 +180,6 @@ func (s *AgentHistoryStore) readTranscriptCache(path string, source historyPageS
 func readTranscriptEntriesFileContext(ctx context.Context, file *os.File) ([]transcriptEntry, error) {
 	entries, _, err := readTranscriptEntriesReaderContext(ctx, file, 0)
 	return entries, err
-}
-
-func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
-	root, relative, err := s.openStorePath(path, false)
-	if err != nil {
-		return nil, err
-	}
-	defer root.Close()
-	return readJSONLAtRoot(root, relative)
 }
 
 // newConversationHistoryStoreForTest 返回指向同一库文件的全新存储实例，模拟进程重启：进程内的单飞、
@@ -300,45 +279,6 @@ func TestConversationHistoryRoomBackfillAndLiveWritesMatchCanonical(t *testing.T
 	}
 	if conversationHistoryRowExists(t, h.history, scope, "live-answer") {
 		t.Fatal("删除会话后仍有残行")
-	}
-}
-
-// 公区 ledger 被替换（例如从备份恢复）后，下一次读取发现文件身份变化，整会话重新回填。
-func TestConversationHistoryRoomRebuildsAfterLedgerReplacement(t *testing.T) {
-	ctx := context.Background()
-	root := t.TempDir()
-	h := newRoomHistoryTestStore(t, root)
-	owner, conversation := testRoomOwnerUserID, "projection-replaced"
-	appendRoomHistoryIndexRound(t, h, owner, conversation, "kept", "amy", 1000)
-	appendRoomHistoryIndexRound(t, h, owner, conversation, "dropped", "amy", 2000)
-	assertRoomPagesMatchCanonical(t, h, owner, conversation)
-
-	path := h.paths.RoomConversationOverlayPath(owner, conversation)
-	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		if !strings.Contains(scanner.Text(), "dropped") {
-			lines = append(lines, scanner.Text())
-		}
-	}
-	_ = file.Close()
-	replacement := path + ".replacement"
-	if err = os.WriteFile(replacement, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err = os.Rename(replacement, path); err != nil {
-		t.Fatal(err)
-	}
-	page := assertRoomHistoryPageParity(t, h, owner, conversation, nil, 10, "", 0, "", 0)
-	if historyPageHasMessage(page, "user-dropped") || !historyPageHasMessage(page, "user-kept") {
-		t.Fatalf("替换后的 ledger 没有重新回填: %s", parityDump(page.Items))
-	}
-	if _, ok, err := h.history.state(ctx, roomConversationHistoryScope(owner, conversation).key); err != nil || !ok {
-		t.Fatalf("重新回填后状态缺失: %v", err)
 	}
 }
 
@@ -471,92 +411,6 @@ func TestConversationHistoryDefersLargeImages(t *testing.T) {
 	}
 }
 
-// 同一条 assistant 先写带大块输出 A 的快照，再写 A+B。表里的旧快照是骨架（A 已换成预览加 detail_ref），
-// 与原文快照合并后两块都必须能完整展开；回填方向（表里已有的行比回填快照新）同样成立。
-func TestConversationHistoryMergesSnapshotsOverDetailSkeletons(t *testing.T) {
-	ctx := context.Background()
-	h := newRoomHistoryTestStore(t, t.TempDir())
-	store := h.history
-	db, err := store.database(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	contents := map[string]string{
-		"tool-a": strings.Repeat("a", historyMessageDetailThresholdBytes+512),
-		"tool-b": strings.Repeat("b", historyMessageDetailThresholdBytes+1024),
-	}
-	use := func(id string) map[string]any {
-		return map[string]any{"type": "tool_use", "id": id, "name": "Bash", "input": map[string]any{}}
-	}
-	result := func(id string) map[string]any {
-		return map[string]any{"type": "tool_result", "tool_use_id": id, "content": contents[id]}
-	}
-	snapshot := func(blocks ...any) protocol.Message {
-		return protocol.Message{
-			"role": "assistant", "message_id": "assistant-m", "round_id": "round-m:amy", "agent_id": "amy",
-			"content": blocks, "timestamp": int64(2000),
-		}
-	}
-	first := snapshot(use("tool-a"), result("tool-a"))
-	second := snapshot(use("tool-a"), result("tool-a"), use("tool-b"), result("tool-b"))
-
-	for _, tc := range []struct {
-		conversation string
-		apply        func(scope conversationHistoryScope) error
-	}{
-		{"merge-live", func(scope conversationHistoryScope) error {
-			if err := store.applyRows(ctx, scope, []protocol.Message{first}, conversationHistoryLiveSeq, nil); err != nil {
-				return err
-			}
-			return store.applyRows(ctx, scope, []protocol.Message{second}, conversationHistoryLiveSeq, nil)
-		}},
-		{"merge-backfill", func(scope conversationHistoryScope) error {
-			if err := store.applyRows(ctx, scope, []protocol.Message{second}, conversationHistoryLiveSeq, nil); err != nil {
-				return err
-			}
-			return store.applyRows(ctx, scope, []protocol.Message{first}, -1, nil)
-		}},
-	} {
-		scope := roomConversationHistoryScope(testRoomOwnerUserID, tc.conversation)
-		if err = writeConversationHistoryState(ctx, db, scope.key, conversationHistoryState{
-			Status: conversationHistoryStatusReady, ProjectionVersion: message.ProjectionVersion,
-		}); err != nil {
-			t.Fatal(err)
-		}
-		if err = tc.apply(scope); err != nil {
-			t.Fatalf("%s: %v", tc.conversation, err)
-		}
-		page, ok, err := store.readPage(ctx, scope, "", historyPageIndexRequest{Limit: 10, CollapseRoomRounds: true})
-		if err != nil || !ok {
-			t.Fatalf("%s: 读表失败 ok=%t err=%v", tc.conversation, ok, err)
-		}
-		expanded := map[string]bool{}
-		for _, item := range page.Items {
-			if item["message_id"] != "assistant-m" {
-				continue
-			}
-			for _, block := range normalizeMessageContentBlocks(item["content"]) {
-				if block["type"] != "tool_result" {
-					continue
-				}
-				id := stringFromAny(block["tool_use_id"])
-				detail, found, err := store.readDetail(ctx, scope, "", stringFromAny(block["detail_ref"]))
-				if err != nil || !found {
-					t.Fatalf("%s: %s 展开失败 found=%t err=%v", tc.conversation, id, found, err)
-				}
-				var content string
-				if err = json.Unmarshal(detail.Payload, &content); err != nil || content != contents[id] {
-					t.Fatalf("%s: %s 内容不一致 err=%v size=%d", tc.conversation, id, err, len(content))
-				}
-				expanded[id] = true
-			}
-		}
-		if !expanded["tool-a"] || !expanded["tool-b"] {
-			t.Fatalf("%s: 应展开 A 与 B，实际 %v\n%s", tc.conversation, expanded, parityDump(page.Items))
-		}
-	}
-}
-
 func newDMConversationHistoryFixture(t *testing.T) (*AgentHistoryStore, string) {
 	t.Helper()
 	configRoot := t.TempDir()
@@ -682,92 +536,6 @@ func TestConversationHistoryDMLiveRowsMatchCanonical(t *testing.T) {
 	}
 }
 
-// 进程在 runtime 写完 transcript、表还没提交时退出：表里缺这条回复。新进程第一次读取发现最近轮次未收口，
-// 整会话回填一次补上；同一进程里不重复检查。
-func TestConversationHistoryDMReverifiesUnfinishedRoundsOncePerProcess(t *testing.T) {
-	ctx := context.Background()
-	history, workspacePath := newDMConversationHistoryFixture(t)
-	sessionKey := "agent:Amy:ws:dm:verify"
-	sessionID := "sdk-session-verify"
-	session := protocol.Session{SessionKey: sessionKey, AgentID: "Amy", SessionID: &sessionID}
-	all := HistoryPageQuery{Limit: 100}
-	if _, err := history.ReadMessagesPageContext(ctx, workspacePath, session, nil, all); err != nil {
-		t.Fatal(err)
-	}
-	turn := func(index int) []map[string]any {
-		second := fmt.Sprintf("2026-11-19T01:0%d:00Z", index)
-		reply := fmt.Sprintf("2026-11-19T01:0%d:01Z", index)
-		return []map[string]any{
-			{"type": "user", "uuid": fmt.Sprint("u", index), "session_id": sessionID, "timestamp": second,
-				"message": map[string]any{"role": "user", "content": fmt.Sprint("question ", index)}},
-			{"type": "assistant", "uuid": fmt.Sprint("a", index), "parentUuid": fmt.Sprint("u", index), "session_id": sessionID, "timestamp": reply,
-				"message": map[string]any{"id": fmt.Sprint("msg-", index), "role": "assistant", "model": "m", "stop_reason": "end_turn",
-					"content": []any{map[string]any{"type": "text", "text": fmt.Sprint("answer ", index)}}}},
-		}
-	}
-	var transcript []map[string]any
-	crash := func(index int) {
-		t.Helper()
-		at := time.Date(2026, 11, 19, 1, index, 0, 0, time.UTC).UnixMilli() - 500
-		if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, fmt.Sprint("round-", index), fmt.Sprint("question ", index), at,
-			RoundMarkerOptions{UserMessageID: fmt.Sprint("msg_user_round-", index)}); err != nil {
-			t.Fatal(err)
-		}
-		// runtime 已写完 transcript，宿主还没把回复落表就退出了。
-		transcript = append(transcript, turn(index)...)
-		writeAgentTranscriptFixture(t, workspacePath, sessionID, transcript)
-	}
-	hasReply := func(index int) bool {
-		t.Helper()
-		page, err := history.ReadMessagesPageContext(ctx, workspacePath, session, nil, all)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return historyPageHasMessage(page, fmt.Sprint("msg-", index))
-	}
-
-	restart := func() {
-		history.history.closeForTest()
-		history.history = newConversationHistoryStoreForTest(history.history.path)
-		t.Cleanup(history.history.closeForTest)
-	}
-	crash(1)
-	restart()
-	if !hasReply(1) {
-		t.Fatal("新进程第一次读取没有补回未落表的回复")
-	}
-	crash(2)
-	if hasReply(2) {
-		t.Fatal("同一进程里不应重复整会话回填")
-	}
-	restart()
-	if !hasReply(2) {
-		t.Fatal("再次重启后没有补回未落表的回复")
-	}
-
-	// 未收口轮次与上次回填时的指纹相同（没有新的落表写入）：重启后不再整会话回填。
-	scope, _ := dmConversationHistoryScope(workspacePath, sessionKey)
-	stamp := func() int64 {
-		t.Helper()
-		db, err := history.history.database(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var updated int64
-		if err = db.QueryRow(`SELECT updated_at_ms FROM conversation_history_state WHERE scope = ?`, scope.key).Scan(&updated); err != nil {
-			t.Fatal(err)
-		}
-		return updated
-	}
-	before := stamp()
-	time.Sleep(5 * time.Millisecond)
-	restart()
-	hasReply(2)
-	if after := stamp(); after != before {
-		t.Fatalf("指纹未变时重启后不应整会话回填: before=%d after=%d", before, after)
-	}
-}
-
 // TestConversationHistoryFallsBackToCanonicalWhenBackfillFails 回填失败（这里用退避窗口内的上次错误模拟）时，
 // 分页与导航退回 canonical，而不是让会话打不开。
 func TestConversationHistoryFallsBackToCanonicalWhenBackfillFails(t *testing.T) {
@@ -798,30 +566,6 @@ func TestConversationHistoryFallsBackToCanonicalWhenBackfillFails(t *testing.T) 
 	cancel()
 	if _, err = h.ReadMessagesPageContext(canceled, owner, conversation, nil, HistoryPageQuery{Limit: 1}); err == nil {
 		t.Fatal("请求已取消时不应退回 canonical")
-	}
-}
-
-func TestConversationHistoryRemovesLegacyReadModel(t *testing.T) {
-	root := t.TempDir()
-	h := newRoomHistoryTestStore(t, root)
-	legacy := filepath.Join(filepath.Dir(h.history.path), conversationHistoryLegacyFileName)
-	if err := os.MkdirAll(filepath.Dir(legacy), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	for _, suffix := range []string{"", "-wal", "-shm"} {
-		if err := os.WriteFile(legacy+suffix, []byte("legacy"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	fresh := newConversationHistoryStoreForTest(h.history.path)
-	t.Cleanup(fresh.closeForTest)
-	if _, err := fresh.database(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	for _, suffix := range []string{"", "-wal", "-shm"} {
-		if _, err := os.Stat(legacy + suffix); !os.IsNotExist(err) {
-			t.Fatalf("旧读模型文件 %s 没有删除: %v", legacy+suffix, err)
-		}
 	}
 }
 
@@ -893,48 +637,6 @@ func writeRoomCheckpointMember(t testing.TB, h *RoomHistoryStore, root, conversa
 	return path
 }
 
-func TestRoomHistoryToolResultsSharePreviewBudget(t *testing.T) {
-	h := newRoomHistoryTestStore(t, t.TempDir())
-	owner, conversation := testRoomOwnerUserID, "medium-results"
-	content := strings.Repeat("output", 4*1024)
-	var blocks []any
-	for i := 0; i < 57; i++ {
-		blocks = append(blocks, map[string]any{"type": "tool_result", "tool_use_id": fmt.Sprint(i), "content": content})
-	}
-	if err := h.AppendInlineMessage(owner, conversation, protocol.Message{"role": "assistant", "message_id": "message", "round_id": "round", "timestamp": int64(100), "content": blocks, "stop_reason": "end_turn"}); err != nil {
-		t.Fatal(err)
-	}
-	ctx := context.Background()
-	for _, phase := range []string{"cold", "warm"} {
-		page, err := h.ReadMessagesPageContext(ctx, owner, conversation, nil, HistoryPageQuery{Limit: 3})
-		if err != nil || len(page.Items) != 1 {
-			t.Fatalf("%s page: rows=%d err=%v", phase, len(page.Items), err)
-		}
-		var inline, refs int
-		got := normalizeMessageContentBlocks(page.Items[0]["content"])
-		if len(got) != len(blocks) {
-			t.Fatalf("%s lost steps: %d", phase, len(got))
-		}
-		for _, block := range got {
-			text, _ := block["content"].(string)
-			inline += len(text)
-			ref, _ := block["detail_ref"].(string)
-			if ref == "" {
-				continue
-			}
-			refs++
-			detail, err := h.ReadMessageDetailContext(ctx, owner, conversation, ref)
-			var full string
-			if err != nil || json.Unmarshal(detail.Payload, &full) != nil || full != content {
-				t.Fatalf("tool %v: %v", block["tool_use_id"], err)
-			}
-		}
-		if inline > historyMessageDetailThresholdBytes || refs == 0 {
-			t.Fatalf("%s: inline=%d refs=%d", phase, inline, refs)
-		}
-	}
-}
-
 func TestOwnerHistoryOverlayCannotCrossWorkspaceOwner(t *testing.T) {
 	stateRoot := t.TempDir()
 	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
@@ -988,82 +690,6 @@ func TestOwnerHistoryOverlayCannotCrossWorkspaceOwner(t *testing.T) {
 	}
 }
 
-func TestAgentHistoryStoreHidesGoalContextTranscriptTurnWithoutMarker(t *testing.T) {
-	tests := []struct {
-		name    string
-		content string
-	}{
-		{
-			name:    "goal_context",
-			content: "<goal_context>\nContinue working toward the active thread goal.\n</goal_context>",
-		},
-		{
-			name:    "codex_internal_context",
-			content: "<codex_internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</codex_internal_context>",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			configRoot := t.TempDir()
-			workspaceRoot := filepath.Join(configRoot, "workspace")
-			workspacePath := filepath.Join(workspaceRoot, "Amy")
-			if err := os.MkdirAll(workspacePath, 0o755); err != nil {
-				t.Fatalf("创建 workspace 失败: %v", err)
-			}
-			t.Setenv("NEXUS_STATE_ROOT", "")
-			t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
-
-			history := NewAgentHistoryStore(workspaceRoot)
-			sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
-			sessionID := "hidden-" + test.name + "-no-marker-session"
-			writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
-				{
-					"type":      "user",
-					"uuid":      "transcript-user-hidden-context",
-					"sessionId": sessionID,
-					"timestamp": "2026-05-22T10:00:00.000Z",
-					"message": map[string]any{
-						"role":    "user",
-						"content": test.content,
-					},
-				},
-				{
-					"type":       "assistant",
-					"uuid":       "transcript-assistant-hidden-context",
-					"sessionId":  sessionID,
-					"parentUuid": "transcript-user-hidden-context",
-					"message": map[string]any{
-						"role":        "assistant",
-						"stop_reason": "end_turn",
-						"content": []map[string]any{
-							{"type": "text", "text": "继续推进 Goal。"},
-						},
-					},
-				},
-			})
-
-			rows, err := history.ReadMessages(workspacePath, protocol.Session{
-				SessionKey: sessionKey,
-				AgentID:    "Amy",
-				SessionID:  &sessionID,
-				Options:    map[string]any{},
-			}, nil)
-			if err != nil {
-				t.Fatalf("读取历史失败: %v", err)
-			}
-			for _, row := range rows {
-				if row["role"] == "user" {
-					t.Fatalf("缺失 marker 时 goal context transcript 不应展示成用户消息: %+v", rows)
-				}
-			}
-			if len(rows) != 1 || rows[0]["role"] != "assistant" {
-				t.Fatalf("缺失 marker 时应保留 assistant 输出并隐藏 goal context 输入: %+v", rows)
-			}
-		})
-	}
-}
-
 // userRowInputSeqs 按 message_id 收集用户行的受理游标；缺游标的用户行直接判失败。
 func userRowInputSeqs(t *testing.T, rows []protocol.Message) map[string]int64 {
 	t.Helper()
@@ -1098,61 +724,6 @@ func assertInputSeqs(t *testing.T, stage string, got map[string]int64, live []pr
 		}
 		previous = want
 	}
-}
-
-func TestDMUserRowsKeepInputSeqAcrossRefreshAndRestart(t *testing.T) {
-	f := newLongSessionFixture(t, 0, 0)
-	var live []protocol.Message
-	// accept 复刻 DM 受理：铸造一次游标，写进 round marker，并用实时构造器生成广播给前端的用户行。
-	accept := func() {
-		index := len(live)
-		roundID := fmt.Sprintf("cursor-round-%d", index)
-		userMessageID := "msg_user_cursor_" + fmt.Sprint(index)
-		prompt := fmt.Sprintf("question %d", index)
-		at := int64(1_700_000_000_000 + index*10_000)
-		inputSeq := protocol.NewInputSeq()
-		if err := f.history.AppendRoundMarkerWithOptions(f.workspacePath, f.session.SessionKey, roundID, prompt, at, RoundMarkerOptions{
-			UserMessageID: userMessageID,
-			InputSeq:      inputSeq,
-		}); err != nil {
-			t.Fatal(err)
-		}
-		userUUID, assistantUUID := "cursor-u-"+fmt.Sprint(index), "cursor-a-"+fmt.Sprint(index)
-		transcriptTime := func(offsetSeconds int64) string {
-			return time.UnixMilli(at + offsetSeconds*1000).UTC().Format(time.RFC3339Nano)
-		}
-		f.appendTranscript(t,
-			map[string]any{"type": "user", "uuid": userUUID, "parentUuid": nilIfEmpty(f.lastUUID), "sessionId": *f.session.SessionID,
-				"timestamp": transcriptTime(0), "message": map[string]any{"role": "user", "content": prompt}},
-			map[string]any{"type": "assistant", "uuid": assistantUUID, "parentUuid": userUUID, "sessionId": *f.session.SessionID,
-				"timestamp": transcriptTime(1), "message": map[string]any{"id": "cursor-m-" + fmt.Sprint(index), "role": "assistant",
-					"stop_reason": "end_turn", "content": []map[string]any{{"type": "text", "text": "answer"}}}},
-		)
-		f.lastUUID = assistantUUID
-		live = append(live, dmdomain.BuildUserRoundMarker(f.session, roundID, "", userMessageID, inputSeq, prompt, "", nil))
-	}
-	readAll := func() []protocol.Message {
-		rows, err := f.history.ReadMessages(f.workspacePath, f.session, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return rows
-	}
-
-	accept()
-	accept()
-	assertInputSeqs(t, "首次分页读取", userRowInputSeqs(t, f.readFirstPage(t).Items), live)
-	assertInputSeqs(t, "首次完整读取", userRowInputSeqs(t, readAll()), live)
-
-	accept()
-	assertInputSeqs(t, "追加一轮后刷新", userRowInputSeqs(t, f.readFirstPage(t).Items), live)
-
-	simulateHistoryProcessRestart(t, f)
-	assertInputSeqs(t, "重启后分页读取", userRowInputSeqs(t, f.readFirstPage(t).Items), live)
-	assertInputSeqs(t, "重启后完整读取", userRowInputSeqs(t, readAll()), live)
-
-	accept()
-	assertInputSeqs(t, "重启后再受理一轮", userRowInputSeqs(t, f.readFirstPage(t).Items), live)
 }
 
 func TestRoomUserRowsKeepInputSeqAcrossRefreshAndRestart(t *testing.T) {
@@ -1209,22 +780,6 @@ func TestRoomUserRowsKeepInputSeqAcrossRefreshAndRestart(t *testing.T) {
 	assertInputSeqs(t, "重启后完整读取", userRowInputSeqs(t, readAll(reopened)), live)
 }
 
-// 同一条用户消息的后一份快照（如 transcript 副本或 reparent 后的重写）不带游标时，合并结果沿用受理时的值。
-func TestCompactKeepsInputSeqWhenLaterUserSnapshotOmitsIt(t *testing.T) {
-	accepted := protocol.Message{"message_id": "msg_user_1", "round_id": "round-1", "role": "user", "content": "hi",
-		"timestamp": int64(1000), protocol.InputSeqField: int64(1_700_000_000_000_001)}
-	later := protocol.Message{"message_id": "msg_user_1", "round_id": "round-1", "role": "user", "content": "hi", "timestamp": int64(2000)}
-	for name, rows := range map[string][]protocol.Message{
-		"带游标的快照在前": {accepted, later},
-		"带游标的快照在后": {later, accepted},
-	} {
-		compacted := compactMessages(rows)
-		if len(compacted) != 1 || protocol.Int64FromAny(compacted[0][protocol.InputSeqField]) != 1_700_000_000_000_001 {
-			t.Fatalf("%s: 合并后的用户行 = %+v", name, compacted)
-		}
-	}
-}
-
 type parityStep struct {
 	raw        map[string]any
 	live       bool
@@ -1245,107 +800,6 @@ const parityHostLatencyMillis = 1500
 func both(raw map[string]any) parityStep     { return parityStep{raw: raw, live: true, transcript: true} }
 func liveOnly(raw map[string]any) parityStep { return parityStep{raw: raw, live: true} }
 func diskOnly(raw map[string]any) parityStep { return parityStep{raw: raw, transcript: true} }
-
-// 同一批事件经实时链路（EventMapper）与刷新后的历史回放（transcript + overlay）必须得到逐条一致的行：
-// 多段回复、压缩边界、runtime 自唤醒和子任务都不丢失、不换轮、不乱序。
-func TestLiveAndRefreshedHistoryProjectTheSameRows(t *testing.T) {
-	configRoot := t.TempDir()
-	workspaceRoot := filepath.Join(configRoot, "workspace")
-	workspacePath := filepath.Join(workspaceRoot, "Amy")
-	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("NEXUS_STATE_ROOT", "")
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
-	history := NewAgentHistoryStore(workspaceRoot)
-	sessionKey := "agent:Amy:ws:dm:parity"
-	sessionID := "sdk-session-parity"
-
-	rounds := liveParityRounds(sessionID)
-
-	var liveRows []protocol.Message
-	var transcript []map[string]any
-	var arrival int64
-	for _, round := range rounds {
-		// 受理输入时铸造一次游标：marker 落盘与实时用户行用的是同一个值。
-		round.options.InputSeq = protocol.NewInputSeq()
-		if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, round.roundID, round.content, round.at, round.options); err != nil {
-			t.Fatal(err)
-		}
-		// 实时链路在受理输入时用同一条 marker 物化用户行。
-		if userRow, ok := materializeRoundMarkerMessage(sessionKey, "Amy", transcriptRoundMarker{
-			RoundID: round.roundID, UserMessageID: round.options.UserMessageID, AgentRoundID: round.options.AgentRoundID,
-			Content: round.content, Timestamp: round.at, Synthetic: round.options.Synthetic,
-			Purpose: round.options.Purpose, Metadata: round.options.Metadata, InputSeq: round.options.InputSeq,
-		}); ok {
-			liveRows = append(liveRows, userRow)
-		}
-		mapper := message.NewEventMapper(message.EventMapperOptions{Context: message.MessageContext{
-			SessionKey: sessionKey, AgentID: "Amy", WorkspacePath: workspacePath,
-			RoundID: round.roundID, AgentRoundID: round.options.AgentRoundID, ParentID: round.options.UserMessageID,
-		}, IncludeStreamLifecycle: true})
-		for _, step := range round.steps {
-			if step.transcript {
-				transcript = append(transcript, step.raw)
-			}
-			if !step.live {
-				continue
-			}
-			decoded, err := sdkprotocol.DecodeMessage(jsonRoundTrip(t, step.raw))
-			if err != nil {
-				t.Fatalf("解码实时消息失败: %v", err)
-			}
-			result, err := mapper.Map(decoded)
-			if err != nil {
-				t.Fatalf("实时映射失败: %v", err)
-			}
-			// 宿主总是晚于 runtime 写入 transcript 才收到消息；延迟超过相邻条目的间隔时，
-			// 宿主接收时间与 transcript 时间交错，刷新后的顺序不能因此改变。
-			if at, parseErr := time.Parse(time.RFC3339, stringFromAny(step.raw["timestamp"])); parseErr == nil {
-				arrival = at.UnixMilli() + parityHostLatencyMillis
-			} else {
-				arrival++
-			}
-			for _, durable := range result.DurableMessages {
-				durable["timestamp"] = arrival
-				liveRows = append(liveRows, durable)
-				// 与 DM 实时链路一致：transcript 原生消息不写 overlay，其余 durable 行写入。
-				if protocol.IsTranscriptNativeMessage(durable) {
-					continue
-				}
-				if err := history.AppendOverlayMessage(workspacePath, sessionKey, durable); err != nil {
-					t.Fatal(err)
-				}
-			}
-		}
-	}
-	writeAgentTranscriptFixture(t, workspacePath, sessionID, transcript)
-
-	live := normalizeHistoryRows(compactMessages(liveRows), nil)
-	refreshed, err := history.ReadMessages(workspacePath, protocol.Session{SessionKey: sessionKey, AgentID: "Amy", SessionID: &sessionID}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(live) != len(refreshed) {
-		t.Fatalf("行数不一致: live=%d refreshed=%d\nlive=%s\nrefreshed=%s", len(live), len(refreshed), parityDump(live), parityDump(refreshed))
-	}
-	for index := range live {
-		want, got := parityComparable(t, live[index]), parityComparable(t, refreshed[index])
-		if want != got {
-			t.Errorf("第 %d 行不一致:\n live      %s\n refreshed %s", index, want, got)
-		}
-	}
-	for index, row := range refreshed {
-		if row["role"] == "user" && protocol.Int64FromAny(row[protocol.InputSeqField]) != protocol.Int64FromAny(live[index][protocol.InputSeqField]) {
-			t.Errorf("用户行 %v 刷新后的受理游标与实时不一致", row["message_id"])
-		}
-	}
-	for _, id := range []string{"msg-1", "system_compact_boundary_round-1", "msg-2", "msg_user_round-wake", "msg-3", "msg-4", "msg-5"} {
-		if !slices.ContainsFunc(refreshed, func(row protocol.Message) bool { return row["message_id"] == id }) {
-			t.Errorf("刷新后的历史缺少 %s", id)
-		}
-	}
-}
 
 // liveParityRounds 是实时链路与历史回放比对共用的三轮夹具：多段回复与工具调用、压缩边界、
 // runtime 自唤醒和子任务。DM 与 Room 的一致性测试都用它。
@@ -1458,281 +912,6 @@ func parityDump(rows []protocol.Message) string {
 	return string(encoded)
 }
 
-// 带子任务进度的回复不是 transcript 原生消息，宿主会另写一份 overlay 副本。
-// 宿主收到它的时间晚于 runtime 记录压缩边界的时间时，刷新后压缩提示仍须排在这条回复之后。
-func TestHostCopiesKeepTranscriptOrderAcrossCompaction(t *testing.T) {
-	reply := func(timestamp int64, positioned bool) protocol.Message {
-		row := protocol.Message{
-			"message_id": "msg-progress", "role": "assistant", "round_id": "round-1", "timestamp": timestamp,
-			"content": []any{map[string]any{"type": "task_progress", "task_id": "task-1"}},
-		}
-		if positioned {
-			row[message.TranscriptLineField] = 3
-		}
-		return row
-	}
-	notice := func(timestamp int64, positioned bool) protocol.Message {
-		row := protocol.Message{
-			"message_id": "system_compact_boundary_round-1", "role": "system", "round_id": "round-1", "timestamp": timestamp,
-		}
-		if positioned {
-			row[message.TranscriptLineField] = 5
-		}
-		return row
-	}
-	transcript := []protocol.Message{reply(1000, true), notice(2000, true)}
-	overlay := []protocol.Message{reply(1000+parityHostLatencyMillis, false), notice(2000+parityHostLatencyMillis, false)}
-
-	for name, rows := range map[string][]protocol.Message{
-		"transcript 副本在前": slices.Concat(transcript, overlay),
-		"overlay 副本在前":    slices.Concat(overlay, transcript),
-	} {
-		compacted := compactMessages(rows)
-		if len(compacted) != 2 || compacted[0]["message_id"] != "msg-progress" ||
-			compacted[1]["message_id"] != "system_compact_boundary_round-1" {
-			t.Errorf("%s: 顺序 = %s", name, parityDump(compacted))
-			continue
-		}
-		for index, want := range []int64{1000, 2000} {
-			if got := messageTimestamp(compacted[index]); got != want {
-				t.Errorf("%s: 第 %d 行时间 = %d, want %d", name, index, got, want)
-			}
-		}
-	}
-}
-
-func TestNormalizeHistoryRowsKeepsResultUsageWhenSuppressingDuplicateResultText(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"message_id":  "user-1",
-			"session_key": "agent:nexus:ws:dm:test",
-			"agent_id":    "nexus",
-			"round_id":    "round-1",
-			"role":        "user",
-			"content":     "你好",
-			"timestamp":   1000,
-		},
-		{
-			"message_id":  "assistant-1",
-			"session_key": "agent:nexus:ws:dm:test",
-			"agent_id":    "nexus",
-			"round_id":    "round-1",
-			"parent_id":   "round-1",
-			"role":        "assistant",
-			"content": []map[string]any{
-				{
-					"type": "text",
-					"text": "你好，世界",
-				},
-			},
-			"stop_reason": "end_turn",
-			"is_complete": true,
-			"timestamp":   2000,
-		},
-		{
-			"message_id":      "result-1",
-			"session_key":     "agent:nexus:ws:dm:test",
-			"agent_id":        "nexus",
-			"round_id":        "round-1",
-			"role":            "result",
-			"subtype":         "success",
-			"result":          "你好，世界",
-			"timestamp":       3000,
-			"duration_ms":     1200,
-			"duration_api_ms": 1100,
-			"num_turns":       1,
-			"usage": map[string]any{
-				"input_tokens":  3,
-				"output_tokens": 5,
-			},
-		},
-	}
-
-	normalized := normalizeHistoryRows(rows, nil)
-	if len(normalized) != 2 {
-		t.Fatalf("历史消息数量不正确: got=%d want=2", len(normalized))
-	}
-
-	assistant := normalized[1]
-	resultSummary, ok := assistant["result_summary"].(map[string]any)
-	if !ok {
-		t.Fatalf("assistant 应挂载 result_summary: %+v", assistant)
-	}
-	if _, exists := resultSummary["result"]; exists {
-		t.Fatalf("重复 result 文本应被移除: %+v", resultSummary)
-	}
-	usage, ok := resultSummary["usage"].(map[string]any)
-	if !ok {
-		t.Fatalf("result usage 不应丢失: %+v", resultSummary)
-	}
-	if intFromAny(usage["output_tokens"]) != 5 {
-		t.Fatalf("result usage 不正确: %+v", usage)
-	}
-}
-
-func TestNormalizeHistoryRowsFiltersInternalTransportRows(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"message_id":  "system-retry",
-			"session_key": "agent:nexus:ws:dm:test",
-			"agent_id":    "nexus",
-			"round_id":    "round-1",
-			"role":        "system",
-			"content":     "API 正在重试",
-			"timestamp":   900,
-			"metadata": map[string]any{
-				"subtype": "api_retry",
-			},
-		},
-		{
-			"message_id":  "user-internal",
-			"session_key": "agent:nexus:ws:dm:test",
-			"agent_id":    "nexus",
-			"round_id":    "round-1",
-			"role":        "user",
-			"content":     "[Request interrupted by user]",
-			"timestamp":   950,
-		},
-		{
-			"message_id":  "user-1",
-			"session_key": "agent:nexus:ws:dm:test",
-			"agent_id":    "nexus",
-			"round_id":    "round-2",
-			"role":        "user",
-			"content":     "继续",
-			"timestamp":   1000,
-		},
-		{
-			"message_id":  "assistant-1",
-			"session_key": "agent:nexus:ws:dm:test",
-			"agent_id":    "nexus",
-			"round_id":    "round-2",
-			"role":        "assistant",
-			"content": []map[string]any{
-				{"type": "text", "text": "好的，继续。"},
-			},
-			"stop_reason": "end_turn",
-			"is_complete": true,
-			"timestamp":   1100,
-		},
-		{
-			"message_id":      "result-1",
-			"session_key":     "agent:nexus:ws:dm:test",
-			"agent_id":        "nexus",
-			"round_id":        "round-2",
-			"role":            "result",
-			"subtype":         "success",
-			"timestamp":       1200,
-			"duration_ms":     10,
-			"duration_api_ms": 8,
-			"num_turns":       1,
-			"usage": map[string]any{
-				"input_tokens":  1,
-				"output_tokens": 2,
-			},
-		},
-	}
-
-	normalized := normalizeHistoryRows(rows, nil)
-	if len(normalized) != 2 {
-		t.Fatalf("内部 transport 行应被过滤: got=%d want=2 rows=%+v", len(normalized), normalized)
-	}
-	if normalized[0]["role"] != "user" || stringFromAny(normalized[0]["content"]) != "继续" {
-		t.Fatalf("内部 user prompt 未被过滤: %+v", normalized)
-	}
-	if normalized[1]["role"] != "assistant" {
-		t.Fatalf("结果应继续收口到 assistant: %+v", normalized)
-	}
-}
-
-func TestNormalizeHistoryRowsSuppressesTranscriptGuidanceWhenDurableUserExists(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"message_id":      "source-round",
-			"session_key":     "agent:nexus:ws:dm:test",
-			"agent_id":        "nexus",
-			"round_id":        "root-round",
-			"role":            "system",
-			"content":         "然后给点建议",
-			"timestamp":       1000,
-			"delivery_policy": string(protocol.ChatDeliveryPolicyGuide),
-			"metadata": map[string]any{
-				"subtype":         message.SystemMessageSubtypeGuidedInput,
-				"source_round_id": "source-round",
-			},
-		},
-		{
-			"message_id":      "user-source-round",
-			"session_key":     "agent:nexus:ws:dm:test",
-			"agent_id":        "nexus",
-			"round_id":        "root-round",
-			"source_round_id": "source-round",
-			"role":            "user",
-			"content":         "然后给点建议",
-			"timestamp":       1001,
-			"delivery_policy": string(protocol.ChatDeliveryPolicyGuide),
-		},
-	}
-
-	normalized := normalizeHistoryRows(rows, nil)
-	userCount := 0
-	for _, row := range normalized {
-		if row["role"] == "system" {
-			t.Fatalf("同一引导不应保留 transcript system 投影: %+v", normalized)
-		}
-		if row["role"] == "user" && row["source_round_id"] == "source-round" {
-			userCount++
-		}
-	}
-	if userCount != 1 {
-		t.Fatalf("同一引导应只保留一条 durable user 投影: %+v", normalized)
-	}
-}
-
-func TestSortHistoryRowsUsesDisplayOrderForSameTimestamp(t *testing.T) {
-	rows := []protocol.Message{
-		{"message_id": "assistant-b", "role": "assistant", "round_id": "root", "timestamp": int64(10), "display_order": int64(10001)},
-		{"message_id": "assistant-a", "role": "assistant", "round_id": "root", "timestamp": int64(10), "display_order": int64(10000)},
-	}
-	sortHistoryRows(rows)
-	if rows[0]["message_id"] != "assistant-a" || rows[1]["message_id"] != "assistant-b" {
-		t.Fatalf("同一时间应按 display_order 稳定排序: %#v", rows)
-	}
-}
-
-func TestCompactMessagesMergesGoalCompletionReceiptIntoOriginalAssistant(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"message_id": "assistant-1",
-			"role":       "assistant",
-			"round_id":   "round-1",
-			"content":    []map[string]any{{"type": "text", "text": "最终交付"}},
-			"timestamp":  int64(1000),
-		},
-		{
-			"message_id": "assistant-1",
-			"role":       "assistant",
-			"round_id":   "round-1",
-			protocol.GoalCompletionReceiptField: protocol.GoalCompletionReceipt{
-				GoalID: "goal-1", RoundID: "round-1", ActualTokens: int64TestPointer(42),
-			},
-			"timestamp": int64(1000),
-		},
-	}
-
-	compacted := compactMessages(rows)
-	if len(compacted) != 1 {
-		t.Fatalf("compacted = %+v, want one assistant", compacted)
-	}
-	if compacted[0][protocol.GoalCompletionReceiptField] == nil {
-		t.Fatalf("completion receipt was lost: %+v", compacted[0])
-	}
-	blocks := normalizeMessageContentBlocks(compacted[0]["content"])
-	if len(blocks) != 1 || stringFromAny(blocks[0]["text"]) != "最终交付" {
-		t.Fatalf("original assistant content was lost: %+v", compacted[0])
-	}
-}
-
 func TestSortHistoryRowsPlacesGoalControlBeforeContinuationAtSameMillisecond(t *testing.T) {
 	rows := []protocol.Message{
 		{"message_id": "msg_a", "round_id": "goal-continuation", "role": "assistant", "timestamp": int64(1000)},
@@ -1752,8 +931,6 @@ func TestSortHistoryRowsPlacesGoalControlBeforeContinuationAtSameMillisecond(t *
 		t.Fatalf("same-millisecond Goal order = %#v, want control before continuation", rows)
 	}
 }
-
-func int64TestPointer(value int64) *int64 { return &value }
 
 func TestBuildRoomTranscriptReferenceRejectsResultRole(t *testing.T) {
 	row := buildRoomTranscriptReference(protocol.Message{

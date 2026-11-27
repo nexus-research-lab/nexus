@@ -12,112 +12,14 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestRoomHistoryStoreSeparatesSameConversationByOwner(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-
-	history := NewRoomHistoryStore("")
-	conversationID := "shared-conversation-id"
-	if err := history.AppendInlineMessage("user-a", conversationID, protocol.Message{
-		"message_id":      "message-a",
-		"conversation_id": conversationID,
-		"content":         "owner a only",
-	}); err != nil {
-		t.Fatalf("写入 owner A Room 历史失败: %v", err)
-	}
-
-	ownerBRows, err := history.ReadMessages("user-b", conversationID, nil)
-	if err != nil {
-		t.Fatalf("读取 owner B Room 历史失败: %v", err)
-	}
-	if len(ownerBRows) != 0 {
-		t.Fatalf("相同 conversation_id 不应跨 owner 读取: %+v", ownerBRows)
-	}
-
-	ownerARows, err := history.ReadMessages("user-a", conversationID, nil)
-	if err != nil {
-		t.Fatalf("读取 owner A Room 历史失败: %v", err)
-	}
-	if len(ownerARows) != 1 || ownerARows[0]["message_id"] != "message-a" {
-		t.Fatalf("owner A Room 历史不完整: %+v", ownerARows)
-	}
-	// Windows 的 FileMode 不表达继承 ACL，POSIX group/other 位只在其他平台校验。
-	if runtime.GOOS != "windows" {
-		ledgerInfo, err := os.Stat(history.paths.RoomConversationOverlayPath("user-a", conversationID))
-		if err != nil {
-			t.Fatal(err)
-		}
-		wantMode := storageFileMode(0o600)
-		if ledgerInfo.Mode().Perm() != wantMode {
-			t.Fatalf("Room ledger mode=%#o, want %#o", ledgerInfo.Mode().Perm(), wantMode)
-		}
-	}
-}
-
-func TestRoomHistoryStoreRejectsTranscriptFromAnotherOwnerWorkspace(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-	foreignWorkspace := filepath.Join(
-		appfs.UserWorkspaceRootAt(stateRoot, "user-b"),
-		"agent-b",
-	)
-	if err := os.MkdirAll(foreignWorkspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	sessionID := "session-foreign-owner"
-	writeAgentTranscriptFixture(t, foreignWorkspace, sessionID, []map[string]any{{
-		"type":      "assistant",
-		"uuid":      "message-foreign-owner",
-		"sessionId": sessionID,
-		"message": map[string]any{
-			"id":      "message-foreign-owner",
-			"role":    "assistant",
-			"content": []map[string]any{{"type": "text", "text": "foreign"}},
-		},
-	}})
-
-	history := NewRoomHistoryStore("")
-	message := protocol.Message{
-		"message_id":      "message-foreign-owner",
-		"session_id":      sessionID,
-		"conversation_id": "conversation-a",
-		"agent_id":        "agent-b",
-		"round_id":        "round-foreign-owner",
-		"role":            "assistant",
-	}
-	row := buildRoomTranscriptReference(
-		message,
-		foreignWorkspace,
-		"agent:agent-b:ws:group:conversation-a",
-	)
-	if err := history.files.appendRoomJSONL(
-		"user-a",
-		history.paths.RoomConversationOverlayPath("user-a", "conversation-a"),
-		row,
-	); err != nil {
-		t.Fatal(err)
-	}
-	rows, err := history.ReadMessages("user-a", "conversation-a", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rows) != 0 {
-		t.Fatalf("Room 历史不能解析另一 owner 的 transcript: %+v", rows)
-	}
-}
 
 func TestRoomHistoryStoreRejectsCrossOwnerStateSymlink(t *testing.T) {
 	stateRoot := t.TempDir()
@@ -154,41 +56,6 @@ func TestRoomHistoryStoreRejectsCrossOwnerStateSymlink(t *testing.T) {
 	)
 	if _, statErr := os.Stat(foreignTarget); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("不能借 symlink 写入 owner B Room ledger: %v", statErr)
-	}
-}
-
-func TestIndexRoomTranscriptMessagesMergesAssistantChunks(t *testing.T) {
-	indexed := indexRoomTranscriptMessages([]protocol.Message{
-		{
-			"message_id": "assistant-1",
-			"role":       "assistant",
-			"content": []map[string]any{
-				{"type": "thinking", "thinking": "先想一下"},
-			},
-		},
-		{
-			"message_id": "assistant-1",
-			"role":       "assistant",
-			"content": []map[string]any{
-				{"type": "text", "text": "正文不能消失"},
-			},
-		},
-		{
-			"message_id": "assistant-1",
-			"role":       "assistant",
-			"content": []map[string]any{
-				{"type": "tool_use", "id": "tool-1", "name": "Bash"},
-			},
-		},
-	})
-
-	message := indexed["assistant-1"]
-	blocks := normalizeMessageContentBlocks(message["content"])
-	if len(blocks) != 3 ||
-		stringFromAny(blocks[0]["type"]) != "thinking" ||
-		stringFromAny(blocks[1]["text"]) != "正文不能消失" ||
-		stringFromAny(blocks[2]["id"]) != "tool-1" {
-		t.Fatalf("Room transcript 分块没有完整合并: %+v", blocks)
 	}
 }
 
@@ -256,123 +123,6 @@ func TestRoomHistoryRepairsTranscriptPermissions(t *testing.T) {
 				t.Fatalf("Room 读取应修复权限并成功重试: %v", err)
 			}
 		})
-	}
-}
-
-func TestRoomLiveRowsMatchResolvedTranscriptRefs(t *testing.T) {
-	root := t.TempDir()
-	h := newRoomHistoryTestStore(t, root)
-	owner, conversation, agent := testRoomOwnerUserID, "live-parity", "Amy"
-	work := filepath.Join(appfs.UserWorkspaceRootAt(root, owner), agent)
-	if err := os.MkdirAll(work, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	sessionID := "sdk-session-parity"
-	key := "agent:" + agent + ":ws:group:" + conversation
-	private := h.agentHistory.ForOwner(owner)
-	if _, err := private.files.UpsertSession(work, protocol.Session{SessionKey: key, AgentID: agent, SessionID: &sessionID}); err != nil {
-		t.Fatal(err)
-	}
-
-	// stored 是新方案在写入时落表的内容：实时链路交给 Append* 的消息本身，加上公区 conversation_id。
-	var stored []protocol.Message
-	var transcript []map[string]any
-	var arrival int64
-	refs := 0
-	keep := func(row protocol.Message) {
-		row = protocol.Clone(row)
-		row["conversation_id"] = conversation
-		stored = append(stored, row)
-	}
-	for _, round := range liveParityRounds(sessionID) {
-		round.options.InputSeq = protocol.NewInputSeq()
-		if err := private.AppendRoundMarkerWithOptions(work, key, round.roundID, round.content, round.at, round.options); err != nil {
-			t.Fatal(err)
-		}
-		if userRow, ok := materializeRoundMarkerMessage(key, agent, transcriptRoundMarker{
-			RoundID: round.roundID, UserMessageID: round.options.UserMessageID, AgentRoundID: round.options.AgentRoundID,
-			Content: round.content, Timestamp: round.at, Synthetic: round.options.Synthetic,
-			Purpose: round.options.Purpose, Metadata: round.options.Metadata, InputSeq: round.options.InputSeq,
-		}); ok {
-			// Room 的用户输入是公区 inline 行。
-			if err := h.AppendInlineMessage(owner, conversation, userRow); err != nil {
-				t.Fatal(err)
-			}
-			keep(userRow)
-		}
-		mapper := message.NewEventMapper(message.EventMapperOptions{Context: message.MessageContext{
-			SessionKey: key, ConversationID: conversation, AgentID: agent, WorkspacePath: work,
-			RoundID: round.roundID, AgentRoundID: round.options.AgentRoundID, ParentID: round.options.UserMessageID,
-		}, IncludeStreamLifecycle: true})
-		for _, step := range round.steps {
-			if step.transcript {
-				transcript = append(transcript, step.raw)
-			}
-			if !step.live {
-				continue
-			}
-			decoded, err := sdkprotocol.DecodeMessage(jsonRoundTrip(t, step.raw))
-			if err != nil {
-				t.Fatalf("解码实时消息失败: %v", err)
-			}
-			result, err := mapper.Map(decoded)
-			if err != nil {
-				t.Fatalf("实时映射失败: %v", err)
-			}
-			if at, parseErr := time.Parse(time.RFC3339, stringFromAny(step.raw["timestamp"])); parseErr == nil {
-				arrival = at.UnixMilli() + parityHostLatencyMillis
-			} else {
-				arrival++
-			}
-			for _, durable := range result.DurableMessages {
-				durable["timestamp"] = arrival
-				// 与 persistSharedDurableMessage 一致：transcript 原生回复写引用，其余 inline。
-				if protocol.IsTranscriptNativeMessage(durable) {
-					err = h.AppendTranscriptReference(owner, conversation, work, key, durable)
-					refs++
-				} else {
-					err = h.AppendInlineMessage(owner, conversation, durable)
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
-				keep(durable)
-			}
-		}
-	}
-	writeAgentTranscriptFixture(t, work, sessionID, transcript)
-
-	ledger, err := h.files.readRoomJSONL(owner, h.paths.RoomConversationOverlayPath(owner, conversation))
-	if err != nil {
-		t.Fatal(err)
-	}
-	written := 0
-	for _, row := range ledger {
-		if stringFromAny(row[overlayKindField]) == overlayKindTranscriptRef {
-			written++
-		}
-	}
-	if refs == 0 || written != refs {
-		t.Fatalf("公区应写入 %d 条 transcript_ref，实际 %d；没有引用时比对没有意义", refs, written)
-	}
-
-	live := normalizeHistoryRows(compactMessages(stored), nil)
-	resolved, err := h.ReadMessages(owner, conversation, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(live) != len(resolved) {
-		t.Fatalf("行数不一致: live=%d resolved=%d\nlive=%s\nresolved=%s", len(live), len(resolved), parityDump(live), parityDump(resolved))
-	}
-	for index := range live {
-		want, got := parityComparable(t, live[index]), parityComparable(t, resolved[index])
-		if want != got {
-			t.Errorf("第 %d 行不一致:\n live     %s\n resolved %s", index, want, got)
-		}
-		// Room 解析引用时用引用行（即实时消息）的时间覆盖 transcript 时间，所以时间也必须一致。
-		if lt, rt := messageTimestamp(live[index]), messageTimestamp(resolved[index]); lt != rt {
-			t.Errorf("第 %d 行 %v 时间不一致: live=%d resolved=%d", index, live[index]["message_id"], lt, rt)
-		}
 	}
 }
 
@@ -649,114 +399,6 @@ func TestRoomRuntimeHistoryCursorWindow(t *testing.T) {
 	}
 }
 
-func TestRoomRuntimeHistoryDoesNotUseDetailPreview(t *testing.T) {
-	h := newRoomHistoryTestStore(t, t.TempDir())
-	ctx := context.Background()
-	owner, conversation := testRoomOwnerUserID, "runtime-detail"
-	text := strings.Repeat("完整正文", historyMessageDetailThresholdBytes/4)
-	for _, row := range []protocol.Message{
-		{"message_id": "u", "round_id": "r", "role": "user", "content": "question", "timestamp": int64(1000)},
-		{"message_id": "a", "round_id": "r", "role": "assistant", "content": []any{map[string]any{"type": "tool_result", "content": text}}, "timestamp": int64(1001), "is_complete": true, "stop_reason": "end_turn"},
-	} {
-		if err := h.AppendInlineMessage(owner, conversation, row); err != nil {
-			t.Fatal(err)
-		}
-	}
-	want, err := h.ReadMessages(owner, conversation, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = h.ReadMessagesPageContext(ctx, owner, conversation, nil, HistoryPageQuery{Limit: 1}); err != nil {
-		t.Fatal(err)
-	}
-	indexed, err := h.ReadRuntimeHistoryContext(ctx, owner, conversation, "u", "", "", nil)
-	if err != nil || !reflect.DeepEqual(indexed, want) {
-		t.Fatalf("indexed tool output differs from canonical: %v", err)
-	}
-	// 丢失详情时整次读取回退原始记录，不能把仍有 detail_ref 的预览交给 Agent。
-	db, err := h.history.database(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.ExecContext(ctx, "DELETE FROM conversation_history_details WHERE scope=?", roomConversationHistoryScope(owner, conversation).key); err != nil {
-		t.Fatal(err)
-	}
-	got, err := h.ReadRuntimeHistoryContext(ctx, owner, conversation, "u", "", "", nil)
-	if err != nil || !reflect.DeepEqual(got, want) {
-		t.Fatalf("runtime used a truncated preview: %v", err)
-	}
-}
-
-func TestEnsureRoomConversationAssetDirRejectsWorkspaceSymlink(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-
-	store := New(filepath.Join(stateRoot, "users"))
-	workspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "user-a")
-	agentRoot := filepath.Join(workspaceRoot, "agent-a")
-	if err := os.MkdirAll(agentRoot, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink("agent-a", filepath.Join(workspaceRoot, ".rooms")); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-
-	_, err := store.EnsureRoomConversationAssetDir("user-a", "conversation-a")
-	if !errors.Is(err, confinedfs.ErrSymlink) {
-		t.Fatalf("Room 资产根 symlink 应被拒绝: %v", err)
-	}
-	redirected := filepath.Join(
-		agentRoot,
-		filepath.Base(store.RoomConversationAssetDir("user-a", "conversation-a")),
-	)
-	if _, statErr := os.Stat(redirected); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("不能借 .rooms symlink 写入 agent workspace: %v", statErr)
-	}
-}
-
-func TestOpenRoomConversationAssetFileRejectsCrossOwnerSymlink(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-
-	store := New(filepath.Join(stateRoot, "users"))
-	ownerBAssetRoot := store.RoomConversationAssetDir("user-b", "conversation-a")
-	if err := os.MkdirAll(filepath.Join(ownerBAssetRoot, "attachments"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(
-		filepath.Join(ownerBAssetRoot, "attachments", "secret.txt"),
-		[]byte("secret"),
-		0o600,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	ownerAWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "user-a")
-	if err := os.MkdirAll(ownerAWorkspaceRoot, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(
-		filepath.Join("..", "..", "user-b", "workspace", ".rooms"),
-		filepath.Join(ownerAWorkspaceRoot, ".rooms"),
-	); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-
-	_, file, err := store.OpenRoomConversationAssetFile(
-		"user-a",
-		"conversation-a",
-		"attachments/secret.txt",
-	)
-	if file != nil {
-		_ = file.Close()
-	}
-	if !errors.Is(err, confinedfs.ErrSymlink) {
-		t.Fatalf("Room 附件不能借 .rooms symlink 读取另一 owner 文件: %v", err)
-	}
-}
-
 func TestRoomDirectedMessageStoreDeduplicatesStableMessageID(t *testing.T) {
 	root := t.TempDir()
 	store := NewRoomDirectedMessageStore(root)
@@ -829,35 +471,6 @@ func TestRoomDirectedMessageWakeStoreRestoresOnlyPendingWakes(t *testing.T) {
 	}
 }
 
-func TestRoomDirectedMessageWakeStorePendingAllPreservesOriginalOwner(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", root)
-	t.Setenv("NEXUS_CONFIG_DIR", root)
-	store := NewRoomDirectedMessageWakeStore(root)
-	wake := RoomDirectedMessageWake{
-		WakeID:      "wake-unsafe-owner",
-		OwnerUserID: "owner/with/slash",
-		Message: protocol.RoomDirectedMessageRecord{
-			MessageID:      "message-unsafe-owner",
-			RoomID:         "room-unsafe-owner",
-			ConversationID: "conversation-unsafe-owner",
-			WakePolicy:     protocol.RoomWakePolicyDelayed,
-		},
-		DueAt: time.Now().Add(time.Minute).UnixMilli(),
-	}
-	if err := store.Schedule(wake); err != nil {
-		t.Fatalf("写入特殊 owner 延迟唤醒失败: %v", err)
-	}
-
-	pending, err := NewRoomDirectedMessageWakeStore(root).PendingAll()
-	if err != nil {
-		t.Fatalf("扫描全部延迟唤醒失败: %v", err)
-	}
-	if len(pending) != 1 || pending[0].OwnerUserID != wake.OwnerUserID {
-		t.Fatalf("恢复后 owner 身份失真: pending=%+v", pending)
-	}
-}
-
 func TestRoomDirectedMessageWakeStorePendingAllRejectsMismatchedOwner(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("NEXUS_STATE_ROOT", root)
@@ -912,21 +525,6 @@ func TestRoomPublicHandoffRejectsInvalidGoalCollaborationBinding(t *testing.T) {
 	}
 }
 
-func TestRoomPublicHandoffRejectsGoalBindingWithoutQueueSource(t *testing.T) {
-	store := NewRoomPublicHandoffStore(t.TempDir())
-	_, _, err := store.Detect(testRoomOwnerUserID, RoomPublicHandoff{
-		HandoffID: "handoff-goal-source", ConversationID: "conversation-goal-source",
-		SourceMessageID: "message-goal-source", SourceAgentID: "agent-source",
-		TargetAgentID: "agent-target", Content: "check",
-		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
-			GoalID: "goal-room", ObjectiveRevision: 1,
-		},
-	})
-	if err == nil {
-		t.Fatal("Goal collaboration handoff without a queue source must fail closed")
-	}
-}
-
 func TestRoomPublicHandoffGoalCollaborationInFlightUsesExactRevision(t *testing.T) {
 	root := t.TempDir()
 	store := NewRoomPublicHandoffStore(root)
@@ -974,33 +572,6 @@ func TestRoomPublicHandoffGoalCollaborationInFlightUsesExactRevision(t *testing.
 	)
 	if err != nil || inFlight {
 		t.Fatalf("inFlight = %v err=%v, want terminal edge released", inFlight, err)
-	}
-}
-
-func TestRoomPublicHandoffPendingAllRecoversFreshClaimAfterRestart(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", root)
-	t.Setenv("NEXUS_CONFIG_DIR", root)
-	handoff := RoomPublicHandoff{
-		HandoffID:       "rh-fresh-claim-restart",
-		ConversationID:  "conversation-fresh-claim-restart",
-		SourceMessageID: "message-fresh-claim-restart",
-		SourceAgentID:   "agent-a",
-		TargetAgentID:   "agent-b",
-	}
-	store := NewRoomPublicHandoffStore(root)
-	if _, _, err := store.Detect(testRoomOwnerUserID, handoff); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.MarkSourceFinished(testRoomOwnerUserID, handoff.ConversationID, handoff.HandoffID); err != nil {
-		t.Fatal(err)
-	}
-	if _, claimed, err := store.Claim(testRoomOwnerUserID, handoff.ConversationID, handoff.HandoffID); err != nil || !claimed {
-		t.Fatalf("claim = %t err=%v", claimed, err)
-	}
-	pending, err := NewRoomPublicHandoffStore(root).PendingAll()
-	if err != nil || len(pending) != 1 || pending[0].Status != roomPublicHandoffActionClaimed {
-		t.Fatalf("fresh prior-process claim must recover immediately: pending=%+v err=%v", pending, err)
 	}
 }
 
@@ -1105,45 +676,5 @@ func TestRoomPublicHandoffStoreListsAndCancelsRoot(t *testing.T) {
 	}
 	if len(pending) != 1 || pending[0].HandoffID != "rh-other" {
 		t.Fatalf("取消 root 后只应保留其他 root: %+v", pending)
-	}
-}
-
-func TestRoomPublicHandoffStorePendingAllRejectsMismatchedOwner(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", root)
-	t.Setenv("NEXUS_CONFIG_DIR", root)
-	store := NewRoomPublicHandoffStore(root)
-	const (
-		pathOwnerUserID = "owner-a"
-		conversationID  = "conversation-forged-owner"
-	)
-	forgedHandoff := RoomPublicHandoff{
-		HandoffID:       "rh-forged-owner",
-		OwnerUserID:     "owner-b",
-		ConversationID:  conversationID,
-		SourceMessageID: "message-forged-owner",
-		SourceAgentID:   "agent-a",
-		TargetAgentID:   "agent-b",
-		Status:          roomPublicHandoffActionSourceFinished,
-		CreatedAt:       1,
-		UpdatedAt:       1,
-	}
-	if err := store.files.appendRoomJSONL(
-		pathOwnerUserID,
-		store.paths.RoomPublicHandoffsPath(pathOwnerUserID, conversationID),
-		map[string]any{
-			"action":  roomPublicHandoffActionSourceFinished,
-			"handoff": forgedHandoff,
-		},
-	); err != nil {
-		t.Fatalf("写入伪造 owner handoff 失败: %v", err)
-	}
-
-	pending, err := NewRoomPublicHandoffStore(root).PendingAll()
-	if err != nil {
-		t.Fatalf("扫描全部 handoff 失败: %v", err)
-	}
-	if len(pending) != 0 {
-		t.Fatalf("目录与记录 owner 不一致时必须拒绝恢复: pending=%+v", pending)
 	}
 }

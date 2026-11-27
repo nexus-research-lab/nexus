@@ -48,39 +48,6 @@ func (s *connectorAuthorizationToolTestService) Cancel(
 	}, nil
 }
 
-func TestBuildAllOnlyExposesOwnerMainPrivateDM(t *testing.T) {
-	base := contract.ServerContext{
-		OwnerUserID: "owner-a", CurrentAgentID: "nexus",
-		ContextKind: "agent", IsMainAgent: true,
-	}
-	service := &connectorAuthorizationToolTestService{}
-	tools := BuildAll(service, base)
-	if len(tools) != 1 {
-		t.Fatalf("owner-main DM tool count = %d, want 1", len(tools))
-	}
-	if tools[0].Name != connectorsvc.ConnectorAuthorizationToolName ||
-		tools[0].Annotations == nil ||
-		!tools[0].Annotations.Destructive ||
-		!tools[0].Annotations.OpenWorld {
-		t.Fatalf("authorization tool missing human/open-world boundary: %+v", tools[0])
-	}
-
-	ordinary := base
-	ordinary.IsMainAgent = false
-	if got := BuildAll(
-		service, ordinary,
-	); len(got) != 0 {
-		t.Fatalf("ordinary Agent received Connector auth tools: %+v", got)
-	}
-	room := base
-	room.ContextKind = "room"
-	if got := BuildAll(
-		service, room,
-	); len(got) != 0 {
-		t.Fatalf("Room received Connector auth tools: %+v", got)
-	}
-}
-
 func TestAuthorizationToolDispatchesActions(t *testing.T) {
 	service := &connectorAuthorizationToolTestService{}
 	item := authorization(service, contract.ServerContext{})

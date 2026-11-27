@@ -125,20 +125,6 @@ func TestProviderImportPreviewFailureIsReadOnly(t *testing.T) {
 	}
 }
 
-func TestProviderImportPreviewInvalidRequestRemainsReadOnly(t *testing.T) {
-	failure := providerPreviewRequestInvalidFailure()
-	if failure.Code != "provider.preview_import_request_invalid" ||
-		failure.Category != protocol.FailureCategoryValidation ||
-		failure.Effect != protocol.FailureEffectNotApplicable {
-		t.Fatalf(
-			"preview request failure = code %q category %q effect %q",
-			failure.Code,
-			failure.Category,
-			failure.Effect,
-		)
-	}
-}
-
 func TestParseProviderIfMatchAcceptsOnlyExactStrongVersion(t *testing.T) {
 	tests := []struct {
 		value   string

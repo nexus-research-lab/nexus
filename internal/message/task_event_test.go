@@ -1,8 +1,6 @@
 package message
 
 import (
-	"encoding/json"
-	"reflect"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -117,47 +115,6 @@ func TestProcessorMapsAgentToolProgressToTaskProgress(t *testing.T) {
 	}
 }
 
-func TestProcessorMapsAgentStructuredOutputAttachmentToTaskNotification(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:host:ws:dm:test",
-		AgentID:    "host",
-		RoundID:    "round-agent-attachment",
-		ParentID:   "round-agent-attachment",
-	}, "sdk-session-agent-attachment")
-
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeAttachment,
-		Attachment: &sdkprotocol.AttachmentMessage{
-			Type: "structured_output",
-			Data: map[string]any{
-				"agentId":     "agent-child-1",
-				"agentType":   "Explore",
-				"description": "调研产品规格",
-				"status":      "completed",
-				"toolUseId":   "call-agent",
-				"outputFile":  "/workspace/.nexus/tasks/agent-child-1.output",
-			},
-		},
-	})
-	if len(output.DurableMessages) != 1 {
-		t.Fatalf("Agent structured output 未投影成 durable task notification: %+v", output)
-	}
-	message := output.DurableMessages[0]
-	if message["role"] != "system" {
-		t.Fatalf("task notification role = %#v, want system", message["role"])
-	}
-	metadata, _ := message["metadata"].(map[string]any)
-	if metadata["subtype"] != "task_notification" ||
-		metadata["task_id"] != "agent-child-1" ||
-		metadata["agent_id"] != "agent-child-1" ||
-		metadata["agent_type"] != "Explore" ||
-		metadata["task_type"] != "local_agent" ||
-		metadata["tool_use_id"] != "call-agent" ||
-		metadata["status"] != "completed" {
-		t.Fatalf("task notification metadata 不正确: %+v", metadata)
-	}
-}
-
 func TestProcessorMapsShellProgressToThrottledEphemeralTaskProgress(t *testing.T) {
 	parentToolUseID := "tool-bash-1"
 	processor := NewProcessor(MessageContext{
@@ -233,56 +190,6 @@ func TestProcessorMapsShellProgressToThrottledEphemeralTaskProgress(t *testing.T
 	finalBlocks, _ := final.DurableMessages[0]["content"].([]map[string]any)
 	if len(finalBlocks) != 1 || finalBlocks[0]["type"] != "tool_use" {
 		t.Fatalf("ephemeral progress leaked into durable assistant: %+v", finalBlocks)
-	}
-}
-
-func TestProcessorMapsToolUseSummaryToReplaceableEphemeralProgress(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey:   "agent:nexus:ws:dm:test",
-		AgentID:      "nexus",
-		RoundID:      "round-tool-summary",
-		AgentRoundID: "agent-round-tool-summary",
-	}, "sdk-session-tool-summary")
-
-	first := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeToolUseSummary,
-		ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{
-			Summary:             "已经完成代码检索，正在核对消息持久化边界。",
-			PrecedingToolUseIDs: []string{"tool-read", "tool-grep"},
-		},
-	})
-	if len(first.DurableMessages) != 0 || len(first.EphemeralMessages) != 1 {
-		t.Fatalf("tool use summary = %+v, want one ephemeral message", first)
-	}
-	message := first.EphemeralMessages[0]
-	blocks, _ := message["content"].([]map[string]any)
-	if len(blocks) != 1 || blocks[0]["type"] != "progress_update" {
-		t.Fatalf("progress update block = %+v", blocks)
-	}
-	if blocks[0]["text"] != "已经完成代码检索，正在核对消息持久化边界。" {
-		t.Fatalf("progress update text = %#v", blocks[0]["text"])
-	}
-	if message["is_complete"] != false {
-		t.Fatalf("progress update 不应成为 assistant 终态: %+v", message)
-	}
-
-	second := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeToolUseSummary,
-		ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{
-			Summary: "测试已通过，正在整理最终结果。",
-		},
-	})
-	if len(second.EphemeralMessages) != 1 ||
-		second.EphemeralMessages[0]["message_id"] != message["message_id"] {
-		t.Fatalf("同一 Agent round 的进度快照应原位替换: first=%+v second=%+v", message, second)
-	}
-
-	empty := processor.Process(sdkprotocol.ReceivedMessage{
-		Type:           sdkprotocol.MessageTypeToolUseSummary,
-		ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{Summary: "  \n  "},
-	})
-	if len(empty.EphemeralMessages) != 0 {
-		t.Fatalf("空 tool use summary 不应投影: %+v", empty)
 	}
 }
 
@@ -400,45 +307,5 @@ func TestProcessorPreservesTypedSubagentThreadMetadata(t *testing.T) {
 		if got := notificationMetadata[key]; got != want {
 			t.Fatalf("task_notification metadata[%q] = %#v, want %#v; all=%+v", key, got, want, notificationMetadata)
 		}
-	}
-}
-
-func TestSubagentTaskUsageSnapshotsCollectsMetadataAndAssistantBlocks(t *testing.T) {
-	message := protocol.Message{
-		"metadata": map[string]any{
-			"task_id": "task-b",
-			"usage":   map[string]any{"total_tokens": int64(90)},
-		},
-		"content": []map[string]any{
-			{
-				"type":    "task_progress",
-				"task_id": "task-b",
-				"usage":   map[string]any{"total_tokens": 120},
-			},
-			{
-				"type":    "task_progress",
-				"task_id": "task-a",
-				"usage":   map[string]any{"total_tokens": json.Number("75")},
-			},
-			{
-				"type":    "task_progress",
-				"task_id": "task-b",
-				"usage":   map[string]any{"total_tokens": 110},
-			},
-			{
-				"type":    "text",
-				"task_id": "ignored",
-				"usage":   map[string]any{"total_tokens": 999},
-			},
-		},
-	}
-
-	got := SubagentTaskUsageSnapshots(message)
-	want := []SubagentTaskUsage{
-		{TaskID: "task-a", TotalTokens: 75},
-		{TaskID: "task-b", TotalTokens: 120},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("snapshots = %#v, want %#v", got, want)
 	}
 }

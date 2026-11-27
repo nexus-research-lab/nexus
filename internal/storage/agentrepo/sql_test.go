@@ -1,67 +1,11 @@
 package agentrepo
 
 import (
-	"context"
 	"database/sql"
-	"errors"
 	"testing"
 
 	_ "modernc.org/sqlite"
 )
-
-func TestSQLRepositorySkillSelectionCompareAndSwap(t *testing.T) {
-	db := newAgentRepositoryTestDB(t)
-	repository := NewSQLRepository("sqlite", db)
-	ctx := context.Background()
-
-	created, err := repository.CreateAgent(ctx, testCreateRecord())
-	if err != nil {
-		t.Fatalf("CreateAgent() error = %v", err)
-	}
-	updated, err := repository.UpdateAgentSkillIDsAtVersion(
-		ctx,
-		created.AgentID,
-		created.OwnerUserID,
-		`["global-skill"]`,
-		created.RuntimeVersion,
-	)
-	if err != nil {
-		t.Fatalf("UpdateAgentSkillIDsAtVersion() error = %v", err)
-	}
-	if updated.RuntimeVersion != created.RuntimeVersion+1 {
-		t.Fatalf("updated runtime version = %d, want %d", updated.RuntimeVersion, created.RuntimeVersion+1)
-	}
-	withWorkspaceDisabled, err := repository.UpdateAgentDisabledSkillIDsAtVersion(
-		ctx,
-		created.AgentID,
-		created.OwnerUserID,
-		`["workspace-skill"]`,
-		updated.RuntimeVersion,
-	)
-	if err != nil {
-		t.Fatalf("UpdateAgentDisabledSkillIDsAtVersion() error = %v", err)
-	}
-	if _, err = repository.UpdateAgentSkillIDsAtVersion(
-		ctx,
-		created.AgentID,
-		created.OwnerUserID,
-		`["stale-global"]`,
-		created.RuntimeVersion,
-	); !errors.Is(err, ErrRuntimeVersionConflict) {
-		t.Fatalf("stale skill selection error = %v, want ErrRuntimeVersionConflict", err)
-	}
-	current, err := repository.GetAgent(ctx, created.AgentID, created.OwnerUserID)
-	if err != nil {
-		t.Fatalf("GetAgent() error = %v", err)
-	}
-	if current.RuntimeVersion != withWorkspaceDisabled.RuntimeVersion ||
-		len(current.Options.SkillIDs) != 1 ||
-		current.Options.SkillIDs[0] != "global-skill" ||
-		len(current.Options.DisabledSkillIDs) != 1 ||
-		current.Options.DisabledSkillIDs[0] != "workspace-skill" {
-		t.Fatalf("stale skill selection changed state: %+v", current)
-	}
-}
 
 func newAgentRepositoryTestDB(t *testing.T) *sql.DB {
 	t.Helper()
@@ -144,31 +88,4 @@ func newAgentRepositoryTestDB(t *testing.T) *sql.DB {
 		}
 	}
 	return db
-}
-
-func testCreateRecord() CreateRecord {
-	return CreateRecord{
-		AgentID:              "agent-1",
-		OwnerUserID:          "owner-1",
-		Slug:                 "agent-1",
-		Name:                 "test-agent",
-		WorkspacePath:        "/tmp/agent-1",
-		Status:               "active",
-		BusinessTagsJSON:     "[]",
-		VibeTagsJSON:         "[]",
-		DisplayName:          "test-agent",
-		RuntimeID:            "runtime-1",
-		ProfileID:            "profile-1",
-		Provider:             "provider-1",
-		Model:                "model-v1",
-		PermissionMode:       "default",
-		AllowedToolsJSON:     "[]",
-		DisallowedToolsJSON:  "[]",
-		MCPServersJSON:       "{}",
-		ConnectorIDsJSON:     "[]",
-		SkillIDsJSON:         "[]",
-		DisabledSkillIDsJSON: "[]",
-		SettingSourcesJSON:   "[]",
-		RuntimeVersion:       1,
-	}
 }

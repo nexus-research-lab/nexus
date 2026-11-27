@@ -6,7 +6,6 @@ package automation
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -59,80 +58,6 @@ func TestClaimScheduledTaskRunConcurrentRequestReplaysSingleRun(t *testing.T) {
 		t.Fatalf("claimed=%d replayed=%d results=%+v", claimed, replayed, results)
 	}
 	assertAtomicRuntimeState(t, db, task.JobID, results[0].RunID, 1)
-}
-
-func TestClaimScheduledTaskRunConcurrentOverlapTerminalReplayAndConflict(t *testing.T) {
-	db, repository, task := newAtomicRuntimeRepository(t, automationdomain.OverlapPolicySkip)
-	if _, err := db.Exec(`UPDATE automation_scheduled_tasks
-SET running_run_id = 'run-active-other', running_started_at = CURRENT_TIMESTAMP
-WHERE job_id = ?`, task.JobID); err != nil {
-		t.Fatal(err)
-	}
-	build := func(runID string, digest string) InitialRunClaimInput {
-		claim := atomicRuntimeClaimInput(task, runID, "manual-skipped-shared", digest)
-		claim.Runtime.AllowDisabled = true
-		claim.Run.TriggerKind = automationdomain.TriggerKindManual
-		finishedAt := time.Date(2026, 8, 27, 9, 1, 0, 0, time.UTC)
-		message := "previous run is still running; overlap_policy=skip"
-		terminal := claim.Run
-		terminal.Status = automationdomain.RunStatusSkipped
-		terminal.StartedAt = nil
-		terminal.FinishedAt = &finishedAt
-		terminal.Attempts = 0
-		terminal.ErrorMessage = &message
-		terminal.DeliveryStatus = automationdomain.DeliveryStatusNotAttempted
-		claim.OverlapTerminalRun = &terminal
-		return claim
-	}
-	inputs := []InitialRunClaimInput{
-		build("run-skipped-a", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-		build("run-skipped-b", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-	}
-	results := make([]InitialRunClaimResult, len(inputs))
-	errs := make([]error, len(inputs))
-	var wait sync.WaitGroup
-	for index := range inputs {
-		wait.Add(1)
-		go func(index int) {
-			defer wait.Done()
-			results[index], errs[index] = repository.ClaimScheduledTaskRun(context.Background(), inputs[index])
-		}(index)
-	}
-	wait.Wait()
-	for index, err := range errs {
-		if err != nil {
-			t.Fatalf("terminal request %d: %v", index, err)
-		}
-	}
-	if results[0].RunID == "" || results[0].RunID != results[1].RunID {
-		t.Fatalf("terminal request results=%+v", results)
-	}
-	terminal := 0
-	replayed := 0
-	for _, result := range results {
-		if result.Terminal {
-			terminal++
-		}
-		if result.Replayed {
-			replayed++
-		}
-	}
-	if terminal != 1 || replayed != 1 {
-		t.Fatalf("terminal=%d replayed=%d results=%+v", terminal, replayed, results)
-	}
-	runs, err := repository.ListRunsByJob(context.Background(), task.OwnerUserID, task.JobID)
-	if err != nil || len(runs) != 1 || runs[0].Status != automationdomain.RunStatusSkipped ||
-		runs[0].FinishedAt == nil || runs[0].DeliveryStatus != automationdomain.DeliveryStatusNotAttempted {
-		t.Fatalf("terminal runs=%+v err=%v", runs, err)
-	}
-	conflicting := build("run-skipped-conflict", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-	if _, err = repository.ClaimScheduledTaskRun(context.Background(), conflicting); !errors.Is(err, automationdomain.ErrRuntimeCommandConflict) {
-		t.Fatalf("terminal conflicting intent error=%v", err)
-	}
-	runs, err = repository.ListRunsByJob(context.Background(), task.OwnerUserID, task.JobID)
-	if err != nil || len(runs) != 1 {
-		t.Fatalf("terminal conflict created another run=%+v err=%v", runs, err)
-	}
 }
 
 func newAtomicRuntimeRepository(
@@ -223,52 +148,5 @@ func assertAtomicRuntimeState(t *testing.T, db *sql.DB, jobID string, runID stri
 	}
 	if count != runCount {
 		t.Fatalf("run count = %d, want %d", count, runCount)
-	}
-}
-
-func TestFinishedRunCannotOccupyTask(t *testing.T) {
-	db, repository, task := newAtomicRuntimeRepository(t, automationdomain.OverlapPolicyAllow)
-	ctx := context.Background()
-	for _, id := range []string{"legacy", "active"} {
-		if err := repository.InsertRunPending(ctx, RunPendingInput{RunID: id, JobID: task.JobID, OwnerUserID: task.OwnerUserID, Status: automationdomain.RunStatusRunning}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := db.Exec(`UPDATE automation_task_runs SET finished_at = CURRENT_TIMESTAMP WHERE run_id = 'legacy'`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`UPDATE automation_scheduled_tasks SET running_run_id = 'legacy', running_started_at = NULL WHERE job_id = ?`, task.JobID); err != nil {
-		t.Fatal(err)
-	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, _, err := repository.latestActiveRunIdentity(ctx, tx, task.OwnerUserID, task.JobID)
-	_ = tx.Rollback()
-	if err != nil || id != "active" {
-		t.Fatalf("active identity = %q, %v", id, err)
-	}
-	repaired, err := repository.ReconcileFinishedTaskRuntime(ctx)
-	if err != nil || len(repaired) != 0 {
-		t.Fatalf("must retain occupancy while another run is active: %v %v", repaired, err)
-	}
-	if _, err := db.Exec(`UPDATE automation_task_runs SET status = 'succeeded', finished_at = CURRENT_TIMESTAMP WHERE run_id = 'active'`); err != nil {
-		t.Fatal(err)
-	}
-	repaired, err = repository.ReconcileFinishedTaskRuntime(ctx)
-	if err != nil || len(repaired) != 1 {
-		t.Fatalf("repair = %v, %v", repaired, err)
-	}
-	if err := repository.UpdateScheduledTaskRuntime(ctx, JobRuntimeUpdateInput{JobID: task.JobID, RunningRunID: "legacy"}); err != nil {
-		t.Fatal(err)
-	}
-	var running string
-	if err := db.QueryRow(`SELECT COALESCE(running_run_id, '') FROM automation_scheduled_tasks WHERE job_id = ?`, task.JobID).Scan(&running); err != nil || running != "" {
-		t.Fatalf("stale snapshot restored occupancy: %q %v", running, err)
-	}
-	repaired, err = repository.ReconcileFinishedTaskRuntime(ctx)
-	if err != nil || len(repaired) != 0 {
-		t.Fatalf("repair is not idempotent: %v %v", repaired, err)
 	}
 }

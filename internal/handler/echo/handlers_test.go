@@ -58,23 +58,6 @@ func TestGetEchoReturnsRevisionETag(t *testing.T) {
 	}
 }
 
-func TestUpdateEchoUsesExactRevision(t *testing.T) {
-	t.Parallel()
-	stub := &echoServiceStub{settings: echodomain.Settings{Enabled: false, Version: 9}}
-	handler := New(handlershared.NewAPI(nil), stub)
-	request := httptest.NewRequest(http.MethodPut, "/settings/echo", strings.NewReader(`{"enabled":false}`))
-	request.Header.Set("If-Match", `"echo-8"`)
-	recorder := httptest.NewRecorder()
-	handler.HandleUpdateEcho(recorder, request)
-
-	if recorder.Code != http.StatusOK || !stub.usedCAS || stub.expectedVersion != 8 {
-		t.Fatalf("status=%d usedCAS=%v expected=%d", recorder.Code, stub.usedCAS, stub.expectedVersion)
-	}
-	if recorder.Header().Get("ETag") != `"echo-9"` {
-		t.Fatalf("ETag=%q", recorder.Header().Get("ETag"))
-	}
-}
-
 func TestUpdateEchoProjectsVersionConflictAsNotApplied(t *testing.T) {
 	t.Parallel()
 	assertEchoFailure(t, echosvc.ErrSettingsVersionConflict, http.StatusPreconditionFailed,

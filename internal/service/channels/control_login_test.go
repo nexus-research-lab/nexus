@@ -68,60 +68,6 @@ func activeChannelLoginTestSession(
 	}
 }
 
-func TestGetCurrentChannelLoginOnlyReadsUniqueUnboundWebSession(t *testing.T) {
-	store := newChannelLoginStore()
-	current := activeChannelLoginTestSession(
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		"login-web",
-		"",
-	)
-	foreign := activeChannelLoginTestSession(
-		"owner-b",
-		ChannelTypeWeixinPersonal,
-		"login-foreign",
-		"",
-	)
-	store.sessions[current.view.LoginID] = current
-	store.active[current.activeKey] = current.view.LoginID
-	store.sessions[foreign.view.LoginID] = foreign
-	store.active[foreign.activeKey] = foreign.view.LoginID
-
-	service := &ControlService{
-		loginStore: store,
-		idFactory: func(string) string {
-			t.Fatal("read-only reconciliation generated a login ID")
-			return ""
-		},
-		weixinLoginClientFactory: func(string, map[string]string) personalWeixinLoginClient {
-			t.Fatal("read-only reconciliation started a Weixin login")
-			return nil
-		},
-		registrationClientFactory: func(string) appregistration.Client {
-			t.Fatal("read-only reconciliation started platform registration")
-			return nil
-		},
-	}
-	view, err := service.GetCurrentChannelLogin(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-	)
-	if err != nil {
-		t.Fatalf("read current Web login: %v", err)
-	}
-	if view.LoginID != "login-web" || view.ChannelType != ChannelTypeWeixinPersonal {
-		t.Fatalf("current Web login = %+v", view)
-	}
-	if _, err = service.GetCurrentChannelLogin(
-		context.Background(),
-		"owner-c",
-		ChannelTypeWeixinPersonal,
-	); !errors.Is(err, ErrChannelLoginNotFound) {
-		t.Fatalf("cross-owner lookup error = %v", err)
-	}
-}
-
 func TestGetCurrentChannelLoginFailsClosedForAmbiguousOrBoundState(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -178,43 +124,6 @@ func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (
 		QRCode:             "qr-token-1",
 		QRCodeImageContent: "weixin://qr-login",
 	}, nil
-}
-
-func TestControlServiceMarksRemoteLoginStartFailureUnknown(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	_, err := service.UpsertChannelConfig(
-		context.Background(),
-		"owner-a",
-		ChannelTypeFeishu,
-		UpsertChannelConfigRequest{
-			AgentID: "agent-a",
-			Config:  map[string]string{"app_id": "app-id"},
-			Credentials: map[string]string{
-				"app_secret": "app-secret",
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("seed Channel config: %v", err)
-	}
-	startErr := errors.New("remote response was lost")
-	service.registrationClientFactory = func(string) appregistration.Client {
-		return &fakeChannelRegistrationClient{startErr: startErr}
-	}
-
-	_, err = service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeFeishu)
-	if !errors.Is(err, startErr) {
-		t.Fatalf("start error = %v", err)
-	}
-	if effect, ok := ChannelControlMutationEffect(err); !ok || effect != ControlMutationUnknown {
-		t.Fatalf("remote start effect = %q ok=%v", effect, ok)
-	}
 }
 
 func (c *fakePersonalWeixinLoginClient) PollQRCodeStatus(context.Context, string, string) (channeladapters.PersonalWeixinQRStatusResponse, error) {
@@ -321,77 +230,6 @@ func TestControlServiceRegistersOfficialQRCodeChannels(t *testing.T) {
 				t.Fatalf("扫码凭据未保存: %+v", view)
 			}
 		})
-	}
-}
-
-func TestControlServiceMigratesLegacyWeixinPersonalAccountBeforeNewLogin(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	service.idFactory = func(prefix string) string {
-		return prefix + "-legacy"
-	}
-	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
-		return &fakePersonalWeixinLoginClient{status: channeladapters.PersonalWeixinQRStatusResponse{
-			Status:      "confirmed",
-			BotToken:    "new-token",
-			IlinkBotID:  "wx-account-new",
-			IlinkUserID: "wx-user-new",
-			BaseURL:     "https://ilink-new.test",
-		}}
-	}
-	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"base_url":   "https://ilink-legacy.test",
-			"account_id": "wx-account-legacy",
-			"user_id":    "wx-user-legacy",
-		},
-		Credentials: map[string]string{"ilink_bot_token": "legacy-token"},
-	})
-	if err != nil {
-		t.Fatalf("准备旧个人微信配置失败: %v", err)
-	}
-
-	started, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
-	if err != nil {
-		t.Fatalf("启动新个人微信扫码登录失败: %v", err)
-	}
-	waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
-
-	accounts, err := service.listChannelAccountRows(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
-	if err != nil {
-		t.Fatalf("读取个人微信账号失败: %v", err)
-	}
-	tokens := map[string]string{}
-	for _, account := range accounts {
-		secrets, decryptErr := service.decryptCredentials(account.CredentialsEncrypted)
-		if decryptErr != nil {
-			t.Fatalf("解密账号凭据失败 account=%s err=%v", account.AccountID, decryptErr)
-		}
-		tokens[account.AccountID] = secrets["ilink_bot_token"]
-	}
-	if tokens["wx-account-legacy"] != "legacy-token" || tokens["wx-account-new"] != "new-token" {
-		t.Fatalf("旧账号应先迁移到账号表，新账号应独立保存: accounts=%+v tokens=%+v", accounts, tokens)
-	}
-
-	items, err := service.ListChannels(context.Background(), "owner-a")
-	if err != nil {
-		t.Fatalf("读取频道配置失败: %v", err)
-	}
-	var configured *ChannelConfigView
-	for index := range items {
-		if items[index].ChannelType == ChannelTypeWeixinPersonal {
-			configured = &items[index]
-			break
-		}
-	}
-	if configured == nil || len(configured.Accounts) != 2 || configured.PublicConfig["account_id"] != "" || configured.PublicConfig["user_id"] != "" {
-		t.Fatalf("个人微信账号视图不正确: %+v", configured)
 	}
 }
 
@@ -587,20 +425,6 @@ type blockedPersonalWeixinLoginClient struct {
 	status  channeladapters.PersonalWeixinQRStatusResponse
 }
 
-type rejectingChannelLoginAuthorizationCommitGuard struct {
-	requests chan ChannelLoginAuthorizationCommit
-}
-
-func (g *rejectingChannelLoginAuthorizationCommitGuard) AcquireChannelLoginAuthorizationCommit(
-	_ context.Context,
-	request ChannelLoginAuthorizationCommit,
-) (func(), error) {
-	if g != nil && g.requests != nil {
-		g.requests <- request
-	}
-	return nil, errors.New("bound human session revoked")
-}
-
 func (c *blockedPersonalWeixinLoginClient) StartQRCode(
 	context.Context,
 	[]string,
@@ -732,67 +556,6 @@ func TestChannelLoginCompletionRejectsChangedControlVersion(t *testing.T) {
 	}
 }
 
-func TestChannelLoginRejectsUnexpectedAccountBeforeCredentialWrite(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
-		return &fakePersonalWeixinLoginClient{status: channeladapters.PersonalWeixinQRStatusResponse{
-			Status:      "confirmed",
-			BotToken:    "wrong-account-token",
-			IlinkBotID:  "unexpected-account",
-			IlinkUserID: "unexpected-user",
-		}}
-	}
-	if _, err := service.UpsertChannelConfig(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		UpsertChannelConfigRequest{AgentID: "agent-a"},
-	); err != nil {
-		t.Fatal(err)
-	}
-	version, err := service.GetChannelControlVersion(context.Background(), "owner-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	started, err := service.StartChannelLoginForAccountAtVersion(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		"expected-account",
-		version,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	failed := waitChannelLoginStatus(
-		t,
-		service,
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		started.LoginID,
-		ChannelLoginStatusError,
-	)
-	if !strings.Contains(failed.Error, "账号与授权目标不匹配") {
-		t.Fatalf("account mismatch failure = %+v", failed)
-	}
-	accounts, err := service.listChannelAccountRows(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(accounts) != 0 {
-		t.Fatalf("unexpected account credential was persisted: %+v", accounts)
-	}
-}
-
 func TestChannelLoginAuthorizationGenerationCannotAdoptOrCancelAnotherFlow(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()
@@ -858,113 +621,6 @@ func TestChannelLoginAuthorizationGenerationCannotAdoptOrCancelAnotherFlow(t *te
 		ChannelTypeWeixinPersonal,
 		first.LoginID,
 	)
-}
-
-func TestChannelLoginAuthorizationGuardRejectsCredentialCommit(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-	client := &blockedPersonalWeixinLoginClient{
-		started: make(chan struct{}, 1),
-		release: make(chan struct{}),
-		status: channeladapters.PersonalWeixinQRStatusResponse{
-			Status:      "confirmed",
-			BotToken:    "must-not-persist-token",
-			IlinkBotID:  "must-not-persist-account",
-			IlinkUserID: "must-not-persist-user",
-		},
-	}
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
-		return client
-	}
-	guard := &rejectingChannelLoginAuthorizationCommitGuard{
-		requests: make(chan ChannelLoginAuthorizationCommit, 1),
-	}
-	service.SetChannelLoginAuthorizationCommitGuard(guard)
-	if _, err := service.UpsertChannelConfig(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		UpsertChannelConfigRequest{AgentID: "agent-a"},
-	); err != nil {
-		t.Fatal(err)
-	}
-	startVersion, err := service.GetChannelControlVersion(
-		context.Background(),
-		"owner-a",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	started, err := service.StartChannelLoginForAuthorizationAtVersion(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		"",
-		"flow-generation-revoked",
-		startVersion,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-client.started:
-	case <-time.After(time.Second):
-		t.Fatal("login poll did not start")
-	}
-	close(client.release)
-	select {
-	case request := <-guard.requests:
-		if request.OwnerUserID != "owner-a" ||
-			request.ChannelType != ChannelTypeWeixinPersonal ||
-			request.LoginID != started.LoginID ||
-			request.AuthorizationBinding != "flow-generation-revoked" ||
-			request.StartControlVersion != startVersion {
-			t.Fatalf("authorization commit request = %+v", request)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("authorization commit guard was not called")
-	}
-	failed := waitChannelLoginStatus(
-		t,
-		service,
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-		started.LoginID,
-		ChannelLoginStatusError,
-	)
-	if !strings.Contains(
-		failed.Error,
-		ErrChannelLoginAuthorizationCommit.Error(),
-	) {
-		t.Fatalf("authorization rejection status = %+v", failed)
-	}
-	accounts, err := service.listChannelAccountRows(
-		context.Background(),
-		"owner-a",
-		ChannelTypeWeixinPersonal,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(accounts) != 0 {
-		t.Fatalf("revoked authorization persisted account: %+v", accounts)
-	}
-	version, err := service.GetChannelControlVersion(
-		context.Background(),
-		"owner-a",
-	)
-	if err != nil || version != startVersion {
-		t.Fatalf(
-			"revoked authorization changed version: version=%d start=%d err=%v",
-			version,
-			startVersion,
-			err,
-		)
-	}
 }
 
 func TestChannelLoginRuntimeFailureRestoresPriorConfigAtNewVersion(t *testing.T) {

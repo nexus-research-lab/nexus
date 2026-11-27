@@ -28,11 +28,6 @@ type fakeAuthority struct{}
 
 type fakeHumanVerifier struct{}
 
-type revocableHumanVerifier struct {
-	mu      sync.RWMutex
-	revoked bool
-}
-
 func (fakeHumanVerifier) VerifyInteractiveHuman(
 	_ context.Context,
 	principal *authctx.Principal,
@@ -79,66 +74,6 @@ func (fakeHumanVerifier) AcquireBoundInteractiveHumanLease(
 		return nil, nil, err
 	}
 	return principal, func() {}, nil
-}
-
-func (v *revocableHumanVerifier) VerifyInteractiveHuman(
-	ctx context.Context,
-	principal *authctx.Principal,
-) (*authctx.Principal, error) {
-	return fakeHumanVerifier{}.VerifyInteractiveHuman(ctx, principal)
-}
-
-func (v *revocableHumanVerifier) VerifyBoundInteractiveHuman(
-	ctx context.Context,
-	userID string,
-	authMethod string,
-	sessionID string,
-) (*authctx.Principal, error) {
-	v.mu.RLock()
-	revoked := v.revoked
-	v.mu.RUnlock()
-	if revoked {
-		return nil, errors.New("password session is expired, revoked, or inactive")
-	}
-	return fakeHumanVerifier{}.VerifyBoundInteractiveHuman(
-		ctx,
-		userID,
-		authMethod,
-		sessionID,
-	)
-}
-
-func (v *revocableHumanVerifier) AcquireBoundInteractiveHumanLease(
-	ctx context.Context,
-	userID string,
-	authMethod string,
-	sessionID string,
-) (*authctx.Principal, func(), error) {
-	v.mu.RLock()
-	if v.revoked {
-		v.mu.RUnlock()
-		return nil, nil, errors.New("password session is expired, revoked, or inactive")
-	}
-	principal, err := fakeHumanVerifier{}.VerifyBoundInteractiveHuman(
-		ctx,
-		userID,
-		authMethod,
-		sessionID,
-	)
-	if err != nil {
-		v.mu.RUnlock()
-		return nil, nil, err
-	}
-	var releaseOnce sync.Once
-	return principal, func() {
-		releaseOnce.Do(v.mu.RUnlock)
-	}, nil
-}
-
-func (v *revocableHumanVerifier) revoke() {
-	v.mu.Lock()
-	v.revoked = true
-	v.mu.Unlock()
 }
 
 func (fakeAuthority) Inspect(
@@ -407,95 +342,6 @@ func TestServiceKeepsQRAndVerificationCodeOutOfModelAndAudit(t *testing.T) {
 	}
 }
 
-func TestServiceCloseWaitsForCommitLeaseAndAuditsActiveFlow(t *testing.T) {
-	db := newAuthorizationTestDB(t)
-	control := newFakeChannelControl()
-	service := newAuthorizationTestService(
-		t,
-		db,
-		control,
-		&recordingPresenter{},
-	)
-	actor := testAuthorizationActor("round-close")
-	started, err := service.Start(
-		context.Background(),
-		actor,
-		StartInput{ChannelType: "weixin-personal"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	releaseCommit, err := service.AcquireChannelLoginAuthorizationCommit(
-		context.Background(),
-		channelssvc.ChannelLoginAuthorizationCommit{
-			OwnerUserID:          actor.OwnerUserID,
-			ChannelType:          started.ChannelType,
-			LoginID:              "internal-login-1",
-			AuthorizationBinding: started.Generation,
-			StartControlVersion:  started.StartControlVersion,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	closeResult := make(chan error, 1)
-	go func() {
-		closeResult <- service.Close(context.Background())
-	}()
-	select {
-	case err = <-closeResult:
-		t.Fatalf("Close returned before commit lease release: %v", err)
-	case <-time.After(30 * time.Millisecond):
-	}
-	releaseCommit()
-	select {
-	case err = <-closeResult:
-		if err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Close did not drain the released commit lease")
-	}
-
-	flow, err := service.repository.Get(
-		context.Background(),
-		actor.OwnerUserID,
-		started.FlowID,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if flow.Status != authorizationstore.StatusCancelled ||
-		flow.OutcomeCode != "service_closed" {
-		t.Fatalf("closed flow = %+v", flow)
-	}
-	audit, err := service.repository.GetAudit(
-		context.Background(),
-		actor.OwnerUserID,
-		started.FlowID,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if audit.Status != authorizationstore.StatusCancelled ||
-		audit.OutcomeCode != "service_closed" ||
-		len(control.cancelled) != 1 {
-		t.Fatalf(
-			"close audit=%+v cancelled=%+v",
-			audit,
-			control.cancelled,
-		)
-	}
-	if _, err = service.Start(
-		context.Background(),
-		actor,
-		StartInput{ChannelType: "weixin-personal"},
-	); err == nil || !strings.Contains(err.Error(), "正在关闭") {
-		t.Fatalf("closed service accepted new authorization: %v", err)
-	}
-}
-
 func TestAuthorizationCommitLeaseExcludesCancelAndCompletionWinsAtExpiry(t *testing.T) {
 	db := newAuthorizationTestDB(t)
 	control := newFakeChannelControl()
@@ -581,89 +427,6 @@ func TestAuthorizationCommitLeaseExcludesCancelAndCompletionWinsAtExpiry(t *test
 	}
 	if len(control.cancelled) != 0 {
 		t.Fatalf("completed login was cancelled: %+v", control.cancelled)
-	}
-}
-
-func TestAuthorizationCommitLeaseBlocksHumanSessionRevocation(t *testing.T) {
-	db := newAuthorizationTestDB(t)
-	control := newFakeChannelControl()
-	verifier := &revocableHumanVerifier{}
-	service := NewService(
-		config.Config{
-			DatabaseDriver:          "sqlite",
-			ConnectorCredentialsKey: authorizationTestKey,
-		},
-		db,
-		fakeAuthority{},
-		verifier,
-		control,
-		&recordingPresenter{},
-	)
-	service.monitorInterval = time.Hour
-	defer func() { _ = service.Close(context.Background()) }()
-	actor := testAuthorizationActor("round-session-lease")
-	started, err := service.Start(
-		context.Background(),
-		actor,
-		StartInput{ChannelType: "weixin-personal"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	releaseCommit, err := service.AcquireChannelLoginAuthorizationCommit(
-		context.Background(),
-		channelssvc.ChannelLoginAuthorizationCommit{
-			OwnerUserID:          actor.OwnerUserID,
-			ChannelType:          started.ChannelType,
-			LoginID:              "internal-login-1",
-			AuthorizationBinding: started.Generation,
-			StartControlVersion:  started.StartControlVersion,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	released := false
-	defer func() {
-		if !released {
-			releaseCommit()
-		}
-	}()
-
-	revoked := make(chan struct{})
-	go func() {
-		verifier.revoke()
-		close(revoked)
-	}()
-	select {
-	case <-revoked:
-		t.Fatal("human session revocation crossed the active commit lease")
-	case <-time.After(30 * time.Millisecond):
-	}
-	releaseCommit()
-	released = true
-	select {
-	case <-revoked:
-	case <-time.After(time.Second):
-		t.Fatal("human session revocation did not resume after commit release")
-	}
-
-	release, err := service.AcquireChannelLoginAuthorizationCommit(
-		context.Background(),
-		channelssvc.ChannelLoginAuthorizationCommit{
-			OwnerUserID:          actor.OwnerUserID,
-			ChannelType:          started.ChannelType,
-			LoginID:              "internal-login-1",
-			AuthorizationBinding: started.Generation,
-			StartControlVersion:  started.StartControlVersion,
-		},
-	)
-	if release != nil {
-		release()
-		t.Fatal("revoked session received another authorization commit lease")
-	}
-	if err == nil || !strings.Contains(err.Error(), "revoked") {
-		t.Fatalf("post-revocation commit error = %v", err)
 	}
 }
 

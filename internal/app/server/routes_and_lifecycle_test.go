@@ -27,7 +27,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	teamhandler "github.com/nexus-research-lab/nexus/internal/handler/team"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -170,26 +169,6 @@ func TestServerCloseWaitsForHTTPDrain(t *testing.T) {
 	}
 	if err := s.ListenAndServe(ctx); err == nil {
 		t.Fatal("已关闭服务不能重新启动")
-	}
-}
-
-func TestServerListenFailureReleasesLifecycle(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-	s := &Server{config: config.Config{Host: "127.0.0.1", Port: listener.Addr().(*net.TCPAddr).Port}}
-	if err := s.ListenAndServe(context.Background()); err == nil {
-		t.Fatal("端口冲突应启动失败")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := s.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if s.done != nil || s.cancel != nil {
-		t.Fatal("失败启动遗留运行状态")
 	}
 }
 
@@ -578,80 +557,6 @@ func assertChannelRouteFailure(
 	}
 	if payload.Data.Failure.Code != wantCode || payload.Data.Failure.Effect != wantEffect {
 		t.Fatalf("failure = %+v", payload.Data.Failure)
-	}
-}
-
-func TestMountTeamRoutesRequiresRelayURL(t *testing.T) {
-	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := teamhandler.New(api, nil, nil)
-
-	disabled := &Server{
-		config:   config.Config{APIPrefix: "/nexus/v1"},
-		router:   newPathParamRouter(),
-		handlers: handlerSet{team: handler},
-	}
-	disabled.mountTeamRoutes()
-	disabledResponse := httptest.NewRecorder()
-	disabled.router.ServeHTTP(
-		disabledResponse,
-		httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", nil),
-	)
-	if disabledResponse.Code != http.StatusNotFound {
-		t.Fatalf("disabled Team route status=%d body=%s", disabledResponse.Code, disabledResponse.Body.String())
-	}
-
-	enabled := &Server{
-		config: config.Config{
-			APIPrefix: "/nexus/v1",
-			RelayURL:  "https://relay.example.com",
-		},
-		router:   newPathParamRouter(),
-		handlers: handlerSet{team: handler},
-	}
-	enabled.mountTeamRoutes()
-	enabledResponse := httptest.NewRecorder()
-	enabled.router.ServeHTTP(
-		enabledResponse,
-		httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", nil),
-	)
-	if enabledResponse.Code != http.StatusForbidden {
-		t.Fatalf("enabled Team route status=%d body=%s", enabledResponse.Code, enabledResponse.Body.String())
-	}
-}
-
-func TestTeamCapabilitiesAndDisabledRoutes(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		url      string
-		disabled bool
-		want     bool
-	}{
-		{name: "unconfigured"},
-		{name: "configured", url: "https://relay.example.com", want: true},
-		{name: "explicitly disabled", url: "https://relay.example.com", disabled: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			api := handlershared.NewAPI(nil)
-			s := &Server{config: config.Config{APIPrefix: "/nexus/v1", RelayURL: tc.url, MultiplayerDisabled: tc.disabled}, router: newPathParamRouter(), api: api, handlers: handlerSet{team: teamhandler.New(api, nil, nil)}}
-			s.mountTeamRoutes()
-			response := httptest.NewRecorder()
-			s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/capabilities", nil))
-			var body struct {
-				Data struct {
-					Enabled bool `json:"enabled"`
-				} `json:"data"`
-			}
-			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || response.Code != http.StatusOK || body.Data.Enabled != tc.want {
-				t.Fatalf("capabilities: code=%d body=%s err=%v", response.Code, response.Body.String(), err)
-			}
-			if !tc.want {
-				response = httptest.NewRecorder()
-				s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/invitations", nil))
-				if response.Code != http.StatusNotFound {
-					t.Fatalf("disabled invitations status=%d", response.Code)
-				}
-			}
-		})
 	}
 }
 

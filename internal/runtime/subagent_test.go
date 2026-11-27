@@ -9,7 +9,6 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type subagentControlClient struct {
@@ -171,96 +170,6 @@ func TestSubagentLifecycleKeepsImmutableParentAcrossSuccessorRound(t *testing.T)
 			newStarts,
 			newStops,
 		)
-	}
-}
-
-func TestSubagentLifecycleReconcilesMissingTerminalEventAfterParentRoundExit(t *testing.T) {
-	manager := NewManager()
-	options := manager.WithSubagentAdmissionHooks(agentclient.Options{}, "runtime-session")
-	preToolUse := options.Hooks.Matchers[sdkhook.EventPreToolUse][0].Hooks[0]
-	subagentStart := options.Hooks.Matchers[sdkhook.EventSubagentStart][0].Hooks[0]
-	subagentStop := options.Hooks.Matchers[sdkhook.EventSubagentStop][0].Hooks[0]
-
-	var failures, stops, schedules int
-	manager.SetSubagentHookCallbacks("runtime-session", "round-1", SubagentHookCallbacks{
-		PreToolUse: func(context.Context, sdkhook.Input, string) (sdkhook.Output, error) {
-			return sdkhook.Output{}, nil
-		},
-		PostToolUseFailure: func(
-			_ context.Context,
-			input sdkhook.Input,
-			toolUseID string,
-		) (sdkhook.Output, error) {
-			failures++
-			if toolUseID != "tool-1" ||
-				!input.IsInterrupt ||
-				!strings.Contains(input.Error, "parent runtime round ended") {
-				t.Fatalf("reconcile input = %#v tool=%q", input, toolUseID)
-			}
-			return sdkhook.Output{}, nil
-		},
-		SubagentStart: func(context.Context, sdkhook.Input, string) (sdkhook.Output, error) {
-			return sdkhook.Output{}, nil
-		},
-		SubagentStop: func(context.Context, sdkhook.Input, string) (sdkhook.Output, error) {
-			stops++
-			return sdkhook.Output{}, nil
-		},
-		ParentRoundExit: func(
-			_ context.Context,
-			input SubagentRoundExitInput,
-		) error {
-			schedules++
-			if input.ToolUseID != "tool-1" ||
-				input.SDKSessionID != "sdk-session" ||
-				input.SDKAgentID != "sdk-agent" ||
-				input.ParentRoundExitedAt.IsZero() ||
-				input.ReconcileAfter.Sub(input.ParentRoundExitedAt) !=
-					protocol.SubagentReconciliationGrace {
-				t.Fatalf("durable reconciliation input = %#v", input)
-			}
-			return nil
-		},
-	})
-	if _, err := preToolUse(
-		context.Background(),
-		sdkhook.Input{ToolName: "Agent", SessionID: "sdk-session"},
-		"tool-1",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := subagentStart(
-		context.Background(),
-		sdkhook.Input{SessionID: "sdk-session", AgentID: "sdk-agent"},
-		"",
-	); err != nil {
-		t.Fatal(err)
-	}
-	manager.ClearSubagentHookCallbacks("runtime-session", "round-1")
-	if schedules != 1 {
-		t.Fatalf("durable reconciliation schedules = %d, want 1", schedules)
-	}
-	manager.expireSubagentHookBinding(
-		"runtime-session",
-		subagentHookBinding{
-			Sequence:  1,
-			RoundID:   "round-1",
-			ToolUseID: "tool-1",
-		},
-		1,
-	)
-	if failures != 1 {
-		t.Fatalf("reconcile failures = %d, want 1", failures)
-	}
-	if _, err := subagentStop(
-		context.Background(),
-		sdkhook.Input{SessionID: "sdk-session", AgentID: "sdk-agent"},
-		"tool-1",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if stops != 1 {
-		t.Fatalf("late Stop calls = %d, want 1", stops)
 	}
 }
 

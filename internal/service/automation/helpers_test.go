@@ -69,12 +69,6 @@ func (f *fakeDMRunner) AppendMainWindowTask(_ context.Context, agentID string, t
 	return "agent:" + agentID + ":ws:dm:conv_main", nil
 }
 
-func (f *fakeDMRunner) mainTaskSnapshot() []dmsvc.MainWindowTask {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]dmsvc.MainWindowTask(nil), f.mainTasks...)
-}
-
 func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) error {
 	f.mu.Lock()
 	requestIndex := len(f.requests)

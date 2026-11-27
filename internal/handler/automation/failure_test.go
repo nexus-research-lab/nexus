@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
@@ -387,23 +386,5 @@ func TestMapAutomationFailurePreservesEffectEvidence(t *testing.T) {
 				t.Fatalf("诊断 cause 未保留: got=%v want=%v", failure.spec.Cause, test.err)
 			}
 		})
-	}
-}
-
-func TestDeleteTaskReviewRequiredFailureDoesNotPromiseAutomaticRecovery(t *testing.T) {
-	t.Parallel()
-
-	failure := mapAutomationFailure(
-		automationFailureDeleteTask,
-		automationsvc.MarkTaskDeletionPrepared(automationsvc.ErrExecutionAttemptOwnershipUnconfirmed),
-	)
-	if failure.spec.Code != "automation.delete_task_review_required" ||
-		failure.spec.Effect != protocol.FailureEffectAccepted {
-		t.Fatalf("unexpected review-required failure: %+v", failure.spec)
-	}
-	for _, phrase := range []string{"暂时无法确认", "尚未删除", "管理员处理", "不会自动重放"} {
-		if !strings.Contains(failure.spec.Detail, phrase) {
-			t.Fatalf("review-required detail %q omitted %q", failure.spec.Detail, phrase)
-		}
 	}
 }

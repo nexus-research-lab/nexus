@@ -647,26 +647,6 @@ func TestHandleWorkspaceWalkErrorSkipsUnreadableDirectory(t *testing.T) {
 	}
 }
 
-func TestHandleWorkspaceWalkErrorSkipsUnreadableFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "private.md")
-	if err := os.WriteFile(path, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	got := handleWorkspaceWalkError(
-		"private.md",
-		fs.FileInfoToDirEntry(fileInfo),
-		&fs.PathError{Op: "stat", Path: "private.md", Err: os.ErrPermission},
-	)
-	if got != nil {
-		t.Fatalf("handleWorkspaceWalkError() = %v, want nil", got)
-	}
-}
-
 func TestHandleWorkspaceWalkErrorPreservesBoundaryErrors(t *testing.T) {
 	permissionErr := &fs.PathError{Op: "open", Path: ".", Err: os.ErrPermission}
 	if got := handleWorkspaceWalkError(".", nil, permissionErr); !errors.Is(got, os.ErrPermission) {

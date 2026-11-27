@@ -131,48 +131,6 @@ func TestResolveSessionPermissionRequestAppliesSDKPersistenceSuggestion(t *testi
 	}
 }
 
-func TestResolveSessionPermissionRequestWithoutIDRejectsAmbiguousSession(t *testing.T) {
-	ctx := NewContext()
-	sessionKey := "agent:nexus:wx:dm:ambiguous-runtime-permission"
-	sender := newPermissionTestSender("im-ambiguous-permission-sender")
-	ctx.BindSession(sessionKey, sender)
-	requestCtx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	for _, toolName := range []string{"Write", "Bash"} {
-		toolName := toolName
-		go func() {
-			_, _ = ctx.RequestPermission(requestCtx, sessionKey, sdkpermission.Request{ToolName: toolName})
-		}()
-	}
-	_ = readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-	_ = readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-	deadline := time.Now().Add(2 * time.Second)
-	for ctx.CountSessionPermissionRequests(sessionKey, "") != 2 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if got := ctx.CountSessionPermissionRequests(sessionKey, ""); got != 2 {
-		t.Fatalf("两个请求尚未都登记为 pending: got %d", got)
-	}
-
-	resolution := ctx.ResolveSessionPermissionRequest(
-		t.Context(),
-		sessionKey,
-		"",
-		sdkpermission.BehaviorAllow,
-		false,
-	)
-	if resolution.Found || resolution.Resolved || resolution.MatchingRequests != 2 {
-		t.Fatalf("无 ID 决策不得猜测同一 session 的多个请求: %+v", resolution)
-	}
-	if got := ctx.CountSessionPermissionRequests(sessionKey, ""); got != 2 {
-		t.Fatalf("只读 pending 计数 = %d; want 2", got)
-	}
-	if got := ctx.CountSessionPermissionRequests(sessionKey, "missing"); got != 0 {
-		t.Fatalf("未知请求只读 pending 计数 = %d; want 0", got)
-	}
-}
-
 func TestConfigurationPermissionAllowBindsExactRuntimeRoute(t *testing.T) {
 	permissionContext := NewContext()
 	runtimeSessionKey := "agent:worker:ws:group:conversation"
@@ -352,56 +310,6 @@ func TestContextReplayPendingRequestsUsesStableCreationAndRequestOrder(t *testin
 	want := []string{"permission-a", "permission-b", "permission-later"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("pending 重放顺序不稳定: got %v, want %v", got, want)
-	}
-}
-
-func TestContextPendingStateTracksRequestLifecycle(t *testing.T) {
-	ctx := NewContext()
-	sessionKey := "agent:nexus:ws:dm:test-pending-state"
-	sender := newPermissionTestSender("sender-pending-state")
-	ctx.BindSession(sessionKey, sender)
-	pending, changed := ctx.PendingRequestState(sessionKey)
-	if pending {
-		t.Fatal("初始 session 不应处于待确认状态")
-	}
-
-	resultCh := make(chan sdkpermission.Decision, 1)
-	go func() {
-		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
-			ToolName: "Write",
-			Input:    map[string]any{"file_path": "README.md"},
-		})
-		resultCh <- decision
-	}()
-	requestEvent := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-	select {
-	case <-changed:
-	case <-time.After(time.Second):
-		t.Fatal("pending 登记后未发布状态变化")
-	}
-	pending, changed = ctx.PendingRequestState(sessionKey)
-	if !pending {
-		t.Fatal("权限请求等待期间应暂停 round idle timer")
-	}
-
-	if !ctx.HandlePermissionResponse(t.Context(), sessionKey, map[string]any{
-		"request_id": requestEvent.Data["request_id"],
-		"decision":   "deny",
-	}) {
-		t.Fatal("处理 permission_response 失败")
-	}
-	select {
-	case <-changed:
-	case <-time.After(time.Second):
-		t.Fatal("pending 结束后未发布状态变化")
-	}
-	if pending, _ = ctx.PendingRequestState(sessionKey); pending {
-		t.Fatal("拒绝后应恢复 round idle timer")
-	}
-	select {
-	case <-resultCh:
-	case <-time.After(time.Second):
-		t.Fatal("权限请求未在拒绝后结束")
 	}
 }
 

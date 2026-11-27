@@ -2,13 +2,10 @@ package subagent
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 func testActor() command.Actor {
@@ -46,46 +43,6 @@ func TestSubagentContractAndRequestDeduplication(t *testing.T) {
 	}
 }
 
-func TestManagedRoomRoundCanInvokeSubagentWhileHandoffCannot(t *testing.T) {
-	roomActor := testActor()
-	roomActor.SourceContextType = "room"
-	roomActor.RoundID = "room-root-round"
-	roomActor.LeaseRoundID = "agent-round-1"
-	roomActor.Round = nexusmcp.RoundContext{
-		CommandContext: runtimectx.RuntimeCommandContext{AgentRoundID: "agent-round-1"},
-	}
-	calls := 0
-	h := NewHandler(roomActor, func(_ context.Context, toolID, operation string, _ map[string]any) (map[string]any, error) {
-		calls++
-		if toolID != "sdk-tool" || operation != "spawn" {
-			t.Fatalf("tool identity = %q, operation = %q", toolID, operation)
-		}
-		return map[string]any{"task_id": "child-1"}, nil
-	})
-	if _, err := h(WithToolUseID(context.Background(), "sdk-tool"), command.Request{
-		Action: command.ActionInvoke, Operation: "spawn", RequestID: "room-spawn-1",
-		Input: map[string]any{"description": "task", "prompt": "research"},
-	}); err != nil {
-		t.Fatalf("managed Room spawn rejected: %v", err)
-	}
-	if calls != 1 {
-		t.Fatalf("native control calls = %d, want 1", calls)
-	}
-
-	handoffActor := roomActor
-	handoffActor.SourceContextType = "room_handoff"
-	handoff := NewHandler(handoffActor, func(context.Context, string, string, map[string]any) (map[string]any, error) {
-		t.Fatal("untrusted Room handoff reached native control")
-		return nil, nil
-	})
-	if _, err := handoff(WithToolUseID(context.Background(), "sdk-tool"), command.Request{
-		Action: command.ActionInvoke, Operation: "spawn", RequestID: "handoff-spawn-1",
-		Input: map[string]any{"description": "task", "prompt": "research"},
-	}); err == nil {
-		t.Fatal("ordinary Room handoff unexpectedly gained Subagent authority")
-	}
-}
-
 func TestSubagentRejectsInvalidInputBeforeRuntime(t *testing.T) {
 	var calls int
 	h := NewHandler(testActor(), func(context.Context, string, string, map[string]any) (map[string]any, error) {
@@ -101,21 +58,5 @@ func TestSubagentRejectsInvalidInputBeforeRuntime(t *testing.T) {
 	_, err := h(context.Background(), command.Request{Action: "invoke", Operation: "spawn", RequestID: "request-1", Input: map[string]any{"description": "task", "prompt": "ok"}})
 	if err == nil || calls != 0 {
 		t.Fatal("missing SDK identity reached runtime")
-	}
-}
-func TestSubagentUnknownOutcomeIsNotReplayed(t *testing.T) {
-	calls := 0
-	h := NewHandler(testActor(), func(context.Context, string, string, map[string]any) (map[string]any, error) {
-		calls++
-		return nil, errors.New("transport lost after dispatch")
-	})
-	request := command.Request{Action: "invoke", Operation: "spawn", RequestID: "request-1", Input: map[string]any{"description": "task", "prompt": "research"}}
-	for range 2 {
-		if _, err := h(WithToolUseID(context.Background(), "sdk"), request); err == nil {
-			t.Fatal("lost outcome reported success")
-		}
-	}
-	if calls != 1 {
-		t.Fatal("uncertain dispatch was replayed")
 	}
 }

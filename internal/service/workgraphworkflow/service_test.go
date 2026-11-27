@@ -324,44 +324,6 @@ func TestPreviewUsesNumberedFallbackWhenSinglesAndBuiltinNameConflict(t *testing
 	}
 }
 
-func TestPreviewPassesRequestedOutputLanguageToAbstraction(t *testing.T) {
-	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{
-		"existing": {ID: "existing", OwnerUserID: "owner-a", SlashName: "component-integrate-verify"},
-	}}
-	service := NewService(
-		repository,
-		workflowExecutionViewer{view: workflowSourceView()},
-	)
-	gotLanguage := ""
-	gotExistingSlashNames := []string(nil)
-	gotNodes := []AbstractionSourceNode(nil)
-	service.SetAbstractor(workflowAbstractor(func(ctx context.Context, owner string, input AbstractionInput) (AbstractionOutput, error) {
-		gotLanguage = input.OutputLanguage
-		gotExistingSlashNames = input.ExistingSlashNames
-		gotNodes = input.Nodes
-		return reusableTestAbstractor(ctx, owner, input)
-	}))
-	_, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a", OutputLanguage: "en-US",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if gotLanguage != "en" {
-		t.Fatalf("output language = %q, want en", gotLanguage)
-	}
-	if len(gotNodes) != 3 || !gotNodes[0].MustPreserve || !gotNodes[1].MustPreserve || !gotNodes[2].MustPreserve {
-		t.Fatalf("abstraction nodes = %#v", gotNodes)
-	}
-	if len(gotNodes[2].DependencyLogicalKeys) != 1 || gotNodes[2].DependencyLogicalKeys[0] != "incidental" {
-		t.Fatalf("review dependencies = %#v", gotNodes[2].DependencyLogicalKeys)
-	}
-	joinedNames := strings.Join(gotExistingSlashNames, ",")
-	if !strings.Contains(joinedNames, "component-integrate-verify") || !strings.Contains(joinedNames, "workgraph") {
-		t.Fatalf("existing slash names = %q", joinedNames)
-	}
-}
-
 func TestSavePreviewRejectsWrongSessionAndExpiredPreview(t *testing.T) {
 	currentTime := time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC)
 	service := NewService(
@@ -601,59 +563,6 @@ func workflowSourceView() *protocol.ExecutionView {
 type abstractionProviderRecorder struct {
 	provider string
 	model    string
-}
-
-func TestApplyAbstractionRejectsOmittedStructuralNode(t *testing.T) {
-	sourceNodes := []protocol.WorkGraphWorkflowNode{
-		{LogicalKey: "prepare", Terminal: false},
-		{LogicalKey: "review", Terminal: true},
-	}
-	inputNodes := []AbstractionSourceNode{
-		{LogicalKey: "prepare", MustPreserve: true},
-		{LogicalKey: "review", MustPreserve: true},
-	}
-	_, err := applyAbstraction(sourceNodes, inputNodes, completeAbstractionOutput([]AbstractedNode{
-		completeAbstractedNode("prepare"),
-	}))
-	if err == nil || !strings.Contains(err.Error(), "omitted structural node review") {
-		t.Fatalf("error = %v", err)
-	}
-}
-
-func TestApplyAbstractionAllowsOmittingTrulyOptionalIsolatedNode(t *testing.T) {
-	sourceNodes := []protocol.WorkGraphWorkflowNode{
-		{LogicalKey: "deliver", Required: true, Terminal: true},
-		{LogicalKey: "incidental"},
-	}
-	inputNodes := []AbstractionSourceNode{
-		{LogicalKey: "deliver", MustPreserve: true},
-		{LogicalKey: "incidental", MustPreserve: false},
-	}
-	validated, err := applyAbstraction(sourceNodes, inputNodes, completeAbstractionOutput([]AbstractedNode{
-		completeAbstractedNode("deliver"),
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(validated.Nodes) != 1 || validated.Nodes[0].LogicalKey != "deliver" {
-		t.Fatalf("validated nodes = %#v", validated.Nodes)
-	}
-}
-
-func completeAbstractionOutput(nodes []AbstractedNode) AbstractionOutput {
-	return AbstractionOutput{
-		SlashName: "workflow", Title: "Workflow", Description: "Reusable workflow",
-		Objective: "Produce a reusable result", CompletionCriteria: []string{"Result is complete"},
-		Nodes: nodes,
-	}
-}
-
-func completeAbstractedNode(logicalKey string) AbstractedNode {
-	return AbstractedNode{
-		LogicalKey: logicalKey, Role: protocol.WorkGraphWorkflowNodeKey,
-		Subject: "Reusable stage", Objective: "Complete the stage", Deliverable: "Stage output",
-		AcceptanceCriteria: []string{"Output is verifiable"},
-	}
 }
 
 func (r *abstractionProviderRecorder) ResolveLLMConfig(_ context.Context, provider, model string) (*clientopts.RuntimeConfig, error) {

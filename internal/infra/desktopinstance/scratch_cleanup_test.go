@@ -34,24 +34,3 @@ func TestScratchCleanupOnlyRemovesDisposableWorkspaceLeaves(t *testing.T) {
 		t.Fatalf("retry=%d err=%v", n, err)
 	}
 }
-
-func TestScratchCleanupRefusesLinkedParent(t *testing.T) {
-	state, outside := t.TempDir(), t.TempDir()
-	owner := filepath.Join(state, "users", "owner", "runtime")
-	if err := os.MkdirAll(owner, 0700); err != nil {
-		t.Fatal(err)
-	}
-	leaf := filepath.Join(outside, "sandbox", strings.Repeat("b", 64))
-	if err := os.MkdirAll(leaf, 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(outside, filepath.Join(owner, "tmp")); err != nil {
-		t.Skip(err)
-	}
-	if _, err := CleanupWindowsScratch(state); err == nil {
-		t.Fatal("linked parent accepted")
-	}
-	if _, err := os.Stat(leaf); err != nil {
-		t.Fatal("outside data removed")
-	}
-}

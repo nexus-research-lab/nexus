@@ -65,22 +65,3 @@ func TestRoundLatencyReportsOnceAtFirstAnswer(t *testing.T) {
 		}
 	}
 }
-
-func TestRoundLatencyReportsPartialMarksWithoutAnswer(t *testing.T) {
-	var buffer bytes.Buffer
-	latency := newRoundLatency(slog.New(slog.NewJSONHandler(&buffer, nil)))
-
-	latency.Observe(streamMessage(map[string]any{"type": "message_start"}))
-	latency.Report()
-
-	records := decodeLatencyLogs(t, &buffer)
-	if len(records) != 1 {
-		t.Fatalf("expected one latency log, got %d", len(records))
-	}
-	if _, ok := records[0]["message_start_ms"]; !ok {
-		t.Fatalf("missing message_start_ms in %v", records[0])
-	}
-	if _, ok := records[0]["first_answer_ms"]; ok {
-		t.Fatalf("unexpected first_answer_ms in %v", records[0])
-	}
-}

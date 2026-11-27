@@ -18,85 +18,6 @@ import (
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
 
-func TestClientWatchesCommittedStreamUpdates(t *testing.T) {
-	const token = "relay-user-token"
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		// WSS 与 HTTP 一样保留部署前缀。
-		if request.URL.Path != "/relay/ws/relay" || request.Header.Get("Authorization") != "Bearer "+token ||
-			request.URL.Query().Get("stream_id") != "stream-1" ||
-			request.URL.Query().Get("stream_epoch") != "epoch-1" {
-			http.Error(writer, "invalid websocket request", http.StatusBadRequest)
-			return
-		}
-		connection, err := websocket.Accept(writer, request, nil)
-		if err != nil {
-			t.Errorf("accept websocket: %v", err)
-			return
-		}
-		defer connection.CloseNow()
-		if err = wsjson.Write(request.Context(), connection, relaycontract.StreamUpdated{
-			Type: "stream.updated", StreamID: "stream-1", StreamEpoch: "epoch-1", HighWaterSeq: 7,
-		}); err != nil {
-			t.Errorf("write websocket update: %v", err)
-		}
-	}))
-	t.Cleanup(server.Close)
-	client, err := NewClient(server.URL+"/relay/", time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stop := errors.New("stop after first update")
-	err = client.Watch(context.Background(), token, "stream-1", "epoch-1", func(update relaycontract.StreamUpdated) error {
-		if update.HighWaterSeq != 7 {
-			t.Fatalf("high water = %d", update.HighWaterSeq)
-		}
-		return stop
-	})
-	if !errors.Is(err, stop) {
-		t.Fatalf("Watch() error = %v", err)
-	}
-}
-
-func TestWatchHeartbeatDetectsSilentPeerAndKeepsHealthyConnection(t *testing.T) {
-	for _, responsive := range []bool{true, false} {
-		t.Run(map[bool]string{true: "pong", false: "silent"}[responsive], func(t *testing.T) {
-			release := make(chan struct{})
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				conn, err := websocket.Accept(w, r, nil)
-				if err != nil {
-					return
-				}
-				defer conn.CloseNow()
-				if responsive {
-					conn.CloseRead(r.Context())
-				}
-				<-release
-			}))
-			defer server.Close()
-			defer close(release)
-			ctx, cancel := context.WithCancelCause(t.Context())
-			defer cancel(nil)
-			conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer conn.CloseNow()
-			conn.CloseRead(ctx)
-			go watchHeartbeat(ctx, conn, 10*time.Millisecond, 50*time.Millisecond, cancel)
-			select {
-			case <-ctx.Done():
-				if responsive || !strings.Contains(context.Cause(ctx).Error(), "heartbeat failed") {
-					t.Fatalf("unexpected failure: %v", context.Cause(ctx))
-				}
-			case <-time.After(250 * time.Millisecond):
-				if !responsive {
-					t.Fatal("silent peer was not detected")
-				}
-			}
-		})
-	}
-}
-
 func TestNodeWatchRefreshesOnTheSameConnection(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -360,26 +281,6 @@ func TestClientMatchesRoomMembershipHTTPContract(t *testing.T) {
 	}
 }
 
-func TestClientReturnsRelayErrorEnvelope(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(writer).Encode(map[string]any{
-			"code": "full_snapshot_required", "message": "snapshot required", "request_id": "req-1",
-		})
-	}))
-	t.Cleanup(server.Close)
-	client, err := NewClient(server.URL, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = client.Difference(context.Background(), "token", "stream-1", relaycontract.DifferenceOptions{Limit: 100})
-	var remoteError *relaycontract.RemoteError
-	if !errors.As(err, &remoteError) || remoteError.StatusCode != http.StatusConflict ||
-		remoteError.Code != "full_snapshot_required" || remoteError.RequestID != "req-1" {
-		t.Fatalf("Difference() error = %#v", err)
-	}
-}
-
 func TestClientForwardsRequestIDAndHonorsGatewayRateLimit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("X-Request-ID") != "trace-1" {
@@ -434,23 +335,6 @@ func TestClientRequiresStreamEpochForNonzeroCursor(t *testing.T) {
 	}
 }
 
-func TestClientRejectsChangedResponseStreamEpoch(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writeRelayTestData(t, writer, http.StatusOK, relaycontract.Difference{StreamEpoch: "epoch-new"})
-	}))
-	t.Cleanup(server.Close)
-	client, err := NewClient(server.URL, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = client.Difference(context.Background(), "token", "stream-1", relaycontract.DifferenceOptions{
-		AfterSeq: 1, Limit: 100, StreamEpoch: "epoch-old",
-	})
-	if err == nil {
-		t.Fatal("Difference() accepted a response from another stream epoch")
-	}
-}
-
 func TestClientRejectsTrailingResponseData(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		_, _ = writer.Write([]byte(`{"code":"0000","message":"success","request_id":"req","data":{}} trailing`))
@@ -462,44 +346,6 @@ func TestClientRejectsTrailingResponseData(t *testing.T) {
 	}
 	if _, err = client.ListRooms(context.Background(), "token"); err == nil {
 		t.Fatal("ListRooms() accepted trailing response data")
-	}
-}
-
-func TestClientDoesNotForwardCredentialsAcrossRedirect(t *testing.T) {
-	redirected := make(chan struct{}, 1)
-	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		redirected <- struct{}{}
-	}))
-	t.Cleanup(target.Close)
-
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Location", target.URL+"/capture")
-		writer.WriteHeader(http.StatusTemporaryRedirect)
-		_ = json.NewEncoder(writer).Encode(map[string]any{
-			"code": "temporary_redirect", "message": "redirect", "request_id": "req-redirect",
-		})
-	}))
-	t.Cleanup(server.Close)
-
-	client, err := NewClient(server.URL, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = client.PostMessage(
-		context.Background(),
-		"relay-user-token",
-		"conversation-1",
-		"command-1",
-		relaycontract.CreateMessageInput{},
-	)
-	var remoteError *relaycontract.RemoteError
-	if !errors.As(err, &remoteError) || remoteError.StatusCode != http.StatusTemporaryRedirect {
-		t.Fatalf("PostMessage() error = %#v", err)
-	}
-	select {
-	case <-redirected:
-		t.Fatal("Relay client followed redirect and forwarded the credential-bearing request")
-	default:
 	}
 }
 

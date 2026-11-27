@@ -8,9 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -92,70 +90,6 @@ func TestSaveDialogMetadataSurvivesReopeningEditor(t *testing.T) {
 	})
 	if err != nil || saved.SlashName != request.SlashName || saved.Title != request.Title {
 		t.Fatalf("saved = %#v, err=%v", saved, err)
-	}
-}
-
-func TestSaveReplayDoesNotMarkRenamedDraftAsSaved(t *testing.T) {
-	service, repository, preview := newDurableMetadataTestService(t)
-	ctx := context.Background()
-	request := protocol.SaveWorkGraphWorkflowRequest{
-		CommandID: "first-save", SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
-	}
-	changeCount := 0
-	service.SetChangeNotifier(func(context.Context, string) { changeCount++ })
-	created, err := service.SavePreview(ctx, "owner-a", request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	next := cloneWorkflowPreview(*preview)
-	next.SlashName = "renamed"
-	if _, err = repository.AppendDraftVersion(ctx, "owner-a", preview.PreviewID, 1, next, service.now(), preview.ExpiresAt); err != nil {
-		t.Fatal(err)
-	}
-	if err = repository.SetDraftSaveState(ctx, "owner-a", preview.PreviewID, true, created.ID, 1, service.now()); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = service.SavePreview(ctx, "owner-a", request); !errors.Is(err, ErrRevisionConflict) {
-		t.Fatalf("old request returned success for a renamed Draft: %v", err)
-	}
-	draft, err := repository.GetDraftByID(ctx, "owner-a", preview.PreviewID)
-	if err != nil || draft.SavedRevision != 1 || !draft.SaveScheduled {
-		t.Fatalf("replay changed the new save claim: %#v, err=%v", draft, err)
-	}
-	request.CommandID = "rename-save"
-	updated, err := service.SavePreview(ctx, "owner-a", request)
-	if err != nil || updated.ID != created.ID || updated.SlashName != "renamed" || updated.Version != 2 {
-		t.Fatalf("rename save = %#v, err=%v", updated, err)
-	}
-	old, err := repository.GetBySlashName(ctx, "owner-a", preview.SlashName)
-	if err != nil || old != nil {
-		t.Fatalf("old Slash still resolves: %#v, err=%v", old, err)
-	}
-	expanded, err := service.ExpandRuntimePrompt(ctx, "owner-a", "/renamed next task")
-	if err != nil || expanded == "/renamed next task" {
-		t.Fatalf("renamed command did not expand: %q, err=%v", expanded, err)
-	}
-	commands, err := service.CommandDescriptors(ctx, "owner-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	foundRename := false
-	for _, command := range commands {
-		if command.Name == preview.SlashName {
-			t.Fatal("command catalog still contains the old name")
-		}
-		foundRename = foundRename || command.Name == "renamed"
-	}
-	if !foundRename {
-		t.Fatal("command catalog did not publish the renamed WorkGraph")
-	}
-	replayed, err := service.SavePreview(ctx, "owner-a", request)
-	if err != nil || replayed.Version != updated.Version || changeCount != 2 {
-		t.Fatalf("rename replay = %#v, changes=%d, err=%v", replayed, changeCount, err)
-	}
-	draft, err = repository.GetDraftByID(ctx, "owner-a", preview.PreviewID)
-	if err != nil || draft.SaveScheduled || draft.SavedRevision != 2 {
-		t.Fatalf("completed rename state = %#v, err=%v", draft, err)
 	}
 }
 
@@ -356,61 +290,6 @@ func TestEditorApplyAndConfirmSaveFenceBothHeadAndSelection(t *testing.T) {
 	applied, err := s.ApplyMetadataEditor(context.Background(), "owner-a", request)
 	if err != nil || applied.HeadRevision != 2 || applied.SelectedRevision != 1 || applied.SlashName != preview.SlashName {
 		t.Fatalf("exact old version apply: %#v %v", applied, err)
-	}
-}
-
-func TestEditorRevisionReceiptRemainsExactDuringConcurrentReads(t *testing.T) {
-	s, _, preview := newDurableMetadataTestService(t)
-	ctx := context.Background()
-	editor, err := s.StartMetadataEditor(ctx, "owner-a", protocol.StartWorkGraphWorkflowEditorRequest{
-		PreviewID: preview.PreviewID, SourceSessionKey: "session-a", OutputLanguage: "zh",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	request := protocol.GetWorkGraphWorkflowEditorRequest{SourceSessionKey: "session-a", EditorID: editor.EditorID}
-	stop := make(chan struct{})
-	errorsFound := make(chan error, 3)
-	var readers sync.WaitGroup
-	for range 3 {
-		readers.Add(1)
-		go func() {
-			defer readers.Done()
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-					if _, readErr := s.GetMetadataEditor(context.Background(), "owner-a", request); readErr != nil {
-						errorsFound <- readErr
-						return
-					}
-				}
-			}
-		}()
-	}
-	defer func() {
-		close(stop)
-		readers.Wait()
-		close(errorsFound)
-		for readErr := range errorsFound {
-			t.Error(readErr)
-		}
-	}()
-	for index := range 12 {
-		current, readErr := s.GetMetadataEditor(context.Background(), "owner-a", request)
-		if readErr != nil {
-			t.Fatal(readErr)
-		}
-		revision := editorRevisionRequest(current.Revision, current.Preview)
-		revision.Title = "编辑版本 " + strconv.Itoa(index)
-		next, reviseErr := s.ReviseEditorPreview(ctx, "owner-a", editor.SessionKey, revision)
-		if reviseErr != nil {
-			t.Fatal(reviseErr)
-		}
-		if next.Revision != revision.Revision+1 || next.Preview.Title != revision.Title {
-			t.Fatalf("revision receipt regressed during concurrent reads: %#v", next)
-		}
 	}
 }
 

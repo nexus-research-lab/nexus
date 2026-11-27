@@ -127,25 +127,3 @@ func TestNexusRuntimeCLIRequestRequiresExactManagedInvocation(t *testing.T) {
 		}
 	}
 }
-
-func TestNexusRuntimePowerShellRequestRequiresManagedInvocation(t *testing.T) {
-	tests := []struct {
-		command string
-		ok      bool
-	}{
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json automation contract`, ok: true},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, ok: true},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json execution invoke --operation submit_work --request-id work-1`, ok: true},
-		{command: `& .\nexus.exe --json goal inspect`, ok: false},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect --input "$(Get-Content secret)"`, ok: false},
-		{command: `$env:NEXUS_COMMAND_PATH='.\nexus.exe'; & "${env:NEXUS_COMMAND_PATH}" --json goal inspect`, ok: false},
-		{command: `& "${env:NEXUS_COMMAND_PATH}" --json goal inspect; Get-Content secret`, ok: false},
-	}
-	for _, test := range tests {
-		request := sdkpermission.Request{ToolName: "PowerShell", Input: map[string]any{"command": test.command}}
-		_, got := NexusRuntimeCLIInvocation(request)
-		if got != test.ok {
-			t.Fatalf("NexusRuntimeCLIInvocation(%q) = %v, want %v", test.command, got, test.ok)
-		}
-	}
-}

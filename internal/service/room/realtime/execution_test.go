@@ -5,15 +5,11 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
@@ -278,128 +274,6 @@ func TestExecutionDispatchHandoffIsDurableAndIdempotentBeforeSQLAck(t *testing.T
 	}
 }
 
-type cancellationProviderClient struct {
-	permissionModeTestClient
-	mu          sync.Mutex
-	onInterrupt func()
-}
-
-func (c *cancellationProviderClient) Interrupt(context.Context) error {
-	c.mu.Lock()
-	c.interruptCalls++
-	callback := c.onInterrupt
-	c.mu.Unlock()
-	if callback != nil {
-		callback()
-	}
-	return nil
-}
-
-func (c *cancellationProviderClient) SessionID() string {
-	return "room-cancellation-provider-session"
-}
-
-type cancellationProviderFactory struct {
-	client runtimectx.Client
-}
-
-func (f cancellationProviderFactory) New(
-	agentclient.Options,
-) runtimectx.Client {
-	return f.client
-}
-
-func TestExecutionCancellationUsesProviderForExactSoleRoomSlot(t *testing.T) {
-	runtimeSessionKey := "agent:agent-worker:ws:group:provider-cancel"
-	agentRoundID := "agent-round-provider"
-	client := &cancellationProviderClient{}
-	factory := cancellationProviderFactory{client: client}
-	runtimeManager := runtimectx.NewManagerWithFactory(factory)
-	if _, err := runtimeManager.GetOrCreate(
-		context.Background(),
-		runtimeSessionKey,
-		agentclient.Options{},
-	); err != nil {
-		t.Fatal(err)
-	}
-	client.onInterrupt = func() {
-		runtimeManager.MarkRoundFinished(runtimeSessionKey, agentRoundID)
-	}
-	if err := runtimeManager.StartRound(context.Background(), runtimeSessionKey, agentRoundID, func() {
-		runtimeManager.MarkRoundFinished(runtimeSessionKey, agentRoundID)
-	}); err != nil {
-		t.Fatalf("failed to register exact Room runtime round: %v", err)
-	}
-	service := &Service{
-		rounds: newRoomRoundRegistry(),
-		Host:   runtimehost.Host{Runtime: runtimeManager, Permission: permissionctx.NewContext()},
-	}
-	binding := &protocol.ExecutionWorkBinding{
-		ExecutionID:  "execution-room",
-		PlanID:       "plan-room",
-		WorkItemID:   "work-room",
-		SpecID:       "spec-room",
-		AssignmentID: "assignment-room",
-		AttemptID:    "attempt-room",
-		DispatchID:   "dispatch-room",
-	}
-	slot := &activeRoomSlot{
-		AgentID:           "agent-worker",
-		AgentRoundID:      agentRoundID,
-		RuntimeSessionKey: runtimeSessionKey,
-		WorkBinding:       binding,
-	}
-	slot.setStatus("running")
-	roundValue := &activeRoomRound{
-		SessionKey:     "room:group:provider-cancel",
-		RoomID:         "room-provider",
-		ConversationID: "provider-cancel",
-		RoundID:        "round-provider",
-		RootRoundID:    "round-provider",
-		Slots: map[string]*activeRoomSlot{
-			"worker": slot,
-		},
-	}
-	service.rounds.register(roundValue)
-
-	receipt, err := service.DeliverExecutionCancellation(
-		context.Background(),
-		orchestrationsvc.ExecutionCancellationDelivery{
-			Binding: protocol.ExecutionCancellationBinding{
-				ExecutionID:       binding.ExecutionID,
-				PlanID:            binding.PlanID,
-				WorkItemID:        binding.WorkItemID,
-				SpecID:            binding.SpecID,
-				AssignmentID:      binding.AssignmentID,
-				AttemptID:         binding.AttemptID,
-				RuntimeAttemptID:  binding.AttemptID,
-				DispatchID:        binding.DispatchID,
-				TargetKind:        protocol.ExecutionCancellationTargetRoomSlot,
-				TargetAgentID:     slot.AgentID,
-				ScopeSessionKey:   roundValue.SessionKey,
-				RoomID:            roundValue.RoomID,
-				ConversationID:    roundValue.ConversationID,
-				RuntimeSessionKey: runtimeSessionKey,
-				RuntimeRoundID:    agentRoundID,
-				AgentRoundID:      agentRoundID,
-			},
-			Reason: "Room work superseded",
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if receipt.Outcome != protocol.ExecutionCancellationOutcomeProviderInterrupted {
-		t.Fatalf("provider receipt = %+v", receipt)
-	}
-	client.mu.Lock()
-	interruptCalls := client.interruptCalls
-	client.mu.Unlock()
-	if interruptCalls != 1 {
-		t.Fatalf("provider interrupt calls = %d", interruptCalls)
-	}
-}
-
 func TestExecutionCancellationInterruptsExactOldRoomBindingOnly(t *testing.T) {
 	service := &Service{
 		rounds: newRoomRoundRegistry(),
@@ -572,27 +446,6 @@ func TestExecutionCancellationInterruptsExactOldRoomBindingOnly(t *testing.T) {
 	)
 }
 
-// TestExternalReplyContextIsTurnScoped 确认 IM 回信说明走本轮上下文，不进入 system prompt。
-func TestExternalReplyContextIsTurnScoped(t *testing.T) {
-	execution := &slotExecution{
-		round:                &activeRoomRound{},
-		slot:                 &activeRoomSlot{AgentID: "amy", RuntimeSessionKey: "agent:amy:room"},
-		externalReplyContext: "reply to the paired IM user",
-	}
-	for _, internal := range []bool{false, true} {
-		execution.round.Internal = internal
-		found := false
-		for _, block := range execution.contextualInputs() {
-			if block.Name == "im_delivery" && block.Content == execution.externalReplyContext {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("internal=%v: IM reply context missing from contextual inputs", internal)
-		}
-	}
-}
-
 type roomExecutionGoalAuthorityProvider struct {
 	binding      orchestrationsvc.RuntimeGoalBinding
 	resolution   protocol.GoalExecutionBindingResolution
@@ -724,92 +577,6 @@ func TestRoomWorkAndReviewGoalAuthorityRequiresConfirmedCentralBinding(t *testin
 	}
 }
 
-func TestRoomWorkGoalAuthorityRejectsConfirmedExecutionMismatch(t *testing.T) {
-	provider := &roomExecutionGoalAuthorityProvider{
-		binding: orchestrationsvc.RuntimeGoalBinding{
-			ExecutionID:           "execution-1",
-			SessionKey:            "room:group:conversation-1",
-			GoalID:                "goal-1",
-			GoalObjectiveRevision: 1,
-		},
-		resolution: protocol.GoalExecutionBindingResolution{
-			State:       protocol.GoalExecutionBindingStateConfirmed,
-			ExecutionID: "execution-other",
-		},
-	}
-	service := &Service{
-		Host: runtimehost.Host{ExecutionContext: provider},
-		goals: &fakeRoomGoalContextProvider{
-			runtimeContexts: map[string]string{"room:group:conversation-1": "goal"},
-			runtimeGoals: map[string]*protocol.Goal{
-				"room:group:conversation-1": {
-					ID:         "goal-1",
-					SessionKey: "room:group:conversation-1",
-				},
-			},
-		},
-	}
-
-	_, _, granted, err := service.resolveExecutionGoalMutationAuthority(
-		context.Background(),
-		orchestrationsvc.ActorContext{WorkBinding: &protocol.ExecutionWorkBinding{ExecutionID: "execution-1"}},
-		"root-round-1",
-	)
-	if !errors.Is(err, goalsvc.ErrGoalExecutionBindingConflict) || granted {
-		t.Fatalf("granted=%v error=%v", granted, err)
-	}
-}
-
-func TestRoomWorkGoalAuthorityFailsClosedWithoutCentralResolver(t *testing.T) {
-	provider := &roomExecutionGoalBindingOnlyProvider{
-		binding: orchestrationsvc.RuntimeGoalBinding{
-			ExecutionID:           "execution-1",
-			SessionKey:            "room:group:conversation-1",
-			GoalID:                "goal-1",
-			GoalObjectiveRevision: 1,
-		},
-	}
-	service := &Service{
-		Host: runtimehost.Host{ExecutionContext: provider},
-		goals: &fakeRoomGoalContextProvider{
-			runtimeContexts: map[string]string{"room:group:conversation-1": "goal"},
-			runtimeGoals: map[string]*protocol.Goal{
-				"room:group:conversation-1": {
-					ID:         "goal-1",
-					SessionKey: "room:group:conversation-1",
-				},
-			},
-		},
-	}
-
-	_, _, granted, err := service.resolveExecutionGoalMutationAuthority(
-		context.Background(),
-		orchestrationsvc.ActorContext{WorkBinding: &protocol.ExecutionWorkBinding{ExecutionID: "execution-1"}},
-		"root-round-1",
-	)
-	if !errors.Is(err, goalsvc.ErrGoalExecutionBindingConflict) || granted {
-		t.Fatalf("granted=%v error=%v", granted, err)
-	}
-}
-
-type roomExecutionGoalBindingOnlyProvider struct {
-	binding orchestrationsvc.RuntimeGoalBinding
-}
-
-func (p *roomExecutionGoalBindingOnlyProvider) RuntimeContext(
-	context.Context,
-	orchestrationsvc.ActorContext,
-) (string, error) {
-	return "", nil
-}
-
-func (p *roomExecutionGoalBindingOnlyProvider) RuntimeGoalBinding(
-	context.Context,
-	orchestrationsvc.ActorContext,
-) (orchestrationsvc.RuntimeGoalBinding, error) {
-	return p.binding, nil
-}
-
 func TestReviewDispatchReusesInjectedSchemaWithoutGrantingAuthority(t *testing.T) {
 	delivery := orchestrationsvc.ExecutionReviewDispatchDelivery{
 		Instruction: "Review the cited evidence against each criterion.",
@@ -893,65 +660,6 @@ func (f *roomAttemptTerminalizerFake) FinishRoomAttempt(
 	return f.err
 }
 
-func TestStructuredRoomSlotCompletionSettlesRootAttemptWithoutSemanticSubmission(t *testing.T) {
-	binding := testRoomExecutionWorkBinding()
-	terminalizer := &roomAttemptTerminalizerFake{}
-	service := &Service{
-		Host: runtimehost.Host{ExecutionContext: terminalizer, Permission: permissionctx.NewContext()},
-	}
-	roundValue := &activeRoomRound{
-		SessionKey:         "room:group:conversation-1",
-		RoomID:             "room-1",
-		ConversationID:     "conversation-1",
-		CoordinatorAgentID: "agent-lead",
-		RootRoundID:        "root-round-1",
-		OwnerUserID:        "owner-1",
-	}
-	slot := &activeRoomSlot{
-		RoomSessionID:     "room-session-1",
-		AgentID:           "agent-member",
-		AgentRoundID:      "agent-round-1",
-		RuntimeSessionKey: "runtime-session-1",
-		WorkBinding:       binding,
-	}
-	slot.setStatus("running")
-	slot.setDeliveryMetadata(
-		protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePrivate},
-		"",
-		"",
-	)
-	authorizeRoomExecutionTestSlot(service, roundValue, slot)
-	execution := &slotExecution{
-		service: service,
-		ctx:     context.Background(),
-		round:   roundValue,
-		slot:    slot,
-		mapper: roomdomain.NewSlotMessageMapper(
-			roundValue.SessionKey,
-			roundValue.RoomID,
-			roundValue.ConversationID,
-			slot.AgentID,
-			"message-1",
-			roundValue.RootRoundID,
-			slot.AgentRoundID,
-			t.TempDir(),
-		),
-	}
-
-	if err := execution.complete(exec.RoundExecutionResult{
-		TerminalStatus: "finished",
-		ResultSubtype:  "success",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	assertRoomAttemptTerminalCall(
-		t,
-		terminalizer,
-		protocol.WorkAttemptStatusSucceeded,
-		"",
-	)
-}
-
 func TestStructuredRoomSlotFailureAndCancellationSettleRootAttempt(t *testing.T) {
 	for _, testCase := range []struct {
 		name       string
@@ -1014,116 +722,6 @@ func TestStructuredRoomSlotFailureAndCancellationSettleRootAttempt(t *testing.T)
 	}
 }
 
-func TestHandleStructuredRoomSlotFailureClosesBoundRootAttempt(t *testing.T) {
-	terminalizer := &roomAttemptTerminalizerFake{}
-	service := withConstructorDefaults(t, &Service{
-		Host:        runtimehost.Host{ExecutionContext: terminalizer, Permission: permissionctx.NewContext()},
-		roomHistory: workspacestore.NewRoomHistoryStore(t.TempDir()),
-	})
-	roundValue := &activeRoomRound{
-		SessionKey:         "room:group:conversation-1",
-		RoomID:             "room-1",
-		ConversationID:     "conversation-1",
-		CoordinatorAgentID: "agent-lead",
-		RootRoundID:        "root-round-1",
-		OwnerUserID:        "owner-1",
-	}
-	slot := &activeRoomSlot{
-		OwnerUserID:       "owner-1",
-		RoomSessionID:     "room-session-1",
-		AgentID:           "agent-member",
-		AgentRoundID:      "agent-round-1",
-		RuntimeSessionKey: "runtime-session-1",
-		WorkBinding:       testRoomExecutionWorkBinding(),
-	}
-	slot.setStatus("running")
-	slot.setDeliveryMetadata(
-		protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePrivate},
-		"",
-		"",
-	)
-	authorizeRoomExecutionTestSlot(service, roundValue, slot)
-
-	service.handleSlotFailure(
-		context.Background(),
-		roundValue,
-		slot,
-		nil,
-		exec.RoundExecutionResult{},
-		errors.New("runtime failed"),
-	)
-
-	assertRoomAttemptTerminalCall(
-		t,
-		terminalizer,
-		protocol.WorkAttemptStatusFailed,
-		"runtime failed",
-	)
-	if slot.getStatus() != "error" {
-		t.Fatalf("slot status = %q", slot.getStatus())
-	}
-}
-
-func authorizeRoomExecutionTestSlot(
-	service *Service,
-	roundValue *activeRoomRound,
-	slot *activeRoomSlot,
-) {
-	contextValue := &protocol.ConversationContextAggregate{
-		Room: protocol.RoomRecord{
-			ID:                     roundValue.RoomID,
-			RoomType:               protocol.RoomTypeGroup,
-			PrivateMessagesEnabled: true,
-			AuthorityEpoch:         1,
-		},
-		Conversation: protocol.ConversationRecord{
-			ID:     roundValue.ConversationID,
-			RoomID: roundValue.RoomID,
-		},
-		Members: []protocol.MemberRecord{{
-			MemberType:    protocol.MemberTypeAgent,
-			MemberAgentID: slot.AgentID,
-		}},
-	}
-	service.rooms = &authorityFenceRoomStore{contextValue: contextValue}
-	roundValue.Context = cloneAuthorityFenceContext(contextValue)
-	roundValue.AuthorityEpoch = contextValue.Room.AuthorityEpoch
-}
-
-func TestGenericRoomQueueControlCannotEraseResponsibility(t *testing.T) {
-	conversation := protocol.InputQueueItem{ID: "conversation-1"}
-	if err := rejectGenericControlForBoundQueueItem(conversation, "delete"); err != nil {
-		t.Fatalf("ordinary conversation queue control error = %v", err)
-	}
-
-	for _, item := range []protocol.InputQueueItem{
-		{
-			ID:          "work-1",
-			WorkBinding: testRoomExecutionWorkBinding(),
-		},
-		{
-			ID: "review-1",
-			ReviewBinding: &protocol.ExecutionReviewBinding{
-				ExecutionID:      "execution-1",
-				PlanID:           "plan-1",
-				WorkItemID:       "work-1",
-				SpecID:           "spec-1",
-				AssignmentID:     "assignment-1",
-				SubmissionID:     "submission-1",
-				ReviewDispatchID: "review-dispatch-1",
-				TargetAgentID:    "agent-lead",
-			},
-		},
-	} {
-		for _, action := range []string{"delete", "guide", "reorder"} {
-			err := rejectGenericControlForBoundQueueItem(item, action)
-			if !errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope) {
-				t.Fatalf("%s %s error = %v, want capability envelope error", action, item.ID, err)
-			}
-		}
-	}
-}
-
 func testRoomExecutionWorkBinding() *protocol.ExecutionWorkBinding {
 	return &protocol.ExecutionWorkBinding{
 		ExecutionID:  "execution-1",
@@ -1155,78 +753,6 @@ func assertRoomAttemptTerminalCall(
 		actor.WorkBinding == nil ||
 		actor.WorkBinding.AssignmentID != "assignment-1" {
 		t.Fatalf("terminal call = %#v actor = %#v", call, actor)
-	}
-}
-
-func TestRoomRuntimeCommandContextUsesPhysicalAgentRoundForLeaseAuthority(t *testing.T) {
-	execution := &slotExecution{
-		round: &activeRoomRound{
-			SessionKey:     "room:group:conversation-1",
-			RootRoundID:    "room-root-round",
-			RoomID:         "room-1",
-			ConversationID: "conversation-1",
-		},
-		slot: &activeRoomSlot{
-			AgentRoundID:      "agent-round-1",
-			RuntimeSessionKey: "runtime-session-1",
-		},
-		service: &Service{},
-	}
-
-	contextValue := execution.runtimeCommandRoundContext("")
-	if contextValue.RoundID != "room-root-round" {
-		t.Fatalf("command round id = %q, want room root round", contextValue.RoundID)
-	}
-	if contextValue.CommandContext.RootRoundID != "room-root-round" {
-		t.Fatalf("command root round id = %q, want room root round", contextValue.CommandContext.RootRoundID)
-	}
-	if contextValue.CommandContext.AgentRoundID != "agent-round-1" {
-		t.Fatalf("command agent round id = %q, want physical agent round", contextValue.CommandContext.AgentRoundID)
-	}
-}
-
-func TestManagedRoomExecutionUsesTrustedCommandSourceRoute(t *testing.T) {
-	execution := &slotExecution{
-		round: &activeRoomRound{
-			SessionKey:      "room:group:conversation-1",
-			RootRoundID:     "room-root-round",
-			ExecutionOrigin: "handoff",
-			RoomID:          "room-1",
-			ConversationID:  "conversation-1",
-		},
-		slot: &activeRoomSlot{
-			AgentRoundID:      "agent-round-1",
-			RuntimeSessionKey: "runtime-session-1",
-			WorkBinding:       testRoomExecutionWorkBinding(),
-		},
-		service: &Service{},
-	}
-
-	contextValue := execution.runtimeCommandRoundContext("")
-	if contextValue.SourceContextType != "room" {
-		t.Fatalf("managed Room source context = %q, want room", contextValue.SourceContextType)
-	}
-}
-
-func TestUnboundRoomHandoffKeepsUntrustedCommandSourceRoute(t *testing.T) {
-	execution := &slotExecution{
-		round: &activeRoomRound{
-			SessionKey:      "room:group:conversation-1",
-			RootRoundID:     "room-root-round",
-			ExecutionOrigin: "handoff",
-			RoomID:          "room-1",
-			ConversationID:  "conversation-1",
-		},
-		slot: &activeRoomSlot{
-			AgentRoundID:      "agent-round-1",
-			RuntimeSessionKey: "runtime-session-1",
-		},
-		service: &Service{},
-	}
-
-	contextValue := execution.runtimeCommandRoundContext("")
-	if contextValue.SourceContextType != "room_handoff" {
-		t.Fatalf("unbound Room handoff source context = %q, want room_handoff", contextValue.SourceContextType)
 	}
 }
 

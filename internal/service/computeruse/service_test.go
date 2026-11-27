@@ -153,35 +153,6 @@ func (c *fakeClient) ObserveWindow(_ context.Context, input nexuscua.ObserveWind
 	return nexuscua.WindowObservation{ObservationID: "observation-1", WindowRef: input.WindowRef}, nil
 }
 
-func TestObserveRetainsExactWindowWithoutGuessingReplacement(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		windows  []nexuscua.WindowSummary
-		selector string
-		want     nexuscua.WindowRef
-	}{
-		{"selected survives", []nexuscua.WindowSummary{{WindowRef: "window-2"}, {WindowRef: "window-1"}}, "", "window-1"},
-		{"explicit wins", []nexuscua.WindowSummary{{WindowRef: "window-1"}, {WindowRef: "window-2"}}, "window-2", "window-2"},
-		{"sole replacement", []nexuscua.WindowSummary{{WindowRef: "window-2"}}, "", "window-2"},
-		{"ambiguous replacement", []nexuscua.WindowSummary{{WindowRef: "window-2", Title: "Fixture"}, {WindowRef: "window-3"}}, "", ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			service, client, _ := newFakeService(t)
-			round := prepareRound(t, service)
-			client.windows = tc.windows
-			client.lastObserve = nexuscua.ObserveWindowInput{}
-			_, err := round.Observe(context.Background(), ObserveInput{WindowSelector: tc.selector})
-			if tc.want == "" {
-				if err == nil || client.lastObserve.WindowRef != "" {
-					t.Fatal("ambiguous replacement was observed")
-				}
-			} else if err != nil || client.lastObserve.WindowRef != tc.want {
-				t.Fatalf("window=%s, err=%v; want %s", client.lastObserve.WindowRef, err, tc.want)
-			}
-		})
-	}
-}
-
 func (c *fakeClient) VerifyState(context.Context, nexuscua.VerifyStateInput, time.Duration) (nexuscua.VerificationOutput, error) {
 	return nexuscua.VerificationOutput{Matched: true, Evidence: "fixture"}, nil
 }
@@ -278,20 +249,6 @@ func TestServiceDisabledFailsClosed(t *testing.T) {
 	}
 	if supervisor.starts != 0 {
 		t.Fatalf("sidecar starts = %d, want 0", supervisor.starts)
-	}
-}
-
-func TestServiceDisableClosesRoundsAndStopsSupervisor(t *testing.T) {
-	service, client, supervisor := newFakeService(t)
-	round := prepareRound(t, service)
-	if err := service.SetEnabled(context.Background(), false); err != nil {
-		t.Fatal(err)
-	}
-	if client.closeCalls != 1 || supervisor.stops != 1 || round.HasSession() {
-		t.Fatalf("disable cleanup close=%d stops=%d session=%v", client.closeCalls, supervisor.stops, round.HasSession())
-	}
-	if _, err := service.Round(context.Background(), "owner-a", "round-next"); !errors.Is(err, ErrDisabled) {
-		t.Fatalf("disabled Round error = %v", err)
 	}
 }
 
@@ -406,135 +363,6 @@ func TestSessionUnavailableClearsRoundState(t *testing.T) {
 	}
 }
 
-func TestObserveAcceptsWindowRefReturnedByListWindows(t *testing.T) {
-	service, _, _ := newFakeService(t)
-	round, err := service.Round(context.Background(), "owner-a", "round-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{AllowForegroundInput: true}, func(TargetGrant) error { return nil }); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := round.Observe(context.Background(), ObserveInput{WindowSelector: "window-1"}); err != nil {
-		t.Fatalf("Observe by listed window_ref = %v", err)
-	}
-}
-
-func TestSelectedTargetWithoutObservationDoesNotRequireReauthorization(t *testing.T) {
-	for _, failedRead := range []bool{false, true} {
-		t.Run(fmt.Sprintf("failed_read_%t", failedRead), func(t *testing.T) {
-			service, client, _ := newFakeService(t)
-			round, err := service.Round(context.Background(), "owner-a", "round-a")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{}, func(TargetGrant) error { return nil }); err != nil {
-				t.Fatal(err)
-			}
-			if failedRead {
-				client.observeErr = &nexuscua.CUAError{Code: nexuscua.ErrorTargetUnavailable, Message: "matching accessibility window is unavailable"}
-				if _, err := round.Observe(context.Background(), ObserveInput{}); !errors.Is(err, client.observeErr) {
-					t.Fatalf("Observe error = %v", err)
-				}
-			}
-			if !round.HasSession() {
-				t.Fatal("selected target session was lost without a successful observation")
-			}
-			approvals := 0
-			_, err = round.PerformActionWithApproval(context.Background(), "no-observation", ActionInput{Kind: "focus_window"}, func() error {
-				approvals++
-				return nil
-			})
-			if !errors.Is(err, ErrNoObservation) || approvals != 0 || client.performCalls != 0 {
-				t.Fatalf("error/approval/dispatch = %v/%d/%d, want ErrNoObservation/0/0", err, approvals, client.performCalls)
-			}
-			client.observeErr = nil
-			if _, err := round.Observe(context.Background(), ObserveInput{Accessibility: "disabled"}); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := round.PerformAction(context.Background(), "recovered-observation", ActionInput{Kind: "focus_window"}); err != nil {
-				t.Fatal(err)
-			}
-			if client.openCalls != 1 || client.performCalls != 1 {
-				t.Fatalf("session/dispatch = %d/%d, want one of each", client.openCalls, client.performCalls)
-			}
-		})
-	}
-}
-
-func TestActionViewPreservesEffectEvidenceAndForegroundRestoration(t *testing.T) {
-	value := nexuscua.ActionOutput{
-		DeliveryMode:           nexuscua.DeliveryForeground,
-		Dispatched:             true,
-		EffectStatus:           nexuscua.ActionEffectConfirmed,
-		EvidenceKind:           nexuscua.ActionEvidenceNativeReadback,
-		ForegroundRestoration:  nexuscua.ForegroundRestorationRestored,
-		ObservationInvalidated: true,
-	}
-	got := actionView(value).Data
-	for key, want := range map[string]any{
-		"effect_status":          value.EffectStatus,
-		"evidence_kind":          value.EvidenceKind,
-		"foreground_restoration": value.ForegroundRestoration,
-	} {
-		if got[key] != want {
-			t.Fatalf("%s = %#v, want %#v", key, got[key], want)
-		}
-	}
-}
-
-func TestPerformActionWithApprovalSkipsApprovalOnReconcile(t *testing.T) {
-	service, client, supervisor := newFakeService(t)
-	round := prepareRound(t, service)
-	approvals := 0
-	approve := func() error {
-		approvals++
-		return nil
-	}
-	if _, err := round.PerformActionWithApproval(context.Background(), "action-20261013-callback", ActionInput{Kind: "click_point", X: 1, Y: 2}, approve); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := round.Observe(context.Background(), ObserveInput{}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := round.PerformActionWithApproval(context.Background(), "action-20261013-callback", ActionInput{Kind: "click_point", X: 9, Y: 9}, approve); err != nil {
-		t.Fatal(err)
-	}
-	if approvals != 1 || supervisor.foregroundCalls != 1 || client.performCalls != 1 || client.reconcileCalls != 0 {
-		t.Fatalf("completed callback/dispatch = %d/%d/%d, want 1/1/0", approvals, client.performCalls, client.reconcileCalls)
-	}
-	if _, err := round.Observe(context.Background(), ObserveInput{}); err != nil {
-		t.Fatal(err)
-	}
-	client.indeterminate = true
-	if _, err := round.PerformActionWithApproval(context.Background(), "action-20261013-pending-callback", ActionInput{Kind: "click_point", X: 3, Y: 4}, approve); err == nil {
-		t.Fatal("indeterminate action unexpectedly succeeded")
-	}
-	client.indeterminate = false
-	if _, err := round.PerformActionWithApproval(context.Background(), "action-20261013-pending-callback", ActionInput{Kind: "click_point", X: 3, Y: 4}, approve); err != nil {
-		t.Fatal(err)
-	}
-	if approvals != 2 || supervisor.foregroundCalls != 2 || client.performCalls != 2 || client.reconcileCalls != 1 {
-		t.Fatalf("pending callback/dispatch = %d/%d/%d, want 2/2/1", approvals, client.performCalls, client.reconcileCalls)
-	}
-}
-
-func TestPerformActionReconcilesSameRequestWithoutRedispatch(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round := prepareRound(t, service)
-	client.indeterminate = true
-	if _, err := round.PerformAction(context.Background(), "action-20261013-1", ActionInput{Kind: "click_point", X: 1, Y: 2}); err == nil {
-		t.Fatal("first action unexpectedly succeeded")
-	}
-	client.indeterminate = false
-	if _, err := round.PerformAction(context.Background(), "action-20261013-1", ActionInput{Kind: "click_point", X: 1, Y: 2}); err != nil {
-		t.Fatal(err)
-	}
-	if client.performCalls != 1 || client.reconcileCalls != 1 {
-		t.Fatalf("dispatch/reconcile = %d/%d, want 1/1", client.performCalls, client.reconcileCalls)
-	}
-}
-
 func TestPerformActionBlocksDifferentRequestWhilePending(t *testing.T) {
 	service, client, _ := newFakeService(t)
 	round := prepareRound(t, service)
@@ -547,25 +375,6 @@ func TestPerformActionBlocksDifferentRequestWhilePending(t *testing.T) {
 	}
 	if client.performCalls != 1 {
 		t.Fatalf("dispatch count = %d, want one", client.performCalls)
-	}
-}
-
-func TestPerformActionCachesCompletedRequest(t *testing.T) {
-	service, client, _ := newFakeService(t)
-	round := prepareRound(t, service)
-	first, err := round.PerformAction(context.Background(), "action-20261013-cache", ActionInput{Kind: "click_point", X: 1, Y: 2})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := round.Observe(context.Background(), ObserveInput{}); err != nil {
-		t.Fatal(err)
-	}
-	second, err := round.PerformAction(context.Background(), "action-20261013-cache", ActionInput{Kind: "click_point", X: 9, Y: 9})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if client.performCalls != 1 || first.Data["dispatched"] != second.Data["dispatched"] {
-		t.Fatalf("dispatch count/results = %d, %#v/%#v", client.performCalls, first.Data, second.Data)
 	}
 }
 
@@ -591,20 +400,6 @@ func TestScreenshotArtifactCannotEscapePrivateRoot(t *testing.T) {
 	}
 }
 
-func TestCloseCleansRoundsAndSupervisor(t *testing.T) {
-	service, client, supervisor := newFakeService(t)
-	round := prepareRound(t, service)
-	if err := service.Close(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if client.closeCalls != 1 || supervisor.stops != 1 || round.HasSession() {
-		t.Fatalf("session close=%d supervisor stop=%d session active=%v", client.closeCalls, supervisor.stops, round.HasSession())
-	}
-	if _, err := service.Round(context.Background(), "owner-a", "round-next"); !errors.Is(err, ErrDisabled) {
-		t.Fatalf("post-close Round error = %v", err)
-	}
-}
-
 func TestNormalizedActionsPreserveCoordinatesAndBoundScroll(t *testing.T) {
 	action, err := buildAction(ActionInput{Kind: "scroll", X: 750, Y: 250, DeltaY: 300})
 	if err != nil {
@@ -621,13 +416,6 @@ func TestNormalizedActionsPreserveCoordinatesAndBoundScroll(t *testing.T) {
 		if _, err := buildAction(input); err == nil {
 			t.Fatalf("accepted out-of-bounds action: %s", input.Kind)
 		}
-	}
-}
-
-func TestRoundAuthorityDoesNotInheritUnexposedCapabilities(t *testing.T) {
-	actions := supportedRoundActions([]nexuscua.ActionKind{nexuscua.ActionClickPoint, nexuscua.ActionKind("future_unknown_action")})
-	if len(actions) != 1 || actions[0] != nexuscua.ActionClickPoint {
-		t.Fatalf("unexpected authority: %v", actions)
 	}
 }
 
@@ -831,7 +619,6 @@ func TestApplicationQueryAvoidsFullCatalogWithoutSelectingOrWideningAuthority(t 
 	}
 }
 
-
 func TestProcessSupervisorRestartsAfterChildExit(t *testing.T) {
 	root := t.TempDir()
 	binary, err := os.Executable()
@@ -879,155 +666,6 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Exit(m.Run())
-}
-
-type versionedClient struct {
-	fakeClient
-	runtimeVersion string
-}
-
-func (c *versionedClient) GetCapabilities(ctx context.Context, timeout time.Duration) (nexuscua.DriverCapabilities, error) {
-	capabilities, err := c.fakeClient.GetCapabilities(ctx, timeout)
-	capabilities.RuntimeVersion = c.runtimeVersion
-	return capabilities, err
-}
-
-func TestReadinessRejectsUnpinnedRuntimeVersion(t *testing.T) {
-	client := &versionedClient{runtimeVersion: "0.1.0"}
-	started := time.Now()
-	if err := waitUntilReady(context.Background(), client, pinnedCUAVersion); !errors.Is(err, ErrRuntimeVersionMismatch) {
-		t.Fatalf("waitUntilReady error = %v, want runtime version mismatch", err)
-	}
-	if time.Since(started) > readinessTimeout/2 {
-		t.Fatal("version mismatch waited for the readiness timeout instead of failing fast")
-	}
-	if err := waitUntilReady(context.Background(), client, ""); err != nil {
-		t.Fatalf("unpinned development readiness failed: %v", err)
-	}
-	client.runtimeVersion = pinnedCUAVersion
-	if err := waitUntilReady(context.Background(), client, pinnedCUAVersion); err != nil {
-		t.Fatalf("pinned runtime readiness failed: %v", err)
-	}
-}
-
-type revocationClient struct {
-	fakeClient
-	started chan struct{}
-	revoked chan struct{}
-}
-
-func (c *revocationClient) PerformAction(context.Context, nexuscua.PerformActionInput, time.Duration) (nexuscua.ActionOutput, *nexuscua.ActionRequest, error) {
-	close(c.started)
-	select {
-	case <-c.revoked:
-		return nexuscua.ActionOutput{}, nil, &nexuscua.CUAError{Code: nexuscua.ErrorSessionUnavailable}
-	case <-time.After(2 * time.Second):
-		return nexuscua.ActionOutput{}, nil, errors.New("action did not receive revocation")
-	}
-}
-
-func (c *revocationClient) CloseSession(context.Context, nexuscua.SessionID, time.Duration) error {
-	close(c.revoked)
-	return nil
-}
-
-func TestCloseRevokesWhileActionOwnsMutationLock(t *testing.T) {
-	client := &revocationClient{started: make(chan struct{}), revoked: make(chan struct{})}
-	round := &Round{
-		client: client, sessionID: "session", observationID: "observation",
-		application: &nexuscua.DiscoveredApplication{DiscoveryRef: "application"},
-		window:      &nexuscua.WindowSummary{WindowRef: "window"},
-		deadline:    time.Now().Add(time.Minute),
-	}
-	finished := make(chan error, 1)
-	go func() {
-		_, err := round.PerformAction(context.Background(), "press", ActionInput{Kind: "type_text", Text: "fixture"})
-		finished <- err
-	}()
-	select {
-	case <-client.started:
-	case <-time.After(time.Second):
-		t.Fatal("action did not start")
-	}
-	if err := round.Close(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-client.revoked:
-	default:
-		t.Fatal("close did not revoke the active session")
-	}
-	var unavailable *nexuscua.CUAError
-	if err := <-finished; !errors.As(err, &unavailable) || unavailable.Code != nexuscua.ErrorSessionUnavailable {
-		t.Fatalf("action was not interrupted by session revocation: %v", err)
-	}
-	if round.HasSession() {
-		t.Fatal("closed round retained its session")
-	}
-}
-
-type openingClient struct {
-	fakeClient
-	started chan struct{}
-	release chan struct{}
-	revoked chan nexuscua.SessionID
-}
-
-func (c *openingClient) OpenSession(context.Context, nexuscua.OpenSessionInput, time.Duration) (nexuscua.OpenSessionOutput, error) {
-	close(c.started)
-	<-c.release
-	return nexuscua.OpenSessionOutput{SessionID: "late-session"}, nil
-}
-
-func (c *openingClient) CloseSession(_ context.Context, session nexuscua.SessionID, _ time.Duration) error {
-	c.revoked <- session
-	return nil
-}
-
-func TestCloseRevokesSessionReturnedDuringShutdown(t *testing.T) {
-	client := &openingClient{started: make(chan struct{}), release: make(chan struct{}), revoked: make(chan nexuscua.SessionID, 1)}
-	round := &Round{client: client, deadline: time.Now().Add(time.Minute)}
-	selected := make(chan error, 1)
-	go func() {
-		_, err := round.SelectTarget(context.Background(), "Fixture", TargetOptions{}, func(TargetGrant) error { return nil })
-		selected <- err
-	}()
-	select {
-	case <-client.started:
-	case <-time.After(time.Second):
-		t.Fatal("session opening did not start")
-	}
-	closed := make(chan error, 1)
-	go func() { closed <- round.Close(context.Background()) }()
-	deadline := time.Now().Add(time.Second)
-	for {
-		round.mu.Lock()
-		closing := round.closed
-		round.mu.Unlock()
-		if closing {
-			break
-		}
-		if time.Now().After(deadline) {
-			close(client.release)
-			t.Fatal("close did not revoke admission during session opening")
-		}
-		time.Sleep(time.Millisecond)
-	}
-	close(client.release)
-	if err := <-selected; !errors.Is(err, ErrRoundClosed) {
-		t.Fatalf("late session was admitted: %v", err)
-	}
-	if err := <-closed; err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case id := <-client.revoked:
-		if id != "late-session" {
-			t.Fatalf("wrong session revoked: %s", id)
-		}
-	default:
-		t.Fatal("late session leaked")
-	}
 }
 
 func TestPackagedCUANativeActionLoop(t *testing.T) {

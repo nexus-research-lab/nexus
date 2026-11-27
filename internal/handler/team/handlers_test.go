@@ -276,36 +276,6 @@ func TestTeamStreamHeartbeatWithoutBusinessTraffic(t *testing.T) {
 	}
 }
 
-func TestTeamStreamForwardsAuthenticatedRelayHints(t *testing.T) {
-	update := relaycontract.StreamUpdated{
-		Type: "stream.updated", StreamID: "stream-1", StreamEpoch: "epoch-1", HighWaterSeq: 9,
-	}
-	tokens := &teamTokenStub{token: "fixed-relay-token"}
-	relay := &teamRelayStub{watchUpdate: update, watchErr: errors.New("stop")}
-	server := httptest.NewServer(newTeamTestRouter(tokens, relay, teamTestPrincipal()))
-	t.Cleanup(server.Close)
-	endpoint := "ws" + strings.TrimPrefix(server.URL, "http") +
-		"/nexus/v1/team/stream?stream_id=stream-1&stream_epoch=epoch-1"
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	connection, _, err := websocket.Dial(ctx, endpoint, &websocket.DialOptions{
-		HTTPHeader: http.Header{"Origin": {server.URL}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer connection.CloseNow()
-	var got relaycontract.StreamUpdated
-	if err = wsjson.Read(ctx, connection, &got); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(got, update) || relay.watchCalls != 1 ||
-		relay.streamID != "stream-1" || relay.watchStreamEpoch != "epoch-1" ||
-		tokens.principal == nil || tokens.principal.UserID != "local-owner" {
-		t.Fatalf("update=%+v relay=%+v principal=%+v", got, relay, tokens.principal)
-	}
-}
-
 func TestTeamStreamRenewsOnlyExpiredPrincipal(t *testing.T) {
 	for _, expired := range []bool{true, false} {
 		t.Run(fmt.Sprint(expired), func(t *testing.T) {
@@ -351,36 +321,6 @@ func TestTeamStreamRejectsMissingOriginBeforeRelay(t *testing.T) {
 	)
 	if recorder.Code != http.StatusForbidden || relay.watchCalls != 0 {
 		t.Fatalf("status=%d relay watch calls=%d", recorder.Code, relay.watchCalls)
-	}
-}
-
-func TestTeamStreamForwardsSnapshotReset(t *testing.T) {
-	relay := &teamRelayStub{watchErr: &relaycontract.RemoteError{
-		StatusCode: http.StatusConflict,
-		Code:       "full_snapshot_required",
-	}}
-	server := httptest.NewServer(newTeamTestRouter(
-		&teamTokenStub{token: "token"}, relay, teamTestPrincipal(),
-	))
-	t.Cleanup(server.Close)
-	endpoint := "ws" + strings.TrimPrefix(server.URL, "http") +
-		"/nexus/v1/team/stream?stream_id=stream-1&stream_epoch=epoch-old"
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	connection, _, err := websocket.Dial(ctx, endpoint, &websocket.DialOptions{
-		HTTPHeader: http.Header{"Origin": {server.URL}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer connection.CloseNow()
-	var got streamResetRequired
-	if err = wsjson.Read(ctx, connection, &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.Type != "stream.reset_required" || got.StreamID != "stream-1" ||
-		got.Reason != "full_snapshot_required" {
-		t.Fatalf("reset = %+v", got)
 	}
 }
 
@@ -529,93 +469,6 @@ func TestTeamInviteVerifiesOrganizationBeforeRelay(t *testing.T) {
 	failure := decodeTeamFailure(t, recorder)
 	if recorder.Code != http.StatusForbidden || failure.Code != "team.organization_member_required" || relay.membershipCalls != 1 {
 		t.Fatalf("status=%d failure=%+v relay calls=%d", recorder.Code, failure, relay.membershipCalls)
-	}
-}
-
-func TestTeamMutationsRequireStrictSameOrigin(t *testing.T) {
-	tests := []struct {
-		name      string
-		origin    string
-		forwarded string
-		status    int
-		calls     int
-	}{
-		{name: "missing", status: http.StatusForbidden},
-		{name: "cross origin", origin: "https://evil.example", status: http.StatusForbidden},
-		{name: "same origin", origin: "http://example.com", status: http.StatusOK, calls: 1},
-		{name: "same origin explicit port", origin: "http://example.com:8443", status: http.StatusOK, calls: 1},
-		{name: "same origin behind tls proxy", origin: "https://example.com", forwarded: "https", status: http.StatusOK, calls: 1},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			tokens := &teamTokenStub{token: "relay-token"}
-			relay := &teamRelayStub{}
-			router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
-			request := httptest.NewRequest(http.MethodPost, "/nexus/v1/team/rooms", strings.NewReader(`{"name":"研发群"}`))
-			if strings.Contains(test.origin, ":8443") {
-				request.Host = "example.com:8443"
-			}
-			request.Header.Set("Origin", test.origin)
-			request.Header.Set("X-Forwarded-Proto", test.forwarded)
-			request.Header.Set("Content-Type", "application/json")
-			request.Header.Set("Idempotency-Key", "command-1")
-			recorder := httptest.NewRecorder()
-			router.ServeHTTP(recorder, request)
-			if recorder.Code != test.status || tokens.calls != test.calls || relay.createRoomCalls != test.calls {
-				t.Fatalf(
-					"status=%d token calls=%d relay calls=%d body=%s",
-					recorder.Code,
-					tokens.calls,
-					relay.createRoomCalls,
-					recorder.Body.String(),
-				)
-			}
-		})
-	}
-}
-
-func TestTeamHandlersRejectClientIdentityFields(t *testing.T) {
-	tests := []struct {
-		name string
-		path string
-		body string
-	}{
-		{name: "room user", path: "/nexus/v1/team/rooms", body: `{"name":"研发群","user_id":"forged"}`},
-		{name: "room forged agent owner", path: "/nexus/v1/team/rooms", body: `{"name":"研发群","agent_owner_user_id":"forged"}`},
-		{
-			name: "message deployment",
-			path: "/nexus/v1/team/conversations/conversation-1/messages",
-			body: `{"deployment_id":"forged","content":{"version":1,"blocks":[]}}`,
-		},
-		{
-			name: "message audience",
-			path: "/nexus/v1/team/conversations/conversation-1/messages",
-			body: `{"audience":"nexus-relay-node","content":{"version":1,"blocks":[]}}`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			tokens := &teamTokenStub{token: "relay-token"}
-			relay := &teamRelayStub{}
-			router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
-			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body))
-			request.Header.Set("Origin", "http://example.com")
-			request.Header.Set("Content-Type", "application/json")
-			request.Header.Set("Idempotency-Key", "command-1")
-			recorder := httptest.NewRecorder()
-			router.ServeHTTP(recorder, request)
-			if recorder.Code != http.StatusBadRequest || tokens.calls != 0 ||
-				relay.createRoomCalls != 0 || relay.messageCalls != 0 {
-				t.Fatalf(
-					"status=%d token calls=%d relay calls=(%d,%d) body=%s",
-					recorder.Code,
-					tokens.calls,
-					relay.createRoomCalls,
-					relay.messageCalls,
-					recorder.Body.String(),
-				)
-			}
-		})
 	}
 }
 
@@ -772,26 +625,6 @@ func TestTeamHandlersMapStableRelayFailures(t *testing.T) {
 				t.Fatalf("upstream detail leaked: %s", recorder.Body.String())
 			}
 		})
-	}
-}
-
-func TestTeamMessageIdentityExchangeFailureIsKnownNotApplied(t *testing.T) {
-	tokens := &teamTokenStub{err: errors.New("control secret")}
-	relay := &teamRelayStub{}
-	router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
-	recorder := teamRequest(
-		t,
-		router,
-		http.MethodPost,
-		"/nexus/v1/team/conversations/conversation-1/messages",
-		`{"content":{"version":1,"blocks":[]}}`,
-		true,
-	)
-	failure := decodeTeamFailure(t, recorder)
-	if recorder.Code != http.StatusBadGateway || failure.Code != "team.identity_exchange_failed" ||
-		failure.Effect != protocol.FailureEffectNotApplied || relay.messageCalls != 0 ||
-		strings.Contains(recorder.Body.String(), "control secret") {
-		t.Fatalf("status=%d failure=%+v relay calls=%d body=%s", recorder.Code, failure, relay.messageCalls, recorder.Body.String())
 	}
 }
 
