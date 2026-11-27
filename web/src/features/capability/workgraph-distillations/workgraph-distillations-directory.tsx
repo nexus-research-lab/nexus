@@ -476,7 +476,8 @@ export function WorkGraphDistillationsDirectory() {
                     "mt-0.5",
                     getUiTypographyClassName({ role: "caption", tone: "soft" }),
                   )}>
-                    {t(item.built_in ? "capability.workgraph_builtin" : "capability.workgraph_saved")} · {item.nodes.length} {t("execution.workflow_nodes_short")}
+                    {/* 内置与已保存由分类筛选区分，卡片只保留节点数。 */}
+                    {item.nodes.length} {t("execution.workflow_nodes_short")}
                   </div>
                 </div>
               </UiListRow>
