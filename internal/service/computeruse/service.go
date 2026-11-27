@@ -1415,22 +1415,13 @@ func (s *sidecarOutputStats) snapshot() (int64, int64) {
 	return s.bytes, s.lines
 }
 
-// cuaStateRoot anchors every local Computer Use artifact beside the SQLite
-// database file. DATABASE_URL may carry a sqlite:// scheme prefix; the DSN
-// normalization in storage intentionally rewrites those URLs into driver
-// form, so this anchors on the raw path instead of reusing it.
+// cuaStateRoot 是所有本地 Computer Use 状态的唯一根；与数据库位置无关，
+// 未配置时退回进程临时目录，避免把状态写进当前工作目录。
 func cuaStateRoot(cfg config.Config) string {
-	return filepath.Join(filepath.Dir(trimDatabaseScheme(cfg.DatabaseURL)), "computer-use")
-}
-
-// trimDatabaseScheme removes one optional sqlite:// scheme prefix while
-// keeping the remainder verbatim, so sqlite:///abs paths stay absolute.
-func trimDatabaseScheme(value string) string {
-	value = strings.TrimSpace(value)
-	if lower := strings.ToLower(value); strings.HasPrefix(lower, "sqlite://") {
-		return value[len("sqlite://"):]
+	if root := strings.TrimSpace(cfg.ComputerUseStateDir); root != "" {
+		return filepath.Clean(root)
 	}
-	return value
+	return filepath.Join(os.TempDir(), "nexus-computer-use")
 }
 
 func NewProcessSupervisorWithBinaryPath(cfg config.Config, binaryPath string) *ProcessSupervisor {

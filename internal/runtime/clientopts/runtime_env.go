@@ -692,7 +692,7 @@ func workspaceRuntimeEnv(workspacePath string, includeNexusctl bool) map[string]
 	if trimmedWorkspacePath == "" {
 		return nil
 	}
-	binDir := appfs.AgentRuntimeBinDir()
+	binDir := appfs.RuntimeCLIBinDir()
 	configurationCommandPath := strings.TrimSpace(os.Getenv(nexuscfgCommandPathEnvName))
 	if configurationCommandPath == "" {
 		configurationCommandPath = runtimeCLIShimPath(binDir, "nexuscfg")

@@ -12,7 +12,6 @@ final class DesktopLogExportTests: XCTestCase {
     try fm.createDirectory(at: staging, withIntermediateDirectories: true)
     let fixtures = [
       ("app/logs/sidecar-2026-09-14.log", "Logs/sidecar-2026-09-14.log"),
-      ("app/debug/host.jsonl", "Debug/host.jsonl"),
       ("users/__system__/runtime/logs/runtime-2026-09-13.log.gz", "RuntimeLogs/runtime-2026-09-13.log.gz"),
       ("users/__system__/runtime/logs/debug/session.jsonl", "RuntimeLogs/debug/session.jsonl"),
       ("users/__system__/runtime/debug/session.txt", "RuntimeDebug/session.txt"),
@@ -35,7 +34,7 @@ final class DesktopLogExportTests: XCTestCase {
     for (_, destination) in fixtures {
       XCTAssertEqual(try Data(contentsOf: staging.appendingPathComponent(destination)), content)
     }
-    XCTAssertEqual(Set(try fm.contentsOfDirectory(atPath: staging.path)), Set(["Logs", "Debug", "RuntimeLogs", "RuntimeDebug"]))
+    XCTAssertEqual(Set(try fm.contentsOfDirectory(atPath: staging.path)), Set(["Logs", "RuntimeLogs", "RuntimeDebug"]))
   }
 
   func testExportAllowsMissingDiagnosticDirectories() throws {

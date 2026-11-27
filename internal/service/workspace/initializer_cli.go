@@ -38,7 +38,7 @@ type runtimeCLIShimTarget struct {
 
 // EnsureRuntimeCLICommands refreshes host control shims during startup。
 func EnsureRuntimeCLICommands() error {
-	return ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), map[string]string{
+	return ensureRuntimeCLIShims(appfs.RuntimeCLIBinDir(), map[string]string{
 		"project_root": appfs.Root(),
 	})
 }
@@ -70,6 +70,9 @@ func ensureRuntimeCLIShims(binDir string, context map[string]string) error {
 		if err = root.WriteFileAtomic(definition.Name, []byte(content), 0o755); err != nil {
 			return err
 		}
+		if runtime.GOOS != "windows" {
+			continue
+		}
 		cmdContent, renderErr := renderRuntimeCLIWindowsShim(target, definition.Name)
 		if renderErr != nil {
 			return renderErr
@@ -79,6 +82,19 @@ func ensureRuntimeCLIShims(binDir string, context map[string]string) error {
 		}
 	}
 	return nil
+}
+
+// runtimeCLIShimFileNames 列出当前平台需要的 shim：sh 版本服务所有 POSIX shell
+// （含 Windows 上的 Git Bash），.cmd 只有 Windows 的 cmd/PowerShell 会用到。
+func runtimeCLIShimFileNames() []string {
+	names := make([]string, 0, 2*len(runtimeCLIShimDefinitions))
+	for _, definition := range runtimeCLIShimDefinitions {
+		names = append(names, definition.Name)
+		if runtime.GOOS == "windows" {
+			names = append(names, definition.Name+".cmd")
+		}
+	}
+	return names
 }
 
 func resolveRuntimeCLIShimTarget(

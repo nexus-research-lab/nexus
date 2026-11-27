@@ -110,8 +110,7 @@ func buildRuntimeCheckCommand() *cobra.Command {
 }
 
 func runServer() error {
-	// 先加载宿主环境并恢复显式版本化的旧布局，再读取 canonical 数据库与日志路径。
-	// 这一步必须早于 config.Load；否则 v0.1.30 迁移缺口会在 app/data 误建空数据库。
+	// 先加载宿主环境，再读取 canonical 数据库与日志路径。
 	if err := config.LoadDotEnv(); err != nil {
 		return fmt.Errorf("加载环境配置失败: %w", err)
 	}
@@ -127,11 +126,6 @@ func runServer() error {
 			defer instance.Close()
 		}
 	}
-	if err := migration.RunStateLayout(stateRoot, slog.Default()); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return err
-	}
-
 	cfg := config.Load()
 	hostKeys, err := credentials.ResolveHostKeys(
 		cfg.ConnectorCredentialsHostKeyMode,
@@ -186,25 +180,12 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
-	// 受影响版本可能已在 canonical 路径积累少量新记录。旧库仍是历史真相，
-	// 新库只补入不冲突记录；合并失败时隔离副本保持完整，不能阻断旧数据恢复。
-	if err := migration.MergeSkippedStateLayoutDatabase(context.Background(), cfg, logger); err != nil {
-		logger.Warn("状态布局迁移缺口的隔离数据库未自动合并，已保留完整副本", "err", err)
-	}
 	// 桌面宿主先离线复制整个状态根；新实例在任何业务服务启动前提交绝对路径重映射。
 	// 这里失败会让宿主保留旧根并自动回退，不能带着一半迁移的数据继续启动。
 	if err := migration.RunDesktopStateRootRebase(context.Background(), cfg, logger); err != nil {
 		logger.Error("桌面状态根迁移提交失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
-	}
-	if err := migration.RunWorkspaceLayout(context.Background(), cfg, stateRoot, logger); err != nil {
-		logger.Error("workspace 布局迁移失败", "err", err)
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return err
-	}
-	if err := migration.MergeSkippedStateLayoutUsers(stateRoot, logger); err != nil {
-		logger.Warn("状态布局迁移缺口的用户文件未自动合并，已保留完整隔离数据", "err", err)
 	}
 	if err := migration.RunWorkspaceFiles(appfs.AppDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
 		logger.Error("工作区文件迁移失败", "err", err)
@@ -238,24 +219,6 @@ func runServer() error {
 		logger.Error("runtime OS identity 同步失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
-	}
-	if err := migration.RunRoomFiles(context.Background(), cfg, logger); err != nil {
-		// enforce 部署已先收紧 owner state 权限；迁移失败时保留尚未处理的旧文件，
-		// 单条历史脏数据不能阻断服务。
-		logger.Warn("Room 文件状态迁移未完成，将在下次启动重试", "err", err)
-	}
-	// Provider scope 补偿只属于桌面 App 的本地 SQLite，Web/服务器部署不触碰用户数据。
-	if strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") && storage.IsSQLiteSQLDriver(cfg.DatabaseDriver) {
-		if err := migration.RepairDesktopProviderScope(context.Background(), cfg, logger); err != nil {
-			logger.Error("桌面 Provider scope 补偿迁移失败", "err", err)
-			_, _ = fmt.Fprintln(os.Stderr, err)
-			return err
-		}
-	}
-	// 旧版本允许积累多个未产生用户输入的 Session。只在桌面 SQLite 的无并发启动窗口
-	// 自动收口一次；修复失败保留 started 标记并继续启动，后续由显式维护命令处理。
-	if err := migration.RunDesktopLegacyConversationDraftRepair(context.Background(), cfg, logger); err != nil {
-		logger.Warn("历史空白 Session 一次性兼容修复未完成，继续启动服务", "err", err)
 	}
 	if _, err := migration.RunConnectorCredentialKeyMigration(context.Background(), cfg, logger); err != nil {
 		logger.Error("Connector credentials key migration 失败", "err", err)

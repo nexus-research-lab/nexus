@@ -85,7 +85,7 @@ Docker Desktop 不承诺这套语义，原生 Linux 或专用 Linux worker 才�
 OS 账号、收紧宿主 `app/data|config|logs|cache` 权限并迁移用户树 ACL。
 launcher 将 state root 与 `users/` 设为宿主组可管理、其他 UID 仅可穿越；
 真正的用户根仍由 private GID、named host ACL 和 `other=---` 隔离。
-平台 Skill 和 `app/.agents/bin` 作为配置文件中显式声明的只读根保留给
+平台 Skill 和 `app/bin` 作为配置文件中显式声明的只读根保留给
 runtime。映射保存在
 `<state_root>/app/data/runtime-isolation/registry.json`，UID/GID 不因容器或
 server 重启而重新分配。

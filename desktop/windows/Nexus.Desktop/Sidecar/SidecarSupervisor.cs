@@ -311,7 +311,6 @@ internal sealed class SidecarSupervisor : IDisposable
         Directory.CreateDirectory(DesktopPaths.ProjectsDirectory);
         Directory.CreateDirectory(DesktopPaths.CacheDirectory);
         Directory.CreateDirectory(DesktopPaths.LogsDirectory);
-        Directory.CreateDirectory(DesktopPaths.DebugDirectory);
     }
 
     private void ReapOrphanedSidecars()

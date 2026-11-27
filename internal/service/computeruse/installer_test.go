@@ -340,7 +340,7 @@ func TestConfiguredCUAEnablementSurvivesRestart(t *testing.T) {
 	if err := os.WriteFile(binary, []byte("configured-runtime"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Config{DatabaseURL: filepath.Join(root, "nexus.db"), ComputerUseBinaryPath: binary}
+	cfg := config.Config{ComputerUseStateDir: filepath.Join(root, "computer-use"), ComputerUseBinaryPath: binary}
 	service := NewService(cfg)
 	if !service.InstallationStatus().Installed {
 		t.Fatal("configured runtime was not recognized")

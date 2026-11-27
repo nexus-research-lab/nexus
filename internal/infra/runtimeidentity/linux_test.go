@@ -339,7 +339,7 @@ func TestSanitizedRuntimeEnvironmentNeverRestoresNexusCLI(t *testing.T) {
 			t.Fatalf("runtime 环境泄漏原始 Nexus CLI capability: %s=%q", name, values[name])
 		}
 	}
-	if strings.Contains(values["PATH"], filepath.Join(stateRoot, "app", ".agents", "bin")) {
+	if strings.Contains(values["PATH"], filepath.Join(stateRoot, "app", "bin")) {
 		t.Fatalf("runtime PATH 仍包含旧 Agent CLI shim 目录: %q", values["PATH"])
 	}
 	if !strings.HasPrefix(values["PATH"], filepath.Join(homeRoot, ".local", "bin")+":") {

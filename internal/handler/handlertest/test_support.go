@@ -195,6 +195,8 @@ func NewConfig(t testing.TB) config.Config {
 		WorkspacePath:  filepath.Join(root, "workspace"),
 		DatabaseDriver: "sqlite",
 		DatabaseURL:    filepath.Join(root, "nexus.db"),
+		// CUA 状态与数据库同属测试根，避免共用进程临时目录。
+		ComputerUseStateDir: filepath.Join(root, "computer-use"),
 	}
 }
 

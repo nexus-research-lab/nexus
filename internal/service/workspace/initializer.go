@@ -212,8 +212,8 @@ func workspaceManagedStateReady(rootFS *confinedfs.Root, isMain bool) bool {
 }
 
 func sharedRuntimeCLIShimsReady() bool {
-	for _, name := range []string{"nexusctl", "nexusctl.cmd", "nexuscfg", "nexuscfg.cmd"} {
-		info, err := os.Lstat(filepath.Join(appfs.AgentRuntimeBinDir(), name))
+	for _, name := range runtimeCLIShimFileNames() {
+		info, err := os.Lstat(filepath.Join(appfs.RuntimeCLIBinDir(), name))
 		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return false
 		}
@@ -296,7 +296,7 @@ func (i *workspaceInitializer) ensureDirectoriesAt() error {
 }
 
 func (i *workspaceInitializer) ensureRuntimeTools() error {
-	return ensureRuntimeCLIShims(appfs.AgentRuntimeBinDir(), i.context)
+	return ensureRuntimeCLIShims(appfs.RuntimeCLIBinDir(), i.context)
 }
 
 func (i *workspaceInitializer) ensureTemplateFiles() error {

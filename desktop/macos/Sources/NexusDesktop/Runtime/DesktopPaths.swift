@@ -43,10 +43,6 @@ enum DesktopPaths {
     appDirectory.appendingPathComponent("logs", isDirectory: true)
   }
 
-  static var debugDirectory: URL {
-    appDirectory.appendingPathComponent("debug", isDirectory: true)
-  }
-
   static var sidecarPIDFileURL: URL {
     rootDirectory.appendingPathComponent("NexusSidecar.pid.json")
   }
@@ -71,7 +67,6 @@ enum DesktopPaths {
       projectsDirectory,
       cacheDirectory,
       logsDirectory,
-      debugDirectory,
     ] {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }

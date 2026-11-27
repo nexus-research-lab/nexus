@@ -107,6 +107,8 @@ type Config struct {
 	ConnectorShopifyClientSecret     string
 	ComputerUseEnabled               bool
 	ComputerUseBinaryPath            string
+	// ComputerUseStateDir 存放已安装的 CUA 版本、启用状态、进程 token 与截图产物。
+	ComputerUseStateDir string
 }
 
 // MemoryMaintenanceConfig 描述 Nexus 唤醒 nxs 记忆维护任务的宿主策略。
@@ -207,6 +209,7 @@ func Load() Config {
 		BrowserEnabled:              browserEnabled,
 		ComputerUseEnabled:          mustBool(getEnv("NEXUS_COMPUTER_USE_ENABLED", "false")),
 		ComputerUseBinaryPath:       strings.TrimSpace(getEnv("NEXUS_COMPUTER_USE_BINARY", "")),
+		ComputerUseStateDir:         filepath.Join(appRoot, "computer-use"),
 		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsSourceURLs:            getEnv("SKILLS_SOURCE_URLS", ""),
 		SkillsDefaultSourcesEnabled: mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
