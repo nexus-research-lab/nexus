@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - recovery.go：用户节点恢复、重试范围预览与确认和只读回执核对；传入认证 owner，由编排事务创建同执行者的新 Attempt。
-//   - handlers.go：按 owner/session 返回当前、exact 及历史 managed ExecutionView、从 exact 完成图生成/复用 Draft、检查命名 Slash 可用性、创建或恢复隐藏编辑会话、选择版本、直接保存用户确认的草图和表单元信息，并列出或删除已保存工作图；Apply 的失败事实只使用现有 editor/revision 语义，UI 和模型 command 共用草图与命名图的事务边界。
+//   - handlers.go：按 owner/session 返回当前、exact 及历史 managed ExecutionView 骨架与单节点运行详情（graph-node）、从 exact 完成图生成/复用 Draft、检查命名 Slash 可用性、创建或恢复隐藏编辑会话、选择版本、直接保存用户确认的草图和表单元信息，并列出或删除已保存工作图；Apply 的失败事实只使用现有 editor/revision 语义，UI 和模型 command 共用草图与命名图的事务边界。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查 internal/protocol/execution_view.go 与 AGENTS.md（L1）
 package execution

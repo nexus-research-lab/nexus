@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/go-chi/chi/v5/middleware"
+
 	appruntime "github.com/nexus-research-lab/nexus/internal/app/runtime"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 )
@@ -466,7 +468,10 @@ func (s *Server) mountExecutionRoutes() {
 	s.router.Get(s.prefixPath("/executions/{execution_id}/recovery-receipt"), s.handlers.execution.HandleGetWorkRecoveryReceipt)
 	s.router.Get(s.prefixPath("/executions/{execution_id}/retry-preview"), s.handlers.execution.HandleWorkRetryPreview)
 	s.router.Post(s.prefixPath("/executions/{execution_id}/retry"), s.handlers.execution.HandleWorkRetry)
-	s.router.Get(
+	// WorkGraph 读取是随失效重复拉取的大 JSON；只在这几条只读路由上压缩，
+	// 不包裹 WebSocket/流式路由。
+	graphReads := s.router.With(middleware.Compress(5, "application/json"))
+	graphReads.Get(
 		s.prefixPath("/executions/latest"),
 		s.handlers.execution.HandleGetLatestExecution,
 	)
@@ -474,9 +479,13 @@ func (s *Server) mountExecutionRoutes() {
 		s.prefixPath("/executions/history"),
 		s.handlers.execution.HandleListExecutionHistory,
 	)
-	s.router.Get(
+	graphReads.Get(
 		s.prefixPath("/executions/{execution_id}"),
 		s.handlers.execution.HandleGetExecution,
+	)
+	graphReads.Get(
+		s.prefixPath("/executions/{execution_id}/graph-node"),
+		s.handlers.execution.HandleGetExecutionGraphNode,
 	)
 	s.router.Get(
 		s.prefixPath("/workgraph/workflows"),

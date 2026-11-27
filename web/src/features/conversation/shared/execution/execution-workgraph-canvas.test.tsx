@@ -2,9 +2,9 @@
 // OUTPUT: Exact node/edge selection and independent file action regression evidence.
 // POS: DOM integration tests; pure geometry tests cover placement, with browser rendering checked separately.
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import type { ExecutionView, ExecutionWorkItemView } from "@/types/conversation/execution";
+import type { ExecutionGraphNodeDetailView, ExecutionView, ExecutionWorkItemView } from "@/types/conversation/execution";
 import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 
@@ -110,4 +110,56 @@ it("offers retry on a submitted task selected from a completed graph", () => {
   fireEvent.click(container.querySelector('[data-execution-graph-node-id="item"]')!);
   fireEvent.click(screen.getByRole("button", { name: "Retry this task" }));
   expect(run).toHaveBeenCalledWith(node);
+});
+
+const skeleton: ExecutionView = { ...execution, work_items: [], graph: {
+  runtime_node_total: 2, runtime_edge_total: 1, runtime_nodes_truncated: false, runtime_edges_truncated: false,
+  nodes: [
+    { id: "lead", kind: "agent", visibility: "primary", work_item_id: "", agent_id: "author", name: "Lead", lifecycle_status: "failed", run_status: "failed", position: 0 },
+    { id: "fetch", kind: "tool", visibility: "nested", work_item_id: "", parent_node_id: "lead", name: "WebFetch", position: 1 },
+  ],
+  edges: [{ id: "invoke", kind: "invoke", source_node_id: "lead", target_node_id: "fetch" }],
+} };
+
+function renderSkeletonCanvas(loadNodeDetail: (nodeId: string) => Promise<ExecutionGraphNodeDetailView>) {
+  return render(<I18nProvider><ExecutionWorkGraphCanvas currentId={null} directory={{}}
+    execution={skeleton} loadNodeDetail={loadNodeDetail} taskRuns={[]} /></I18nProvider>);
+}
+
+it("loads run facts and detail children only when a skeleton node is opened", async () => {
+  let resolve!: (value: ExecutionGraphNodeDetailView) => void;
+  const load = vi.fn(() => new Promise<ExecutionGraphNodeDetailView>((done) => { resolve = done; }));
+  const { container } = renderSkeletonCanvas(load);
+  expect(load).not.toHaveBeenCalled();
+  fireEvent.click(container.querySelector('[data-execution-graph-node-id="lead"]')!);
+  const inspector = screen.getByRole("complementary");
+  expect(load).toHaveBeenCalledWith("lead");
+  // 骨架没有错误摘要时，加载期间不得闪现“未提供错误摘要”。
+  expect(inspector.querySelector("[data-execution-node-detail-loading]")).not.toBeNull();
+  expect(inspector.textContent).not.toContain("did not provide a displayable error summary");
+
+  await act(async () => resolve({
+    execution_id: "execution",
+    node: { ...skeleton.graph!.nodes![0], error_summary: "Upstream timed out" },
+    children: [
+      { id: "fetch", kind: "tool", visibility: "nested", work_item_id: "", parent_node_id: "lead", name: "WebFetch", position: 1 },
+      { id: "read", kind: "tool", visibility: "detail", work_item_id: "", parent_node_id: "lead", name: "Read", result_summary: "Read notes.md", position: 2 },
+    ],
+  }));
+  expect(inspector.querySelector("[data-execution-node-detail-loading]")).toBeNull();
+  expect(inspector.textContent).toContain("Upstream timed out");
+  expect(inspector.querySelector('[data-execution-runtime-node="read"]')?.textContent).toContain("Read notes.md");
+});
+
+it("offers a retry when node detail fails and keeps the structural inspector", async () => {
+  const load = vi.fn()
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValueOnce({ execution_id: "execution", node: { ...skeleton.graph!.nodes![0], error_summary: "Recovered summary" } });
+  const { container } = renderSkeletonCanvas(load);
+  await act(async () => { fireEvent.click(container.querySelector('[data-execution-graph-node-id="lead"]')!); });
+  const inspector = screen.getByRole("complementary");
+  expect(inspector.querySelector("[data-execution-node-detail-failed]")).not.toBeNull();
+  await act(async () => { fireEvent.click(within(inspector).getByRole("button", { name: "Retry" })); });
+  expect(load).toHaveBeenCalledTimes(2);
+  expect(inspector.textContent).toContain("Recovered summary");
 });

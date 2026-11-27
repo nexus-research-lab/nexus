@@ -1,7 +1,7 @@
 /**
- * INPUT: 当前 session_key 与 Execution 只读 API。
- * OUTPUT: 带请求竞态保护、WS 失效合并和最近 managed 图保留的 WorkGraph 资源。
- * POS: DM/Room 共用的 Execution 前端状态入口。
+ * INPUT: 当前 session_key、WS 失效 revision 与 Execution 只读 API。
+ * OUTPUT: 带请求竞态保护、单飞读取、失效合并和最近 managed 图保留的 WorkGraph 骨架资源。
+ * POS: DM/Room 共用的 Execution 前端状态入口；节点运行详情由 use-execution-node-detail 按需读取。
  */
 "use client";
 
@@ -39,6 +39,18 @@ export interface ExecutionResource {
   sessionKey: string | null;
 }
 
+/**
+ * 读取调度状态：同一 session 同时至多一个请求；在途期间的失效只记一次 trailing
+ * 读取，页面隐藏期间的失效推迟到重新可见时读一次。失效只是“请重读”的信号，
+ * 合并后最终仍读到最新状态，不会让每个工具事件都触发一次整图读取。
+ */
+interface ExecutionReadSchedule {
+  deferred: boolean;
+  inFlight: boolean;
+  trailing: boolean;
+  version: number;
+}
+
 function emptySnapshot(sessionKey: string | null): ExecutionResourceSnapshot {
   return {
     error: null,
@@ -47,6 +59,10 @@ function emptySnapshot(sessionKey: string | null): ExecutionResourceSnapshot {
     loading: Boolean(sessionKey),
     sessionKey,
   };
+}
+
+function isDocumentHidden(): boolean {
+  return typeof document !== "undefined" && document.visibilityState === "hidden";
 }
 
 export function useExecutionResource({
@@ -62,7 +78,12 @@ export function useExecutionResource({
   const [dismissedExecutionId, setDismissedExecutionId] = useState<string | null>(
     null,
   );
-  const requestVersionRef = useRef(0);
+  const scheduleRef = useRef<ExecutionReadSchedule>({
+    deferred: false,
+    inFlight: false,
+    trailing: false,
+    version: 0,
+  });
   const visibleSnapshot = snapshot.sessionKey === sessionKey
     ? snapshot
     : emptySnapshot(sessionKey);
@@ -71,14 +92,24 @@ export function useExecutionResource({
     ? null
     : rawExecution;
 
-  const refresh = useCallback(async (showLoading = false) => {
+  const read = useCallback(async (showLoading: boolean): Promise<void> => {
+    const schedule = scheduleRef.current;
     if (!sessionKey) {
-      requestVersionRef.current += 1;
+      schedule.version += 1;
       setSnapshot(emptySnapshot(null));
       return;
     }
-    const requestVersion = requestVersionRef.current + 1;
-    requestVersionRef.current = requestVersion;
+    if (schedule.inFlight) {
+      schedule.trailing = true;
+      return;
+    }
+    if (isDocumentHidden()) {
+      schedule.deferred = true;
+      return;
+    }
+    const version = schedule.version;
+    schedule.inFlight = true;
+    schedule.deferred = false;
     if (showLoading) {
       setSnapshot((current) => ({
         error: null,
@@ -92,7 +123,7 @@ export function useExecutionResource({
     }
     try {
       const latest = await getLatestExecutionApi(sessionKey);
-      if (requestVersionRef.current !== requestVersion) {
+      if (schedule.version !== version) {
         return;
       }
       setSnapshot({
@@ -102,11 +133,11 @@ export function useExecutionResource({
         loading: false,
         sessionKey,
       });
-      if (latest && latest.id !== dismissedExecutionId) {
-        setDismissedExecutionId(null);
+      if (latest) {
+        setDismissedExecutionId((current) => (current === latest.id ? current : null));
       }
     } catch (error) {
-      if (requestVersionRef.current !== requestVersion) {
+      if (schedule.version !== version) {
         return;
       }
       setSnapshot((current) => current.sessionKey === sessionKey
@@ -117,28 +148,45 @@ export function useExecutionResource({
             ...(getResourceFailure(error, "").access ? { execution: null, lastSuccessfulAt: null } : {}),
           }
         : current);
+    } finally {
+      // 版本已变（切换 session/卸载）时，新作用域的调度已被重置，不得再改写它。
+      if (schedule.version === version) {
+        schedule.inFlight = false;
+        if (schedule.trailing) {
+          schedule.trailing = false;
+          void read(false);
+        }
+      }
     }
-  }, [dismissedExecutionId, sessionKey]);
+  }, [sessionKey]);
+
+  // 作用域切换：使在途请求失效并立刻释放单飞锁，新 session 不等待旧响应。
+  useEffect(() => {
+    const schedule = scheduleRef.current;
+    return () => {
+      schedule.version += 1;
+      schedule.inFlight = false;
+      schedule.trailing = false;
+      schedule.deferred = false;
+    };
+  }, [sessionKey]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      void refresh(true);
+      void read(true);
     }, EXECUTION_INVALIDATION_DEBOUNCE_MS);
-    return () => {
-      window.clearTimeout(timeout);
-      requestVersionRef.current += 1;
-    };
-  }, [invalidationKey, refresh, sessionKey]);
+    return () => window.clearTimeout(timeout);
+  }, [invalidationKey, read]);
 
   useEffect(() => {
-    const refreshWhenVisible = () => {
+    const readWhenVisible = () => {
       if (document.visibilityState === "visible") {
-        void refresh(false);
+        void read(false);
       }
     };
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => document.removeEventListener("visibilitychange", refreshWhenVisible);
-  }, [refresh]);
+    document.addEventListener("visibilitychange", readWhenVisible);
+    return () => document.removeEventListener("visibilitychange", readWhenVisible);
+  }, [read]);
 
   return {
     dismiss: () => {
@@ -151,7 +199,7 @@ export function useExecutionResource({
     isLoading: visibleSnapshot.loading,
     isStale: Boolean(visibleSnapshot.error && execution),
     lastSuccessfulAt: visibleSnapshot.lastSuccessfulAt,
-    refresh: () => void refresh(false),
+    refresh: () => void read(false),
     sessionKey,
   };
 }

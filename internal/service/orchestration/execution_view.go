@@ -40,6 +40,36 @@ func (s *Service) GetLatestView(
 ) (*protocol.ExecutionView, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	sessionKey = strings.TrimSpace(sessionKey)
+	execution, err := s.latestManagedExecution(ctx, ownerUserID, sessionKey)
+	if err != nil || execution == nil {
+		return nil, err
+	}
+	return s.getViewForExecution(ctx, ownerUserID, sessionKey, execution)
+}
+
+// GetView 按 owner/session/execution 精确读取一个历史 managed WorkGraph 的完整投影
+// （含 detail 节点与运行事实），供服务端派生使用；不经缓存，调用方可自由修改。
+func (s *Service) GetView(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	executionID string,
+) (*protocol.ExecutionView, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	execution, err := s.exactManagedExecution(ctx, ownerUserID, sessionKey, executionID)
+	if err != nil || execution == nil {
+		return nil, err
+	}
+	return s.getViewForExecution(ctx, ownerUserID, sessionKey, execution)
+}
+
+// latestManagedExecution 优先选未终结的 managed Execution，否则回看最近一次。
+func (s *Service) latestManagedExecution(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+) (*protocol.Execution, error) {
 	if ownerUserID == "" || sessionKey == "" {
 		return nil, domainError(ErrorCodeInvalidInput, "owner and session_key are required")
 	}
@@ -54,24 +84,16 @@ func (s *Service) GetLatestView(
 	if err == nil && execution == nil {
 		execution, err = repository.FindLatestManaged(ctx, ownerUserID, sessionKey)
 	}
-	if err != nil {
-		return nil, err
-	}
-	if execution == nil {
-		return nil, nil
-	}
-	return s.getViewForExecution(ctx, ownerUserID, sessionKey, execution)
+	return execution, err
 }
 
-// GetView 按 owner/session/execution 精确读取一个历史 managed WorkGraph。
-func (s *Service) GetView(
+// exactManagedExecution 只在 owner/session 完全一致时返回指定 Execution。
+func (s *Service) exactManagedExecution(
 	ctx context.Context,
 	ownerUserID string,
 	sessionKey string,
 	executionID string,
-) (*protocol.ExecutionView, error) {
-	ownerUserID = strings.TrimSpace(ownerUserID)
-	sessionKey = strings.TrimSpace(sessionKey)
+) (*protocol.Execution, error) {
 	executionID = strings.TrimSpace(executionID)
 	if ownerUserID == "" || sessionKey == "" || executionID == "" {
 		return nil, domainError(ErrorCodeInvalidInput, "owner, session_key and execution_id are required")
@@ -86,7 +108,78 @@ func (s *Service) GetView(
 	if execution.OwnerUserID != ownerUserID || execution.SessionKey != sessionKey {
 		return nil, domainError(ErrorCodeWrongOwner, "Execution is outside the requested owner/session")
 	}
-	return s.getViewForExecution(ctx, ownerUserID, sessionKey, execution)
+	return execution, nil
+}
+
+// GetLatestSkeletonView 是 HTTP 当前图读取面：与 GetLatestView 同源，但只返回骨架。
+func (s *Service) GetLatestSkeletonView(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+) (*protocol.ExecutionView, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	execution, err := s.latestManagedExecution(ctx, ownerUserID, sessionKey)
+	if err != nil || execution == nil {
+		return nil, err
+	}
+	full, err := s.cachedViewForExecution(ctx, ownerUserID, sessionKey, execution)
+	return executionSkeletonView(full), err
+}
+
+// GetSkeletonView 是 HTTP 历史图读取面：exact Execution 的骨架。
+func (s *Service) GetSkeletonView(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	executionID string,
+) (*protocol.ExecutionView, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	execution, err := s.exactManagedExecution(ctx, ownerUserID, sessionKey, executionID)
+	if err != nil || execution == nil {
+		return nil, err
+	}
+	full, err := s.cachedViewForExecution(ctx, ownerUserID, sessionKey, execution)
+	return executionSkeletonView(full), err
+}
+
+// GetGraphNodeDetail 读取单个节点的完整运行事实与它的直接子节点；与骨架共享同一
+// 份缓存投影，因此检查器看到的状态与画布一致。节点不存在时返回 nil。
+func (s *Service) GetGraphNodeDetail(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	executionID string,
+	nodeID string,
+) (*protocol.ExecutionGraphNodeDetailView, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return nil, domainError(ErrorCodeInvalidInput, "node_id is required")
+	}
+	execution, err := s.exactManagedExecution(ctx, ownerUserID, sessionKey, executionID)
+	if err != nil || execution == nil {
+		return nil, err
+	}
+	full, err := s.cachedViewForExecution(ctx, ownerUserID, sessionKey, execution)
+	if err != nil || full == nil {
+		return nil, err
+	}
+	return executionGraphNodeDetail(full, nodeID), nil
+}
+
+// cachedViewForExecution 返回只读的共享完整投影；调用方只能派生新值，不得原地修改。
+func (s *Service) cachedViewForExecution(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	execution *protocol.Execution,
+) (*protocol.ExecutionView, error) {
+	return s.viewCache.load(ctx, execution, func(ctx context.Context) (*protocol.ExecutionView, error) {
+		return s.getViewForExecution(ctx, ownerUserID, sessionKey, execution)
+	})
 }
 
 // ListHistorySummaries 返回当前 session 最近的 managed WorkGraph 目录，不读取运行历史。

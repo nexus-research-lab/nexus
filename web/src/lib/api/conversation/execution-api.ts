@@ -1,11 +1,11 @@
 /**
  * INPUT: 会话 session_key 与 exact 完成态 Execution。
- * OUTPUT: managed WorkGraph 读取、精确节点恢复与只读回执核对、仅显式元信息修改的 Draft 编辑恢复、版本选择、命名图目录与确认后的直接保存。
+ * OUTPUT: managed WorkGraph 骨架与单节点运行详情读取、精确节点恢复与只读回执核对、仅显式元信息修改的 Draft 编辑恢复、版本选择、命名图目录与确认后的直接保存。
  * POS: Execution/WorkGraph HTTP 协议的 Web 客户端；保存响应必须来自草图与命名图事务提交，关闭编辑 UI 不删除 Session。
  */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
-import type { ExecutionRecoveryReceipt, WorkRetryPreview, ExecutionSummary, ExecutionView } from "@/types/conversation/execution";
+import type { ExecutionGraphNodeDetailView, ExecutionRecoveryReceipt, WorkRetryPreview, ExecutionSummary, ExecutionView } from "@/types/conversation/execution";
 import type {
   WorkGraphWorkflow,
   WorkGraphWorkflowEditorSession,
@@ -45,6 +45,19 @@ export async function getExecutionApi(
   const query = new URLSearchParams({ session_key: sessionKey });
   return requestApi<ExecutionView>(
     `${AGENT_API_BASE_URL}/executions/${encodeURIComponent(executionId)}?${query.toString()}`,
+    { method: "GET" },
+  );
+}
+
+/** 读取单个节点的结果/错误摘要、NodeRun 历史与全部直接子节点（含 detail 历史）。 */
+export async function getExecutionGraphNodeDetailApi(
+  sessionKey: string,
+  executionId: string,
+  nodeId: string,
+): Promise<ExecutionGraphNodeDetailView> {
+  const query = new URLSearchParams({ session_key: sessionKey, node_id: nodeId });
+  return requestApi<ExecutionGraphNodeDetailView>(
+    `${AGENT_API_BASE_URL}/executions/${encodeURIComponent(executionId)}/graph-node?${query.toString()}`,
     { method: "GET" },
   );
 }

@@ -116,6 +116,7 @@ type Service struct {
 	cancellationConsumer   ExecutionCancellationConsumer
 	invalidationMu         sync.RWMutex
 	invalidationSink       ExecutionInvalidationSink
+	viewCache              executionViewCache
 	coordinationMu         sync.RWMutex
 	coordinationRounds     map[string]string
 	dispatchLoop           *duework.Loop

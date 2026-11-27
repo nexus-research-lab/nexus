@@ -1,5 +1,5 @@
 /**
- * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
+ * INPUT: 权威 Execution Graph 骨架（或内联预览图）与可选节点详情读取函数、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
  * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作、统一节点/运行耗时及完整交互的大图弹窗；工具栏和关系图例独立于点阵画布，详情按可视视口避让所选节点/边端点并保持屏幕字号。
  * POS: DM/Room 共用的 Execution Graph 读图与显式恢复入口；恢复只受理请求，不改画布状态；历史 Task 按节点 Attempt 隔离，文件操作使用真实节点工作区身份；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
@@ -21,13 +21,14 @@ import {
   type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from "react";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, LoaderCircle } from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   UiDialogBackdrop,
@@ -39,6 +40,7 @@ import type {
   ExecutionAttemptView,
   ExecutionGraphEdgeKind,
   ExecutionGraphEdgeView,
+  ExecutionGraphNodeDetailView,
   ExecutionGraphNodeView,
   ExecutionView,
   ExecutionWorkItemStatus,
@@ -53,6 +55,7 @@ import { ExecutionNodeAvatar } from "./execution-node-avatar";
 import { formatExecutionDuration, getExecutionRunStatusLabel } from "./execution-run-presentation";
 import { ExecutionNodeRunHistory } from "./execution-node-run-history";
 import { ExecutionNodeTaskList } from "./execution-node-task-list";
+import { useExecutionNodeDetail, type ExecutionNodeDetailLoader } from "./use-execution-node-detail";
 import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
 import {
   compactExecutionNodeObjective,
@@ -167,6 +170,8 @@ interface ExecutionWorkGraphCanvasProps {
     workspaceAgentId?: string | null,
   ) => void;
   taskRuns: readonly ConversationTaskRun[];
+  /** 公共骨架图必须提供：检查器按节点读取摘要、NodeRun 与子节点；内联预览图缺省。 */
+  loadNodeDetail?: ExecutionNodeDetailLoader;
 }
 
 function isExecutionGraphInteractiveTarget(target: EventTarget | null): boolean {
@@ -191,6 +196,7 @@ export function ExecutionWorkGraphCanvas({
   nodePresentation = "icon",
   onOpenWorkspaceFile,
   taskRuns,
+  loadNodeDetail,
 }: ExecutionWorkGraphCanvasProps) {
   const { t } = useI18n();
   const markerId = `execution-arrow-${useId().replace(/:/g, "")}`;
@@ -1399,6 +1405,7 @@ export function ExecutionWorkGraphCanvas({
               directory={directory}
               execution={execution}
               item={selectedItem}
+              loadNodeDetail={loadNodeDetail}
               node={selectedLayoutNode.node}
               recovery={recovery}
               onClose={() => setSelectedId(null)}
@@ -1411,6 +1418,7 @@ export function ExecutionWorkGraphCanvas({
             <ExecutionEdgeInspector
               edge={selectedLayoutEdge.edge}
               execution={execution}
+              loadNodeDetail={loadNodeDetail}
               onClose={() => setSelectedEdgeId(null)}
               style={inspectorStyle}
             />
@@ -1444,6 +1452,7 @@ export function ExecutionWorkGraphCanvas({
           currentId={currentId}
           directory={directory}
           execution={execution}
+          loadNodeDetail={loadNodeDetail}
           nodePresentation={nodePresentation}
           onClose={() => setExpandedOpen(false)}
           recovery={recovery}
@@ -1464,6 +1473,7 @@ function ExecutionWorkGraphExpandedDialog({
   onClose,
   onOpenWorkspaceFile,
   taskRuns,
+  loadNodeDetail,
 }: Omit<ExecutionWorkGraphCanvasProps, "onCloseExpanded"> & {
   onClose: () => void;
 }) {
@@ -1491,6 +1501,7 @@ function ExecutionWorkGraphExpandedDialog({
               currentId={currentId}
               directory={directory}
               execution={execution}
+              loadNodeDetail={loadNodeDetail}
               onCloseExpanded={onClose}
               recovery={recovery}
               nodePresentation={nodePresentation}
@@ -1510,7 +1521,8 @@ function ExecutionNodeInspector({
   directory,
   execution,
   item,
-  node,
+  loadNodeDetail,
+  node: structuralNode,
   onClose,
   onOpenWorkspaceFile,
   style,
@@ -1521,6 +1533,7 @@ function ExecutionNodeInspector({
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
   item: ExecutionWorkItemView | null;
+  loadNodeDetail?: ExecutionNodeDetailLoader;
   node: ExecutionGraphNodeView;
   onClose: () => void;
   onOpenWorkspaceFile?: (
@@ -1531,6 +1544,10 @@ function ExecutionNodeInspector({
   taskRun: ConversationTaskRun | null;
 }) {
   const { locale, t } = useI18n();
+  const nodeDetail = useExecutionNodeDetail(loadNodeDetail, structuralNode.id, execution);
+  // 骨架只给结构与状态；有详情时叠加运行事实，内联预览图直接使用图内字段。
+  const node = withExecutionNodeRunFacts(structuralNode, nodeDetail.detail);
+  const runFactsPending = Boolean(loadNodeDetail) && !nodeDetail.detail;
   const durationLabel = formatExecutionDuration(node.duration_ms, { locale, t });
   const parentNode = node.parent_node_id
     ? execution.graph?.nodes?.find((candidate) => candidate.id === node.parent_node_id)
@@ -1575,12 +1592,14 @@ function ExecutionNodeInspector({
     node.error_summary || attempt?.failure_reason || "",
   );
   const visibleErrorSummary = errorSummary
-    || (status === "failed" ? t("execution.error_summary_unavailable") : "");
+    || (status === "failed" && !runFactsPending ? t("execution.error_summary_unavailable") : "");
   const controlReturnObserved = (execution.graph?.edges ?? []).some((edge) => (
     edge.kind === "loop_back" && edge.source_node_id === node.id
   ));
-  const childNodes = (execution.graph?.nodes ?? [])
-    .filter((candidate) => candidate.parent_node_id === node.id)
+  const childNodes = (loadNodeDetail
+    ? nodeDetail.detail?.children ?? []
+    : (execution.graph?.nodes ?? []).filter((candidate) => candidate.parent_node_id === node.id))
+    .slice()
     .sort((left, right) => (
       left.position - right.position || left.id.localeCompare(right.id)
     ));
@@ -1727,6 +1746,9 @@ function ExecutionNodeInspector({
         </NodeDetailSection>
       ) : null}
       {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
+      {runFactsPending ? (
+        <ExecutionNodeDetailPending failed={nodeDetail.failed} onRetry={nodeDetail.retry} />
+      ) : null}
       <ExecutionNodeRunHistory
         item={item}
         node={node}
@@ -1747,18 +1769,24 @@ function ExecutionNodeInspector({
 function ExecutionEdgeInspector({
   edge,
   execution,
+  loadNodeDetail,
   onClose,
   style,
 }: {
   edge: ExecutionGraphEdgeView;
   execution: ExecutionView;
+  loadNodeDetail?: ExecutionNodeDetailLoader;
   onClose: () => void;
   style: CSSProperties;
 }) {
   const { t } = useI18n();
   const nodes = execution.graph?.nodes ?? [];
-  const sourceNode = nodes.find((node) => node.id === edge.source_node_id) ?? null;
-  const targetNode = nodes.find((node) => node.id === edge.target_node_id) ?? null;
+  const sourceDetail = useExecutionNodeDetail(loadNodeDetail, edge.source_node_id, execution);
+  const targetDetail = useExecutionNodeDetail(loadNodeDetail, edge.target_node_id, execution);
+  const sourceStructure = nodes.find((node) => node.id === edge.source_node_id) ?? null;
+  const targetStructure = nodes.find((node) => node.id === edge.target_node_id) ?? null;
+  const sourceNode = sourceStructure && withExecutionNodeRunFacts(sourceStructure, sourceDetail.detail);
+  const targetNode = targetStructure && withExecutionNodeRunFacts(targetStructure, targetDetail.detail);
   const sourceItem = sourceNode
     ? execution.work_items?.find((item) => item.id === sourceNode.work_item_id) ?? null
     : null;
@@ -1833,6 +1861,47 @@ function ExecutionEdgeInspector({
         </NodeDetailSection>
       ) : null}
     </ExecutionGraphInspector>
+  );
+}
+
+/** 详情只覆盖运行事实字段；身份、状态与布局字段始终以当前骨架为准。 */
+function withExecutionNodeRunFacts(
+  node: ExecutionGraphNodeView,
+  detail: ExecutionGraphNodeDetailView | null,
+): ExecutionGraphNodeView {
+  if (!detail || detail.node.id !== node.id) return node;
+  return {
+    ...node,
+    error_summary: detail.node.error_summary,
+    result_summary: detail.node.result_summary,
+    runs: detail.node.runs,
+    summary_truncated: detail.node.summary_truncated,
+  };
+}
+
+function ExecutionNodeDetailPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
+  const { t } = useI18n();
+  if (!failed) {
+    return (
+      <p
+        className={cn("flex items-center gap-2", getUiTypographyClassName({ role: "caption", tone: "soft" }))}
+        data-execution-node-detail-loading
+        role="status"
+      >
+        <LoaderCircle aria-hidden="true" className={getUiSpinnerClassName({ size: "sm" })} />
+        {t("execution.node_detail_loading")}
+      </p>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2" data-execution-node-detail-failed>
+      <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })} role="status">
+        {t("execution.node_detail_failed")}
+      </p>
+      <UiButton onClick={onRetry} size="sm" variant="ghost">
+        {t("execution.node_detail_retry")}
+      </UiButton>
+    </div>
   );
 }
 

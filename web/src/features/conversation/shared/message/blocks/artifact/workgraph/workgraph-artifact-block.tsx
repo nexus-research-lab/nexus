@@ -1,6 +1,6 @@
 /**
  * INPUT: assistant 消息中持久化的完整 WorkGraph Draft/命名图快照。
- * OUTPUT: 对话内紧凑草图卡片，以及按需加载 exact 来源图并完整解释读取失败的扁平对照弹窗。
+ * OUTPUT: 对话内紧凑草图卡片，以及按需加载 exact 来源图骨架（节点运行详情按需读取）并完整解释读取失败的扁平对照弹窗。
  * POS: 普通 DM/Room WorkGraph authoring 最终回复视图；来源读取失败不改变草图、命名图或源 Execution。
  */
 "use client";
@@ -17,6 +17,7 @@ import {
 import { ExecutionWorkGraphCanvas } from "@/features/conversation/shared/execution/execution-workgraph-canvas";
 import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/named-workgraph-sketch";
 import { projectWorkGraphWorkflowCanvasExecution } from "@/features/conversation/shared/execution/workgraph-workflow-canvas-model";
+import { useExecutionNodeDetailLoader } from "@/features/conversation/shared/execution/use-execution-node-detail";
 import { getExecutionApi } from "@/lib/api/conversation/execution-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -170,6 +171,7 @@ function WorkGraphCompareDialog({
 
   const sourceSessionKey = graph?.source_session_key;
   const sourceExecutionId = graph?.source_execution_id;
+  const loadSourceNodeDetail = useExecutionNodeDetailLoader(sourceSessionKey, sourceExecutionId);
   useEffect(() => {
     if (!sourceSessionKey || !sourceExecutionId) {
       setSource(null);
@@ -213,7 +215,7 @@ function WorkGraphCompareDialog({
           </span>
         </div>
       ) : source ? (
-        <ExecutionWorkGraphCanvas currentId={null} directory={{}} execution={source} taskRuns={[]} />
+        <ExecutionWorkGraphCanvas currentId={null} directory={{}} execution={source} loadNodeDetail={loadSourceNodeDetail} taskRuns={[]} />
       ) : failed ? (
         <div className="grid h-full place-items-center px-6">
           <UiResourceState

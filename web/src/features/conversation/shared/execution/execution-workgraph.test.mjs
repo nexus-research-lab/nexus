@@ -1656,10 +1656,10 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     collapsedLayout.nodes.some((node) => node.node.id === "attempt-child"),
     false,
   );
-  assert.deepEqual(searchExecutionGraphNodes(searchable, "disconnected"), [
-    "attempt-child",
-  ]);
-  assert.deepEqual(searchExecutionGraphNodes(searchable, "reports/result.md"), [
+  // 搜索只覆盖结构字段：运行摘要与 Artifact 属于按需读取的节点详情，不参与检索。
+  assert.deepEqual(searchExecutionGraphNodes(searchable, "disconnected"), []);
+  assert.deepEqual(searchExecutionGraphNodes(searchable, "reports/result.md"), []);
+  assert.deepEqual(searchExecutionGraphNodes(searchable, "attempt-child"), [
     "attempt-child",
   ]);
   assert.equal(
