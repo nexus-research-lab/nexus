@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestCompatibleSkillLibrarySkipsMatchingPublicationAndRepairsDrift(t *testing.T) {
@@ -43,6 +44,32 @@ func TestCompatibleSkillLibrarySkipsMatchingPublicationAndRepairsDrift(t *testin
 	content, err := os.ReadFile(published)
 	if err != nil || string(content) != "# demo\n" {
 		t.Fatalf("重发后内容 = %q, err=%v", content, err)
+	}
+}
+
+func TestCompatibleSkillLibraryRemovesOnlyStaleStaging(t *testing.T) {
+	sourceRoot := filepath.Join(t.TempDir(), "skills")
+	parent := t.TempDir()
+	targetRoot := filepath.Join(parent, "platform-skills")
+	writeSkillSourceFile(t, sourceRoot, "demo/SKILL.md", "# demo\n", 0o600)
+	stale := filepath.Join(parent, skillLibraryStagingPrefix+"stale")
+	fresh := filepath.Join(parent, skillLibraryStagingPrefix+"fresh")
+	writeSkillSourceFile(t, stale, "demo/SKILL.md", "old", 0o644)
+	writeSkillSourceFile(t, fresh, "demo/SKILL.md", "new", 0o644)
+	old := time.Now().Add(-2 * staleSkillLibraryStagingAge)
+	if err := os.Chtimes(stale, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ensureCompatibleSkillLibrary(sourceRoot, targetRoot); err != nil {
+		t.Fatalf("发布失败: %v", err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatalf("过期暂存目录应被回收: %v", err)
+	}
+	// 未过期的可能属于另一个正在发布的进程，必须保留。
+	if _, err := os.Stat(fresh); err != nil {
+		t.Fatalf("未过期暂存目录不应删除: %v", err)
 	}
 }
 
