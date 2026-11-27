@@ -1086,6 +1086,10 @@
     transform-box: fill-box;
   }
 
+  /* 减弱动态效果时没有动画，薄云停在侧栏可见范围内的固定位置。 */
+  .sidebar-sky-drift-a { transform: translateX(210px); }
+  .sidebar-sky-drift-b { transform: translateX(330px); }
+
   /* 所有动效只在用户未要求减弱动态效果时运行；静止时各图层停在首帧，构图依然完整。 */
   @media (prefers-reduced-motion: no-preference) {
     .sidebar-panel-sky-stars {
@@ -1098,8 +1102,8 @@
     }
 
     /* 白天的云只做很慢的左右漂移，日光轻微呼吸，不抢注意力。 */
-    .sidebar-sky-drift-a { animation: sidebar-sky-drift 26s ease-in-out infinite alternate; }
-    .sidebar-sky-drift-b { animation: sidebar-sky-drift 34s ease-in-out -12s infinite alternate-reverse; }
+    .sidebar-sky-drift-a { animation: sidebar-sky-wisp-pass 36s linear -14s infinite; }
+    .sidebar-sky-drift-b { animation: sidebar-sky-wisp-pass 50s linear -38s infinite; }
     .sidebar-sky-drift-clouds { animation: sidebar-sky-drift-slow 40s ease-in-out infinite alternate; }
 
     .sidebar-sky-sun-breathe {
@@ -1114,9 +1118,12 @@
     100% { opacity: 0; transform: translateX(90px); }
   }
 
-  @keyframes sidebar-sky-drift {
-    from { transform: translateX(-14px); }
-    to { transform: translateX(14px); }
+  /* 薄云从画框左外侧飘到右外侧（视图盒 480 宽，云体最宽约 150，可见侧栏约占前 290），两端淡入淡出避免循环时跳变。 */
+  @keyframes sidebar-sky-wisp-pass {
+    0% { opacity: 0; transform: translateX(0); }
+    8% { opacity: 1; }
+    92% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(460px); }
   }
 
   @keyframes sidebar-sky-drift-slow {
