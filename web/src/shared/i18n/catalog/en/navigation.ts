@@ -104,7 +104,6 @@ export const enNavigationMessages = {
   "sidebar.directory_refresh_failed_impact": "This chat directory may be out of date. Refresh to check.",
   "sidebar.directory_refresh_failed_next_step": "Load the latest directory again. You can keep viewing the last successfully loaded content.",
   "sidebar.retry": "Retry",
-  "sidebar.no_contacts": "No contacts yet",
   "sidebar.contacts_empty_description": "Contacts are your agent directory. Add one, then start DMs or group chats from Chats.",
   "sidebar.contact_no_description": "No description",
   "sidebar.guide_nexus_agent": "Nexus: your default assistant, pinned at the top of Chats.",
