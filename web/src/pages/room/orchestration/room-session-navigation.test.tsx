@@ -117,17 +117,18 @@ describe("session header navigation through page commands", () => {
     });
     const view = render(page("/rooms/room/conversations/First"));
     const nav = within(await screen.findByRole("navigation", { name: "room.session_tabs_label" }));
-    expect(nav.getByRole("button", { name: "First" })).toBeTruthy();
+    // 只打开一个未固定会话时不渲染与 Header 重复的标签，只留固定图标。
+    expect(nav.queryByRole("button", { name: "First" })).toBeNull();
     expect(nav.queryByRole("button", { name: "History" })).toBeNull();
 
-    const first = nav.getByRole("button", { name: "First" });
+    const first = nav.getByRole("button", { name: "room.pin_conversation" });
     const workspace = screen.getByRole("button", { name: "room.workspace" });
     await user.click(workspace);
     expect(workspace.getAttribute("aria-pressed")).toBe("true");
-    expect(nav.getByRole("button", { name: "First" })).toBe(first);
+    expect(nav.getByRole("button", { name: "room.pin_conversation" })).toBe(first);
     await user.click(workspace);
     expect(workspace.getAttribute("aria-pressed")).toBe("false");
-    expect(first.getAttribute("aria-current")).toBe("page");
+    expect(first.isConnected).toBe(true);
     expect(createRoomConversation).not.toHaveBeenCalled();
     expect(closeRoomConversationRuntime).not.toHaveBeenCalled();
 
@@ -136,7 +137,7 @@ describe("session header navigation through page commands", () => {
     const create = nav.getByRole("button", { name: "room.new_conversation" });
     await user.click(create);
     expect(create.hasAttribute("disabled")).toBe(true);
-    expect(nav.getByRole("button", { name: "First" }).getAttribute("aria-current")).toBe("page");
+    expect(nav.queryByRole("button", { name: "First" })).toBeNull();
     await act(async () => finishRefresh(contexts));
     await waitFor(() => expect(nav.getByRole("button", { name: "New session" }).getAttribute("aria-current")).toBe("page"));
     expect(nav.getByRole("button", { name: "First" })).toBeTruthy();
