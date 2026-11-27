@@ -117,6 +117,23 @@ func (d SQLDialect) JSONValue(index int) string {
 	return "json(" + bind + ")"
 }
 
+// JSONTextSet 返回把 JSON 字符串数组参数展开为单列集合的子查询，供 `IN (...)` 使用。
+// 整个集合只占一个绑定位：SQL 文本不随元素数量变化，避免按批拼占位符后每批重新解析。
+func (d SQLDialect) JSONTextSet(index int) string {
+	if d.postgres {
+		return "SELECT jsonb_array_elements_text(" + d.Bind(index) + "::jsonb)"
+	}
+	return "SELECT value FROM json_each(" + d.Bind(index) + ")"
+}
+
+// JSONArrayRows 返回把 JSON 数组参数展开为行的 FROM 项，元素以 alias.value 访问（JSON 值）。
+func (d SQLDialect) JSONArrayRows(index int, alias string) string {
+	if d.postgres {
+		return "jsonb_array_elements(" + d.Bind(index) + "::jsonb) AS " + alias + "(value)"
+	}
+	return "json_each(" + d.Bind(index) + ") AS " + alias
+}
+
 func (d SQLDialect) InsertIgnoreInto(table string) string {
 	if d.postgres {
 		return "INSERT INTO " + table

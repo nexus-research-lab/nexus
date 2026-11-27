@@ -6,6 +6,7 @@ package orchestration
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -633,43 +634,36 @@ WHERE owner_user_id = %s AND session_key = %s
 		// target's exact parent/Work Item while preserving the original run ID.
 		// Control edges are independent: a loop can resolve its destination from
 		// the source's Work Item segment even when the stored target is outside scope.
-		const nodeBatchSize = 200
+		// 目标集合作为单个 JSON 参数绑定：连线索引只覆盖 graph 前缀，按 200 个分批的
+		// IN 列表会让每批重扫该图全部连线并重新解析一条新 SQL。
 		result, err := r.readRuntimeGraphEdges(ctx, query+" AND edge_kind IN ('retry', 'loop_back')", args)
 		if err != nil {
 			return nil, 0, false, err
 		}
-		for start := 0; start < len(selectedNodeIDs); start += nodeBatchSize {
-			batchArgs := slices.Clone(args)
-			var targetBinds []string
-			for _, id := range selectedNodeIDs[start:min(start+nodeBatchSize, len(selectedNodeIDs))] {
-				targetBinds = append(targetBinds, r.bind(len(batchArgs)+1))
-				batchArgs = append(batchArgs, id)
-			}
-			batch, err := r.readRuntimeGraphEdges(ctx, query+" AND edge_kind NOT IN ('retry', 'loop_back') AND target_node_run_id IN ("+strings.Join(targetBinds, ",")+")", batchArgs)
-			if err != nil {
-				return nil, 0, false, err
-			}
-			result = append(result, batch...)
+		targets, err := json.Marshal(selectedNodeIDs)
+		if err != nil {
+			return nil, 0, false, err
 		}
+		targetArgs := append(slices.Clone(args), string(targets))
+		ordinary, err := r.readRuntimeGraphEdges(ctx, query+" AND edge_kind NOT IN ('retry', 'loop_back') AND target_node_run_id IN ("+r.dialect.JSONTextSet(len(targetArgs))+")", targetArgs)
+		if err != nil {
+			return nil, 0, false, err
+		}
+		result = append(result, ordinary...)
 		sortRuntimeGraphEdges(result)
 		return result, total, false, nil
 	}
 	if bounded {
-		sourcePlaceholders := make([]string, len(selectedNodeIDs))
-		targetPlaceholders := make([]string, len(selectedNodeIDs))
-		for index, nodeID := range selectedNodeIDs {
-			sourcePlaceholders[index] = r.bind(len(edgeArgs) + 1)
-			edgeArgs = append(edgeArgs, nodeID)
+		selected, err := json.Marshal(selectedNodeIDs)
+		if err != nil {
+			return nil, 0, false, err
 		}
-		for index, nodeID := range selectedNodeIDs {
-			targetPlaceholders[index] = r.bind(len(edgeArgs) + 1)
-			edgeArgs = append(edgeArgs, nodeID)
-		}
+		edgeArgs = append(edgeArgs, string(selected), string(selected))
 		query += fmt.Sprintf(`
   AND source_node_run_id IN (%s)
   AND target_node_run_id IN (%s)`,
-			strings.Join(sourcePlaceholders, ", "),
-			strings.Join(targetPlaceholders, ", "),
+			r.dialect.JSONTextSet(len(edgeArgs)-1),
+			r.dialect.JSONTextSet(len(edgeArgs)),
 		)
 	}
 	query += "\nORDER BY created_at DESC, edge_run_id DESC"

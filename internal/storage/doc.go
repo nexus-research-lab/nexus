@@ -3,8 +3,8 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - database.go：OpenDB 打开带 immediate transaction、busy timeout 与外键保护的运行连接；OpenMigrationDB 提供 migration 专用连接。
-//   - dialect.go：MigrationDirName / GooseDialect 解析驱动的迁移目录与 goose 方言。
+//   - database.go：OpenDB 打开带 immediate transaction、busy timeout、外键保护与 64 MiB 默认页缓存的运行连接；OpenMigrationDB 提供 migration 专用连接。
+//   - dialect.go：MigrationDirName / GooseDialect 解析驱动的迁移目录与 goose 方言；SQLDialect 提供绑定位、JSON 值与单参数 JSON 数组集合片段。
 //   - time_value.go：统一解析 SQLite/PostgreSQL 聚合 deadline 返回的可空时间值。
 //   - room_lock.go：跨 repository 的 Room-first mutation 行锁协议。
 //   - integration_test.go / workgraph*_integration_test.go：临时 SQLite/PostgreSQL 的迁移、事务回滚、并发幂等与 Draft/历史读取验收；仅测试使用。
