@@ -1,12 +1,12 @@
 /**
  * INPUT: 天空变体；配色全部来自 theme-recipes.css 中 `.sidebar-panel-sky[data-sky-variant]` 定义的 --sidebar-sky-* 变量。
  * OUTPUT: 品牌栏背后的天空插画。各变体共用 480×96 画框、斜向底色、光晕与星点，再叠加各自的主角图层：
- *   night 成形云朵 · meteor 云朵加周期流星 · aurora 摇曳极光带 · dawn 晨曦日晕与暖色云 · constellation 星座连线与沿边流动的信号。
+ *   night 成形云朵 · meteor 云朵加周期流星 · dawn 晨曦日晕与暖色云 · day 晴空、日光与缓慢漂移的白云（不画星点）。
  * POS: 侧栏壳层的纯装饰层，aria-hidden 且不拦截指针；渐隐、主题明暗与减弱动态效果由外层配方负责。
  */
 import { useId } from "react";
 
-export type SidebarSkyVariant = "night" | "meteor" | "aurora" | "dawn" | "constellation";
+export type SidebarSkyVariant = "night" | "meteor" | "dawn" | "day";
 
 // 视图盒固定 480×96，外层以 xMinYMin slice 铺满任意侧栏宽度。
 const SKY_VIEW_BOX = "0 0 480 96";
@@ -76,65 +76,17 @@ const METEORS: ReadonlyArray<readonly [x: number, y: number, length: number, del
   [262, 14, 30, "6.1s"],
 ];
 
-// 极光：三条上沿起伏、向下渐隐的光带，各自以不同周期左右摆动。
-const AURORA_BANDS: ReadonlyArray<{ d: string; className: string }> = [
+// 白天的高空薄云：两缕拉长的卷云，叠在晴空上半段，随 CSS 缓慢左右漂移。
+const DAY_WISPS: ReadonlyArray<{ d: string; className: string }> = [
   {
-    d: "M-20 50C26 14 64 44 108 22C150 0 188 40 236 18C280-2 316 36 362 14C404-6 446 26 500 8V72H-20Z",
-    className: "sidebar-sky-aurora-band sidebar-sky-aurora-band-a",
+    d: "M36 30C52 22 74 22 92 26C108 19 132 20 148 27C160 25 172 28 176 33C150 37 114 37 84 36C64 36 46 35 36 30Z",
+    className: "sidebar-sky-drift sidebar-sky-drift-a",
   },
   {
-    d: "M-20 62C34 34 84 64 138 40C188 18 230 56 284 32C334 10 382 50 430 28C458 16 480 24 500 20V82H-20Z",
-    className: "sidebar-sky-aurora-band sidebar-sky-aurora-band-b",
-  },
-  {
-    d: "M-20 34C24 24 60 30 96 20C136 9 168 22 204 14C236 7 262 16 296 10V54C262 58 236 50 204 56C168 62 136 50 96 58C60 64 24 56 -20 62Z",
-    className: "sidebar-sky-aurora-band sidebar-sky-aurora-band-c",
+    d: "M286 20C300 13 322 13 338 18C352 12 374 13 388 20C398 19 408 22 410 26C386 29 354 29 328 28C310 27 294 25 286 20Z",
+    className: "sidebar-sky-drift sidebar-sky-drift-b",
   },
 ];
-
-// 星座：节点与边构成一张稀疏的协作网络，呼应 Nexus 的多 Agent 连接。
-const CONSTELLATION_NODES: ReadonlyArray<readonly [x: number, y: number, r: number]> = [
-  [22, 30, 1.3],
-  [58, 14, 1],
-  [92, 34, 1.6],
-  [130, 18, 1.1],
-  [168, 40, 1.3],
-  [204, 16, 1.8],
-  [242, 32, 1.1],
-  [280, 12, 1.3],
-  [318, 36, 1.6],
-  [356, 20, 1.1],
-  [394, 42, 1.3],
-  [430, 16, 1.7],
-  [466, 34, 1.1],
-];
-
-const CONSTELLATION_EDGES: ReadonlyArray<readonly [from: number, to: number]> = [
-  [0, 1],
-  [1, 2],
-  [0, 2],
-  [2, 3],
-  [3, 5],
-  [2, 4],
-  [4, 5],
-  [5, 6],
-  [6, 7],
-  [7, 8],
-  [6, 8],
-  [8, 9],
-  [9, 11],
-  [8, 10],
-  [10, 11],
-  [11, 12],
-];
-
-// 沿网络流动的两段信号路径，以虚线偏移动画表达“消息在 Agent 之间传递”。
-const CONSTELLATION_SIGNALS: ReadonlyArray<readonly number[]> = [
-  [0, 2, 4, 5, 6, 8, 10, 11, 12],
-  [1, 3, 5, 7, 8, 9, 11],
-];
-
-const PULSING_NODES = new Set([2, 5, 8, 11]);
 
 export function SidebarNightSky({ variant = "night" }: { variant?: SidebarSkyVariant }) {
   const prefix = useId().replaceAll(":", "");
@@ -145,11 +97,10 @@ export function SidebarNightSky({ variant = "night" }: { variant?: SidebarSkyVar
     blur: `${prefix}-blur`,
     softBlur: `${prefix}-soft-blur`,
     meteor: `${prefix}-meteor`,
-    aurora: `${prefix}-aurora`,
-    rays: `${prefix}-rays`,
     sun: `${prefix}-sun`,
+    daySun: `${prefix}-day-sun`,
   };
-  const showClouds = variant === "night" || variant === "meteor" || variant === "dawn";
+  // 四个变体都以底部云团收尾，下沿统一羽化进侧栏；白天只把云换成实心白云并去掉星点。
 
   return (
     <svg
@@ -165,26 +116,22 @@ export function SidebarNightSky({ variant = "night" }: { variant?: SidebarSkyVar
       <rect fill={`url(#${ids.glow})`} height="96" width="100%" />
 
       {variant === "dawn" ? <rect fill={`url(#${ids.sun})`} height="96" width="100%" /> : null}
-      {variant === "aurora" ? <AuroraLayer ids={ids} /> : null}
-
-      <StarField dim={variant === "dawn" || variant === "aurora"} />
+      {variant === "day" ? <DayLayer ids={ids} /> : <StarField dim={variant === "dawn"} />}
 
       {variant === "meteor" ? <MeteorLayer ids={ids} /> : null}
-      {variant === "constellation" ? <ConstellationLayer /> : null}
 
-      {showClouds ? (
-        <g filter={`url(#${ids.blur})`}>
-          {CLOUDS.map((cloud) => (
-            <path d={cloud.d} fill={`url(#${ids.cloud})`} fillOpacity={cloud.opacity} key={cloud.d} />
-          ))}
-        </g>
-      ) : null}
+      {/* 白天云朵轮廓更清楚（模糊更小），夜间保持柔光。 */}
+      <g className={variant === "day" ? "sidebar-sky-drift sidebar-sky-drift-clouds" : undefined} filter={`url(#${variant === "day" ? ids.softBlur : ids.blur})`}>
+        {CLOUDS.map((cloud) => (
+          <path d={cloud.d} fill={`url(#${ids.cloud})`} fillOpacity={cloud.opacity} key={cloud.d} />
+        ))}
+      </g>
     </svg>
   );
 }
 
 type SkyIds = Record<
-  "sky" | "glow" | "cloud" | "blur" | "softBlur" | "meteor" | "aurora" | "rays" | "sun",
+  "sky" | "glow" | "cloud" | "blur" | "softBlur" | "meteor" | "sun" | "daySun",
   string
 >;
 
@@ -237,40 +184,25 @@ function SkyDefs({ ids }: { ids: SkyIds }) {
         <stop offset="0" stopOpacity="1" style={{ stopColor: "var(--sidebar-sky-star)" }} />
         <stop offset="1" stopOpacity="0" style={{ stopColor: "var(--sidebar-sky-star)" }} />
       </linearGradient>
-      <linearGradient id={ids.aurora} x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0" stopOpacity="0" style={{ stopColor: "var(--sidebar-sky-aurora-a)" }} />
-        <stop offset="0.18" stopOpacity="0.9" style={{ stopColor: "var(--sidebar-sky-aurora-a)" }} />
-        <stop offset="0.6" stopOpacity="0.45" style={{ stopColor: "var(--sidebar-sky-aurora-b)" }} />
-        <stop offset="1" stopOpacity="0" style={{ stopColor: "var(--sidebar-sky-aurora-c)" }} />
-      </linearGradient>
-      {/* 极光的竖向光帘：不等宽、不等亮的竖条作为遮罩，让光带呈现垂落的丝缕感。 */}
-      <pattern height="96" id={`${ids.rays}-pattern`} patternUnits="userSpaceOnUse" width="124">
-        <rect fill="#fff" fillOpacity="0.35" height="96" width="124" />
-        <rect fill="#fff" fillOpacity="1" height="96" width="5" x="0" />
-        <rect fill="#fff" fillOpacity="0.6" height="96" width="2" x="7" />
-        <rect fill="#fff" fillOpacity="0.9" height="96" width="7" x="11" />
-        <rect fill="#fff" fillOpacity="0.5" height="96" width="3" x="21" />
-        <rect fill="#fff" fillOpacity="1" height="96" width="4" x="27" />
-        <rect fill="#fff" fillOpacity="0.75" height="96" width="9" x="35" />
-        <rect fill="#fff" fillOpacity="0.55" height="96" width="2" x="47" />
-        <rect fill="#fff" fillOpacity="1" height="96" width="5" x="52" />
-        <rect fill="#fff" fillOpacity="0.65" height="96" width="3" x="60" />
-        <rect fill="#fff" fillOpacity="0.85" height="96" width="8" x="66" />
-        <rect fill="#fff" fillOpacity="0.5" height="96" width="2" x="78" />
-        <rect fill="#fff" fillOpacity="1" height="96" width="6" x="83" />
-        <rect fill="#fff" fillOpacity="0.6" height="96" width="3" x="92" />
-        <rect fill="#fff" fillOpacity="0.8" height="96" width="10" x="98" />
-        <rect fill="#fff" fillOpacity="1" height="96" width="4" x="111" />
-        <rect fill="#fff" fillOpacity="0.5" height="96" width="2" x="118" />
-      </pattern>
-      <mask height="96" id={ids.rays} maskUnits="userSpaceOnUse" width="480" x="0" y="0">
-        <rect fill={`url(#${ids.rays}-pattern)`} height="96" width="480" />
-      </mask>
+      {/* 白天的太阳挂在右上角：暖白核心向外散成大片柔光，不画实心圆盘，避免与品牌字标抢视线。 */}
+      <radialGradient
+        id={ids.daySun}
+        cx="0"
+        cy="0"
+        gradientTransform="translate(430 4) scale(150 86)"
+        gradientUnits="userSpaceOnUse"
+        r="1"
+      >
+        <stop offset="0" stopOpacity="0.95" style={{ stopColor: "var(--sidebar-sky-sun)" }} />
+        <stop offset="0.18" stopOpacity="0.7" style={{ stopColor: "var(--sidebar-sky-sun)" }} />
+        <stop offset="0.55" stopOpacity="0.18" style={{ stopColor: "var(--sidebar-sky-sun)" }} />
+        <stop offset="1" stopOpacity="0" style={{ stopColor: "var(--sidebar-sky-sun)" }} />
+      </radialGradient>
       <filter id={ids.blur} filterUnits="userSpaceOnUse" height="140" width="540" x="-30" y="-20">
         <feGaussianBlur stdDeviation="4" />
       </filter>
       <filter id={ids.softBlur} filterUnits="userSpaceOnUse" height="160" width="560" x="-40" y="-30">
-        <feGaussianBlur stdDeviation="3.2" />
+        <feGaussianBlur stdDeviation="2.2" />
       </filter>
     </defs>
   );
@@ -310,50 +242,13 @@ function MeteorLayer({ ids }: { ids: SkyIds }) {
   );
 }
 
-function AuroraLayer({ ids }: { ids: SkyIds }) {
-  return (
-    // 先用光帘遮罩切出竖向丝缕，再整体模糊，丝缕边缘才是柔的。
-    <g filter={`url(#${ids.softBlur})`}>
-      <g mask={`url(#${ids.rays})`}>
-        {AURORA_BANDS.map((band) => (
-          <path className={band.className} d={band.d} fill={`url(#${ids.aurora})`} key={band.className} />
-        ))}
-      </g>
-    </g>
-  );
-}
-
-function ConstellationLayer() {
-  const point = (index: number) => CONSTELLATION_NODES[index] ?? CONSTELLATION_NODES[0];
+function DayLayer({ ids }: { ids: SkyIds }) {
   return (
     <g>
-      <g strokeLinecap="round" strokeOpacity="0.32" strokeWidth="0.5" style={{ stroke: "var(--sidebar-sky-star)" }}>
-        {CONSTELLATION_EDGES.map(([from, to]) => {
-          const [x1, y1] = point(from);
-          const [x2, y2] = point(to);
-          return <line key={`${from}-${to}`} x1={x1} x2={x2} y1={y1} y2={y2} />;
-        })}
-      </g>
-      <g fill="none" strokeLinecap="round" strokeWidth="0.9" style={{ stroke: "var(--sidebar-sky-signal)" }}>
-        {CONSTELLATION_SIGNALS.map((path, index) => (
-          <polyline
-            className="sidebar-sky-signal"
-            key={path.join("-")}
-            pathLength={100}
-            points={path.map((node) => point(node).slice(0, 2).join(",")).join(" ")}
-            style={{ animationDelay: `${index * -2.6}s` }}
-          />
-        ))}
-      </g>
-      <g style={{ fill: "var(--sidebar-sky-star)" }}>
-        {CONSTELLATION_NODES.map(([x, y, r], index) => (
-          <circle
-            className={PULSING_NODES.has(index) ? "sidebar-sky-node-pulse" : undefined}
-            cx={x}
-            cy={y}
-            key={`${x}-${y}`}
-            r={r}
-          />
+      <rect className="sidebar-sky-sun-breathe" fill={`url(#${ids.daySun})`} height="96" width="100%" />
+      <g filter={`url(#${ids.softBlur})`} style={{ fill: "var(--sidebar-sky-wisp)" }}>
+        {DAY_WISPS.map((wisp) => (
+          <path className={wisp.className} d={wisp.d} key={wisp.className} />
         ))}
       </g>
     </g>
