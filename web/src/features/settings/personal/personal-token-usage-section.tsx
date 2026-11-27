@@ -20,11 +20,7 @@ export function PersonalTokenUsageSection({ usage }: { usage: TokenUsageSummary 
     { label: t("settings.personal.cache_tokens"), value: usage ? usage.cache_creation_input_tokens + usage.cache_read_input_tokens : undefined },
     ...(usage?.quota_limit_tokens != null ? [{ label: t("settings.personal.quota_limit"), value: usage.quota_limit_tokens }] : []),
   ];
-  const detail = [
-    t("settings.personal.session_count", { count: presentation.sessionCount }),
-    t("settings.personal.message_count", { count: presentation.messageCount }),
-    t("settings.personal.updated_at", { value: presentation.updatedAt }),
-  ].join(" · ");
+  const detail = t("settings.personal.updated_at", { value: presentation.updatedAt });
 
   return <section className="space-y-4">
     <dl className={`${SETTINGS_CARD_CLASS_NAME} flex flex-wrap py-3`}>

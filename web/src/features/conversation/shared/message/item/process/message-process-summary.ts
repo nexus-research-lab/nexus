@@ -12,31 +12,13 @@ import { isInterruptedToolResult, isRejectedToolResult } from "../../tool-result
 
 const PROCESS_SUMMARY_DETAIL_LIMIT = 72;
 
-interface ProcessMetric {
-  kind: ProcessSummaryMetricKind;
-  matches: (block: ContentBlock) => boolean;
+// 折叠标题只计异常：思路/动作次数不帮助判断，最近动作已说明进展。
+function isProcessError(block: ContentBlock): boolean {
+  return block.type === "tool_result"
+    && (Boolean(block.is_error) || isRejectedToolResult(block))
+    && !isInterruptedToolResult(block)
+    && !isRecoverableToolResult(block);
 }
-
-const PROCESS_METRICS: ProcessMetric[] = [
-  { kind: "thinking", matches: (block) => block.type === "thinking" },
-  {
-    kind: "action",
-    matches: (block) => block.type === "tool_use"
-      && !isRecoverableToolUse(block),
-  },
-  {
-    kind: "error",
-    matches: (block) => block.type === "tool_result"
-      && (Boolean(block.is_error) || isRejectedToolResult(block))
-      && !isInterruptedToolResult(block)
-      && !isRecoverableToolResult(block),
-  },
-  {
-    kind: "guidance",
-    matches: (block) => block.type === "system_event"
-      && block.subtype === "guided_input",
-  },
-];
 
 const PROCESS_DETAIL_RESOLVERS: ReadonlyArray<
   (block: ContentBlock) => ProcessSummaryDetail | null
@@ -63,17 +45,6 @@ const PROCESS_DETAIL_RESOLVERS: ReadonlyArray<
     : null,
 ];
 
-export type ProcessSummaryMetricKind =
-  | "action"
-  | "error"
-  | "guidance"
-  | "thinking";
-
-export interface ProcessSummaryMetric {
-  count: number;
-  kind: ProcessSummaryMetricKind;
-}
-
 export type ProcessSummaryDetail =
   | { kind: "background_task" }
   | { kind: "text"; text: string }
@@ -82,9 +53,9 @@ export type ProcessSummaryDetail =
 export type ProcessSummaryProjection =
   | { kind: "waiting_permission" }
   | {
+      errorCount: number;
       kind: "details";
       latestDetail: ProcessSummaryDetail | null;
-      metrics: ProcessSummaryMetric[];
     };
 
 export function buildProcessSummary({
@@ -98,14 +69,10 @@ export function buildProcessSummary({
     return { kind: "waiting_permission" };
   }
 
-  const metrics = PROCESS_METRICS.flatMap(({ kind, matches }) => {
-    const count = processContent.filter(matches).length;
-    return count > 0 ? [{ count, kind }] : [];
-  });
   return {
+    errorCount: processContent.filter(isProcessError).length,
     kind: "details",
     latestDetail: latestProcessDetail(processContent),
-    metrics,
   };
 }
 

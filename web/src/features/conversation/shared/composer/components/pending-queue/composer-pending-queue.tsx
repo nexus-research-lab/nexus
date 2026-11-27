@@ -53,7 +53,6 @@ export function ComposerPendingQueue({
       defaultOpen
       density="compact"
       label={t(inputQueueItems.some(item => item.dispatch_paused) ? "composer.pending_queue_paused" : "composer.pending_queue")}
-      meta={<span className="tabular-nums">{inputQueueItems.length}</span>}
       onToggle={(event) => { if (!event.currentTarget.open) controller.actions.finishDrag(); }}
       summaryRole="caption"
       summaryTone="muted"

@@ -419,8 +419,6 @@ export const zhSettingsMessages = {
   "settings.personal.cache_tokens": "缓存 Token",
   "settings.personal.quota_limit": "额度上限",
   "settings.personal.quota_unset": "未设置",
-  "settings.personal.session_count": "覆盖 {count} 个会话",
-  "settings.personal.message_count": "计量 {count} 条消息",
   "settings.personal.updated_at": "更新时间：{value}",
   "settings.personal.password_title": "修改密码",
   "settings.personal.password_current": "当前密码",
