@@ -19,6 +19,18 @@ func (s *Service) listAndNormalize(ctx context.Context) ([]providerstore.Entity,
 	return items, nil
 }
 
+// modelsByProvider 用一次查询读取这批 Provider 的模型快照，列表与默认选择不再逐个 Provider 查询。
+func (s *Service) modelsByProvider(
+	ctx context.Context,
+	items []providerstore.Entity,
+) (map[string][]providerstore.ModelEntity, error) {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	return s.repository.ListModelsByProviderIDs(ctx, ids)
+}
+
 func (s *Service) listPrivateAndNormalize(ctx context.Context) ([]providerstore.Entity, error) {
 	items, err := s.repository.ListPrivate(ctx, ownerUserIDFromContext(ctx))
 	if err != nil {

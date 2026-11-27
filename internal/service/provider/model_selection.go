@@ -19,22 +19,30 @@ func (s *Service) defaultRuntimeSelectionForRuntime(ctx context.Context, runtime
 	if err != nil {
 		return nil, err
 	}
-	runtimeKind = normalizeRuntimeKind(runtimeKind)
+	modelsByProvider, err := s.modelsByProvider(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+	return defaultRuntimeTarget(items, modelsByProvider, normalizeRuntimeKind(runtimeKind)), nil
+}
+
+// defaultRuntimeTarget 按 Provider 顺序取第一个可运行的显式默认模型；runtimeKind 须已归一化。
+func defaultRuntimeTarget(
+	items []providerstore.Entity,
+	modelsByProvider map[string][]providerstore.ModelEntity,
+	runtimeKind string,
+) *providerModelTarget {
 	for _, item := range items {
 		if !providerHasCredentials(item) || !isAgentRuntimeProviderForRuntime(item, runtimeKind) {
 			continue
 		}
-		models, modelErr := s.repository.ListModelsByProviderID(ctx, item.ID)
-		if modelErr != nil {
-			return nil, modelErr
-		}
-		for _, model := range models {
+		for _, model := range modelsByProvider[item.ID] {
 			if model.Enabled && model.IsDefault && modelUsableForProviderKind(item, model, ProviderKindLLM) {
-				return &providerModelTarget{provider: item, model: model}, nil
+				return &providerModelTarget{provider: item, model: model}
 			}
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 func (s *Service) defaultImageSelection(ctx context.Context) (*providerModelTarget, error) {

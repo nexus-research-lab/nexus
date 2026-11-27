@@ -12,6 +12,26 @@ import (
 )
 
 func (r *Repository) ListModelsByProviderID(ctx context.Context, providerID string) ([]ModelEntity, error) {
+	models, err := r.ListModelsByProviderIDs(ctx, []string{providerID})
+	if err != nil {
+		return nil, err
+	}
+	return models[strings.TrimSpace(providerID)], nil
+}
+
+// ListModelsByProviderIDs 一次读取多个 Provider 的模型快照，组内顺序与单个读取一致。
+func (r *Repository) ListModelsByProviderIDs(ctx context.Context, providerIDs []string) (map[string][]ModelEntity, error) {
+	ids := uniqueNonEmptyStrings(providerIDs)
+	result := make(map[string][]ModelEntity, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	placeholders := make([]string, 0, len(ids))
+	args := make([]any, 0, len(ids))
+	for index, id := range ids {
+		placeholders = append(placeholders, r.bind(index+1))
+		args = append(args, id)
+	}
 	rows, err := r.db.QueryContext(ctx, `
 	SELECT
 	    id,
@@ -30,22 +50,21 @@ func (r *Repository) ListModelsByProviderID(ctx context.Context, providerID stri
 	    created_at,
 	    updated_at
 	FROM provider_models
-	WHERE provider_id = `+r.bind(1)+`
-		ORDER BY enabled DESC, is_default DESC, display_name ASC, model_id ASC`, strings.TrimSpace(providerID))
+	WHERE provider_id IN (`+strings.Join(placeholders, ", ")+`)
+	ORDER BY provider_id, enabled DESC, is_default DESC, display_name ASC, model_id ASC`, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	items := make([]ModelEntity, 0)
 	for rows.Next() {
 		item, scanErr := scanModelEntity(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
-		items = append(items, item)
+		result[item.ProviderID] = append(result[item.ProviderID], item)
 	}
-	return items, rows.Err()
+	return result, rows.Err()
 }
 
 func (r *Repository) GetModel(ctx context.Context, providerID string, modelID string) (*ModelEntity, error) {

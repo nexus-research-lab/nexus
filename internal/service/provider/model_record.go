@@ -17,12 +17,16 @@ func (s *Service) modelsForRecord(ctx context.Context, provider providerstore.En
 	if err != nil {
 		return nil, err
 	}
+	return projectModelRecords(provider, items), nil
+}
+
+func projectModelRecords(provider providerstore.Entity, items []providerstore.ModelEntity) []ModelRecord {
 	result := make([]ModelRecord, 0, len(items))
 	for _, item := range items {
 		record := projectModelRecord(provider, item)
 		result = append(result, record)
 	}
-	return result, nil
+	return result
 }
 
 func (s *Service) getModelByID(ctx context.Context, providerID string, modelID string) (*providerstore.ModelEntity, error) {

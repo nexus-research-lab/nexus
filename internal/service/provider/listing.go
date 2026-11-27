@@ -15,16 +15,17 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 	if err != nil {
 		return nil, err
 	}
+	modelsByProvider, err := s.modelsByProvider(ctx, items)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]Record, 0, len(items))
 	for _, item := range items {
 		usageCount := 0
 		if item.ProviderKind == ProviderKindLLM {
 			usageCount = len(usageAgents[item.Provider])
 		}
-		models, err := s.modelsForRecord(ctx, item)
-		if err != nil {
-			return nil, err
-		}
+		models := projectModelRecords(item, modelsByProvider[item.ID])
 		result = append(result, toRecord(ctx, item, usageCount, usageAgents[item.Provider], models))
 	}
 	return result, nil
@@ -80,6 +81,10 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 	if err != nil {
 		return nil, err
 	}
+	modelsByProvider, err := s.modelsByProvider(ctx, items)
+	if err != nil {
+		return nil, err
+	}
 	runtimeKind = normalizeRuntimeKind(runtimeKind)
 	result := &OptionsResponse{
 		Items:           make([]Option, 0, len(items)),
@@ -91,10 +96,7 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 		if !providerHasCredentials(item) {
 			continue
 		}
-		models, err := s.repository.ListModelsByProviderID(ctx, item.ID)
-		if err != nil {
-			return nil, err
-		}
+		models := modelsByProvider[item.ID]
 		llmModels := modelOptionsForKind(item, models, ProviderKindLLM)
 		option := Option{
 			Provider:    item.Provider,
@@ -141,17 +143,14 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 			})
 		}
 	}
-	if target, err := s.defaultRuntimeSelectionForRuntime(ctx, runtimeKind); err != nil {
-		return nil, err
-	} else if target != nil {
+	// 默认选择复用同一份快照，避免同一请求内再逐个 Provider 查询两遍。
+	if target := defaultRuntimeTarget(items, modelsByProvider, runtimeKind); target != nil {
 		selection := modelSelectionFromTarget(*target)
 		result.DefaultProvider = &selection.Provider
 		result.DefaultModel = &selection.Model
 		result.DefaultSelection = &selection
 	}
-	if target, err := s.defaultImageSelection(ctx); err != nil {
-		return nil, err
-	} else if target != nil {
+	if target := imageTarget(items, modelsByProvider, false); target != nil {
 		selection := modelSelectionFromTarget(*target)
 		result.DefaultImageProvider = &selection.Provider
 		result.DefaultImageModel = &selection.Model
@@ -186,6 +185,10 @@ func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
 	if err != nil {
 		return AvailabilityState{}, err
 	}
+	modelsByProvider, err := s.modelsByProvider(ctx, items)
+	if err != nil {
+		return AvailabilityState{}, err
+	}
 	state := AvailabilityState{}
 	for _, item := range items {
 		if item.ProviderKind != ProviderKindLLM {
@@ -196,11 +199,7 @@ func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
 			continue
 		}
 		state.EnabledList = append(state.EnabledList, item.Provider)
-		models, modelErr := s.repository.ListModelsByProviderID(ctx, item.ID)
-		if modelErr != nil {
-			return AvailabilityState{}, modelErr
-		}
-		for _, model := range models {
+		for _, model := range modelsByProvider[item.ID] {
 			if model.Enabled && model.IsDefault && modelUsableForProviderKind(item, model, ProviderKindLLM) {
 				state.HasDefault = true
 			}

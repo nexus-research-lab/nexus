@@ -14,7 +14,9 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
@@ -24,6 +26,11 @@ import (
 var platformSkillLibraryMu sync.Mutex
 
 const skillLibraryManifestName = ".nexus-skill-library-manifest"
+
+const skillLibraryStagingPrefix = ".skill-library-"
+
+// 发布进程中途被杀时 defer 来不及清理暂存目录；只回收足够旧的，避免删掉另一个进程正在写的暂存。
+const staleSkillLibraryStagingAge = time.Hour
 
 // EnsurePlatformSkillLibrary 将产品随附 Skill 同步到全局兼容根。
 func EnsurePlatformSkillLibrary() error {
@@ -38,6 +45,7 @@ func EnsurePlatformSkillLibrary() error {
 func ensureCompatibleSkillLibrary(sourceRoot string, targetRoot string) error {
 	platformSkillLibraryMu.Lock()
 	defer platformSkillLibraryMu.Unlock()
+	removeStaleSkillLibraryStaging(filepath.Clean(filepath.Dir(targetRoot)), time.Now())
 	if _, err := os.Stat(sourceRoot); os.IsNotExist(err) {
 		return clearCompatibleSkillLibrary(targetRoot)
 	} else if err != nil {
@@ -51,6 +59,29 @@ func ensureCompatibleSkillLibrary(sourceRoot string, targetRoot string) error {
 		return nil
 	}
 	return replaceCompatibleSkillLibrary(sourceRoot, targetRoot, fingerprint)
+}
+
+// removeStaleSkillLibraryStaging 尽力回收遗留暂存目录；失败只留下垃圾，不影响发布。
+func removeStaleSkillLibraryStaging(parentPath string, now time.Time) {
+	parentRoot, err := confinedfs.Open(parentPath)
+	if err != nil {
+		return
+	}
+	defer parentRoot.Close()
+	entries, err := fs.ReadDir(parentRoot.FS(), ".")
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), skillLibraryStagingPrefix) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || now.Sub(info.ModTime()) < staleSkillLibraryStagingAge {
+			continue
+		}
+		_ = parentRoot.RemoveAll(entry.Name())
+	}
 }
 
 // publishedSkillTreesMatch 校验已发布的真实目录内容；Claude 入口为符号链接时由 skillLibraryReady 校验指向。
@@ -298,7 +329,7 @@ func replaceCompatibleSkillLibrary(sourceRoot string, targetRoot string, fingerp
 		return err
 	}
 	defer parentFS.Close()
-	temporaryRelative, err := parentFS.MkdirTemp(".", ".skill-library-", 0o755)
+	temporaryRelative, err := parentFS.MkdirTemp(".", skillLibraryStagingPrefix, 0o755)
 	if err != nil {
 		return err
 	}
