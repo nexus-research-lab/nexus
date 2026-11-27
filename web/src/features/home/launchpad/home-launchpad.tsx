@@ -317,23 +317,26 @@ function HomeActiveRow({
       title={item.title}
       type="button"
     >
-      {item.kind === "room" ? (
-        <UiRoomAvatar
-          avatar={item.avatar}
-          isWorking={isWorking}
-          members={item.members}
-          roomId={item.roomId}
-          size="sm"
-          title={item.title}
-        />
-      ) : (
-        <UiAgentAvatar
-          avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
-          isWorking={isWorking}
-          name={item.members[0]?.name ?? item.title}
-          size="sm"
-        />
-      )}
+      {/* Room 头像 32px、Agent 头像 28px：放进同一宽度的槽里，让各行文字起点对齐。 */}
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center">
+        {item.kind === "room" ? (
+          <UiRoomAvatar
+            avatar={item.avatar}
+            isWorking={isWorking}
+            members={item.members}
+            roomId={item.roomId}
+            size="sm"
+            title={item.title}
+          />
+        ) : (
+          <UiAgentAvatar
+            avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
+            isWorking={isWorking}
+            name={item.members[0]?.name ?? item.title}
+            size="sm"
+          />
+        )}
+      </span>
       {/* 行内只留头像和最新一句：名称长短不一会把摘要挤得参差不齐，名称交给头像、读屏标签与悬停提示。 */}
       <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "supporting", tone: "default" }))}>
         {item.summary || item.title}
