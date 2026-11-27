@@ -13,6 +13,7 @@ import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/hea
 import { resolveSelectedDraftConversationId } from "@/features/navigation/conversation-tabs/room-conversation-tabs-model";
 import { closeRoomConversationRuntime, createRoomConversation } from "@/lib/api/conversation/room-command-api";
 import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
+import { advanceAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { resetRoomNavigationOwnerScope, setRoomNavigationOwnerScope, useRoomNavigationStore } from "@/store/room-navigation";
 import type { RoomContextAggregate } from "@/types/conversation/room";
@@ -43,6 +44,8 @@ afterAll(() => methods.forEach((name, index) => {
 
 const owner = "user-id:session-page-regression";
 beforeEach(() => {
+  // Room 上下文缓存按 owner 代次隔离；每个用例从新代次开始，避免 DM 用例的同 roomId 快照被 Group 用例复用。
+  advanceAuthOwnerScopeGeneration();
   vi.clearAllMocks();
   setRoomNavigationOwnerScope(null, () => false);
   setRoomNavigationOwnerScope(owner, () => true);

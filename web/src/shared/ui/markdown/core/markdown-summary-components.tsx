@@ -1,13 +1,12 @@
 /**
- * INPUT: 摘要样式选项与可选受控文件能力。
- * OUTPUT: 保留 Markdown 语义的内联摘要组件表，链接和图片保持静态文本。
+ * INPUT: 摘要样式选项。
+ * OUTPUT: 按选项缓存、身份恒定的内联摘要组件表，链接和图片保持静态文本。
  * POS: 共享 Markdown 摘要投影；不解释领域 URI 或资源身份。
  */
 "use client";
 
 import type { Components } from "react-markdown";
 
-import type { ResolveWorkspaceFilePath } from "../workspace/markdown-workspace-artifact-model";
 import { createMarkdownComponents } from "./markdown-components";
 
 interface CreateMarkdownSummaryComponentsOptions {
@@ -15,12 +14,26 @@ interface CreateMarkdownSummaryComponentsOptions {
   strongAsText?: boolean;
 }
 
+// 与正文组件表同理：表身份只由静态选项决定，避免摘要随父级重渲染整段重建。
+const MARKDOWN_SUMMARY_COMPONENTS_CACHE = new Map<string, Components>();
+
 export function createMarkdownSummaryComponents(
-  resolveFilePath: ResolveWorkspaceFilePath,
-  onOpenWorkspaceFile?: (path: string) => void,
   options: CreateMarkdownSummaryComponentsOptions = {},
 ): Components {
-  const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile);
+  const cacheKey = `${Boolean(options.monochrome)}:${Boolean(options.strongAsText)}`;
+  const cached = MARKDOWN_SUMMARY_COMPONENTS_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const components = buildMarkdownSummaryComponents(options);
+  MARKDOWN_SUMMARY_COMPONENTS_CACHE.set(cacheKey, components);
+  return components;
+}
+
+function buildMarkdownSummaryComponents(
+  options: CreateMarkdownSummaryComponentsOptions,
+): Components {
+  const baseComponents = createMarkdownComponents();
   const headingClassName = `inline ${options.strongAsText ? "font-normal" : "font-medium"} ${options.monochrome ? "text-inherit" : "text-foreground"}`;
 
   return {

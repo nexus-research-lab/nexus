@@ -6,10 +6,10 @@
 "use client";
 
 import { useMemo } from "react";
-import type { Components } from "react-markdown";
 
 import { cn } from "@/shared/ui/class-name";
 
+import { MarkdownCapabilitiesProvider } from "@/shared/ui/markdown/core/markdown-capabilities-context";
 import { createMarkdownComponents } from "@/shared/ui/markdown/core/markdown-components";
 import {
   MARKDOWN_BODY_CLASS_NAME,
@@ -33,6 +33,10 @@ import { FileArtifactBlock } from "./blocks/artifact/file/file-artifact-block";
 import type { AgentMention } from "@/types/conversation/message/entity";
 import type { AgentMentionDirectory } from "./agent-mention-chip";
 import { decorateLeadingSlashCommand } from "../slash-command-presentation";
+
+// 全部消息共用一张身份恒定的组件表；Agent 文件索引、打开命令和链接渲染槽经 Provider 下发，
+// 它们的身份变化只重渲染链接/图片/代码元素，不会卸载重建整段正文。
+const MESSAGE_MARKDOWN_COMPONENTS = createMarkdownComponents();
 
 interface MarkdownRendererProps {
   content: string;
@@ -73,13 +77,13 @@ export function MarkdownRenderer({
   );
   const displayedContent = smoothStreaming.content;
   const shouldRenderStreaming = smoothStreaming.isStreaming;
-  // 静态与流式区块共用一份组件表，区块收口不替换元素类型。
-  const components = useMemo(
-    () => createMarkdownComponents(
+  const capabilities = useMemo(
+    () => ({
+      getFilePreviewUrl,
+      onOpenWorkspaceFile: openFile,
+      renderLink,
       resolveFilePath,
-      openFile,
-      { getFilePreviewUrl, renderLink },
-    ),
+    }),
     [getFilePreviewUrl, openFile, renderLink, resolveFilePath],
   );
   const decoratedContent = useMemo(
@@ -101,24 +105,24 @@ export function MarkdownRenderer({
       )}
       data-markdown-streaming={shouldRenderStreaming || undefined}
     >
-      {contentSegments.map((segment, index) => (
-        <MessageMarkdownSegment
-          components={components}
-          key={`${segment.type}:${index}`}
-          onOpenWorkspaceFile={openFile}
-          renderLeadingSlashCommand={renderLeadingSlashCommand && index === 0}
-          resolveFilePath={resolveFilePath}
-          segment={segment}
-          shouldStream={shouldRenderStreaming}
-          workspaceAgentId={currentAgentId}
-        />
-      ))}
+      <MarkdownCapabilitiesProvider value={capabilities}>
+        {contentSegments.map((segment, index) => (
+          <MessageMarkdownSegment
+            key={`${segment.type}:${index}`}
+            onOpenWorkspaceFile={openFile}
+            renderLeadingSlashCommand={renderLeadingSlashCommand && index === 0}
+            resolveFilePath={resolveFilePath}
+            segment={segment}
+            shouldStream={shouldRenderStreaming}
+            workspaceAgentId={currentAgentId}
+          />
+        ))}
+      </MarkdownCapabilitiesProvider>
     </div>
   );
 }
 
 interface MessageMarkdownSegmentProps {
-	components: Components;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   resolveFilePath: ResolveWorkspaceFilePath;
   segment: MarkdownContentSegment;
@@ -128,7 +132,6 @@ interface MessageMarkdownSegmentProps {
 }
 
 function MessageMarkdownSegment({
-	components,
   onOpenWorkspaceFile,
   resolveFilePath,
   segment,
@@ -152,7 +155,6 @@ function MessageMarkdownSegment({
   }
   return (
     <MessageMarkdownText
-      components={components}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
       renderLeadingSlashCommand={renderLeadingSlashCommand}
       resolveFilePath={resolveFilePath}
@@ -163,13 +165,12 @@ function MessageMarkdownSegment({
 }
 
 function MessageMarkdownText({
-  components,
   onOpenWorkspaceFile,
   renderLeadingSlashCommand,
   resolveFilePath,
   shouldStream,
   text,
-}: Pick<MessageMarkdownSegmentProps, "components" | "onOpenWorkspaceFile" | "renderLeadingSlashCommand" | "resolveFilePath" | "shouldStream"> & { text: string }) {
+}: Pick<MessageMarkdownSegmentProps, "onOpenWorkspaceFile" | "renderLeadingSlashCommand" | "resolveFilePath" | "shouldStream"> & { text: string }) {
   // 全文规范化是多轮正则扫描；transport 每帧都会重渲染流式消息，只在展示正文变化时重算。
   const content = useMemo(
     () => normalizeMarkdownContent(
@@ -182,7 +183,7 @@ function MessageMarkdownText({
   );
   return (
     <MarkdownText
-      components={components}
+      components={MESSAGE_MARKDOWN_COMPONENTS}
       content={content}
       isStreaming={shouldStream}
       rehypePlugins={REHYPE_PLUGINS}

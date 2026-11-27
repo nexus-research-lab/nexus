@@ -24,6 +24,21 @@ describe("UiMarkdownContent controlled resources", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it("keeps rendered blocks mounted when only capability identities change", () => {
+    // 组件表身份若随能力闭包变化，react-markdown 会卸载重建整段正文；重建期间的高度塌陷
+    // 会让 WebKit 夹紧会话滚动位置，打开 Room 时出现跳动。
+    const content = "First paragraph\n\n- item";
+    const { rerender } = render(
+      <UiMarkdownContent content={content} onOpenWorkspaceFile={() => undefined} resolveFilePath={() => null} />,
+    );
+    const paragraph = screen.getByText("First paragraph");
+    const item = screen.getByText("item");
+
+    rerender(<I18nProvider><UiMarkdownContent content={content} onOpenWorkspaceFile={() => undefined} resolveFilePath={() => null} /></I18nProvider>);
+    expect(screen.getByText("First paragraph")).toBe(paragraph);
+    expect(screen.getByText("item")).toBe(item);
+  });
+
   it("keeps summary links and images inert even with file capabilities", () => {
     const openFile = vi.fn();
     render(<UiMarkdownContent content="[Read](report.md) ![Chart](chart.png)" onOpenWorkspaceFile={openFile} resolveFilePath={(path) => path} variant="summary" />);

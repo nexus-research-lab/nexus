@@ -12,7 +12,7 @@ import { MARKDOWN_PLUGINS, REHYPE_PLUGINS } from "../core/markdown-renderer-shar
 import { MarkdownText } from "./markdown-streaming";
 
 const props = {
-  components: createMarkdownComponents(() => null),
+  components: createMarkdownComponents(),
   rehypePlugins: REHYPE_PLUGINS,
   remarkPlugins: MARKDOWN_PLUGINS,
   urlTransform: (url: string) => url,

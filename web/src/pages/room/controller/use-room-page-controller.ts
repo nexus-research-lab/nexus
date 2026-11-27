@@ -79,6 +79,10 @@ export function useRoomPageController({
     room: model.room,
     status: {
       isHydrated: !data.isRoomLoading && model.conversation.isSelectionReady,
+      // 回访 Room 可先用缓存快照渲染，但根路由选择与改写必须等本次服务端读取确认，避免按旧目录落到错误会话。
+      isRouteReady: !data.isRoomLoading
+        && data.isRoomVerified
+        && model.conversation.isSelectionReady,
     },
     workspace,
   };
