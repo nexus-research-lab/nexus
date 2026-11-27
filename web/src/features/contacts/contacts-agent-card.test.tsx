@@ -1,4 +1,4 @@
-// INPUT: Agent 目录卡片的身份、元数据与详情/聊天/建群动作。
+// INPUT: Agent 目录卡片的身份、元数据与详情/聊天动作。
 // OUTPUT: 证明网格和列表复用共享视觉原语且动作边界互不串联。
 // POS: Contacts Agent 卡片 DOM 合同；不覆盖目录筛选或详情保存。
 
@@ -31,7 +31,6 @@ const AGENT: Agent = {
 
 function renderCard(view: "grid" | "list", agent: Agent = AGENT) {
   const actions = {
-    onCreateTeam: vi.fn(),
     onOpenProfile: vi.fn(),
     onOpenRoom: vi.fn(),
   };
@@ -55,19 +54,16 @@ describe("ContactsAgentCard", () => {
     expect(screen.getByText("contacts.metadata.provider").tagName).toBe("DT");
     expect(screen.getByText("Anthropic").tagName).toBe("DD");
     const chat = screen.getByRole("button", { name: "contacts.chat Researcher" });
-    const team = screen.getByRole("button", { name: "contacts.create_team Researcher" });
+    expect(screen.queryByRole("button", { name: "contacts.create_team Researcher" })).toBeNull();
     await user.click(chat);
-    act(() => team.focus());
-    await user.keyboard("{Enter}");
     expect(actions.onOpenRoom).toHaveBeenCalledOnce();
-    expect(actions.onCreateTeam).toHaveBeenCalledOnce();
     expect(actions.onOpenProfile).not.toHaveBeenCalled();
     act(() => open.focus());
     await user.keyboard("{Enter}");
     expect(actions.onOpenProfile).toHaveBeenCalledOnce();
     if (view === "grid") {
       expect(screen.getAllByRole("article")).toHaveLength(1);
-      expect(within(screen.getByRole("article")).getAllByRole("button")).toHaveLength(3);
+      expect(within(screen.getByRole("article")).getAllByRole("button")).toHaveLength(2);
     } else {
       await user.tab();
       expect(screen.getByRole("tooltip").textContent).toBe("contacts.chat");

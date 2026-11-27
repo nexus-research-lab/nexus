@@ -182,7 +182,6 @@ function ContactsPageContent({
           <ContactsDirectory
             agents={agents}
             onCreateAgent={actions.onCreateAgent}
-            onCreateTeam={actions.onCreateTeam}
             onOpenAgent={actions.onOpenAgent}
             onOpenDirectRoom={actions.onOpenDirectRoom}
           />

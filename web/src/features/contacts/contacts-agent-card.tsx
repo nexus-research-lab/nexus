@@ -1,11 +1,11 @@
 /**
- * INPUT: Agent 身份与打开详情、私聊、群聊的页面命令。
- * OUTPUT: 单一目录卡片与列表行；完整身份和元信息共享投影，主次动作独立；权限与 Provider 只在偏离默认时显示。
+ * INPUT: Agent 身份与打开详情、私聊的页面命令。
+ * OUTPUT: 单一目录卡片与列表行；完整身份和元信息共享投影，整卡打开详情、唯一次动作为聊天（发起群聊留在详情页）；权限与 Provider 只在偏离默认时显示。
  * POS: 联系人管理目录卡片；正文复用共享槽位的外部布局，默认层承担 Agent 选择所需的比较信息。
  */
 "use client";
 
-import { MessageCirclePlus, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 
 import { getInitialAgentOptions } from "@/config/runtime-options";
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
@@ -31,14 +31,12 @@ interface ContactsAgentCardProps {
   agent: Agent;
   onOpenProfile: () => void;
   onOpenRoom: () => void;
-  onCreateTeam: () => void;
   view: "grid" | "list";
 }
 
 interface ContactsAgentCardViewProps extends Omit<ContactsAgentCardProps, "view"> {
   businessTags: string[];
   chatLabel: string;
-  createTeamLabel: string;
   editLabel: string;
   /** 偏离新建 Agent 默认权限时的权限名；默认值不占卡片行。 */
   permissionMode: string | null;
@@ -50,7 +48,6 @@ export function ContactsAgentCard({
   agent,
   onOpenProfile,
   onOpenRoom,
-  onCreateTeam,
   view,
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
@@ -71,9 +68,7 @@ export function ContactsAgentCard({
     agent,
     businessTags,
     chatLabel: t("contacts.chat"),
-    createTeamLabel: t("contacts.create_team"),
     editLabel: t("common.edit"),
-    onCreateTeam,
     onOpenProfile,
     onOpenRoom,
     permissionMode: permissionMode ? t(permissionMode.labelKey) : null,
@@ -174,11 +169,10 @@ function ContactsAgentMetadata({ provider, permissionMode, className }:
   </dl>;
 }
 
-function ContactsAgentActions({ agent, chatLabel, createTeamLabel, onOpenRoom, onCreateTeam, compact = false }:
-  Pick<ContactsAgentCardViewProps, "agent" | "chatLabel" | "createTeamLabel" | "onOpenRoom" | "onCreateTeam"> & { compact?: boolean }) {
+function ContactsAgentActions({ agent, chatLabel, onOpenRoom, compact = false }:
+  Pick<ContactsAgentCardViewProps, "agent" | "chatLabel" | "onOpenRoom"> & { compact?: boolean }) {
   const actions = [
     { label: chatLabel, command: onOpenRoom, Icon: MessageCircle, tone: "default" as const },
-    { label: createTeamLabel, command: onCreateTeam, Icon: MessageCirclePlus, tone: "default" as const },
   ];
   return <div className={cn("flex flex-wrap items-center", compact ? "gap-1" : "gap-x-3 gap-y-1")}>
     {actions.map(({ label, command, Icon, tone }) => compact ? (
