@@ -91,11 +91,15 @@ export function HomeLaunchpad() {
   // 字标居中，下方内容统一以输入壳左边缘为基线左对齐；不重复侧栏的会话列表与导航入口。
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-8 px-4 pb-12">
-      <HomeLaunchComposer composerRef={composerRef} controller={controller} previewPrompt={previewPrompt} />
-      {controller.showSamples || controller.activeItems.length > 0 ? (
-        <div className={cn("flex flex-col gap-8", CONTENT_INSET_CLASS)}>
-          {controller.showSamples ? <HomePromptPicker onPick={fillSample} onPreview={setPreviewPrompt} /> : null}
-          {controller.activeItems.length > 0 ? <HomeActiveSection controller={controller} /> : null}
+      <HomeLaunchComposer
+        composerRef={composerRef}
+        controller={controller}
+        previewPrompt={previewPrompt}
+        prompts={controller.showSamples ? <HomePromptPicker onPick={fillSample} onPreview={setPreviewPrompt} /> : null}
+      />
+      {controller.activeItems.length > 0 ? (
+        <div className={CONTENT_INSET_CLASS}>
+          <HomeActiveSection controller={controller} />
         </div>
       ) : null}
     </div>
@@ -106,10 +110,13 @@ function HomeLaunchComposer({
   composerRef,
   controller,
   previewPrompt,
+  prompts,
 }: {
   composerRef: React.RefObject<HTMLDivElement | null>;
   controller: HomeLaunchController;
   previewPrompt: string | null;
+  /** 提示词选择器紧跟输入框，排在「接下来」定时任务条之前。 */
+  prompts: React.ReactNode;
 }) {
   const { t } = useI18n();
 
@@ -145,6 +152,7 @@ function HomeLaunchComposer({
           tourAnchor=""
         />
       </div>
+      {prompts ? <div className={cn("pt-5 pb-2", CONTENT_INSET_CLASS)}>{prompts}</div> : null}
       {controller.submitError || controller.upcomingTasks.length > 0 ? (
         <div className={cn("flex flex-col gap-2", CONTENT_INSET_CLASS)}>
           {controller.submitError ? (
