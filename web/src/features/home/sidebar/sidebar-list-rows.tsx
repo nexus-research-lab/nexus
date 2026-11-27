@@ -11,12 +11,13 @@ import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
-import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
+import { UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { LauncherAgentSummary } from "@/types/app/launcher";
 
+import { ConversationStatusDot } from "./conversation-status-dot";
 import type { SidebarConversationItem } from "./sidebar-conversation-model";
 
 export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
@@ -53,6 +54,22 @@ interface ConversationRowProps {
 }
 
 function ConversationRowLeading({
+  isActive,
+  item,
+}: {
+  isActive: boolean;
+  item: SidebarConversationItem;
+}) {
+  // 状态色点压在头像右上角，摘要行尾只留未读计数。
+  return (
+    <span className="relative inline-flex shrink-0">
+      <ConversationRowAvatar isActive={isActive} item={item} />
+      <ConversationStatusDot status={item.activityStatus} />
+    </span>
+  );
+}
+
+function ConversationRowAvatar({
   isActive,
   item,
 }: {
@@ -125,29 +142,6 @@ function ConversationRowMeta({
   );
 }
 
-function ConversationRowStatus({
-  activityStatus,
-  unreadCount,
-}: {
-  activityStatus: SidebarConversationItem["activityStatus"];
-  unreadCount: number;
-}) {
-  const { t } = useI18n();
-  const presentation = activityStatus
-    ? ACTIVITY_PRESENTATION[activityStatus]
-    : null;
-  return (
-    <>
-      {presentation ? (
-        <UiBadge size="xs" tone={presentation.tone}>
-          {t(presentation.labelKey)}
-        </UiBadge>
-      ) : null}
-      <UiCounterBadge count={unreadCount} />
-    </>
-  );
-}
-
 function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
   const { t } = useI18n();
   return (
@@ -191,27 +185,13 @@ export function ConversationRow({
       onClick={onClick}
       subtitleTrailing={(
         <span className="flex shrink-0 items-center gap-2">
-          <ConversationRowStatus
-            activityStatus={item.activityStatus}
-            unreadCount={item.unreadCount ?? 0}
-          />
+          <UiCounterBadge count={item.unreadCount ?? 0} />
         </span>
       )}
       title={item.title}
     />
   );
 }
-
-const ACTIVITY_PRESENTATION = {
-  waiting: {
-    labelKey: "status.needs_response",
-    tone: "primary",
-  },
-  working: {
-    labelKey: "status.working",
-    tone: "running",
-  },
-} as const;
 
 export function ContactRow({
   agent,

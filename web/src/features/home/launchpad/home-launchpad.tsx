@@ -23,12 +23,12 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
-import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { InputQueueItem } from "@/types/agent/agent-conversation";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { CommandCatalogData } from "@/types/generated/protocol";
 
+import { ConversationStatusDot } from "../sidebar/conversation-status-dot";
 import type { SidebarConversationItem } from "../sidebar/sidebar-conversation-model";
 import {
   HOME_LAUNCH_CATEGORIES,
@@ -91,11 +91,15 @@ export function HomeLaunchpad() {
   // 字标居中，下方内容统一以输入壳左边缘为基线左对齐；不重复侧栏的会话列表与导航入口。
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-8 px-4 pb-12">
-      <HomeLaunchComposer composerRef={composerRef} controller={controller} previewPrompt={previewPrompt} />
-      {controller.showSamples || controller.activeItems.length > 0 ? (
-        <div className={cn("flex flex-col gap-8", CONTENT_INSET_CLASS)}>
-          {controller.showSamples ? <HomePromptPicker onPick={fillSample} onPreview={setPreviewPrompt} /> : null}
-          {controller.activeItems.length > 0 ? <HomeActiveSection controller={controller} /> : null}
+      <HomeLaunchComposer
+        composerRef={composerRef}
+        controller={controller}
+        previewPrompt={previewPrompt}
+        prompts={controller.showSamples ? <HomePromptPicker onPick={fillSample} onPreview={setPreviewPrompt} /> : null}
+      />
+      {controller.activeItems.length > 0 ? (
+        <div className={CONTENT_INSET_CLASS}>
+          <HomeActiveSection controller={controller} />
         </div>
       ) : null}
     </div>
@@ -106,10 +110,13 @@ function HomeLaunchComposer({
   composerRef,
   controller,
   previewPrompt,
+  prompts,
 }: {
   composerRef: React.RefObject<HTMLDivElement | null>;
   controller: HomeLaunchController;
   previewPrompt: string | null;
+  /** 提示词选择器紧跟输入框，排在「接下来」定时任务条之前。 */
+  prompts: React.ReactNode;
 }) {
   const { t } = useI18n();
 
@@ -145,6 +152,7 @@ function HomeLaunchComposer({
           tourAnchor=""
         />
       </div>
+      {prompts ? <div className={cn("pt-5 pb-2", CONTENT_INSET_CLASS)}>{prompts}</div> : null}
       {controller.submitError || controller.upcomingTasks.length > 0 ? (
         <div className={cn("flex flex-col gap-2", CONTENT_INSET_CLASS)}>
           {controller.submitError ? (
@@ -301,40 +309,40 @@ function HomeActiveRow({
 }) {
   const { t } = useI18n();
   const isWorking = item.activityStatus === "working";
+  const statusLabel = t(isWorking ? "home.launch.status_working" : "home.launch.status_waiting");
   return (
     <button
+      aria-label={`${item.title} · ${statusLabel}`}
       className="home-launch-row radius-control-md flex items-center gap-3 px-3 py-2 text-left"
       onClick={() => onOpen(item)}
+      title={item.title}
       type="button"
     >
-      {item.kind === "room" ? (
-        <UiRoomAvatar
-          avatar={item.avatar}
-          isWorking={isWorking}
-          members={item.members}
-          roomId={item.roomId}
-          size="sm"
-          title={item.title}
-        />
-      ) : (
-        <UiAgentAvatar
-          avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
-          isWorking={isWorking}
-          name={item.members[0]?.name ?? item.title}
-          size="sm"
-        />
-      )}
-      <span className={cn("max-w-[45%] shrink-0 truncate", getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }))}>
-        {item.title}
+      {/* Room 头像 32px、Agent 头像 28px：放进同一宽度的槽里，让各行文字起点对齐。 */}
+      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+        {item.kind === "room" ? (
+          <UiRoomAvatar
+            avatar={item.avatar}
+            isWorking={isWorking}
+            members={item.members}
+            roomId={item.roomId}
+            size="sm"
+            title={item.title}
+          />
+        ) : (
+          <UiAgentAvatar
+            avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
+            isWorking={isWorking}
+            name={item.members[0]?.name ?? item.title}
+            size="sm"
+          />
+        )}
+        <ConversationStatusDot status={item.activityStatus} />
       </span>
-      <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
-        {item.summary}
+      {/* 行内只留头像和最新一句：名称长短不一会把摘要挤得参差不齐，名称交给头像、读屏标签与悬停提示。 */}
+      <span className={cn("min-w-0 flex-1 truncate", getUiTypographyClassName({ role: "supporting", tone: "default" }))}>
+        {item.summary || item.title}
       </span>
-      {item.activityStatus === "waiting" ? (
-        <UiBadge shape="pill" size="xs" tone="primary">{t("home.launch.status_waiting")}</UiBadge>
-      ) : (
-        <UiBadge shape="pill" size="xs" tone="running">{t("home.launch.status_working")}</UiBadge>
-      )}
     </button>
   );
 }
