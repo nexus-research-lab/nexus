@@ -1,5 +1,5 @@
 // INPUT: Channel entry and configuration callback.
-// OUTPUT: Documentation destination, configuration action and catalog-projected card text.
+// OUTPUT: Configuration action and catalog-projected card text; docs live in the connect dialog guide.
 // POS: Channel card interaction test.
 
 import { render, screen } from "@testing-library/react";
@@ -40,7 +40,7 @@ const CHANNEL: ChannelConfigView = {
 };
 
 describe("ChannelCard", () => {
-  it("opens documentation and dispatches configuration", async () => {
+  it("dispatches configuration without a separate docs link", async () => {
     const user = userEvent.setup();
     const onConfigure = vi.fn();
     const { container } = render(
@@ -52,14 +52,17 @@ describe("ChannelCard", () => {
     expect(screen.getByText("capability.channel_card_stat_groups 1")).toBeTruthy();
     expect(container.textContent).not.toMatch(/\p{Script=Han}/u);
 
-    const docs = screen.getByRole("link", {
-      name: "capability.channel_docs_action",
-    });
-    expect(docs.getAttribute("href")).toBe(CHANNEL.docs_url);
+    expect(screen.queryByRole("link")).toBeNull();
 
     await user.click(screen.getByRole("button", {
       name: "capability.channel_configure_action",
     }));
     expect(onConfigure).toHaveBeenCalledOnce();
+  });
+
+  it("omits the agent line for an unconfigured channel", () => {
+    render(<ChannelCard item={{ ...CHANNEL, agent_id: undefined, agent_name: undefined, configured: false }} onConfigure={vi.fn()} />);
+    expect(screen.queryByText("capability.channel_card_agent")).toBeNull();
+    expect(screen.queryByText("capability.channel_card_agent_bound")).toBeNull();
   });
 });

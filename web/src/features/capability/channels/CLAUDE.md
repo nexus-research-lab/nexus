@@ -1,11 +1,11 @@
 # Channels
 
 - 根目录只保留频道与配对页面入口、共享图标和跨域频道模型。
-- `catalog/` 负责频道排序、筛选、目录请求和卡片展示。
+- `catalog/` 负责频道排序、搜索、目录请求和卡片展示。
 - `connection/` 负责频道配置、账号删除与扫码登录状态机。
 - `pairings/` 负责 IM 配对筛选、分组、命令和编辑视图。
 - 频道目录条目使用能力域共享的可见边框，保留平台用途、状态和使用事实，不展示 API/长连接实现；配对条目复用 `ChannelIcon` 作为频道身份，不再出现无图标内容行。
-- 频道目录的页头、加载/失败/空态和文本层级分别服从 `CapabilityPageLayout`、`UiResourceState` / `UiStateBlock` 与共享 Typography；不得再增加目录私有 spinner、字号或标题栏。
+- 频道目录的页头、加载/失败/空态和文本层级分别服从 `CapabilityPageLayout`、`UiResourceState` / `UiStateBlock` 与共享 Typography；页头不放常驻刷新，重新读取只作为失败恢复动作；不得再增加目录私有 spinner、字号或标题栏。
 - 配对目录的状态切换必须复用跨领域 `UiDirectoryTabs` 的中性底线，不得恢复撑满胶囊筛选；首次空态和筛选无结果都必须投影到 `UiResourceState`，业务层只决定图标、文案和动作资格，不得手写另一套居中标题、说明和按钮几何。
 - API 字段直接使用后端协议命名，不在视图层维护兼容别名。
 - 所有写命令通过 ref 互斥入口执行；列表请求使用请求号拒绝过期响应。

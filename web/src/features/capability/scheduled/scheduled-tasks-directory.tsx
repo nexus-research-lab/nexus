@@ -6,7 +6,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
@@ -15,7 +15,6 @@ import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   completeFeedbackBanner,
   type FeedbackBannerProps,
@@ -434,18 +433,7 @@ export function ScheduledTasksDirectory() {
         <CapabilityPageLayout
           actions={(
             <div className="flex items-center gap-2">
-              <UiButton
-                disabled={resource.isLoading}
-                onClick={refreshTasks}
-                size="2xs"
-                variant="text"
-              >
-                <RefreshCw className={resource.isLoading
-                  ? getUiSpinnerClassName({ size: "sm" })
-                  : "h-3.5 w-3.5"}
-                />
-                {t("capability.refresh")}
-              </UiButton>
+              {/* 列表由实时事件驱动刷新；手动刷新只在读取失败时作为恢复动作出现。 */}
               <UiButton
                 disabled={editorBusy || scopeUnavailable
                   || accessBlocked
@@ -475,11 +463,6 @@ export function ScheduledTasksDirectory() {
             isLoading={resource.isLoading}
             isPermissionLoading={resource.isPermissionLoading}
             items={resource.items}
-            onCreate={() => {
-              if (!scopeUnavailable && !accessBlockedRef.current) {
-                openEditor({ kind: "create", preset: null });
-              }
-            }}
             onCreateFromPreset={(preset) => {
               if (!scopeUnavailable && !accessBlockedRef.current) {
                 openEditor({ kind: "create", preset });

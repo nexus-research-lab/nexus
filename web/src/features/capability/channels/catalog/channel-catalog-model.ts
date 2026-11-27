@@ -8,29 +8,11 @@ import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import { isChannelPlanned } from "../channel-model";
 
-export type ChannelFilter =
-  | "all"
-  | "configured"
-  | "connected"
-  | "planned"
-  | "unconfigured";
-
-export const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{
-  labelKey: TranslationKey;
-  value: ChannelFilter;
-}> = [
-  { value: "all", labelKey: "capability.channels_filter_all" },
-  { value: "connected", labelKey: "capability.channels_filter_connected" },
-  { value: "configured", labelKey: "capability.channels_filter_configured" },
-  { value: "unconfigured", labelKey: "capability.channels_filter_unconfigured" },
-  { value: "planned", labelKey: "capability.channels_filter_planned" },
-];
-
 type ChannelCardStatKind = "group" | "pending" | "user";
 
 export interface ChannelCardModel {
   action:
-    | { kind: "configure"; docsUrl: string }
+    | { kind: "configure" }
     | { kind: "planned" };
   badges: ReadonlyArray<{
     labelKey: TranslationKey;
@@ -59,24 +41,10 @@ const CHANNEL_ORDER: ImChannelType[] = [
   "discord",
 ];
 
-const CHANNEL_FILTERS: Record<
-  ChannelFilter,
-  (item: ChannelConfigView) => boolean
-> = {
-  all: () => true,
-  configured: (item) => item.configured && !isChannelPlanned(item),
-  connected: (item) => item.connection_state === "connected",
-  planned: isChannelPlanned,
-  unconfigured: (item) => !item.configured && !isChannelPlanned(item),
-};
-
 function getChannelAgentLabel(
   item: ChannelConfigView,
   t: I18nContextValue["t"],
 ): string {
-  if (!item.configured) {
-    return t("capability.channel_card_agent_unbound");
-  }
   return item.agent_name
     ? t("capability.channel_card_agent", { agent: item.agent_name })
     : t("capability.channel_card_agent_bound");
@@ -88,7 +56,8 @@ export function buildChannelCardModel(
 ): ChannelCardModel {
   const planned = isChannelPlanned(item);
   const metadata = [
-    { visible: true, value: getChannelAgentLabel(item, t) },
+    // 未接入的频道不写“未绑定”，说明行已经提示如何开始配置。
+    { visible: item.configured, value: getChannelAgentLabel(item, t) },
     {
       visible: !item.supports_group,
       value: t("capability.channel_card_direct_only"),
@@ -124,7 +93,7 @@ export function buildChannelCardModel(
   return {
     action: planned
       ? { kind: "planned" }
-      : { kind: "configure", docsUrl: item.docs_url ?? "" },
+      : { kind: "configure" },
     badges: [
       ...(item.connection_state === "error" || Boolean(item.last_error)
         ? [{
@@ -149,7 +118,6 @@ export function buildChannelCardModel(
 
 export function filterChannels(
   channels: ChannelConfigView[],
-  filter: ChannelFilter,
   searchQuery: string,
 ): ChannelConfigView[] {
   const search = createUiSearchMatcher(searchQuery);
@@ -160,7 +128,7 @@ export function filterChannels(
       item.bot_label,
       item.channel_type,
       item.agent_name,
-    ]) && CHANNEL_FILTERS[filter](item));
+    ]));
 }
 
 function channelOrder(item: ChannelConfigView): number {

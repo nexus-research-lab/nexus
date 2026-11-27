@@ -1,5 +1,5 @@
 // INPUT: 当前 Channel 类型及其真实平台配置步骤。
-// OUTPUT: 默认收起、按需展开的接入说明，不占据连接表单的首屏。
+// OUTPUT: 默认收起、按需展开的接入说明与平台接入文档链接，不占据连接表单的首屏。
 // POS: Channel 平台准备步骤的单一文案源，操作说明保留但不作为弹窗视觉主角。
 import { Fragment } from "react";
 
@@ -110,6 +110,19 @@ export function ChannelGuide({
           </li>
         ))}
       </ol>
+      {item.docs_url ? (
+        <a
+          className={cn(
+            "mt-3 inline-block font-semibold text-(--primary) hover:underline focus-visible:underline",
+            getUiTypographyClassName({ role: "supporting" }),
+          )}
+          href={item.docs_url}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {t("capability.channel_docs_action")}
+        </a>
+      ) : null}
       {runtimeNote ? (
         <div className={cn(
           "mt-3 border-t border-(--divider-subtle-color) pt-3",

@@ -44,8 +44,8 @@ export function ProductControlsGallery() {
         onQueryChange={setQuery} searchQuery={query} />
     </div>
     <div data-gallery-filter="status">
-      <UiFilterSelect ariaLabel={t("capability.channels_filter_aria")}
-        onChange={setStatus} options={[{ label: t("capability.channels_filter_all"), value: "all" },
+      <UiFilterSelect ariaLabel={t("contacts.filters.tags")}
+        onChange={setStatus} options={[{ label: t("contacts.filters.all_tags"), value: "all" },
           { label: galleryText(locale, "已连接", "Connected"), value: "connected" }]} value={status} />
     </div>
     <div data-gallery-custom-mcp data-save-count={mcpSaveCount}>

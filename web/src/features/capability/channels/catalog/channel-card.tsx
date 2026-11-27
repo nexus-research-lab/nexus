@@ -5,13 +5,11 @@
  */
 import {
   Clock3,
-  ExternalLink,
   Settings2,
 } from "lucide-react";
 
 import { CAPABILITY_DIRECTORY_ROW_CLASS_NAME } from "@/features/capability/shared/capability-page-layout";
 import { ChannelConfigView } from "@/lib/api/capability/channel-api";
-import { UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -43,21 +41,6 @@ function ChannelCardActions({
 
   return (
     <div className="flex shrink-0 items-center gap-1">
-      {action.docsUrl ? (
-        <UiLinkButton
-          aria-label={t("capability.channel_docs_action")}
-          className="h-7 w-7 p-0"
-          href={action.docsUrl}
-          onClick={(event) => event.stopPropagation()}
-          rel="noopener noreferrer"
-          size="xs"
-          target="_blank"
-          title={t("capability.channel_docs_action")}
-          variant="text"
-        >
-          <ExternalLink className="h-3 w-3" />
-        </UiLinkButton>
-      ) : null}
       <UiListActionButton
         aria-label={t("capability.channel_configure_action")}
         onClick={onConfigure}
